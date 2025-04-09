@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
-import { Manrope } from "next/font/google";
+import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
-const manrope = Manrope({ 
-  subsets: ["latin"],
-  display: 'swap',
-  variable: '--font-manrope',
-});
+const inter = Inter({ subsets: ["latin"] });
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Beskyttelsesrum",
-  description: "Find beskyttelsesrum i dit område",
+  title: "Find Beskyttelsesrum",
+  description: "Find det nærmeste beskyttelsesrum i dit område",
 };
 
 export default function RootLayout({
@@ -19,8 +16,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="da" className="dark">
-      <body className={`${manrope.variable} font-sans bg-[#111111] text-white`}>
+    <html lang="da">
+      <body className={`${inter.className} antialiased`}>
         {children}
       </body>
     </html>

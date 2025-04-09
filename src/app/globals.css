@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --background: #111111;
@@ -10,6 +13,8 @@
   --text-tertiary: #9CA3AF;
   --container-bg: rgba(26, 26, 26, 0.5);
   --container-border: rgba(255, 255, 255, 0.05);
+  --font-space-grotesk: 'Space Grotesk', sans-serif;
+  --font-inter: 'Inter', sans-serif;
 }
 
 @theme inline {
@@ -32,7 +37,15 @@
 }
 
 body {
-  background: var(--background);
+  background: 
+    radial-gradient(circle at 50% 50%, rgba(249, 115, 22, 0.03) 0%, transparent 50%),
+    linear-gradient(to bottom, rgba(17, 17, 17, 0.8), rgba(17, 17, 17, 1)),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M0 0h100v100H0z' fill='none'/%3E%3Cpath d='M20 20h60v60H20z' stroke='rgba(249,115,22,0.05)' stroke-width='0.5' fill='none'/%3E%3Cpath d='M10 10h80v80H10z' stroke='rgba(249,115,22,0.05)' stroke-width='0.5' fill='none'/%3E%3C/svg%3E");
+  background-attachment: fixed;
+  background-size: cover, cover, 200px 200px, 100px 100px;
+  background-blend-mode: normal, normal, overlay, overlay;
+  animation: backgroundFadeIn 1.5s ease-out forwards;
   color: var(--text-primary);
   font-family: var(--font-sans);
   position: relative;
@@ -58,6 +71,15 @@ body::before {
   z-index: -1;
 }
 
+@keyframes backgroundFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -69,24 +91,39 @@ body::before {
   }
 }
 
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.5s ease-out forwards;
 }
 
-@keyframes float {
-  0% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-  100% {
-    transform: translateY(0px);
-  }
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out forwards;
 }
 
-.animate-float {
-  animation: float 3s ease-in-out infinite;
+.animate-pulse-once {
+  animation: pulse 1s ease-in-out;
 }
 
 .glass-effect {
@@ -94,11 +131,13 @@ body::before {
   backdrop-filter: blur(10px);
   border: 1px solid var(--container-border);
   transition: all 0.3s ease;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 .glass-effect:hover {
   border-color: rgba(249, 115, 22, 0.1);
   box-shadow: 0 0 20px rgba(249, 115, 22, 0.05);
+  transform: translateY(-2px);
 }
 
 .input-focus {
@@ -125,6 +164,24 @@ body::before {
   border: none;
   color: var(--text-primary);
   font-weight: 500;
+  position: relative;
+  overflow: hidden;
+}
+
+.button-hover::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.button-hover:hover::before {
+  transform: translateX(100%);
 }
 
 .button-hover:hover {
@@ -165,6 +222,23 @@ body::before {
 
 .icon-container {
   transition: all 0.3s ease;
+  position: relative;
+}
+
+.icon-container::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(249, 115, 22, 0.1) 0%, transparent 70%);
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.3s ease;
+}
+
+.icon-container:hover::after {
+  transform: translate(-50%, -50%) scale(1.5);
 }
 
 .icon-container:hover {
@@ -180,9 +254,24 @@ body::before {
   font-size: 0.8rem;
   line-height: 1.5;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+.footer:hover {
+  opacity: 0.8;
 }
 
 .footer p {
   max-width: 600px;
   margin: 0 auto;
+}
+
+.font-space-grotesk {
+  font-family: var(--font-space-grotesk);
+  letter-spacing: -0.02em;
+}
+
+.font-inter {
+  font-family: var(--font-inter);
 }
