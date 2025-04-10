@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -19,6 +20,7 @@ export default function RootLayout({
     <html lang="da">
       <body className={`${inter.className} ${spaceGrotesk.className} antialiased`}>
         {children}
+        <Analytics />
       </body>
     </html>
   );
