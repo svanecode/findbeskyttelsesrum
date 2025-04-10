@@ -1,34 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import type { Map as LeafletMap, LatLngExpression, Icon } from 'leaflet'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { supabase } from '@/lib/supabase'
 import { Shelter } from '@/types/shelter'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import GlobalFooter from '@/components/GlobalFooter'
 import { Kommunekode } from '@/types/kommunekode'
 import { Anvendelseskode } from '@/types/anvendelseskode'
-
-const MapContainer = dynamic(
-  () => import('react-leaflet').then((mod) => mod.MapContainer),
-  { ssr: false }
-)
-const TileLayer = dynamic(
-  () => import('react-leaflet').then((mod) => mod.TileLayer),
-  { ssr: false }
-)
-const Marker = dynamic(
-  () => import('react-leaflet').then((mod) => mod.Marker),
-  { ssr: false }
-)
-const Popup = dynamic(
-  () => import('react-leaflet').then((mod) => mod.Popup),
-  { ssr: false }
-)
 
 interface ShelterWithDistance extends Shelter {
   distance: number
@@ -50,11 +34,10 @@ async function getNearbyShelters(lat: number, lng: number) {
     return []
   }
 
-  // The PostGIS function returns shelters with distance in meters
   const nearbyShelters = data
     .map((shelter: ShelterWithDistance) => ({
       ...shelter,
-      distance: (shelter.distance || 0) / 1000 // Convert to kilometers, default to 0 if undefined
+      distance: (shelter.distance || 0) / 1000
     }))
     
   return nearbyShelters
@@ -72,35 +55,44 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   const [map, setMap] = useState<LeafletMap | null>(null)
   const [selectedShelter, setSelectedShelter] = useState<string | null>(null)
   const [hoveredShelter, setHoveredShelter] = useState<string | null>(null)
+  const shelterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const [youAreHereIcon, setYouAreHereIcon] = useState<Icon | null>(null)
   const [shelterIcon, setShelterIcon] = useState<Icon | null>(null)
+  const [hoveredShelterIcon, setHoveredShelterIcon] = useState<Icon | null>(null)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
 
-  // Fix for Leaflet marker icons in Next.js
+  // Load Leaflet and create Icons
   useEffect(() => {
-    // Using dynamic import instead of require
-    import('leaflet').then((L) => {
-      // Create custom "You are here" icon (blue)
-      setYouAreHereIcon(new L.Icon({
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      }))
+    // Create custom "You are here" icon (blue)
+    setYouAreHereIcon(new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    }))
 
-      // Create shelter icon (red)
-      setShelterIcon(new L.Icon({
-        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      }))
-    })
+    // Create shelter icon (red)
+    setShelterIcon(new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    }))
+
+    // Create hovered shelter icon (orange)
+    setHoveredShelterIcon(new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    }))
   }, [])
 
   // Update map bounds when shelters change
@@ -113,13 +105,15 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           shelter.location!.coordinates[0]
         ] as [number, number])
       
-      // Add current location to bounds
       bounds.push([lat, lng] as [number, number])
       
-      map.fitBounds(bounds, {
-        padding: [50, 50], // Add some padding around the bounds
-        maxZoom: 15 // Don't zoom in too close
-      })
+      const boundsOptions = {
+        padding: [50, 50] as [number, number],
+        maxZoom: 15,
+        animate: true
+      }
+      
+      map.fitBounds(bounds, boundsOptions)
     }
   }, [map, shelters, lat, lng])
 
@@ -132,6 +126,16 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
       }
     }
   }, [map, selectedShelter, shelters])
+
+  // Scroll to shelter card when selected
+  useEffect(() => {
+    if (selectedShelter && shelterRefs.current[selectedShelter]) {
+      shelterRefs.current[selectedShelter]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      })
+    }
+  }, [selectedShelter])
 
   useEffect(() => {
     async function loadData() {
@@ -192,6 +196,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
               shelters.map((shelter) => (
                 <div
                   key={shelter.id}
+                  ref={el => { shelterRefs.current[shelter.id] = el }}
                   className={`group bg-[#1f1f1f] rounded-lg p-5 transition-all duration-300 hover:bg-[#252525] ${
                     selectedShelter === shelter.id ? 'ring-1 ring-orange-500/50 bg-[#252525]' : ''
                   } ${hoveredShelter === shelter.id ? 'ring-1 ring-orange-400/30' : ''}`}
@@ -252,6 +257,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
 
           <div className="order-1 lg:order-2 lg:sticky lg:top-4 h-[300px] lg:h-[calc(100vh-8rem)] bg-[#2a2a2a] rounded-lg overflow-hidden">
             <MapContainer
+              key={`${lat}-${lng}`}
               center={position}
               zoom={14}
               scrollWheelZoom={false}
@@ -269,12 +275,12 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                   </Popup>
                 </Marker>
               )}
-              {shelterIcon && shelters.map((shelter) => (
+              {shelterIcon && hoveredShelterIcon && shelters.map((shelter) => (
                 shelter.location && (
                   <Marker
                     key={shelter.id}
                     position={[shelter.location.coordinates[1], shelter.location.coordinates[0]] as LatLngExpression}
-                    icon={shelterIcon}
+                    icon={hoveredShelter === shelter.id ? hoveredShelterIcon : shelterIcon}
                     eventHandlers={{
                       click: () => setSelectedShelter(shelter.id),
                       mouseover: () => setHoveredShelter(shelter.id),
