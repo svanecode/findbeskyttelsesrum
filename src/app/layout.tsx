@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   authors: [{ name: "Find Beskyttelsesrum" }],
   creator: "Find Beskyttelsesrum",
   publisher: "Find Beskyttelsesrum",
+  icons: {
+    icon: '/favicon.svg',
+  },
   formatDetection: {
     email: false,
     address: false,
@@ -69,7 +72,6 @@ export default function RootLayout({
     <html lang="da">
       <head>
         <CookiebotWrapper />
-        <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/site.webmanifest" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />

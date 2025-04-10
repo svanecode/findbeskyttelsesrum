@@ -186,25 +186,52 @@ body::before {
   animation: pulse 1s ease-in-out;
 }
 
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradient-shift 15s ease infinite;
+}
+
 .glass-effect {
-  background: var(--container-bg);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--container-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.02)
+  );
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.3s ease;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 .glass-effect:hover {
-  border-color: rgba(249, 115, 22, 0.1);
-  box-shadow: 0 0 20px rgba(249, 115, 22, 0.05);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
   transform: translateY(-2px);
 }
 
 .input-focus {
-  transition: all 0.25s ease-out;
-  background: rgba(26, 26, 26, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
+  transition: all 0.3s ease;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .input-focus::placeholder {
@@ -212,45 +239,84 @@ body::before {
 }
 
 .input-focus:focus {
-  background: rgba(26, 26, 26, 0.9);
-  border-color: rgba(249, 115, 22, 0.3);
-  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.1);
-  transform: translateY(-1px);
+  outline: none;
+  box-shadow: 
+    0 0 0 2px rgba(249, 115, 22, 0.2),
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 0 20px rgba(249, 115, 22, 0.1);
+}
+
+.button-glow {
+  position: relative;
+}
+
+.button-glow::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(45deg, 
+    rgba(249, 115, 22, 0.5),
+    rgba(234, 88, 12, 0.5),
+    rgba(249, 115, 22, 0.5)
+  );
+  background-size: 200% 200%;
+  filter: blur(16px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: -1;
+  border-radius: 9999px;
+}
+
+.button-glow:hover::before {
+  opacity: 1;
+}
+
+.button-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, 
+    rgba(249, 115, 22, 0.1),
+    rgba(234, 88, 12, 0.1)
+  );
+  filter: blur(10px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.button-glow:hover::after {
+  opacity: 1;
 }
 
 .button-hover {
-  transition: all 0.25s ease-out;
-  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-  border: none;
-  color: var(--text-primary);
-  font-weight: 500;
   position: relative;
   overflow: hidden;
 }
 
-.button-hover::before {
+.button-hover::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  transform: translateX(-100%);
-  transition: transform 0.6s ease;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  animation: ripple 0.6s linear;
 }
 
-.button-hover:hover::before {
-  transform: translateX(100%);
-}
-
-.button-hover:hover {
-  transform: translateY(-1px) scale(1.02);
-  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
-}
-
-.button-hover:active {
-  transform: translateY(0) scale(0.98);
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(20, 20);
+    opacity: 0;
+  }
 }
 
 .separator {
@@ -334,4 +400,41 @@ body::before {
 
 .font-inter {
   font-family: var(--font-inter);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(249, 115, 22, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(249, 115, 22, 0.7);
+}
+
+@keyframes shine {
+  0% {
+    background-position: 200% center;
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    background-position: -200% center;
+    opacity: 0;
+  }
+}
+
+.animate-shine {
+  animation: shine 1.5s ease;
+  background-size: 200% auto;
 }
