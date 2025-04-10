@@ -198,10 +198,21 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                       <button
                         onClick={() => {
                           const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                          const url = isMobile 
-                            ? `geo:${shelter.location!.coordinates[1]},${shelter.location!.coordinates[0]}?q=${shelter.location!.coordinates[1]},${shelter.location!.coordinates[0]}`
-                            : `https://www.google.com/maps/search/?api=1&query=${shelter.location!.coordinates[1]},${shelter.location!.coordinates[0]}`
-                          window.open(url, '_blank')
+                          const lat = shelter.location!.coordinates[1];
+                          const lng = shelter.location!.coordinates[0];
+                          
+                          // For iOS devices, use Apple Maps
+                          if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                            window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
+                          }
+                          // For Android devices, use Google Maps
+                          else if (/Android/i.test(navigator.userAgent)) {
+                            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+                          }
+                          // For other devices, use Google Maps web
+                          else {
+                            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+                          }
                         }}
                         className="bg-orange-500/10 hover:bg-orange-500/20 text-orange-400/90 p-3 rounded-lg transition-colors border border-orange-500/20"
                         title="Åbn i kort"
