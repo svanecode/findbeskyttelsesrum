@@ -1,58 +1,37 @@
 'use client'
 
 import { Shelter } from '@/types/shelter'
-import { getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
-import { getKommunenavn } from '@/lib/kommunekoder'
-import Link from 'next/link'
+import { Anvendelseskode } from '@/types/anvendelseskode'
+import { Kommunekode } from '@/types/kommunekode'
 
-interface Props {
+type Props = {
   shelter: Shelter
-  anvendelseskoder: any[]
-  kommunekoder: any[]
+  anvendelseskoder: Anvendelseskode[]
+  kommunekoder: Kommunekode[]
 }
 
 export default function ShelterDetail({ shelter, anvendelseskoder, kommunekoder }: Props) {
   return (
-    <main className="min-h-screen bg-[#1a1a1a] text-white">
-      <div className="max-w-7xl mx-auto p-4">
-        <div className="flex items-center mb-6">
-          <Link
-            href="/"
-            className="text-gray-400 hover:text-white transition-colors mr-4"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </Link>
-          <h1 className="text-2xl font-bold">Beskyttelsesrum detaljer</h1>
-        </div>
-
-        <div className="bg-[#1f1f1f] rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">{shelter.vejnavn} {shelter.husnummer}</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-lg font-medium mb-3">Adresse</h3>
-              <p className="text-gray-300">
-                {shelter.vejnavn} {shelter.husnummer}<br />
-                {shelter.postnummer} {getKommunenavn(shelter.kommunekode, kommunekoder)}
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-medium mb-3">Kapacitet</h3>
-              <p className="text-gray-300">{shelter.shelter_capacity} personer</p>
-            </div>
-
-            {shelter.anvendelse && (
-              <div>
-                <h3 className="text-lg font-medium mb-3">Type</h3>
-                <p className="text-gray-300">{getAnvendelseskodeBeskrivelse(shelter.anvendelse, anvendelseskoder)}</p>
-              </div>
-            )}
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-4">Beskyttelsesrum detaljer</h1>
+      <div className="bg-white shadow rounded-lg p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <h2 className="text-lg font-semibold mb-2">Grundlæggende information</h2>
+            <p><span className="font-medium">ID:</span> {shelter.id}</p>
+            <p><span className="font-medium">Adresse:</span> {shelter.address}</p>
+            <p><span className="font-medium">Postnummer:</span> {shelter.postnummer}</p>
+            <p><span className="font-medium">Vejnavn:</span> {shelter.vejnavn}</p>
+            <p><span className="font-medium">Husnummer:</span> {shelter.husnummer}</p>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold mb-2">Yderligere information</h2>
+            <p><span className="font-medium">Anvendelse:</span> {shelter.anvendelse}</p>
+            <p><span className="font-medium">Kommunekode:</span> {shelter.kommunekode}</p>
+            <p><span className="font-medium">Kapacitet:</span> {shelter.shelter_capacity} personer</p>
           </div>
         </div>
       </div>
-    </main>
+    </div>
   )
 } 
