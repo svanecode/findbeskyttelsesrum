@@ -13,6 +13,7 @@ import Link from 'next/link'
 import GlobalFooter from '@/components/GlobalFooter'
 import { Kommunekode } from '@/types/kommunekode'
 import { Anvendelseskode } from '@/types/anvendelseskode'
+import { initializeLeaflet, createCustomIcon } from '@/lib/leaflet-setup'
 
 interface ShelterWithDistance extends Shelter {
   distance: number
@@ -62,38 +63,13 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
 
-  // Load Leaflet and create Icons
+  // Initialize Leaflet
   useEffect(() => {
-    // Create custom "You are here" icon (blue)
-    setYouAreHereIcon(new L.Icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    }))
-
-    // Create shelter icon (red)
-    setShelterIcon(new L.Icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    }))
-
-    // Create hovered shelter icon (orange)
-    setHoveredShelterIcon(new L.Icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    }))
-  }, [])
+    initializeLeaflet();
+    setYouAreHereIcon(createCustomIcon('blue'));
+    setShelterIcon(createCustomIcon('red'));
+    setHoveredShelterIcon(createCustomIcon('orange'));
+  }, []);
 
   // Update map bounds when shelters change
   useEffect(() => {
@@ -273,14 +249,15 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
             )}
           </div>
 
-          <div className="order-1 lg:order-2 lg:sticky lg:top-4 h-[300px] lg:h-[calc(100vh-8rem)] bg-[#2a2a2a] rounded-lg overflow-hidden">
+          <div className="order-1 lg:order-2 lg:sticky lg:top-4 h-[300px] lg:h-[calc(100vh-8rem)] rounded-lg overflow-hidden">
             <MapContainer
               key={`${lat}-${lng}`}
               center={position}
               zoom={14}
               scrollWheelZoom={false}
-              style={{ height: '100%', width: '100%' }}
+              style={{ height: '100%', width: '100%', background: '#1a1a1a' }}
               ref={setMap}
+              className="rounded-lg"
             >
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

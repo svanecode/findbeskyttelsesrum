@@ -49,6 +49,7 @@ export default function Home() {
   }
 
   if (loadError) {
+    console.error('Google Maps load error details:', loadError);
     return (
       <main className="min-h-screen text-white p-8">
         <div className="max-w-2xl mx-auto">
@@ -68,7 +69,10 @@ export default function Home() {
                   d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <p>Der opstod en fejl ved indlæsning af kort. Prøv at genindlæse siden.</p>
+              <p>Der opstod en fejl ved indlæsning af Google Maps. Prøv at genindlæse siden.</p>
+            </div>
+            <div className="mt-4 text-sm text-gray-400">
+              <p>Fejldetaljer: {loadError.message || 'Ukendt fejl'}</p>
             </div>
           </div>
         </div>
@@ -77,22 +81,22 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen text-white p-4 sm:p-8 flex flex-col">
+    <main className="min-h-screen text-white p-2 sm:p-8 flex flex-col">
       <AnimatePresence>
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1 }}
-          className="max-w-2xl mx-auto flex-1 w-full px-4"
+          className="max-w-2xl mx-auto flex-1 w-full px-2 sm:px-4"
         >
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-center mb-8 sm:mb-16"
+            className="text-center mb-6 sm:mb-16"
           >
             <motion.h1 
-              className="text-3xl sm:text-5xl font-bold mb-2 sm:mb-4 tracking-tight font-space-grotesk"
+              className="text-2xl sm:text-5xl font-bold mb-2 sm:mb-4 tracking-tight font-space-grotesk"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
@@ -100,23 +104,23 @@ export default function Home() {
               Find Beskyttelsesrum
             </motion.h1>
             <motion.p 
-              className="text-base sm:text-lg text-[#E5E7EB] font-inter"
+              className="text-sm sm:text-lg text-[#E5E7EB] font-inter mb-4 sm:mb-6"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.6 }}
             >
               Find det nærmeste beskyttelsesrum i dit område
             </motion.p>
-            <ShelterCounter targetNumber={1856746} />
+            <ShelterCounter targetNumber={1903819} />
           </motion.div>
           
           <motion.div 
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.5, delay: 1 }}
-            className="glass-effect p-6 sm:p-8 rounded-2xl shadow-2xl backdrop-blur-md bg-white/10"
+            className="glass-effect p-4 sm:p-8 rounded-2xl shadow-2xl backdrop-blur-md bg-white/10"
           >
-            <div className="space-y-4 sm:space-y-6">
+            <div className="space-y-3 sm:space-y-6">
               <div className="relative">
                 {mapsLoaded && (
                   <>
@@ -130,7 +134,7 @@ export default function Home() {
                     >
                       <div className="relative">
                         <svg
-                          className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[#9CA3AF]"
+                          className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-[#9CA3AF]"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -146,7 +150,7 @@ export default function Home() {
                         <input
                           type="text"
                           placeholder="Søg efter en adresse i Danmark"
-                          className="w-full p-3 sm:p-4 pl-10 sm:pl-12 text-sm sm:text-base text-white placeholder-[#9CA3AF] rounded-xl input-focus bg-white/5 backdrop-blur-sm border border-white/10 focus:border-[#F97316] transition-all duration-300 focus:ring-2 focus:ring-orange-400 focus:ring-opacity-20"
+                          className="w-full p-3 pl-9 sm:p-4 sm:pl-12 text-sm text-white placeholder-[#9CA3AF] rounded-xl input-focus bg-white/5 backdrop-blur-sm border border-white/10 focus:border-[#F97316] transition-all duration-300 focus:ring-2 focus:ring-orange-400 focus:ring-opacity-20"
                         />
                       </div>
                     </Autocomplete>
@@ -203,7 +207,7 @@ export default function Home() {
                 )}
               </div>
               
-              <div className="separator text-[#9CA3AF] text-xs sm:text-sm font-medium">
+              <div className="separator text-[#9CA3AF] text-xs sm:text-sm font-medium my-2 sm:my-4">
                 eller
               </div>
               
@@ -211,12 +215,12 @@ export default function Home() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleLocationClick}
-                className="w-full text-white py-3 sm:py-4 px-6 rounded-full button-hover font-medium bg-[#F97316] hover:bg-[#EA580C] transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base"
+                className="w-full text-white py-3 px-4 sm:py-4 sm:px-6 rounded-full button-hover font-medium bg-[#F97316] hover:bg-[#EA580C] transition-all duration-300 flex items-center justify-center space-x-2 text-sm"
                 disabled={isLoadingLocation}
               >
                 {isLoadingLocation ? (
                   <>
-                    <svg className="animate-spin h-4 w-4 sm:h-5 sm:w-5 mr-2" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
@@ -225,7 +229,7 @@ export default function Home() {
                 ) : (
                   <>
                     <motion.svg 
-                      className="w-4 h-4 sm:w-5 sm:h-5" 
+                      className="w-4 h-4" 
                       fill="none" 
                       stroke="currentColor" 
                       viewBox="0 0 24 24" 

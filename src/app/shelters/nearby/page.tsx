@@ -3,11 +3,11 @@ import MapWrapper from './map-wrapper'
 export default async function Page({
   searchParams
 }: {
-  searchParams: { lat: string; lng: string }
+  searchParams: { [key: string]: string | string[] | undefined }
 }) {
   // Ensure we're working with string values
-  const lat = searchParams?.lat?.toString() || ''
-  const lng = searchParams?.lng?.toString() || ''
+  const lat = typeof searchParams.lat === 'string' ? searchParams.lat : ''
+  const lng = typeof searchParams.lng === 'string' ? searchParams.lng : ''
 
   // Validate the parameters
   if (!lat || !lng || isNaN(Number(lat)) || isNaN(Number(lng))) {
