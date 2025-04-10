@@ -218,6 +218,24 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                         </span>
                       </div>
                     </div>
+                    {shelter.location && (
+                      <button
+                        onClick={() => {
+                          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                          const url = isMobile 
+                            ? `geo:${shelter.location!.coordinates[1]},${shelter.location!.coordinates[0]}?q=${shelter.location!.coordinates[1]},${shelter.location!.coordinates[0]}`
+                            : `https://www.google.com/maps/search/?api=1&query=${shelter.location!.coordinates[1]},${shelter.location!.coordinates[0]}`
+                          window.open(url, '_blank')
+                        }}
+                        className="bg-orange-500/10 hover:bg-orange-500/20 text-orange-400/90 p-3 rounded-lg transition-colors border border-orange-500/20"
+                        title="Åbn i kort"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 mb-5">
