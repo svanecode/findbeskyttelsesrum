@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLoadScript, Autocomplete } from '@react-google-maps/api'
 import { motion, AnimatePresence } from 'framer-motion'
+import ShelterCounter from '@/components/ShelterCounter'
+import GlobalFooter from '@/components/GlobalFooter'
 
 const libraries: ("places")[] = ['places']
 
@@ -119,6 +121,7 @@ export default function Home() {
             >
               Find det nærmeste beskyttelsesrum i dit område
             </motion.p>
+            <ShelterCounter targetNumber={1856746} />
           </motion.div>
           
           <motion.div 
@@ -256,9 +259,7 @@ export default function Home() {
         </motion.div>
       </AnimatePresence>
 
-      <footer className="footer mt-4 sm:mt-8 text-center text-xs sm:text-sm text-gray-400 px-4">
-        <p className="font-mono opacity-60">🏛️ Bemærk: Denne tjeneste er uafhængig og er ikke tilknyttet, drevet eller godkendt af den danske stat eller nogen offentlige myndigheder.</p>
-      </footer>
+      <GlobalFooter />
     </main>
   )
 }

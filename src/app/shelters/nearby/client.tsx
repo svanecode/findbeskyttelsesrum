@@ -10,6 +10,7 @@ import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
 import { getDistance } from 'geolib'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import GlobalFooter from '@/components/GlobalFooter'
 
 const MapContainer = dynamic(
   () => import('react-leaflet').then((mod) => mod.MapContainer),
@@ -165,7 +166,17 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   return (
     <main className="min-h-screen bg-[#1a1a1a] text-white">
       <div className="max-w-7xl mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-6">Nærmeste beskyttelsesrum</h1>
+        <div className="flex items-center mb-6">
+          <Link
+            href="/"
+            className="text-gray-400 hover:text-white transition-colors mr-4"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </Link>
+          <h1 className="text-2xl font-bold">Nærmeste beskyttelsesrum</h1>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="order-2 lg:order-1 space-y-4">
@@ -210,7 +221,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                     {shelter.anvendelse && (
                       <div className="bg-[#252525] p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
                         <div className="text-sm text-gray-400 mb-1.5">Type</div>
-                        <div className="text-white font-medium">{getAnvendelseskodeBeskrivelse(shelter.anvendelse, anvendelseskoder)}</div>
+                        <div className="text-white font-medium text-sm line-clamp-2">{getAnvendelseskodeBeskrivelse(shelter.anvendelse, anvendelseskoder)}</div>
                       </div>
                     )}
                   </div>
@@ -318,6 +329,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           </div>
         </div>
       </div>
+      <GlobalFooter />
     </main>
   )
 } 
