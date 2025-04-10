@@ -1,16 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { Map as LeafletMap, LatLngExpression } from 'leaflet'
+import type { Map as LeafletMap, LatLngExpression, Icon } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { supabase } from '@/lib/supabase'
 import { Shelter } from '@/types/shelter'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
-import { getDistance } from 'geolib'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import GlobalFooter from '@/components/GlobalFooter'
+import { Kommunekode } from '@/types/kommunekode'
+import { Anvendelseskode } from '@/types/anvendelseskode'
 
 const MapContainer = dynamic(
   () => import('react-leaflet').then((mod) => mod.MapContainer),
@@ -66,39 +67,40 @@ interface Props {
 
 export default function ShelterMapClient({ lat: latString, lng: lngString }: Props) {
   const [shelters, setShelters] = useState<(Shelter & { distance: number })[]>([])
-  const [anvendelseskoder, setAnvendelseskoder] = useState<any[]>([])
-  const [kommunekoder, setKommunekoder] = useState<any[]>([])
+  const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
+  const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
   const [map, setMap] = useState<LeafletMap | null>(null)
   const [selectedShelter, setSelectedShelter] = useState<string | null>(null)
   const [hoveredShelter, setHoveredShelter] = useState<string | null>(null)
-  const [youAreHereIcon, setYouAreHereIcon] = useState<any>(null)
-  const [shelterIcon, setShelterIcon] = useState<any>(null)
+  const [youAreHereIcon, setYouAreHereIcon] = useState<Icon | null>(null)
+  const [shelterIcon, setShelterIcon] = useState<Icon | null>(null)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
 
   // Fix for Leaflet marker icons in Next.js
   useEffect(() => {
-    const L = require('leaflet')
-    
-    // Create custom "You are here" icon (blue)
-    setYouAreHereIcon(new L.Icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    }))
+    // Using dynamic import instead of require
+    import('leaflet').then((L) => {
+      // Create custom "You are here" icon (blue)
+      setYouAreHereIcon(new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      }))
 
-    // Create shelter icon (red)
-    setShelterIcon(new L.Icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    }))
+      // Create shelter icon (red)
+      setShelterIcon(new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+      }))
+    })
   }, [])
 
   // Update map bounds when shelters change

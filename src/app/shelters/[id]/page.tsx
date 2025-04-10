@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
+import { Metadata } from 'next'
 
 async function getShelter(id: string) {
   // Validate UUID format
@@ -27,11 +28,19 @@ async function getShelter(id: string) {
   return data as Shelter
 }
 
-export default async function ShelterPage({
-  params,
-}: {
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  return {
+    title: `Beskyttelsesrum - ${params.id}`
+  }
+}
+
+type Props = {
   params: { id: string }
-}) {
+  searchParams: { [key: string]: string | string[] | undefined }
+}
+
+async function ShelterPage({ params, searchParams }: Props) {
+  void searchParams; // Mark as intentionally unused
   const [shelter, anvendelseskoder, kommunekoder] = await Promise.all([
     getShelter(params.id),
     getAnvendelseskoder(),
@@ -101,4 +110,6 @@ export default async function ShelterPage({
       </div>
     </main>
   )
-} 
+}
+
+export default ShelterPage

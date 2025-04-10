@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLoadScript, Autocomplete } from '@react-google-maps/api'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -10,9 +10,7 @@ import GlobalFooter from '@/components/GlobalFooter'
 const libraries: ("places")[] = ['places']
 
 export default function Home() {
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null)
-  const [isLoaded, setIsLoaded] = useState(false)
   const [isLoadingLocation, setIsLoadingLocation] = useState(false)
   const router = useRouter()
 
@@ -21,19 +19,11 @@ export default function Home() {
     libraries
   })
 
-  useEffect(() => {
-    setIsLoaded(true)
-  }, [])
-
   const handleLocationClick = () => {
     setIsLoadingLocation(true)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          })
           router.push(`/shelters/nearby?lat=${position.coords.latitude}&lng=${position.coords.longitude}`)
           setIsLoadingLocation(false)
         },
@@ -53,10 +43,6 @@ export default function Home() {
     if (autocomplete) {
       const place = autocomplete.getPlace()
       if (place.geometry?.location) {
-        setLocation({
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng()
-        })
         router.push(`/shelters/nearby?lat=${place.geometry.location.lat()}&lng=${place.geometry.location.lng()}`)
       }
     }
