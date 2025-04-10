@@ -74,7 +74,7 @@ export default function RootLayout({
         <CookiebotWrapper />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/site.webmanifest" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <meta name="theme-color" content="#ffffff" />
         <script
           dangerouslySetInnerHTML={{

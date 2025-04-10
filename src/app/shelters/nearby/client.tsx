@@ -232,16 +232,19 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                     <div className="grid grid-cols-3 gap-4">
                       <div className="bg-[#252525] p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
                         <div className="text-gray-400 text-sm mb-1">Bil</div>
-                        <div className="text-white font-medium text-lg">{Math.ceil(shelter.distance * 2)} min</div>
+                        <div className="text-white font-medium text-lg">{Math.ceil(shelter.distance * 3)} min</div>
                       </div>
                       <div className="bg-[#252525] p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
                         <div className="text-gray-400 text-sm mb-1">Cykel</div>
-                        <div className="text-white font-medium text-lg">{Math.ceil(shelter.distance * 4)} min</div>
+                        <div className="text-white font-medium text-lg">{Math.ceil(shelter.distance * 5)} min</div>
                       </div>
                       <div className="bg-[#252525] p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
                         <div className="text-gray-400 text-sm mb-1">Gående</div>
-                        <div className="text-white font-medium text-lg">{Math.ceil(shelter.distance * 12)} min</div>
+                        <div className="text-white font-medium text-lg">{Math.ceil(shelter.distance * 20)} min</div>
                       </div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-2">
+                      Baseret på gennemsnitlige hastigheder i byområder. Rejsetiden kan variere afhængigt af trafik og forhold.
                     </div>
                   </div>
                 </div>
@@ -307,15 +310,15 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                           <div className="grid grid-cols-3 gap-2 text-sm">
                             <div>
                               <div className="text-gray-600">Bil</div>
-                              <div>{Math.ceil(shelter.distance * 2)} min</div>
+                              <div>{Math.ceil(shelter.distance * 3)} min</div>
                             </div>
                             <div>
                               <div className="text-gray-600">Cykel</div>
-                              <div>{Math.ceil(shelter.distance * 4)} min</div>
+                              <div>{Math.ceil(shelter.distance * 5)} min</div>
                             </div>
                             <div>
                               <div className="text-gray-600">Gående</div>
-                              <div>{Math.ceil(shelter.distance * 12)} min</div>
+                              <div>{Math.ceil(shelter.distance * 20)} min</div>
                             </div>
                           </div>
                         </div>

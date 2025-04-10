@@ -110,14 +110,14 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen text-white p-2 sm:p-8 flex flex-col relative">
+    <main className="min-h-screen text-white p-2 sm:p-8 flex flex-col justify-center items-center relative">
       <BackgroundAnimation />
       <AnimatePresence>
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1 }}
-          className="max-w-2xl mx-auto flex-1 w-full px-2 sm:px-4 relative z-10"
+          className="max-w-2xl mx-auto flex-1 w-full px-2 sm:px-4 relative z-10 flex flex-col justify-center"
         >
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -141,7 +141,7 @@ export default function Home() {
             >
               Find det nærmeste beskyttelsesrum i dit område
             </motion.p>
-            <ShelterCounter targetNumber={1903819} />
+            <ShelterCounter targetNumber={1912365} />
           </motion.div>
           
           <motion.div 
@@ -223,7 +223,7 @@ export default function Home() {
                         <input
                           type="text"
                           placeholder="Søg efter en adresse i Danmark"
-                          className="w-full p-4 pl-12 text-sm text-white placeholder-[#9CA3AF] rounded-full input-focus bg-white/5 backdrop-blur-sm border border-white/10 focus:border-[#F97316] transition-all duration-300 focus:ring-2 focus:ring-orange-400 focus:ring-opacity-20 group-hover:bg-white/10"
+                          className="w-full p-4 pl-12 text-sm text-white placeholder-[#9CA3AF] rounded-full input-focus bg-[#1a1a1a] border border-white/10 focus:border-[#F97316] transition-all duration-300 focus:ring-2 focus:ring-orange-400 focus:ring-opacity-20 group-hover:bg-[#1f1f1f]"
                           onChange={handleInputChange}
                         />
                       </div>

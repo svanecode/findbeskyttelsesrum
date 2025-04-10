@@ -25,12 +25,12 @@ export default function TellMeMore() {
           <div className="relative z-10">
             <Link 
               href="/"
-              className="inline-flex items-center text-sm text-white hover:text-white transition-all duration-200 mb-8 group bg-white/5 hover:bg-white/10 px-4 py-2 rounded-lg border border-white/10 backdrop-blur-sm relative overflow-hidden"
+              className="inline-flex items-center text-base font-medium text-white hover:text-white transition-all duration-200 mb-8 group bg-[#F97316]/90 hover:bg-[#F97316] px-6 py-3 rounded-xl border border-white/20 backdrop-blur-sm relative overflow-hidden shadow-lg hover:shadow-xl"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-[#F97316]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+              <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
               <div className="relative z-10 flex items-center">
                 <svg 
-                  className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform duration-200" 
+                  className="w-5 h-5 mr-3 group-hover:-translate-x-1 transition-transform duration-200" 
                   fill="none" 
                   stroke="currentColor" 
                   viewBox="0 0 24 24"
