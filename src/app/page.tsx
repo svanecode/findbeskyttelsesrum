@@ -141,7 +141,7 @@ export default function Home() {
             >
               Find det nærmeste beskyttelsesrum i dit område
             </motion.p>
-            <ShelterCounter targetNumber={1912365} />
+            <ShelterCounter targetNumber={1931741} />
           </motion.div>
           
           <motion.div 
@@ -377,11 +377,11 @@ export default function Home() {
               <div className="text-center mt-4">
                 <Link 
                   href="/tell-me-more" 
-                  className="text-sm text-[#9CA3AF] hover:text-white transition-colors duration-200 inline-flex items-center"
+                  className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/5 hover:bg-white/10 text-white transition-all duration-200 group"
                 >
                   <span>Læs mere om data</span>
                   <svg 
-                    className="w-4 h-4 ml-1" 
+                    className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform duration-200" 
                     fill="none" 
                     stroke="currentColor" 
                     viewBox="0 0 24 24"
