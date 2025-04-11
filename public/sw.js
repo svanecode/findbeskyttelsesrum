@@ -6,9 +6,14 @@ const urlsToCache = [
   '/privacy',
   '/terms',
   '/manifest.json',
-  '/favicon.ico',
-  '/android-chrome-192x192.png',
-  '/android-chrome-512x512.png'
+  '/favicons/favicon.ico',
+  '/favicons/favicon-16x16.png',
+  '/favicons/favicon-32x32.png',
+  '/favicons/apple-touch-icon.png',
+  '/favicons/android-chrome-192x192.png',
+  '/favicons/android-chrome-512x512.png',
+  '/favicons/maskable-icon.png',
+  '/favicons/safari-pinned-tab.svg'
 ];
 
 self.addEventListener('install', (event) => {
