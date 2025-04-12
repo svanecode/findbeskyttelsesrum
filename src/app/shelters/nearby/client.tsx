@@ -20,21 +20,31 @@ interface ShelterWithDistance extends Shelter {
 }
 
 async function getNearbyShelters(lat: number, lng: number) {
+  console.log('Calling get_nearby_shelters_v2 with:', { p_lat: lat, p_lng: lng })
+  
   const { data, error } = await supabase
-    .rpc('get_nearby_shelters', {
-      lat,
-      lng
+    .rpc('get_nearby_shelters_v2', {
+      p_lat: lat,
+      p_lng: lng
     })
 
   if (error) {
-    console.error('Error fetching shelters:', error)
+    console.error('Error details:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    })
     return []
   }
 
   if (!data) {
+    console.log('No data returned from get_nearby_shelters_v2')
     return []
   }
 
+  console.log('Successfully fetched shelters:', data.length)
+  
   const nearbyShelters = data
     .map((shelter: ShelterWithDistance) => ({
       ...shelter,
@@ -173,23 +183,26 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                 <div
                   key={shelter.id}
                   ref={el => { shelterRefs.current[shelter.id] = el }}
-                  className={`group bg-[#1f1f1f] rounded-lg p-5 transition-all duration-300 hover:bg-[#252525] ${
+                  className={`group bg-[#1f1f1f] rounded-lg p-4 sm:p-5 transition-all duration-300 hover:bg-[#252525] ${
                     selectedShelter === shelter.id ? 'ring-1 ring-orange-500/50 bg-[#252525]' : ''
                   } ${hoveredShelter === shelter.id ? 'ring-1 ring-orange-400/30' : ''}`}
                   onMouseEnter={() => setHoveredShelter(shelter.id)}
                   onMouseLeave={() => setHoveredShelter(null)}
                   onClick={() => setSelectedShelter(shelter.id)}
                 >
-                  <div className="flex justify-between items-start mb-5">
+                  <div className="flex justify-between items-start mb-4 sm:mb-5">
                     <div>
-                      <h2 className="text-xl font-semibold text-white group-hover:text-orange-400/90 transition-colors">
+                      <h2 className="text-lg sm:text-xl font-semibold text-white group-hover:text-orange-400/90 transition-colors">
                         {shelter.vejnavn} {shelter.husnummer}
+                        <span className="block sm:inline mt-1 sm:mt-0 sm:ml-2 text-sm bg-orange-500/20 text-orange-400/90 px-2 py-0.5 rounded">
+                          {shelter.shelter_count} beskyttelsesrum
+                        </span>
                       </h2>
-                      <p className="text-sm text-gray-400 mt-1.5">
+                      <p className="text-sm text-gray-400 mt-1">
                         {shelter.postnummer} {getKommunenavn(shelter.kommunekode, kommunekoder)}
                       </p>
-                      <div className="flex items-center mt-3">
-                        <span className="inline-flex items-center bg-[#2a2a2a] text-orange-400/90 px-3 py-1 rounded-md text-sm font-medium border border-orange-500/10">
+                      <div className="flex items-center mt-2">
+                        <span className="inline-flex items-center bg-[#2a2a2a] text-orange-400/90 px-2 py-0.5 rounded-md text-sm font-medium border border-orange-500/10">
                           {shelter.distance.toFixed(1)} km
                         </span>
                       </div>
@@ -201,23 +214,20 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                           const lat = shelter.location!.coordinates[1];
                           const lng = shelter.location!.coordinates[0];
                           
-                          // For iOS devices, use Apple Maps
                           if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
                             window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
                           }
-                          // For Android devices, use Google Maps
                           else if (/Android/i.test(navigator.userAgent)) {
                             window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
                           }
-                          // For other devices, use Google Maps web
                           else {
                             window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
                           }
                         }}
-                        className="bg-orange-500/10 hover:bg-orange-500/20 text-orange-400/90 p-3 rounded-lg transition-colors border border-orange-500/20"
+                        className="bg-orange-500/10 hover:bg-orange-500/20 text-orange-400/90 p-2 sm:p-3 rounded-lg transition-colors border border-orange-500/20"
                         title="Åbn i kort"
                       >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
@@ -225,33 +235,33 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-5">
-                    <div className="bg-[#252525] p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                      <div className="text-sm text-gray-400 mb-1.5">Kapacitet</div>
-                      <div className="text-white font-medium text-lg">{shelter.shelter_capacity} personer</div>
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-5">
+                    <div className="bg-[#252525] p-3 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
+                      <div className="text-sm text-gray-400 mb-1">Total kapacitet</div>
+                      <div className="text-white font-medium text-base sm:text-lg">{shelter.total_capacity} personer</div>
                     </div>
                     {shelter.anvendelse && (
-                      <div className="bg-[#252525] p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                        <div className="text-sm text-gray-400 mb-1.5">Type</div>
+                      <div className="bg-[#252525] p-3 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
+                        <div className="text-sm text-gray-400 mb-1">Type</div>
                         <div className="text-white font-medium text-sm line-clamp-2">{getAnvendelseskodeBeskrivelse(shelter.anvendelse, anvendelseskoder)}</div>
                       </div>
                     )}
                   </div>
 
-                  <div className="border-t border-white/5 pt-5">
-                    <div className="text-sm text-gray-400 mb-3">Anslået rejsetid</div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-[#252525] p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                        <div className="text-gray-400 text-sm mb-1">Bil</div>
-                        <div className="text-white font-medium text-lg">{Math.ceil(shelter.distance * 3)} min</div>
+                  <div className="border-t border-white/5 pt-4 sm:pt-5">
+                    <div className="text-sm text-gray-400 mb-2 sm:mb-3">Anslået rejsetid</div>
+                    <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                      <div className="bg-[#252525] p-2.5 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
+                        <div className="text-gray-400 text-sm mb-0.5 sm:mb-1">Bil</div>
+                        <div className="text-white font-medium text-base sm:text-lg">{Math.ceil(shelter.distance * 3)} min</div>
                       </div>
-                      <div className="bg-[#252525] p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                        <div className="text-gray-400 text-sm mb-1">Cykel</div>
-                        <div className="text-white font-medium text-lg">{Math.ceil(shelter.distance * 5)} min</div>
+                      <div className="bg-[#252525] p-2.5 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
+                        <div className="text-gray-400 text-sm mb-0.5 sm:mb-1">Cykel</div>
+                        <div className="text-white font-medium text-base sm:text-lg">{Math.ceil(shelter.distance * 5)} min</div>
                       </div>
-                      <div className="bg-[#252525] p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                        <div className="text-gray-400 text-sm mb-1">Gående</div>
-                        <div className="text-white font-medium text-lg">{Math.ceil(shelter.distance * 20)} min</div>
+                      <div className="bg-[#252525] p-2.5 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
+                        <div className="text-gray-400 text-sm mb-0.5 sm:mb-1">Gående</div>
+                        <div className="text-white font-medium text-base sm:text-lg">{Math.ceil(shelter.distance * 20)} min</div>
                       </div>
                     </div>
                     <div className="text-xs text-gray-500 mt-2">
@@ -305,8 +315,8 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                         
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           <div>
-                            <div className="text-sm font-medium">Kapacitet</div>
-                            <div>{shelter.shelter_capacity} personer</div>
+                            <div className="text-sm font-medium">Total kapacitet</div>
+                            <div>{shelter.total_capacity} personer</div>
                           </div>
                           {shelter.anvendelse && (
                             <div>

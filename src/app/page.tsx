@@ -141,7 +141,7 @@ export default function Home() {
             >
               Find det nærmeste beskyttelsesrum i dit område
             </motion.p>
-            <ShelterCounter targetNumber={1931741} />
+            <ShelterCounter targetNumber={3435834} />
           </motion.div>
           
           <motion.div 

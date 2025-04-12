@@ -1,11 +1,7 @@
 const CACHE_NAME = 'beskyttelsesrum-v1';
 const urlsToCache = [
   '/',
-  '/shelters',
-  '/about',
-  '/privacy',
-  '/terms',
-  '/manifest.json',
+  '/site.webmanifest',
   '/favicons/favicon.ico',
   '/favicons/favicon-16x16.png',
   '/favicons/favicon-32x32.png',
