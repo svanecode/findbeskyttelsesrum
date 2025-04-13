@@ -376,10 +376,10 @@ export default function Home() {
 
               <div className="text-center mt-4">
                 <Link 
-                  href="/tell-me-more" 
+                  href="/shelters/national" 
                   className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-white/5 hover:bg-white/10 text-white transition-all duration-200 group"
                 >
-                  <span>Læs mere om data</span>
+                  <span>Se alle beskyttelsesrum i Danmark</span>
                   <svg 
                     className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform duration-200" 
                     fill="none" 

@@ -9,14 +9,17 @@ const spaceGrotesk = Space_Grotesk({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: {
-    default: "Find Beskyttelsesrum",
+    default: "Find Beskyttelsesrum | Oversigt over alle beskyttelsesrum i Danmark",
     template: "%s | Find Beskyttelsesrum"
   },
-  description: "Find det nærmeste beskyttelsesrum i dit område. Vores platform hjælper dig med at lokalisere sikre steder i nødstilfælde. Data kommer fra BBR og DAR.",
-  keywords: ["beskyttelsesrum", "nødstilfælde", "sikkerhed", "Danmark", "shelter", "emergency", "BBR", "DAR", "sikringspladser"],
+  description: "Find beskyttelsesrum i dit område. Komplet oversigt over alle offentlige beskyttelsesrum i Danmark. Søg efter beskyttelsesrum i din kommune eller find det nærmeste baseret på din lokation. Data kommer fra BBR og DAR.",
+  keywords: ["find beskyttelsesrum", "beskyttelsesrum", "find nærmeste beskyttelsesrum", "nødstilfælde", "sikkerhed", "Danmark", "shelter", "emergency", "BBR", "DAR", "sikringspladser", "civilforsvar", "nødsituation", "beskyttelse", "sikkerhedsrum"],
   authors: [{ name: "Find Beskyttelsesrum" }],
   creator: "Find Beskyttelsesrum",
   publisher: "Find Beskyttelsesrum",
+  applicationName: "Find Beskyttelsesrum",
+  category: "Sikkerhed",
+  classification: "Public Service",
   icons: {
     icon: [
       { url: '/favicons/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
@@ -44,18 +47,27 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: "Find Beskyttelsesrum",
-    description: "Find det nærmeste beskyttelsesrum i dit område. Vores platform hjælper dig med at lokalisere sikre steder i nødstilfælde. Data kommer fra BBR og DAR.",
+    title: "Find Beskyttelsesrum | Oversigt over alle beskyttelsesrum i Danmark",
+    description: "Find beskyttelsesrum i dit område. Komplet oversigt over alle offentlige beskyttelsesrum i Danmark. Søg efter beskyttelsesrum i din kommune eller find det nærmeste baseret på din lokation.",
     url: 'https://findbeskyttelsesrum.dk',
     siteName: 'Find Beskyttelsesrum',
     locale: 'da_DK',
     type: 'website',
+    images: [
+      {
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Find Beskyttelsesrum - Oversigt over alle beskyttelsesrum i Danmark',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Find Beskyttelsesrum",
-    description: "Find det nærmeste beskyttelsesrum i dit område. Vores platform hjælper dig med at lokalisere sikre steder i nødstilfælde. Data kommer fra BBR og DAR.",
+    title: "Find Beskyttelsesrum | Oversigt over alle beskyttelsesrum i Danmark",
+    description: "Find beskyttelsesrum i dit område. Komplet oversigt over alle offentlige beskyttelsesrum i Danmark.",
     creator: '@beskyttelsesrum',
+    images: ['/og-image.jpg'],
   },
   robots: {
     index: true,
@@ -70,10 +82,14 @@ export const metadata: Metadata = {
   },
   verification: {
     google: 'your-google-site-verification',
+    yandex: 'your-yandex-verification',
+    yahoo: 'your-yahoo-verification',
   },
   other: {
     'disclaimer': 'Denne tjeneste er uafhængig og er ikke tilknyttet, drevet eller godkendt af den danske stat eller nogen offentlige myndigheder.',
     'data-source': 'Data kommer fra BBR og DAR. Private hjem og steder med færre end 40 pladser er udeladt.',
+    'geo.region': 'DK',
+    'geo.placename': 'Danmark',
   },
 };
 

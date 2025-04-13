@@ -1,0 +1,232 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import MarkerClusterGroup from 'react-leaflet-cluster'
+import type { Map as LeafletMap, LatLngExpression } from 'leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import { supabase } from '@/lib/supabase'
+import { Shelter } from '@/types/shelter'
+import { Anvendelseskode } from '@/types/anvendelseskode'
+import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
+import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
+import { initializeLeaflet, createCustomIcon } from '@/lib/leaflet-setup'
+import { Kommunekode } from '@/types/kommunekode'
+
+interface Props {
+  kommunekode: string
+}
+
+interface GroupedShelter extends Shelter {
+  total_capacity: number
+  shelter_count: number
+  anvendelseskoder?: Anvendelseskode
+}
+
+export default function KommuneMap({ kommunekode }: Props) {
+  const [shelters, setShelters] = useState<GroupedShelter[]>([])
+  const [map, setMap] = useState<LeafletMap | null>(null)
+  const [shelterIcon, setShelterIcon] = useState<L.Icon | null>(null)
+  const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
+  const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
+
+  // Initialize Leaflet
+  useEffect(() => {
+    initializeLeaflet()
+    setShelterIcon(createCustomIcon('red'))
+  }, [])
+
+  // Fetch kommunekoder
+  useEffect(() => {
+    async function fetchKommunekoder() {
+      const { data, error } = await supabase
+        .from('kommunekoder')
+        .select('*')
+        .order('navn')
+
+      if (error) {
+        console.error('Error fetching kommunekoder:', error)
+        return
+      }
+
+      setKommunekoder(data || [])
+    }
+
+    fetchKommunekoder()
+  }, [])
+
+  // Fetch anvendelseskoder
+  useEffect(() => {
+    async function fetchAnvendelseskoder() {
+      const { data, error } = await supabase
+        .from('anvendelseskoder')
+        .select('*')
+
+      if (error) {
+        console.error('Error fetching anvendelseskoder:', error)
+        return
+      }
+
+      setAnvendelseskoder(data || [])
+    }
+
+    fetchAnvendelseskoder()
+  }, [])
+
+  // Fetch shelters for the kommune
+  useEffect(() => {
+    async function fetchShelters() {
+      // First get all anvendelseskoder that should be included
+      const { data: anvendelseskoderData, error: anvendelseskoderError } = await supabase
+        .from('anvendelseskoder')
+        .select('kode')
+        .eq('skal_med', true)
+
+      if (anvendelseskoderError) {
+        console.error('Error fetching anvendelseskoder:', anvendelseskoderError)
+        return
+      }
+
+      const validAnvendelseskoder = anvendelseskoderData?.map(ak => ak.kode) || []
+
+      // Then fetch shelters with those anvendelseskoder
+      const { data, error } = await supabase
+        .from('sheltersv2')
+        .select(`
+          id,
+          created_at,
+          bygning_id,
+          kommunekode,
+          shelter_capacity,
+          address,
+          postnummer,
+          vejnavn,
+          husnummer,
+          location,
+          anvendelse,
+          deleted,
+          last_checked,
+          anvendelseskoder (
+            kode,
+            beskrivelse,
+            skal_med,
+            kategori,
+            created_at,
+            updated_at
+          )
+        `)
+        .eq('kommunekode', kommunekode)
+        .gte('shelter_capacity', 40)
+        .not('location', 'is', null)
+        .in('anvendelse', validAnvendelseskoder)
+
+      if (error) {
+        console.error('Error fetching shelters:', error)
+        return
+      }
+
+      // Group shelters by address and calculate total capacity
+      const groupedShelters = (data || []).reduce((acc: { [key: string]: GroupedShelter }, shelter) => {
+        const address = shelter.address || `${shelter.vejnavn} ${shelter.husnummer}`
+        if (!acc[address]) {
+          acc[address] = {
+            ...shelter,
+            total_capacity: Number(shelter.shelter_capacity) || 0,
+            shelter_count: 1,
+            anvendelseskoder: shelter.anvendelseskoder?.[0]
+          }
+        } else {
+          acc[address].total_capacity += Number(shelter.shelter_capacity) || 0
+          acc[address].shelter_count += 1
+        }
+        return acc
+      }, {})
+
+      setShelters(Object.values(groupedShelters))
+    }
+
+    fetchShelters()
+  }, [kommunekode])
+
+  // Update map bounds when shelters change
+  useEffect(() => {
+    if (map && shelters.length > 0) {
+      const bounds = shelters
+        .filter(shelter => shelter.location)
+        .map(shelter => [
+          shelter.location!.coordinates[1],
+          shelter.location!.coordinates[0]
+        ] as [number, number])
+      
+      const boundsOptions = {
+        padding: [50, 50] as [number, number],
+        maxZoom: 15,
+        animate: true
+      }
+      
+      map.fitBounds(bounds, boundsOptions)
+    }
+  }, [map, shelters])
+
+  if (!shelterIcon) return null
+
+  return (
+    <div className="h-[500px] w-full rounded-lg overflow-hidden">
+      <MapContainer
+        center={[56.2639, 9.5018]} // Center of Denmark
+        zoom={7}
+        scrollWheelZoom={true}
+        style={{ height: '100%', width: '100%', background: '#1a1a1a' }}
+        ref={setMap}
+        className="rounded-lg"
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        <MarkerClusterGroup>
+          {shelters.map((shelter) => (
+            shelter.location && (
+              <Marker
+                key={shelter.id}
+                position={[shelter.location.coordinates[1], shelter.location.coordinates[0]] as LatLngExpression}
+                icon={shelterIcon}
+              >
+                <Popup>
+                  <div className="min-w-[200px]">
+                    <div className="font-semibold text-lg mb-2">{shelter.vejnavn} {shelter.husnummer}</div>
+                    <div className="text-sm text-gray-600 mb-3">
+                      {shelter.postnummer} {getKommunenavn(shelter.kommunekode, kommunekoder)}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <div className="text-sm font-medium">Total kapacitet</div>
+                        <div>{shelter.total_capacity} personer</div>
+                        {shelter.shelter_count > 1 && (
+                          <div className="text-xs text-gray-500">
+                            ({shelter.shelter_count} beskyttelsesrum)
+                          </div>
+                        )}
+                      </div>
+                      {shelter.anvendelse && (
+                        <div>
+                          <div className="text-sm font-medium">Type</div>
+                          <div>
+                            {shelter.anvendelseskoder?.beskrivelse || 
+                             getAnvendelseskodeBeskrivelse(shelter.anvendelse, anvendelseskoder)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            )
+          ))}
+        </MarkerClusterGroup>
+      </MapContainer>
+    </div>
+  )
+} 

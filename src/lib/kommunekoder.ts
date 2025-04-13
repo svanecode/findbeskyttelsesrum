@@ -4,6 +4,11 @@ import { Kommunekode } from '@/types/kommunekode'
 let kommunekoderCache: Kommunekode[] | null = null
 
 export async function getKommunekoder(): Promise<Kommunekode[]> {
+  // Always fetch fresh data in development mode
+  if (process.env.NODE_ENV === 'development') {
+    kommunekoderCache = null
+  }
+
   if (kommunekoderCache) {
     return kommunekoderCache
   }

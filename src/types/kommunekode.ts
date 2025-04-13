@@ -4,4 +4,5 @@ export interface Kommunekode {
   region: string | null
   created_at: string
   updated_at: string
+  slug: string
 } 
