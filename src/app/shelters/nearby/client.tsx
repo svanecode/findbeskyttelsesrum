@@ -167,7 +167,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </Link>
-          <h1 className="text-2xl font-bold">Nærmeste beskyttelsesrum</h1>
+          <h1 className="text-2xl font-bold">Dine 10 nærmeste beskyttelsesrum</h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -209,18 +209,33 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                     </div>
                     {shelter.location && (
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
                           const lat = shelter.location!.coordinates[1];
                           const lng = shelter.location!.coordinates[0];
                           
-                          if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                            window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
-                          }
-                          else if (/Android/i.test(navigator.userAgent)) {
-                            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
-                          }
-                          else {
+                          if (isMobile) {
+                            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                            const isAndroid = /Android/i.test(navigator.userAgent);
+                            
+                            if (isIOS) {
+                              // For iOS, show options for Apple Maps and Google Maps
+                              if (window.confirm('Vil du åbne i Apple Maps eller Google Maps?')) {
+                                window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
+                              } else {
+                                window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+                              }
+                            } else if (isAndroid) {
+                              // For Android, show options for Google Maps and other map apps
+                              if (window.confirm('Vil du åbne i Google Maps eller en anden kortapp?')) {
+                                window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+                              } else {
+                                window.open(`geo:${lat},${lng}?q=${lat},${lng}`, '_blank');
+                              }
+                            }
+                          } else {
+                            // For desktop, just use Google Maps
                             window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
                           }
                         }}

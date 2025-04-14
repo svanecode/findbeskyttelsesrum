@@ -15,6 +15,8 @@ export interface Shelter {
   address: string | null
   deleted: string | null
   last_checked: string | null
+  shelter_count?: number
+  total_capacity?: number
   anvendelseskoder?: {
     kode: string
     beskrivelse: string

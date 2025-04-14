@@ -6,18 +6,37 @@ import MarkerClusterGroup from 'react-leaflet-cluster'
 import type { Map as LeafletMap, LatLngExpression } from 'leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { supabase } from '@/lib/supabase'
-import { Shelter } from '@/types/shelter'
 import { Anvendelseskode } from '@/types/anvendelseskode'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
 import { initializeLeaflet, createCustomIcon } from '@/lib/leaflet-setup'
 import { Kommunekode } from '@/types/kommunekode'
 
-interface GroupedShelter extends Shelter {
+interface GroupedShelter {
+  id: string
+  kommunekode: string | null
+  shelter_capacity: number | null
+  address: string | null
+  postnummer: string | null
+  vejnavn: string | null
+  husnummer: string | null
+  location: {
+    type: string
+    coordinates: number[]
+  } | null
+  anvendelse: string | null
   total_capacity: number
   shelter_count: number
-  anvendelseskoder?: Anvendelseskode
+  anvendelseskoder?: {
+    kode: string
+    beskrivelse: string
+    skal_med: boolean
+  }
+}
+
+interface NationalSheltersData {
+  lastUpdated: string
+  shelters: GroupedShelter[]
 }
 
 export default function NationalMap() {
@@ -27,7 +46,7 @@ export default function NationalMap() {
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0, percentage: 0 })
+  const [lastUpdated, setLastUpdated] = useState<string>('')
 
   // Initialize Leaflet
   useEffect(() => {
@@ -38,17 +57,8 @@ export default function NationalMap() {
   // Fetch kommunekoder
   useEffect(() => {
     async function fetchKommunekoder() {
-      const { data, error } = await supabase
-        .from('kommunekoder')
-        .select('*')
-        .order('navn')
-
-      if (error) {
-        console.error('Error fetching kommunekoder:', error)
-        return
-      }
-
-      setKommunekoder(data || [])
+      const data = await getKommunekoder()
+      setKommunekoder(data)
     }
 
     fetchKommunekoder()
@@ -57,128 +67,27 @@ export default function NationalMap() {
   // Fetch anvendelseskoder
   useEffect(() => {
     async function fetchAnvendelseskoder() {
-      const { data, error } = await supabase
-        .from('anvendelseskoder')
-        .select('*')
-
-      if (error) {
-        console.error('Error fetching anvendelseskoder:', error)
-        return
-      }
-
-      setAnvendelseskoder(data || [])
+      const data = await getAnvendelseskoder()
+      setAnvendelseskoder(data)
     }
 
     fetchAnvendelseskoder()
   }, [])
 
-  // Fetch all shelters
+  // Fetch shelters from static JSON
   useEffect(() => {
     async function fetchShelters() {
       setIsLoading(true)
-      
-      // First get all anvendelseskoder that should be included
-      const { data: anvendelseskoderData, error: anvendelseskoderError } = await supabase
-        .from('anvendelseskoder')
-        .select('kode')
-        .eq('skal_med', true)
-
-      if (anvendelseskoderError) {
-        console.error('Error fetching anvendelseskoder:', anvendelseskoderError)
+      try {
+        const response = await fetch('/data/national-shelters.json')
+        const data: NationalSheltersData = await response.json()
+        setShelters(data.shelters)
+        setLastUpdated(data.lastUpdated)
+      } catch (error) {
+        console.error('Error fetching shelters:', error)
+      } finally {
         setIsLoading(false)
-        return
       }
-
-      const validAnvendelseskoder = anvendelseskoderData?.map(ak => ak.kode) || []
-
-      // First get the total count
-      const { count, error: countError } = await supabase
-        .from('sheltersv2')
-        .select('*', { count: 'exact', head: true })
-        .gte('shelter_capacity', 40)
-        .not('location', 'is', null)
-        .in('anvendelse', validAnvendelseskoder)
-
-      if (countError) {
-        console.error('Error counting shelters:', countError)
-        setIsLoading(false)
-        return
-      }
-
-      console.log('Total shelters to fetch:', count)
-
-      // Fetch shelters in batches of 1000
-      const allShelters = []
-      const batchSize = 1000
-      const totalBatches = Math.ceil((count || 0) / batchSize)
-      setLoadingProgress({ current: 0, total: totalBatches, percentage: 0 })
-
-      for (let i = 0; i < totalBatches; i++) {
-        const { data, error } = await supabase
-          .from('sheltersv2')
-          .select(`
-            id,
-            created_at,
-            bygning_id,
-            kommunekode,
-            shelter_capacity,
-            address,
-            postnummer,
-            vejnavn,
-            husnummer,
-            location,
-            anvendelse,
-            deleted,
-            last_checked,
-            anvendelseskoder (
-              kode,
-              beskrivelse,
-              skal_med,
-              kategori,
-              created_at,
-              updated_at
-            )
-          `)
-          .gte('shelter_capacity', 40)
-          .not('location', 'is', null)
-          .in('anvendelse', validAnvendelseskoder)
-          .range(i * batchSize, (i + 1) * batchSize - 1)
-
-        if (error) {
-          console.error('Error fetching shelters batch:', error)
-          continue
-        }
-
-        if (data) {
-          allShelters.push(...data)
-        }
-
-        const percentage = Math.round(((i + 1) / totalBatches) * 100)
-        setLoadingProgress({ current: i + 1, total: totalBatches, percentage })
-        console.log(`Fetched batch ${i + 1}/${totalBatches} (${allShelters.length} shelters so far)`)
-      }
-
-      console.log('Total shelters fetched:', allShelters.length)
-
-      // Group shelters by address and calculate total capacity
-      const groupedShelters = allShelters.reduce((acc: { [key: string]: GroupedShelter }, shelter) => {
-        const address = shelter.address || `${shelter.vejnavn} ${shelter.husnummer}`
-        if (!acc[address]) {
-          acc[address] = {
-            ...shelter,
-            total_capacity: Number(shelter.shelter_capacity) || 0,
-            shelter_count: 1,
-            anvendelseskoder: shelter.anvendelseskoder?.[0]
-          }
-        } else {
-          acc[address].total_capacity += Number(shelter.shelter_capacity) || 0
-          acc[address].shelter_count += 1
-        }
-        return acc
-      }, {})
-
-      setShelters(Object.values(groupedShelters))
-      setIsLoading(false)
     }
 
     fetchShelters()
@@ -215,11 +124,8 @@ export default function NationalMap() {
             <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-blue-500 transition-all duration-300"
-                style={{ width: `${loadingProgress.percentage}%` }}
+                style={{ width: '100%' }}
               />
-            </div>
-            <div className="text-sm text-gray-600 mt-2">
-              {loadingProgress.current} / {loadingProgress.total} batches
             </div>
           </div>
         </div>
@@ -271,6 +177,11 @@ export default function NationalMap() {
                         </div>
                       )}
                     </div>
+                    {lastUpdated && (
+                      <div className="text-xs text-gray-400 mt-2">
+                        Opdateret: {new Date(lastUpdated).toLocaleDateString('da-DK')}
+                      </div>
+                    )}
                   </div>
                 </Popup>
               </Marker>
