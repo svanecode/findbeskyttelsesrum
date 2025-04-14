@@ -50,11 +50,11 @@ export function middleware(request: NextRequest) {
     'Content-Security-Policy',
     `
       default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://consent.cookiebot.com https://maps.googleapis.com https://maps.gstatic.com https://*.vercel-scripts.com https://*.vercel-insights.com;
-      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-      img-src 'self' data: https://*.tile.openstreetmap.org https://raw.githubusercontent.com https://maps.gstatic.com https://maps.googleapis.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://cdnjs.cloudflare.com;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://consent.cookiebot.com https://consentcdn.cookiebot.com https://maps.googleapis.com https://maps.gstatic.com https://*.vercel-scripts.com https://*.vercel-insights.com https://unpkg.com https://*.leafletjs.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com;
+      img-src 'self' data: https://*.tile.openstreetmap.org https://raw.githubusercontent.com https://maps.gstatic.com https://maps.googleapis.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://cdnjs.cloudflare.com https://*.google.com https://*.googleapis.com https://unpkg.com https://*.leafletjs.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.cookiebot.com https://imgsct.cookiebot.com;
       font-src 'self' https://fonts.gstatic.com data:;
-      connect-src 'self' https://irafzkpgqxdhsahoddxr.supabase.co https://maps.googleapis.com https://*.tile.openstreetmap.org https://*.vercel-scripts.com https://*.vercel-insights.com https://*.vercel.com https://va.vercel-scripts.com ws: wss:;
+      connect-src 'self' https://irafzkpgqxdhsahoddxr.supabase.co https://maps.googleapis.com https://*.maps.googleapis.com https://*.googleapis.com https://*.gstatic.com https://*.tile.openstreetmap.org https://*.vercel-scripts.com https://*.vercel-insights.com https://*.vercel.com https://va.vercel-scripts.com https://consent.cookiebot.com https://consentcdn.cookiebot.com https://*.google.com https://*.leafletjs.com https://unpkg.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org ws: wss:;
       frame-src 'self' https://consent.cookiebot.com https://consentcdn.cookiebot.com;
       object-src 'none';
       base-uri 'self';
