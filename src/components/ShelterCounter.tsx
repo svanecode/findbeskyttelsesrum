@@ -8,17 +8,22 @@ interface ShelterCounterProps {
 }
 
 export default function ShelterCounter({ targetNumber }: ShelterCounterProps) {
+  // Initialize with target number to ensure consistent server/client rendering
   const [count, setCount] = useState(targetNumber);
   const [hasAnimated, setHasAnimated] = useState(false);
 
   useEffect(() => {
+    // Only run animation on client side
+    if (typeof window === 'undefined') return;
+
     if (!hasAnimated) {
       setHasAnimated(true);
       return;
     }
 
-    // Only animate if the target number changes
+    // Reset count to 0 before animation
     setCount(0);
+    
     const duration = 2000; // 2 seconds
     const steps = 60;
     const increment = targetNumber / steps;
