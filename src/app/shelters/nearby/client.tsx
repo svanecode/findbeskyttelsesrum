@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
-import type { Map as LeafletMap, LatLngExpression, Icon } from 'leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import Map, { Marker, Popup, MapRef } from 'react-map-gl'
+import type { ViewState, MapLayerMouseEvent } from 'react-map-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/lib/supabase'
 import { Shelter } from '@/types/shelter'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
@@ -13,7 +12,6 @@ import Link from 'next/link'
 import GlobalFooter from '@/components/GlobalFooter'
 import { Kommunekode } from '@/types/kommunekode'
 import { Anvendelseskode } from '@/types/anvendelseskode'
-import { initializeLeaflet, createCustomIcon } from '@/lib/leaflet-setup'
 
 interface ShelterWithDistance extends Shelter {
   distance: number
@@ -59,103 +57,20 @@ interface Props {
   lng: string
 }
 
-// Add this new component for handling map updates
-function MapUpdater({ 
-  shelters, 
-  lat, 
-  lng, 
-  selectedShelter 
-}: { 
-  shelters: ShelterWithDistance[], 
-  lat: number, 
-  lng: number,
-  selectedShelter: string | null
-}) {
-  const map = useMap()
-  const updateTimeout = useRef<NodeJS.Timeout>()
-
-  const updateMapBounds = useCallback(() => {
-    if (map && shelters.length > 0) {
-      const bounds = shelters
-        .filter(shelter => shelter.location)
-        .map(shelter => [
-          shelter.location!.coordinates[1],
-          shelter.location!.coordinates[0]
-        ] as [number, number])
-      
-      bounds.push([lat, lng] as [number, number])
-      
-      const boundsOptions = {
-        padding: [50, 50] as [number, number],
-        maxZoom: 15,
-        animate: true
-      }
-      
-      map.fitBounds(bounds, boundsOptions)
-    }
-  }, [map, shelters, lat, lng])
-
-  useEffect(() => {
-    if (updateTimeout.current) {
-      clearTimeout(updateTimeout.current)
-    }
-    
-    updateTimeout.current = setTimeout(updateMapBounds, 300)
-    
-    return () => {
-      if (updateTimeout.current) {
-        clearTimeout(updateTimeout.current)
-      }
-    }
-  }, [updateMapBounds])
-
-  // Center map on selected shelter
-  useEffect(() => {
-    if (map && selectedShelter) {
-      const shelter = shelters.find(s => s.id === selectedShelter)
-      if (shelter?.location) {
-        map.setView([shelter.location.coordinates[1], shelter.location.coordinates[0]], 16)
-      }
-    }
-  }, [map, selectedShelter, shelters])
-
-  return null
-}
-
 export default function ShelterMapClient({ lat: latString, lng: lngString }: Props) {
   const [shelters, setShelters] = useState<(Shelter & { distance: number })[]>([])
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
-  const [map, setMap] = useState<LeafletMap | null>(null)
   const [selectedShelter, setSelectedShelter] = useState<string | null>(null)
   const [hoveredShelter, setHoveredShelter] = useState<string | null>(null)
   const shelterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
-  const [youAreHereIcon, setYouAreHereIcon] = useState<Icon | null>(null)
-  const [shelterIcon, setShelterIcon] = useState<Icon | null>(null)
-  const [hoveredShelterIcon, setHoveredShelterIcon] = useState<Icon | null>(null)
-  const [mapKey, setMapKey] = useState(0)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
-
-  // Initialize Leaflet
-  useEffect(() => {
-    initializeLeaflet();
-    setYouAreHereIcon(createCustomIcon('blue'));
-    setShelterIcon(createCustomIcon('red'));
-    setHoveredShelterIcon(createCustomIcon('orange'));
-  }, []);
-
-  // Handle map ref
-  const handleMapRef = useCallback((mapInstance: LeafletMap | null) => {
-    if (mapInstance) {
-      setMap(mapInstance);
-    }
-  }, []);
-
-  // Reset map when coordinates change
-  useEffect(() => {
-    setMapKey(prev => prev + 1);
-  }, [lat, lng]);
+  const [viewState, setViewState] = useState<Partial<ViewState>>({
+    latitude: lat,
+    longitude: lng,
+    zoom: 13
+  })
 
   useEffect(() => {
     async function loadData() {
@@ -186,8 +101,6 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
       </main>
     )
   }
-
-  const position: LatLngExpression = [lat, lng]
 
   return (
     <main className="min-h-screen bg-[#1a1a1a] text-white">
@@ -222,7 +135,17 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                   } ${hoveredShelter === shelter.id ? 'ring-1 ring-orange-400/30' : ''}`}
                   onMouseEnter={() => setHoveredShelter(shelter.id)}
                   onMouseLeave={() => setHoveredShelter(null)}
-                  onClick={() => setSelectedShelter(shelter.id)}
+                  onClick={() => {
+                    setSelectedShelter(shelter.id)
+                    if (shelter.location) {
+                      setViewState({
+                        ...viewState,
+                        latitude: shelter.location.coordinates[1],
+                        longitude: shelter.location.coordinates[0],
+                        zoom: 16
+                      })
+                    }
+                  }}
                 >
                   <div className="flex justify-between items-start mb-4 sm:mb-5">
                     <div>
@@ -323,63 +246,40 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           </div>
 
           <div className="order-1 lg:order-2 h-[400px] lg:h-[600px] relative">
-            <MapContainer
-              key={mapKey}
-              center={position}
-              zoom={13}
-              style={{ height: '100%', width: '100%' }}
-              ref={handleMapRef}
+            <Map
+              {...viewState}
+              onMove={(evt: { viewState: ViewState }) => setViewState(evt.viewState)}
+              mapStyle="mapbox://styles/mapbox/dark-v11"
+              mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+              style={{ width: '100%', height: '100%' }}
               className="rounded-lg"
-              maxZoom={19}
-              minZoom={5}
             >
-              <TileLayer
-                url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maxZoom={19}
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                eventHandlers={{
-                  error: (e) => {
-                    console.error('Tile layer error:', e);
-                    // Try reloading the tile layer
-                    setMapKey(prev => prev + 1);
-                  }
-                }}
-                keepBuffer={8}
-                updateWhenZooming={false}
-                updateWhenIdle={true}
-                maxNativeZoom={19}
-              />
-              <MapUpdater 
-                shelters={shelters} 
-                lat={lat} 
-                lng={lng}
-                selectedShelter={selectedShelter}
-              />
-              {youAreHereIcon && shelterIcon && hoveredShelterIcon && (
-                <>
-                  <Marker position={position} icon={youAreHereIcon}>
-                    <Popup>Du er her</Popup>
+              <Marker
+                longitude={lng}
+                latitude={lat}
+                color="#3B82F6"
+              >
+                <div className="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg" />
+              </Marker>
+
+              {shelters.map((shelter) => (
+                shelter.location && (
+                  <Marker
+                    key={shelter.id}
+                    longitude={shelter.location.coordinates[0]}
+                    latitude={shelter.location.coordinates[1]}
+                    color={hoveredShelter === shelter.id ? '#FB923C' : '#EF4444'}
+                    onClick={() => setSelectedShelter(shelter.id)}
+                  >
+                    <div 
+                      className={`w-4 h-4 rounded-full border-2 border-white shadow-lg ${
+                        hoveredShelter === shelter.id ? 'bg-orange-400' : 'bg-red-500'
+                      }`}
+                    />
                   </Marker>
-                  {shelters.map((shelter) => (
-                    shelter.location && (
-                      <Marker
-                        key={shelter.id}
-                        position={[
-                          shelter.location.coordinates[1],
-                          shelter.location.coordinates[0]
-                        ]}
-                        icon={hoveredShelter === shelter.id ? hoveredShelterIcon : shelterIcon}
-                        eventHandlers={{
-                          click: () => setSelectedShelter(shelter.id),
-                          mouseover: () => setHoveredShelter(shelter.id),
-                          mouseout: () => setHoveredShelter(null)
-                        }}
-                      />
-                    )
-                  ))}
-                </>
-              )}
-            </MapContainer>
+                )
+              ))}
+            </Map>
           </div>
         </div>
       </div>
