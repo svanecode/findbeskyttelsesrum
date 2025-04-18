@@ -138,9 +138,11 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   const lng = parseFloat(lngString)
   const [isMapLoading, setIsMapLoading] = useState(true)
   const [mapError, setMapError] = useState<string | null>(null)
+  const [tileLayerLoaded, setTileLayerLoaded] = useState(false)
 
   // Initialize Leaflet
   useEffect(() => {
+    console.log('Initializing Leaflet...')
     initializeLeaflet();
     setYouAreHereIcon(createCustomIcon('blue'));
     setShelterIcon(createCustomIcon('red'));
@@ -148,6 +150,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
 
     return () => {
       if (map) {
+        console.log('Cleaning up map...')
         map.remove();
         setMap(null);
       }
@@ -155,11 +158,10 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   }, []);
 
   // Handle map instance
-  const handleMapCreated = useCallback(() => {
-    if (map) {
-      setMap(map);
-    }
-  }, [map]);
+  const handleMapCreated = useCallback((mapInstance: LeafletMap) => {
+    console.log('Map instance created')
+    setMap(mapInstance);
+  }, []);
 
   // Reset map when coordinates change
   useEffect(() => {
@@ -349,7 +351,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
               </div>
             ) : (
               <>
-                {isMapLoading && (
+                {isMapLoading && !tileLayerLoaded && (
                   <div className="absolute inset-0 flex items-center justify-center bg-[#2a2a2a] rounded-lg z-10">
                     <div className="flex items-center space-x-3">
                       <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
@@ -372,9 +374,20 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     eventHandlers={{
-                      loading: () => setIsMapLoading(true),
-                      load: () => setIsMapLoading(false),
-                      error: () => setMapError('Kunne ikke indlæse kortet. Tjek din internetforbindelse.')
+                      loading: () => {
+                        console.log('TileLayer loading...')
+                        setIsMapLoading(true)
+                        setTileLayerLoaded(false)
+                      },
+                      load: () => {
+                        console.log('TileLayer loaded')
+                        setTileLayerLoaded(true)
+                        setIsMapLoading(false)
+                      },
+                      error: () => {
+                        console.log('TileLayer error')
+                        setMapError('Kunne ikke indlæse kortet. Tjek din internetforbindelse.')
+                      }
                     }}
                   />
                   <MapUpdater 
