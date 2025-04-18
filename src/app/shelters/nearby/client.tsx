@@ -63,6 +63,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
   const [selectedShelter, setSelectedShelter] = useState<string | null>(null)
   const [hoveredShelter, setHoveredShelter] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const shelterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
@@ -73,17 +74,36 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   })
 
   useEffect(() => {
+    let isMounted = true
+
     async function loadData() {
-      const [sheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
-        getNearbyShelters(lat, lng),
-        getAnvendelseskoder(),
-        getKommunekoder()
-      ])
-      setShelters(sheltersData)
-      setAnvendelseskoder(anvendelseskoderData)
-      setKommunekoder(kommunekoderData)
+      try {
+        setIsLoading(true)
+        const [sheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
+          getNearbyShelters(lat, lng),
+          getAnvendelseskoder(),
+          getKommunekoder()
+        ])
+        
+        if (isMounted) {
+          setShelters(sheltersData)
+          setAnvendelseskoder(anvendelseskoderData)
+          setKommunekoder(kommunekoderData)
+        }
+      } catch (error) {
+        console.error('Error loading data:', error)
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
     }
+
     loadData()
+
+    return () => {
+      isMounted = false
+    }
   }, [lat, lng])
 
   if (isNaN(lat) || isNaN(lng)) {
@@ -119,7 +139,11 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="order-2 lg:order-1 space-y-4">
-            {shelters.length === 0 ? (
+            {isLoading ? (
+              <div className="bg-[#2a2a2a] rounded-lg p-4">
+                <p className="text-gray-300">Indlæser beskyttelsesrum...</p>
+              </div>
+            ) : shelters.length === 0 ? (
               <div className="bg-[#2a2a2a] rounded-lg p-4">
                 <p className="text-gray-300">
                   Ingen beskyttelsesrum fundet inden for 5 km af den valgte position.
