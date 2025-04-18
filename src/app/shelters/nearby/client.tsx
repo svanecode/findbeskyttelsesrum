@@ -136,31 +136,20 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   const [mapKey, setMapKey] = useState(0)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
-  const [isMapLoading, setIsMapLoading] = useState(true)
-  const [mapError, setMapError] = useState<string | null>(null)
-  const [tileLayerLoaded, setTileLayerLoaded] = useState(false)
 
   // Initialize Leaflet
   useEffect(() => {
-    console.log('Initializing Leaflet...')
     initializeLeaflet();
     setYouAreHereIcon(createCustomIcon('blue'));
     setShelterIcon(createCustomIcon('red'));
     setHoveredShelterIcon(createCustomIcon('orange'));
-
-    return () => {
-      if (map) {
-        console.log('Cleaning up map...')
-        map.remove();
-        setMap(null);
-      }
-    };
   }, []);
 
-  // Handle map instance
-  const handleMapCreated = useCallback((mapInstance: LeafletMap) => {
-    console.log('Map instance created')
-    setMap(mapInstance);
+  // Handle map ref
+  const handleMapRef = useCallback((mapInstance: LeafletMap | null) => {
+    if (mapInstance) {
+      setMap(mapInstance);
+    }
   }, []);
 
   // Reset map when coordinates change
@@ -333,96 +322,50 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
             )}
           </div>
 
-          <div className="order-1 lg:order-2 h-[50vh] lg:h-[80vh] relative">
-            {mapError ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-[#2a2a2a] rounded-lg">
-                <div className="text-center p-4">
-                  <p className="text-red-400 mb-2">Der opstod en fejl ved indlæsning af kortet</p>
-                  <button 
-                    onClick={() => {
-                      setMapError(null);
-                      setMapKey(prev => prev + 1);
-                    }}
-                    className="text-blue-400 hover:text-blue-300"
-                  >
-                    Prøv igen
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                {isMapLoading && !tileLayerLoaded && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-[#2a2a2a] rounded-lg z-10">
-                    <div className="flex items-center space-x-3">
-                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      <span>Indlæser kort...</span>
-                    </div>
-                  </div>
-                )}
-                <MapContainer
-                  key={`map-${mapKey}`}
-                  center={position}
-                  zoom={13}
-                  style={{ height: '100%', width: '100%' }}
-                  className="rounded-lg"
-                  ref={setMap}
-                >
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    eventHandlers={{
-                      loading: () => {
-                        console.log('TileLayer loading...')
-                        setIsMapLoading(true)
-                        setTileLayerLoaded(false)
-                      },
-                      load: () => {
-                        console.log('TileLayer loaded')
-                        setTileLayerLoaded(true)
-                        setIsMapLoading(false)
-                      },
-                      error: () => {
-                        console.log('TileLayer error')
-                        setMapError('Kunne ikke indlæse kortet. Tjek din internetforbindelse.')
-                      }
-                    }}
-                  />
-                  <MapUpdater 
-                    shelters={shelters} 
-                    lat={lat} 
-                    lng={lng}
-                    selectedShelter={selectedShelter}
-                  />
-                  {youAreHereIcon && shelterIcon && hoveredShelterIcon && (
-                    <>
-                      <Marker position={position} icon={youAreHereIcon}>
-                        <Popup>Du er her</Popup>
-                      </Marker>
-                      {shelters.map((shelter) => (
-                        shelter.location && (
-                          <Marker
-                            key={shelter.id}
-                            position={[
-                              shelter.location.coordinates[1],
-                              shelter.location.coordinates[0]
-                            ]}
-                            icon={hoveredShelter === shelter.id ? hoveredShelterIcon : shelterIcon}
-                            eventHandlers={{
-                              click: () => setSelectedShelter(shelter.id),
-                              mouseover: () => setHoveredShelter(shelter.id),
-                              mouseout: () => setHoveredShelter(null)
-                            }}
-                          />
-                        )
-                      ))}
-                    </>
-                  )}
-                </MapContainer>
-              </>
-            )}
+          <div className="order-1 lg:order-2 h-[400px] lg:h-[600px] relative">
+            <MapContainer
+              key={mapKey}
+              center={position}
+              zoom={13}
+              style={{ height: '100%', width: '100%' }}
+              ref={handleMapRef}
+              className="rounded-lg"
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+              <MapUpdater 
+                shelters={shelters} 
+                lat={lat} 
+                lng={lng}
+                selectedShelter={selectedShelter}
+              />
+              {youAreHereIcon && shelterIcon && hoveredShelterIcon && (
+                <>
+                  <Marker position={position} icon={youAreHereIcon}>
+                    <Popup>Du er her</Popup>
+                  </Marker>
+                  {shelters.map((shelter) => (
+                    shelter.location && (
+                      <Marker
+                        key={shelter.id}
+                        position={[
+                          shelter.location.coordinates[1],
+                          shelter.location.coordinates[0]
+                        ]}
+                        icon={hoveredShelter === shelter.id ? hoveredShelterIcon : shelterIcon}
+                        eventHandlers={{
+                          click: () => setSelectedShelter(shelter.id),
+                          mouseover: () => setHoveredShelter(shelter.id),
+                          mouseout: () => setHoveredShelter(null)
+                        }}
+                      />
+                    )
+                  ))}
+                </>
+              )}
+            </MapContainer>
           </div>
         </div>
       </div>
