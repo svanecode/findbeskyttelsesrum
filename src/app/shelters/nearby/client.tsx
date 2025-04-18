@@ -245,7 +245,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
             )}
           </div>
 
-          <div className="order-1 lg:order-2 h-[400px] lg:h-[600px] relative">
+          <div className="order-1 lg:order-2 h-[400px] lg:h-[600px] relative lg:sticky lg:top-4">
             <div className="absolute inset-0 rounded-lg overflow-hidden">
               <Map
                 {...viewState}
