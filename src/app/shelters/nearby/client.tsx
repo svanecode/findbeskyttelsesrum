@@ -330,10 +330,24 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
               style={{ height: '100%', width: '100%' }}
               ref={handleMapRef}
               className="rounded-lg"
+              maxZoom={19}
+              minZoom={5}
             >
               <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                maxZoom={19}
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                eventHandlers={{
+                  error: (e) => {
+                    console.error('Tile layer error:', e);
+                    // Try reloading the tile layer
+                    setMapKey(prev => prev + 1);
+                  }
+                }}
+                keepBuffer={8}
+                updateWhenZooming={false}
+                updateWhenIdle={true}
+                maxNativeZoom={19}
               />
               <MapUpdater 
                 shelters={shelters} 
