@@ -1,10 +1,50 @@
 import { createClient } from '@supabase/supabase-js'
 import { cachedQuery, generateCacheKey } from './cache'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Ensure environment variables are available and properly typed
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Validate environment variables
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing required environment variables for Supabase configuration')
+  console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? 'present' : 'missing')
+  console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'present' : 'missing')
+  
+  // In development, provide more helpful error messages
+  if (process.env.NODE_ENV === 'development') {
+    throw new Error('Missing required Supabase environment variables. Check .env file.')
+  }
+  
+  // In production, use fallback values or handle gracefully
+  throw new Error('Database configuration error')
+}
+
+// Initialize Supabase client
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false // Since we're using this on the server side
+  }
+})
+
+export async function getAllKommuneSlugs(): Promise<string[]> {
+  return cachedQuery(
+    generateCacheKey('kommunekoder', { slugs: true }),
+    async () => {
+      const { data, error } = await supabase
+        .from('kommunekoder')
+        .select('slug')
+        .order('slug')
+
+      if (error) {
+        console.error('Error fetching kommune slugs:', error)
+        return []
+      }
+
+      return data.map(kommune => kommune.slug)
+    }
+  )
+}
 
 export async function getShelterCount(): Promise<number> {
   return cachedQuery(
