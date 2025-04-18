@@ -11,25 +11,6 @@ export function middleware(request: NextRequest) {
     return new NextResponse('Too Many Requests', { status: 429 })
   }
 
-  // Only run on /shelters/nearby
-  if (pathname === '/shelters/nearby') {
-    const searchParams = request.nextUrl.searchParams
-    const lat = searchParams.get('lat')
-    const lng = searchParams.get('lng')
-
-    // Validate coordinates
-    if (!lat || !lng || isNaN(Number(lat)) || isNaN(Number(lng))) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-
-    // Validate coordinate ranges
-    const latNum = Number(lat)
-    const lngNum = Number(lng)
-    if (latNum < 54.5 || latNum > 57.8 || lngNum < 8.0 || lngNum > 15.2) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
-
   // Clone the response
   const response = NextResponse.next()
 
@@ -78,7 +59,6 @@ export function middleware(request: NextRequest) {
 // Configure the paths that should be matched by middleware
 export const config = {
   matcher: [
-    '/shelters/nearby',
     '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 } 
