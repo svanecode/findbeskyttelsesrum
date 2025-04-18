@@ -246,40 +246,49 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           </div>
 
           <div className="order-1 lg:order-2 h-[400px] lg:h-[600px] relative">
-            <Map
-              {...viewState}
-              onMove={(evt: { viewState: ViewState }) => setViewState(evt.viewState)}
-              mapStyle="mapbox://styles/mapbox/dark-v11"
-              mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
-              style={{ width: '100%', height: '100%' }}
-              className="rounded-lg"
-            >
-              <Marker
-                longitude={lng}
-                latitude={lat}
-                color="#3B82F6"
+            <div className="absolute inset-0 rounded-lg overflow-hidden">
+              <Map
+                {...viewState}
+                onMove={(evt: { viewState: ViewState }) => setViewState(evt.viewState)}
+                mapStyle="mapbox://styles/mapbox/streets-v12"
+                mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+                style={{ width: '100%', height: '100%' }}
               >
-                <div className="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg" />
-              </Marker>
+                <Marker
+                  longitude={lng}
+                  latitude={lat}
+                  color="#3B82F6"
+                >
+                  <div className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg" />
+                </Marker>
 
-              {shelters.map((shelter) => (
-                shelter.location && (
-                  <Marker
-                    key={shelter.id}
-                    longitude={shelter.location.coordinates[0]}
-                    latitude={shelter.location.coordinates[1]}
-                    color={hoveredShelter === shelter.id ? '#FB923C' : '#EF4444'}
-                    onClick={() => setSelectedShelter(shelter.id)}
-                  >
-                    <div 
-                      className={`w-4 h-4 rounded-full border-2 border-white shadow-lg ${
-                        hoveredShelter === shelter.id ? 'bg-orange-400' : 'bg-red-500'
-                      }`}
-                    />
-                  </Marker>
-                )
-              ))}
-            </Map>
+                {shelters.map((shelter) => (
+                  shelter.location && (
+                    <Marker
+                      key={shelter.id}
+                      longitude={shelter.location.coordinates[0]}
+                      latitude={shelter.location.coordinates[1]}
+                      color={hoveredShelter === shelter.id ? '#FB923C' : '#EF4444'}
+                      onClick={() => {
+                        setSelectedShelter(shelter.id)
+                        if (shelterRefs.current[shelter.id]) {
+                          shelterRefs.current[shelter.id]?.scrollIntoView({ 
+                            behavior: 'smooth',
+                            block: 'center'
+                          })
+                        }
+                      }}
+                    >
+                      <div 
+                        className={`w-6 h-6 rounded-full border-2 border-white shadow-lg ${
+                          hoveredShelter === shelter.id ? 'bg-orange-400' : 'bg-red-500'
+                        }`}
+                      />
+                    </Marker>
+                  )
+                ))}
+              </Map>
+            </div>
           </div>
         </div>
       </div>

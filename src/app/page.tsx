@@ -35,7 +35,7 @@ export default function Home() {
   return (
     <main className="min-h-screen text-white p-2 sm:p-8 flex flex-col justify-center items-center relative">
       <BackgroundAnimation />
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -64,7 +64,9 @@ export default function Home() {
             >
               Find det nærmeste beskyttelsesrum i dit område
             </motion.p>
-            <ShelterCounter targetNumber={3435834} />
+            <div className="text-center mt-8">
+              <ShelterCounter targetNumber={3435834} />
+            </div>
           </motion.div>
           
           <motion.div 

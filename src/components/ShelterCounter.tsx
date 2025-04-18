@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
@@ -6,9 +8,17 @@ interface ShelterCounterProps {
 }
 
 export default function ShelterCounter({ targetNumber }: ShelterCounterProps) {
-  const [count, setCount] = useState(0);
+  const [count, setCount] = useState(targetNumber);
+  const [hasAnimated, setHasAnimated] = useState(false);
 
   useEffect(() => {
+    if (!hasAnimated) {
+      setHasAnimated(true);
+      return;
+    }
+
+    // Only animate if the target number changes
+    setCount(0);
     const duration = 2000; // 2 seconds
     const steps = 60;
     const increment = targetNumber / steps;
@@ -24,7 +34,7 @@ export default function ShelterCounter({ targetNumber }: ShelterCounterProps) {
     }, duration / steps);
 
     return () => clearInterval(timer);
-  }, [targetNumber]);
+  }, [targetNumber, hasAnimated]);
 
   return (
     <motion.div
