@@ -15,17 +15,50 @@ if (!supabaseUrl || !supabaseAnonKey) {
   if (process.env.NODE_ENV === 'development') {
     throw new Error('Missing required Supabase environment variables. Check .env file.')
   }
-  
-  // In production, use fallback values or handle gracefully
-  throw new Error('Database configuration error')
 }
 
-// Initialize Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Initialize Supabase client with retry configuration
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: {
     persistSession: false // Since we're using this on the server side
+  },
+  global: {
+    headers: {
+      'x-application-name': 'findbeskyttelsesrum'
+    }
+  },
+  db: {
+    schema: 'public'
   }
 })
+
+// Add retry logic for RPC calls
+const MAX_RETRIES = 3
+const RETRY_DELAY = 1000 // 1 second
+
+interface SupabaseRPCResponse<T> {
+  data: T | null
+  error: any | null
+}
+
+export async function retryRPC<T>(fn: () => Promise<SupabaseRPCResponse<T>>): Promise<SupabaseRPCResponse<T>> {
+  let lastError: Error | null = null
+  
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error as Error
+      console.error(`Attempt ${i + 1} failed:`, error)
+      
+      if (i < MAX_RETRIES - 1) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (i + 1)))
+      }
+    }
+  }
+  
+  throw lastError
+}
 
 export async function getAllKommuneSlugs(): Promise<string[]> {
   return cachedQuery(

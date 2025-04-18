@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import Map, { Marker, Popup, MapRef } from 'react-map-gl'
 import type { ViewState, MapLayerMouseEvent } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { supabase } from '@/lib/supabase'
+import { supabase, retryRPC } from '@/lib/supabase'
 import { Shelter } from '@/types/shelter'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
@@ -20,36 +20,44 @@ interface ShelterWithDistance extends Shelter {
 async function getNearbyShelters(lat: number, lng: number) {
   console.log('Calling get_nearby_shelters_v2 with:', { p_lat: lat, p_lng: lng })
   
-  const { data, error } = await supabase
-    .rpc('get_nearby_shelters_v2', {
-      p_lat: lat,
-      p_lng: lng
+  try {
+    const response = await retryRPC<ShelterWithDistance[]>(async () => {
+      const result = await supabase.rpc('get_nearby_shelters_v2', {
+        p_lat: lat,
+        p_lng: lng
+      })
+      return result
     })
 
-  if (error) {
-    console.error('Error details:', {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code
-    })
-    return []
-  }
+    if (response.error) {
+      console.error('Supabase RPC error:', {
+        message: response.error.message,
+        details: response.error.details,
+        hint: response.error.hint,
+        code: response.error.code,
+        stack: response.error.stack
+      })
+      throw response.error
+    }
 
-  if (!data) {
-    console.log('No data returned from get_nearby_shelters_v2')
-    return []
-  }
+    if (!response.data) {
+      console.log('No data returned from get_nearby_shelters_v2')
+      return []
+    }
 
-  console.log('Successfully fetched shelters:', data.length)
-  
-  const nearbyShelters = data
-    .map((shelter: ShelterWithDistance) => ({
-      ...shelter,
-      distance: (shelter.distance || 0) / 1000
-    }))
+    console.log('Successfully fetched shelters:', response.data.length)
     
-  return nearbyShelters
+    const nearbyShelters = response.data
+      .map((shelter: ShelterWithDistance) => ({
+        ...shelter,
+        distance: (shelter.distance || 0) / 1000
+      }))
+      
+    return nearbyShelters
+  } catch (error) {
+    console.error('Error in getNearbyShelters:', error)
+    return []
+  }
 }
 
 interface Props {
@@ -79,11 +87,19 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
     async function loadData() {
       try {
         setIsLoading(true)
+        console.log('Starting data load with coordinates:', { lat, lng })
+        
         const [sheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
           getNearbyShelters(lat, lng),
           getAnvendelseskoder(),
           getKommunekoder()
         ])
+        
+        console.log('Data loaded:', {
+          sheltersCount: sheltersData.length,
+          anvendelseskoderCount: anvendelseskoderData.length,
+          kommunekoderCount: kommunekoderData.length
+        })
         
         if (isMounted) {
           setShelters(sheltersData)
@@ -91,7 +107,13 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           setKommunekoder(kommunekoderData)
         }
       } catch (error) {
-        console.error('Error loading data:', error)
+        console.error('Error in loadData:', error)
+        // Set empty arrays to prevent infinite loading state
+        if (isMounted) {
+          setShelters([])
+          setAnvendelseskoder([])
+          setKommunekoder([])
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false)
