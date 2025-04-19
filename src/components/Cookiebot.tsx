@@ -1,6 +1,7 @@
 'use client';
 
 import Script from 'next/script';
+import Head from 'next/head';
 
 declare global {
   interface Window {
@@ -11,6 +12,23 @@ declare global {
 export default function Cookiebot() {
   return (
     <>
+      <Head>
+        <link
+          rel="preconnect"
+          href="https://consent.cookiebot.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preconnect"
+          href="https://consentcdn.cookiebot.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          as="script"
+          href="https://consent.cookiebot.com/uc.js"
+        />
+      </Head>
       <Script
         id="Cookiebot"
         src="https://consent.cookiebot.com/uc.js"
@@ -19,13 +37,12 @@ export default function Cookiebot() {
         data-culture="DA"
         data-framework="IAB"
         data-type="opt-in"
-        strategy="afterInteractive"
+        strategy="beforeInteractive"
         onLoad={() => {
-          console.log('Cookiebot script loaded');
           if (window.Cookiebot) {
-            console.log('Cookiebot object available');
+            console.log('Cookiebot initialized successfully');
           } else {
-            console.error('Cookiebot object not available');
+            console.error('Cookiebot initialization failed');
           }
         }}
         onError={(e) => {
