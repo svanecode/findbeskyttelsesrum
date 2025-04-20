@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import Map, { Marker, Popup, MapRef, Source, Layer } from 'react-map-gl'
 import type { ViewState } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -10,6 +10,7 @@ import { Anvendelseskode } from '@/types/anvendelseskode'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
 import { Kommunekode } from '@/types/kommunekode'
+import mapboxgl from 'mapbox-gl'
 
 interface Props {
   kommunekode: string
@@ -32,6 +33,35 @@ export default function KommuneMap({ kommunekode }: Props) {
     longitude: 9.5018,
     zoom: 7
   })
+
+  // Function to fit all markers in view
+  const fitBounds = useCallback((map: MapRef) => {
+    if (shelters.length === 0) return
+
+    const bounds = new mapboxgl.LngLatBounds()
+    
+    // Add all shelter locations
+    shelters.forEach(shelter => {
+      if (shelter.location) {
+        bounds.extend([
+          shelter.location.coordinates[0],
+          shelter.location.coordinates[1]
+        ])
+      }
+    })
+
+    map.fitBounds(bounds, {
+      padding: 50,
+      maxZoom: 15
+    })
+  }, [shelters])
+
+  // Fit bounds when shelters change
+  useEffect(() => {
+    if (mapRef && shelters.length > 0) {
+      fitBounds(mapRef)
+    }
+  }, [mapRef, shelters, fitBounds])
 
   // Convert shelters to GeoJSON
   const geojsonData = useMemo(() => {
@@ -171,37 +201,6 @@ export default function KommuneMap({ kommunekode }: Props) {
 
     fetchShelters()
   }, [kommunekode])
-
-  // Update map bounds when shelters change
-  useEffect(() => {
-    if (mapRef && shelters.length > 0) {
-      const coordinates = shelters
-        .filter(shelter => shelter.location)
-        .map(shelter => shelter.location!.coordinates as [number, number])
-      
-      if (coordinates.length === 0) return
-      
-      let minLng = coordinates[0][0]
-      let minLat = coordinates[0][1]
-      let maxLng = coordinates[0][0]
-      let maxLat = coordinates[0][1]
-      
-      coordinates.forEach(coord => {
-        minLng = Math.min(minLng, coord[0])
-        minLat = Math.min(minLat, coord[1])
-        maxLng = Math.max(maxLng, coord[0])
-        maxLat = Math.max(maxLat, coord[1])
-      })
-      
-      const boundsOptions = {
-        padding: 50,
-        maxZoom: 15,
-        duration: 500
-      }
-      
-      mapRef.fitBounds([[minLng, minLat], [maxLng, maxLat]], boundsOptions)
-    }
-  }, [mapRef, shelters])
 
   return (
     <div className="h-[500px] w-full rounded-lg overflow-hidden">

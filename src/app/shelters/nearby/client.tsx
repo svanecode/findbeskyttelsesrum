@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import Map, { Marker, Popup, MapRef } from 'react-map-gl'
 import type { ViewState, MapLayerMouseEvent } from 'react-map-gl'
+import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase, retryRPC } from '@/lib/supabase'
 import { Shelter } from '@/types/shelter'
@@ -73,13 +74,58 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   const [hoveredShelter, setHoveredShelter] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const shelterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
+  const mapRef = useRef<MapRef>(null)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
   const [viewState, setViewState] = useState<Partial<ViewState>>({
     latitude: lat,
     longitude: lng,
-    zoom: 13
+    zoom: 12
   })
+
+  // Store initial view state for reset
+  const initialViewState = useRef<Partial<ViewState>>({
+    latitude: lat,
+    longitude: lng,
+    zoom: 12
+  })
+
+  // Function to handle back to top
+  const handleBackToTop = useCallback(() => {
+    if (mapRef.current) {
+      mapRef.current.flyTo({
+        center: [initialViewState.current.longitude!, initialViewState.current.latitude!],
+        zoom: initialViewState.current.zoom,
+        duration: 1000
+      })
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  // Function to fit all markers in view
+  const fitBounds = useCallback((map: MapRef) => {
+    if (shelters.length === 0) return
+
+    const bounds = new mapboxgl.LngLatBounds()
+    
+    // Add user location
+    bounds.extend([lng, lat])
+    
+    // Add all shelter locations
+    shelters.forEach(shelter => {
+      if (shelter.location) {
+        bounds.extend([
+          shelter.location.coordinates[0],
+          shelter.location.coordinates[1]
+        ])
+      }
+    })
+
+    map.fitBounds(bounds, {
+      padding: 50,
+      maxZoom: 15
+    })
+  }, [shelters, lat, lng])
 
   useEffect(() => {
     let isMounted = true
@@ -108,7 +154,6 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
         }
       } catch (error) {
         console.error('Error in loadData:', error)
-        // Set empty arrays to prevent infinite loading state
         if (isMounted) {
           setShelters([])
           setAnvendelseskoder([])
@@ -127,6 +172,13 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
       isMounted = false
     }
   }, [lat, lng])
+
+  // Fit bounds when shelters change
+  useEffect(() => {
+    if (mapRef.current && shelters.length > 0) {
+      fitBounds(mapRef.current)
+    }
+  }, [shelters, fitBounds])
 
   if (isNaN(lat) || isNaN(lng)) {
     return (
@@ -158,6 +210,17 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           </Link>
           <h1 className="text-2xl font-bold">Dine 10 nærmeste beskyttelsesrum</h1>
         </div>
+
+        {/* Back to top button */}
+        <button
+          onClick={handleBackToTop}
+          className="fixed bottom-6 right-6 z-50 p-3 bg-orange-500/90 hover:bg-orange-500 text-white rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-orange-500/50 md:hidden"
+          aria-label="Tilbage til toppen"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+          </svg>
+        </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="order-2 lg:order-1 space-y-4">
@@ -299,6 +362,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                 mapStyle="mapbox://styles/mapbox/streets-v12"
                 mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
                 style={{ width: '100%', height: '100%' }}
+                ref={mapRef}
               >
                 <Marker
                   longitude={lng}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import Map, { Marker, Popup, MapRef, Source, Layer } from 'react-map-gl'
 import type { ViewState } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -8,6 +8,7 @@ import { Anvendelseskode } from '@/types/anvendelseskode'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
 import { Kommunekode } from '@/types/kommunekode'
+import mapboxgl from 'mapbox-gl'
 
 interface GroupedShelter {
   id: string
@@ -47,8 +48,37 @@ export default function NationalMap() {
   const [viewState, setViewState] = useState<Partial<ViewState>>({
     latitude: 56.2639,
     longitude: 9.5018,
-    zoom: 7
+    zoom: 6.5
   })
+
+  // Function to fit all markers in view
+  const fitBounds = useCallback((map: MapRef) => {
+    if (shelters.length === 0) return
+
+    const bounds = new mapboxgl.LngLatBounds()
+    
+    // Add all shelter locations
+    shelters.forEach(shelter => {
+      if (shelter.location) {
+        bounds.extend([
+          shelter.location.coordinates[0],
+          shelter.location.coordinates[1]
+        ])
+      }
+    })
+
+    map.fitBounds(bounds, {
+      padding: 50,
+      maxZoom: 15
+    })
+  }, [shelters])
+
+  // Fit bounds when shelters change
+  useEffect(() => {
+    if (mapRef && shelters.length > 0) {
+      fitBounds(mapRef)
+    }
+  }, [mapRef, shelters, fitBounds])
 
   // Convert shelters to GeoJSON
   const geojsonData = useMemo(() => {

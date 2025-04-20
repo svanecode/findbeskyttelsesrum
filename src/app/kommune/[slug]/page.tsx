@@ -1,8 +1,6 @@
-import { Suspense } from 'react'
-import { getCachedKommune, getCachedKommuneList } from '@/lib/cached-queries'
+import Link from 'next/link'
 import KommuneMap from './map'
-import MapWrapper from './map-wrapper'
-import Search from '@/components/search'
+import { getCachedKommune } from '@/lib/cached-queries'
 import { notFound } from 'next/navigation'
 
 interface Kommune {
@@ -17,44 +15,31 @@ interface Props {
   }
 }
 
-export async function generateStaticParams() {
-  try {
-    const kommuner = await getCachedKommuneList() as Kommune[]
-    return kommuner.map((kommune) => ({
-      slug: kommune.slug,
-    }))
-  } catch (error) {
-    console.error('Error generating static params:', error)
-    return []
-  }
-}
-
 export default async function KommunePage({ params }: Props) {
-  try {
-    const kommune = await getCachedKommune(params.slug) as Kommune
+  const kommune = await getCachedKommune(params.slug) as Kommune
 
-    if (!kommune) {
-      console.error('No kommune found for slug:', params.slug)
-      notFound()
-    }
-
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Beskyttelsesrum i {kommune.navn}</h1>
-        
-        <div className="mb-8">
-          <Search />
-        </div>
-
-        <div className="h-[500px] w-full rounded-lg overflow-hidden mb-8">
-          <Suspense fallback={<div className="h-full w-full bg-gray-100 animate-pulse" />}>
-            <MapWrapper kommunekode={kommune.kode} />
-          </Suspense>
-        </div>
-      </div>
-    )
-  } catch (error) {
-    console.error('Error fetching kommune:', error)
+  if (!kommune) {
     notFound()
   }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <Link
+          href="/"
+          className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-2 mb-4"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+            <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Tilbage til forsiden
+        </Link>
+        <h1 className="text-3xl font-bold">Beskyttelsesrum i {kommune.navn}</h1>
+      </div>
+
+      <div className="h-[calc(100vh-12rem)] w-full rounded-lg overflow-hidden mb-8">
+        <KommuneMap kommunekode={kommune.kode} />
+      </div>
+    </div>
+  )
 } 

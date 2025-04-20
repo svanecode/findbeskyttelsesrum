@@ -105,7 +105,6 @@ body {
   background-attachment: fixed;
   background-size: cover, cover, 200px 200px, 100px 100px;
   background-blend-mode: normal, normal, overlay, overlay;
-  animation: backgroundFadeIn 1.5s ease-out forwards;
   color: var(--text-primary);
   font-family: var(--font-sans);
   position: relative;
@@ -216,7 +215,6 @@ body::before {
     0 2px 8px rgba(0, 0, 0, 0.1),
     inset 0 0 0 1px rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
 }
 
 .glass-effect:hover {
@@ -224,11 +222,9 @@ body::before {
     0 12px 40px rgba(0, 0, 0, 0.15),
     0 4px 12px rgba(0, 0, 0, 0.1),
     inset 0 0 0 1px rgba(255, 255, 255, 0.15);
-  transform: translateY(-2px);
 }
 
 .input-focus {
-  transition: all 0.3s ease;
   box-shadow: 
     0 0 0 1px rgba(255, 255, 255, 0.1),
     0 2px 4px rgba(0, 0, 0, 0.1);

@@ -167,8 +167,6 @@ export default function Search() {
             0 8px 16px -8px rgba(0, 0, 0, 0.3),
             0 0 0 1px rgba(255, 255, 255, 0.1);
           z-index: 1000;
-          animation: dropdownFadeIn 0.2s ease-out;
-          transform-origin: top center;
         }
 
         .pac-item {
@@ -178,7 +176,6 @@ export default function Search() {
           border-radius: 12px;
           color: rgba(229, 231, 235, 0.8);
           cursor: pointer;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
           background: transparent;
           display: flex;
           align-items: center;
@@ -208,7 +205,6 @@ export default function Search() {
           color: white;
           font-weight: 500;
           padding-right: 8px;
-          transition: all 0.2s ease;
         }
 
         .pac-matched {
@@ -216,17 +212,6 @@ export default function Search() {
           font-weight: 600;
           position: relative;
           display: inline-block;
-        }
-
-        @keyframes dropdownFadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(-8px) scale(0.98);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
         }
       `}</style>
     </div>
