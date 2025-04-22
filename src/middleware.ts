@@ -26,11 +26,20 @@ export function middleware(request: NextRequest) {
     'camera=(), microphone=(), geolocation=(self), interest-cohort=()'
   )
 
-  // Add CORS headers for static assets
-  if (request.nextUrl.pathname.startsWith('/_next/static/')) {
-    response.headers.set('Access-Control-Allow-Origin', '*')
-    response.headers.set('Access-Control-Allow-Methods', 'GET')
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type')
+  // Set cache headers based on route
+  if (pathname.startsWith('/_next/static/')) {
+    // Long-term caching for static assets
+    response.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  } else if (pathname === '/' || pathname.endsWith('.html')) {
+    // No caching for HTML pages
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+  } else {
+    // Default no-cache for all other routes
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
   }
 
   // Add CSP header for map tiles and Cookiebot
@@ -55,46 +64,11 @@ export function middleware(request: NextRequest) {
     `.replace(/\s+/g, ' ').trim()
   )
 
-  // Add cache control headers for map tiles
-  if (pathname.includes('/shelters/nearby') || pathname.includes('/kommune/')) {
-    response.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-  }
-
-  // Set cache control headers for HTML pages
-  if (pathname.endsWith('.html') || pathname === '/') {
-    response.headers.set(
-      'Cache-Control',
-      'no-cache, no-store, must-revalidate'
-    )
-  }
-
-  // Set cache control headers for static assets
-  if (
-    pathname.endsWith('.js') ||
-    pathname.endsWith('.css') ||
-    pathname.endsWith('.png') ||
-    pathname.endsWith('.jpg') ||
-    pathname.endsWith('.jpeg') ||
-    pathname.endsWith('.gif') ||
-    pathname.endsWith('.svg') ||
-    pathname.endsWith('.ico') ||
-    pathname.endsWith('.woff') ||
-    pathname.endsWith('.woff2') ||
-    pathname.endsWith('.ttf') ||
-    pathname.endsWith('.eot')
-  ) {
-    // Exclude Cookiebot-related paths from caching
-    if (pathname.includes('/consent/') || pathname.includes('/cookieconsent/')) {
-      response.headers.set(
-        'Cache-Control',
-        'no-cache, no-store, must-revalidate'
-      )
-    } else {
-      response.headers.set(
-        'Cache-Control',
-        'public, max-age=31536000, immutable'
-      )
-    }
+  // Add CORS headers for static assets
+  if (request.nextUrl.pathname.startsWith('/_next/static/')) {
+    response.headers.set('Access-Control-Allow-Origin', '*')
+    response.headers.set('Access-Control-Allow-Methods', 'GET')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type')
   }
 
   return response

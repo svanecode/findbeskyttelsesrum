@@ -30,16 +30,15 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
-      return Promise.all([
-        // Clean up old caches
-        ...cacheNames
+      return Promise.all(
+        cacheNames
           .filter((name) => name !== CACHE_NAME && name !== STATIC_CACHE_NAME)
-          .map((name) => caches.delete(name)),
-        // Take control of all clients
-        self.clients.claim(),
-      ]);
+          .map((name) => caches.delete(name))
+      );
     })
   );
+  // Take control of all clients immediately
+  self.clients.claim();
 });
 
 // Fetch event - handle requests
