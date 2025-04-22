@@ -28,8 +28,8 @@ const nextConfig = {
       return `build-${Date.now()}`;
     }
   },
-  // Configure asset prefix for cache-busting
-  assetPrefix: process.env.NODE_ENV === 'production' ? `https://${process.env.VERCEL_URL}` : '',
+  // Remove assetPrefix to serve assets from the same domain
+  // assetPrefix: process.env.NODE_ENV === 'production' ? `https://${process.env.VERCEL_URL}` : '',
   // Add headers for static assets
   async headers() {
     return [
@@ -42,15 +42,19 @@ const nextConfig = {
           },
           {
             key: 'Access-Control-Allow-Origin',
-            value: '*',
+            value: 'https://findbeskyttelsesrum.dk',
           },
           {
             key: 'Access-Control-Allow-Methods',
-            value: 'GET',
+            value: 'GET, OPTIONS',
           },
           {
             key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type',
+            value: 'Content-Type, Accept',
+          },
+          {
+            key: 'Access-Control-Allow-Credentials',
+            value: 'true',
           },
         ],
       },
@@ -61,11 +65,11 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: `
               default-src 'self';
-              font-src 'self' https://fonts.gstatic.com data: https://*.vercel.app;
-              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com https://*.vercel.app;
-              script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vercel.app https://*.leafletjs.com;
+              font-src 'self' https://fonts.gstatic.com data:;
+              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com;
+              script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.leafletjs.com;
               img-src 'self' data: https:;
-              connect-src 'self' https://*.vercel.app https://*.leafletjs.com;
+              connect-src 'self' https://*.leafletjs.com;
               frame-ancestors 'none';
               base-uri 'self';
               form-action 'self';
