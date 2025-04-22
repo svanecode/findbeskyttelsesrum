@@ -55,14 +55,10 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then(response => {
-          // Clone the response because it can only be used once
-          const responseToCache = response.clone();
-          
-          // Update the cache with the fresh response
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, responseToCache);
-          });
-          
+          if (!response.ok) {
+            // If the response is not ok, try to get it from cache
+            return caches.match(event.request);
+          }
           return response;
         })
         .catch(() => {
@@ -76,7 +72,19 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
       caches.match(event.request).then((response) => {
-        return response || fetch(event.request);
+        if (response) {
+          return response;
+        }
+        return fetch(event.request).then(response => {
+          if (!response.ok) {
+            return response;
+          }
+          const responseToCache = response.clone();
+          caches.open(STATIC_CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        });
       })
     );
     return;
@@ -86,16 +94,9 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Clone the response because it can only be used once
-        const responseToCache = response.clone();
-
-        // Cache the response if it's not an error
-        if (response.status === 200) {
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+        if (!response.ok) {
+          return caches.match(event.request);
         }
-
         return response;
       })
       .catch(() => {
