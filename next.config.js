@@ -49,11 +49,11 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: `
               default-src 'self';
-              font-src 'self' fonts.gstatic.com data: *.vercel.app findbeskyttelsesrum.dk;
-              style-src 'self' 'unsafe-inline' fonts.googleapis.com unpkg.com *.leafletjs.com *.vercel.app;
-              script-src 'self' 'unsafe-inline' 'unsafe-eval' *.vercel.app *.leafletjs.com;
+              font-src 'self' https://fonts.gstatic.com data: https://*.vercel.app;
+              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com https://*.vercel.app;
+              script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vercel.app https://*.leafletjs.com;
               img-src 'self' data: https:;
-              connect-src 'self' *.vercel.app *.leafletjs.com;
+              connect-src 'self' https://*.vercel.app https://*.leafletjs.com;
               frame-ancestors 'none';
               base-uri 'self';
               form-action 'self';
