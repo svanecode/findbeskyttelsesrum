@@ -21,7 +21,8 @@ const nextConfig = {
         .execSync('git rev-parse --short HEAD')
         .toString()
         .trim();
-      return `${commitHash}-${Date.now()}`;
+      const timestamp = Date.now();
+      return `${commitHash}-${timestamp}`;
     } catch (error) {
       // Fallback to timestamp if git is not available
       return `build-${Date.now()}`;

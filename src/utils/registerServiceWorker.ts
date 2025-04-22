@@ -10,10 +10,10 @@ export function registerServiceWorker() {
           .then((registration) => {
             console.log('ServiceWorker registration successful');
 
-            // Check for updates every hour
+            // Check for updates every 5 minutes
             const updateInterval = setInterval(() => {
               registration.update();
-            }, 60 * 60 * 1000);
+            }, 5 * 60 * 1000);
 
             // Listen for updates
             registration.addEventListener('updatefound', () => {
@@ -21,10 +21,9 @@ export function registerServiceWorker() {
               if (newWorker) {
                 newWorker.addEventListener('statechange', () => {
                   if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    // New content is available, show a message to the user
-                    if (window.confirm('A new version is available! Would you like to update?')) {
-                      window.location.reload();
-                    }
+                    // New content is available, force update
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    window.location.reload();
                   }
                 });
               }

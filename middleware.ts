@@ -21,7 +21,9 @@ export function middleware(request: NextRequest) {
   }
 
   // Add version header for service worker detection
-  response.headers.set('X-Next-Version', process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || 'dev');
+  const version = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || 'dev';
+  response.headers.set('X-Next-Version', version);
+  response.headers.set('X-Next-Build-Time', Date.now().toString());
 
   return response;
 }
