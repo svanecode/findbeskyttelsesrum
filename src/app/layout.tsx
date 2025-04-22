@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import CookiebotWrapper from "@/components/CookiebotWrapper";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -114,6 +115,7 @@ export default function RootLayout({
           <>
             <Analytics />
             <SpeedInsights />
+            <ServiceWorkerRegistration />
           </>
         )}
       </body>

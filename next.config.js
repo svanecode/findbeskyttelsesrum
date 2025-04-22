@@ -14,13 +14,52 @@ const nextConfig = {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   },
-  // Add cache-busting for static assets
+  // Generate a unique build ID using git commit hash and timestamp
   generateBuildId: async () => {
-    // You can use the current timestamp as the build ID
-    return Date.now().toString()
+    try {
+      const commitHash = require('child_process')
+        .execSync('git rev-parse --short HEAD')
+        .toString()
+        .trim();
+      return `${commitHash}-${Date.now()}`;
+    } catch (error) {
+      // Fallback to timestamp if git is not available
+      return `build-${Date.now()}`;
+    }
   },
   // Configure asset prefix for cache-busting
   assetPrefix: process.env.NODE_ENV === 'production' ? `https://${process.env.VERCEL_URL}` : '',
+  // Add headers for static assets
+  async headers() {
+    return [
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+          {
+            key: 'Pragma',
+            value: 'no-cache',
+          },
+          {
+            key: 'Expires',
+            value: '0',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
