@@ -43,138 +43,105 @@ const log = (...args) => {
   }
 };
 
-// Install event - skip caching during install
-self.addEventListener('install', (event) => {
-  log('Installing service worker version:', CACHE_VERSION);
-  // Skip waiting to activate immediately
-  self.skipWaiting();
-});
+// Helper to check if a URL matches any pattern
+const matchesPattern = (url, patterns) => {
+  return patterns.some(pattern => pattern.test(url));
+};
 
-// Activate event - clean up old caches and take control
-self.addEventListener('activate', (event) => {
-  log('Activating service worker version:', CACHE_VERSION);
+// Helper to get cache key with version
+const getCacheKey = (url) => {
+  const urlObj = new URL(url);
+  const version = urlObj.searchParams.get('v');
+  return version ? `${urlObj.pathname}?v=${version}` : urlObj.pathname;
+};
+
+// Install event
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    Promise.all([
-      // Clean up old caches
-      caches.keys().then((cacheNames) => {
-        const deletions = cacheNames
-          .filter((name) => !name.includes(CACHE_VERSION))
-          .map((name) => {
-            log('Deleting old cache:', name);
-            return caches.delete(name);
-          });
-        return Promise.all(deletions);
-      }),
-      // Take control of all clients immediately
-      self.clients.claim(),
-    ])
+    caches.open(STATIC_CACHE_NAME).then((cache) => {
+      return cache.addAll([
+        '/',
+        '/index.html',
+        '/manifest.json',
+        '/favicon.ico',
+      ]);
+    })
   );
 });
 
-// Helper function to check if URL is a static asset
-const isStaticAsset = (url) => {
-  return STATIC_ASSETS.some(pattern => pattern.test(url.pathname));
-};
+// Activate event
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames
+          .filter((name) => name !== CACHE_NAME && name !== STATIC_CACHE_NAME)
+          .map((name) => caches.delete(name))
+      );
+    })
+  );
+});
 
-// Helper function to check if URL is a dynamic route
-const isDynamicRoute = (url) => {
-  return DYNAMIC_ROUTES.some(pattern => pattern.test(url.pathname));
-};
-
-// Helper function to check if URL should never be cached
-const shouldNeverCache = (url) => {
-  return NO_CACHE_PATTERNS.some(pattern => pattern.test(url.href)) ||
-    url.pathname.endsWith('.js') ||
-    url.pathname.startsWith('/api/');
-};
-
-// Cache first strategy for static assets
-const cacheFirst = async (request) => {
-  try {
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      log('Cache hit:', request.url);
-      return cachedResponse;
-    }
-
-    log('Cache miss, fetching:', request.url);
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(STATIC_CACHE_NAME);
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch (error) {
-    log('Cache first strategy failed:', error);
-    return new Response('', {
-      status: 404,
-      statusText: 'Not Found',
-    });
-  }
-};
-
-// Network first strategy for dynamic content
-const networkFirst = async (request) => {
-  try {
-    log('Network first attempt:', request.url);
-    const response = await fetch(request);
-    if (response.ok) {
-      return response;
-    }
-    throw new Error('Network response was not ok');
-  } catch (error) {
-    log('Network first failed, trying cache:', request.url);
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-    return new Response('', {
-      status: 404,
-      statusText: 'Not Found',
-    });
-  }
-};
-
-// Fetch event - handle requests
+// Fetch event
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  log('Fetching:', url.href);
-
+  
   // Skip non-GET requests
   if (event.request.method !== 'GET') {
     return;
   }
 
-  // Never cache HTML, JS, API requests, or external resources
-  if (shouldNeverCache(url)) {
-    log('Skipping cache for:', url.href);
+  // Skip cross-origin requests
+  if (!url.origin.startsWith(self.location.origin)) {
+    return;
+  }
+
+  // Handle static assets
+  if (matchesPattern(url.pathname, STATIC_ASSETS)) {
     event.respondWith(
-      fetch(event.request)
-        .catch(() => new Response('', {
-          status: 503,
-          statusText: 'Service Unavailable',
-        }))
+      caches.match(event.request).then((response) => {
+        return response || fetch(event.request).then((response) => {
+          const responseToCache = response.clone();
+          caches.open(STATIC_CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        });
+      })
     );
     return;
   }
 
-  // Use network first for dynamic routes
-  if (isDynamicRoute(url)) {
-    log('Using network first for dynamic route:', url.href);
-    event.respondWith(networkFirst(event.request));
+  // Handle dynamic routes with network-first strategy
+  if (matchesPattern(url.pathname, DYNAMIC_ROUTES)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request);
+        })
+    );
     return;
   }
 
-  // Use cache first for static assets
-  if (isStaticAsset(url)) {
-    log('Using cache first for static asset:', url.href);
-    event.respondWith(cacheFirst(event.request));
-    return;
-  }
-
-  // Use network first for everything else
-  log('Using network first for:', url.href);
-  event.respondWith(networkFirst(event.request));
+  // Handle other requests with cache-first strategy
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request).then((response) => {
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
+        });
+        return response;
+      });
+    })
+  );
 });
 
 // Listen for messages from the client

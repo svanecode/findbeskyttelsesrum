@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 
 interface ShelterCounterProps {
   targetNumber: number;
+  version: string;
 }
 
-export default function ShelterCounter({ targetNumber }: ShelterCounterProps) {
+export default function ShelterCounter({ targetNumber, version }: ShelterCounterProps) {
   const [count, setCount] = useState(targetNumber);
   const [isClient, setIsClient] = useState(false);
 

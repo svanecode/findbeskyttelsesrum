@@ -8,7 +8,11 @@ import { Autocomplete } from '@react-google-maps/api'
 
 const libraries: ("places")[] = ['places']
 
-export default function SearchComponent() {
+interface SearchComponentProps {
+  version: string
+}
+
+export default function SearchComponent({ version }: SearchComponentProps) {
   const [isLoadingLocation, setIsLoadingLocation] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const router = useRouter()

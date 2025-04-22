@@ -90,18 +90,6 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
     zoom: 12
   })
 
-  // Function to handle back to top
-  const handleBackToTop = useCallback(() => {
-    if (mapRef.current) {
-      mapRef.current.flyTo({
-        center: [initialViewState.current.longitude!, initialViewState.current.latitude!],
-        zoom: initialViewState.current.zoom,
-        duration: 1000
-      })
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
-
   // Function to fit all markers in view
   const fitBounds = useCallback((map: MapRef) => {
     if (shelters.length === 0) return
@@ -126,6 +114,14 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
       maxZoom: 15
     })
   }, [shelters, lat, lng])
+
+  // Function to handle back to top
+  const handleBackToTop = useCallback(() => {
+    if (mapRef.current) {
+      fitBounds(mapRef.current)
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [fitBounds])
 
   useEffect(() => {
     let isMounted = true
