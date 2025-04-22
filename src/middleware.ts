@@ -26,6 +26,13 @@ export function middleware(request: NextRequest) {
     'camera=(), microphone=(), geolocation=(self), interest-cohort=()'
   )
 
+  // Add CORS headers for static assets
+  if (request.nextUrl.pathname.startsWith('/_next/static/')) {
+    response.headers.set('Access-Control-Allow-Origin', '*')
+    response.headers.set('Access-Control-Allow-Methods', 'GET')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type')
+  }
+
   // Add CSP header for map tiles and Cookiebot
   response.headers.set(
     'Content-Security-Policy',
