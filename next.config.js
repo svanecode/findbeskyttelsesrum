@@ -43,8 +43,22 @@ const nextConfig = {
         ],
       },
       {
-        source: '/:path*',
+        source: '/(.*)',
         headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: `
+              default-src 'self';
+              font-src 'self' fonts.gstatic.com data: *.vercel.app findbeskyttelsesrum.dk;
+              style-src 'self' 'unsafe-inline' fonts.googleapis.com unpkg.com *.leafletjs.com *.vercel.app;
+              script-src 'self' 'unsafe-inline' 'unsafe-eval' *.vercel.app *.leafletjs.com;
+              img-src 'self' data: https:;
+              connect-src 'self' *.vercel.app *.leafletjs.com;
+              frame-ancestors 'none';
+              base-uri 'self';
+              form-action 'self';
+            `.replace(/\s+/g, ' ').trim(),
+          },
           {
             key: 'Cache-Control',
             value: 'no-cache, no-store, must-revalidate',
