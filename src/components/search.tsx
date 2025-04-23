@@ -14,7 +14,8 @@ export default function Search() {
 
   const { isLoaded: mapsLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries
+    libraries,
+    version: 'weekly'
   })
 
   const handlePlaceChanged = () => {
