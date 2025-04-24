@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@mapbox/mapbox-gl-geocoder": "^5.0.3",
     "@prisma/client": "^6.6.0",
-    "@react-google-maps/api": "^2.20.6",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.39.0",
     "@vercel/analytics": "^1.5.0",
@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@types/dotenv": "^6.1.1",
+    "@types/mapbox__mapbox-gl-geocoder": "^5.0.0",
     "@types/mapbox-gl": "^3.1.0",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.0",

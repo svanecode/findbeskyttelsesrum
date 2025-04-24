@@ -92,6 +92,7 @@ export const metadata: Metadata = {
     'geo.region': 'DK',
     'geo.placename': 'Danmark',
   },
+  version: '1.0.0',
 };
 
 export default function RootLayout({

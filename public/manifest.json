@@ -1,0 +1,10 @@
+{
+  "name": "Find beskyttelsesrum",
+  "short_name": "Beskyttelsesrum",
+  "description": "Find dit nærmeste beskyttelsesrum",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#1a1a1a",
+  "version": "1.0.0"
+} 

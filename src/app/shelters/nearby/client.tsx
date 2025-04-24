@@ -282,23 +282,12 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                             const isAndroid = /Android/i.test(navigator.userAgent);
                             
                             if (isIOS) {
-                              // For iOS, show options for Apple Maps and Google Maps
-                              if (window.confirm('Vil du åbne i Apple Maps eller Google Maps?')) {
-                                window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
-                              } else {
-                                window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
-                              }
+                              window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
                             } else if (isAndroid) {
-                              // For Android, show options for Google Maps and other map apps
-                              if (window.confirm('Vil du åbne i Google Maps eller en anden kortapp?')) {
-                                window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
-                              } else {
-                                window.open(`geo:${lat},${lng}?q=${lat},${lng}`, '_blank');
-                              }
+                              window.open(`geo:${lat},${lng}?q=${lat},${lng}`, '_blank');
                             }
                           } else {
-                            // For desktop, just use Google Maps
-                            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+                            window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15`, '_blank');
                           }
                         }}
                         className="bg-orange-500/10 hover:bg-orange-500/20 text-orange-400/90 p-2 sm:p-3 rounded-lg transition-colors border border-orange-500/20"

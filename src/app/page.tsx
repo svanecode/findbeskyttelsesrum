@@ -3,21 +3,8 @@
 import ShelterCounter from '@/components/ShelterCounter'
 import GlobalFooter from '@/components/GlobalFooter'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
+import Search from '@/components/search'
 import { APP_VERSION } from '@/lib/constants'
-
-// Import the search component dynamically with SSR disabled
-const SearchComponent = dynamic(() => import('@/components/SearchComponent'), {
-  ssr: false,
-  loading: () => (
-    <div className="glass-effect p-6 rounded-xl">
-      <div className="flex items-center justify-center space-x-3">
-        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-500"></div>
-        <p className="text-gray-400">Indlæser søgning...</p>
-      </div>
-    </div>
-  )
-})
 
 export default function Home() {
   return (
@@ -40,10 +27,10 @@ export default function Home() {
           </div>
         </div>
         
-        <div className="glass-effect p-4 sm:p-8 rounded-2xl shadow-2xl backdrop-blur-md bg-white/10 border border-white/10 relative overflow-hidden">
-          <div className="space-y-3 sm:space-y-6 relative z-10">
-            <div suppressHydrationWarning>
-              <SearchComponent version={APP_VERSION} />
+        <div className="glass-effect p-4 sm:p-8 rounded-2xl shadow-2xl backdrop-blur-md bg-white/10 border border-white/10 relative overflow-visible">
+          <div className="space-y-3 sm:space-y-6 relative z-20">
+            <div suppressHydrationWarning className="relative z-20">
+              <Search />
             </div>
             
             <div className="text-center mt-4">
