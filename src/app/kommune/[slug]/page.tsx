@@ -23,23 +23,21 @@ export default async function KommunePage({ params }: Props) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
+    <div className="relative h-screen w-full">
+      <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg">
         <Link
           href="/"
-          className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-2 mb-4"
+          className="text-blue-600 hover:text-blue-700 inline-flex items-center gap-2 mb-2 text-sm font-medium"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
             <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           Tilbage til forsiden
         </Link>
-        <h1 className="text-3xl font-bold">Beskyttelsesrum i {kommune.navn}</h1>
+        <h1 className="text-xl font-bold text-gray-900">Beskyttelsesrum i {kommune.navn}</h1>
       </div>
 
-      <div className="h-[calc(100vh-12rem)] w-full rounded-lg overflow-hidden mb-8">
-        <KommuneMap kommunekode={kommune.kode} />
-      </div>
+      <KommuneMap kommunekode={kommune.kode} />
     </div>
   )
 } 

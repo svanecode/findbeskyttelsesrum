@@ -80,7 +80,9 @@ export default function KommuneMap({ kommunekode }: Props) {
             total_capacity: shelter.total_capacity,
             shelter_count: shelter.shelter_count,
             anvendelse: shelter.anvendelse,
-            anvendelseskoder: shelter.anvendelseskoder
+            anvendelseskoder: shelter.anvendelseskoder,
+            last_checked: shelter.last_checked,
+            created_at: shelter.created_at
           },
           geometry: {
             type: 'Point',
@@ -203,7 +205,7 @@ export default function KommuneMap({ kommunekode }: Props) {
   }, [kommunekode])
 
   return (
-    <div className="h-[500px] w-full rounded-lg overflow-hidden">
+    <div className="h-screen w-full">
       <Map
         {...viewState}
         onMove={(evt) => setViewState(evt.viewState)}
@@ -214,7 +216,14 @@ export default function KommuneMap({ kommunekode }: Props) {
         interactiveLayerIds={['clusters', 'unclustered-point']}
         onClick={(e) => {
           const features = e.features
-          if (!features || features.length === 0) return
+          if (!features || features.length === 0) {
+            // Clicked on empty space, close popup
+            setSelectedShelter(null)
+            return
+          }
+
+          // Clear any existing popup first
+          setSelectedShelter(null)
 
           const feature = features[0]
           if (!feature.geometry || !('coordinates' in feature.geometry)) return
@@ -232,7 +241,12 @@ export default function KommuneMap({ kommunekode }: Props) {
               })
             })
           } else if (feature.properties?.id) {
-            setSelectedShelter(feature.properties.id)
+            // Set the selected shelter with a small delay to ensure state is cleared
+            setTimeout(() => {
+              if (feature.properties?.id) {
+                setSelectedShelter(feature.properties.id)
+              }
+            }, 50)
           }
         }}
       >
@@ -241,8 +255,8 @@ export default function KommuneMap({ kommunekode }: Props) {
           type="geojson"
           data={geojsonData}
           cluster={true}
-          clusterMaxZoom={14}
-          clusterRadius={50}
+          clusterMaxZoom={12}
+          clusterRadius={40}
         >
           <Layer
             id="clusters"
@@ -299,40 +313,87 @@ export default function KommuneMap({ kommunekode }: Props) {
           <Popup
             longitude={geojsonData.features.find(f => f.properties.id === selectedShelter)?.geometry.coordinates[0] || 0}
             latitude={geojsonData.features.find(f => f.properties.id === selectedShelter)?.geometry.coordinates[1] || 0}
-            offset={25}
-            closeButton={false}
+            offset={[0, -10]}
+            closeButton={true}
             anchor="bottom"
             onClose={() => setSelectedShelter(null)}
+            maxWidth="400px"
           >
             {(() => {
               const shelter = geojsonData.features.find(f => f.properties.id === selectedShelter)
               if (!shelter) return null
               return (
-                <div className="min-w-[200px]">
-                  <div className="font-semibold text-lg mb-2">{shelter.properties.vejnavn} {shelter.properties.husnummer}</div>
+                <div className="min-w-[380px] p-4">
+                  <div className="font-semibold text-lg mb-2 text-gray-900">
+                    {shelter.properties.vejnavn} {shelter.properties.husnummer}
+                    {shelter.properties.shelter_count > 1 && (
+                      <span className="inline-flex items-center ml-2 text-sm bg-orange-500/20 text-orange-600 px-2 py-0.5 rounded-md font-medium border border-orange-500/10">
+                        {shelter.properties.shelter_count} beskyttelsesrum
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm text-gray-600 mb-3">
                     {shelter.properties.postnummer} {getKommunenavn(shelter.properties.kommunekode, kommunekoder)}
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div>
-                      <div className="text-sm font-medium">Total kapacitet</div>
-                      <div>{shelter.properties.total_capacity} personer</div>
-                      {shelter.properties.shelter_count > 1 && (
-                        <div className="text-xs text-gray-500">
-                          ({shelter.properties.shelter_count} beskyttelsesrum)
-                        </div>
-                      )}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                      <div className="text-sm text-gray-600 mb-1">Total kapacitet</div>
+                      <div className="text-gray-900 font-medium text-base">{shelter.properties.total_capacity} personer</div>
                     </div>
                     {shelter.properties.anvendelse && (
-                      <div>
-                        <div className="text-sm font-medium">Type</div>
-                        <div>
+                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <div className="text-sm text-gray-600 mb-1">Type</div>
+                        <div className="text-gray-900 font-medium text-sm line-clamp-2">
                           {shelter.properties.anvendelseskoder?.beskrivelse || 
                            getAnvendelseskodeBeskrivelse(shelter.properties.anvendelse, anvendelseskoder)}
                         </div>
                       </div>
                     )}
+                  </div>
+
+
+
+                  {shelter.properties.anvendelseskoder && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <div className="text-sm text-gray-600 mb-1">Detaljer</div>
+                      <div className="text-xs text-gray-700">
+                        {shelter.properties.anvendelseskoder.beskrivelse}
+                      </div>
+                    </div>
+                  )}
+
+
+
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                        const lat = shelter.geometry.coordinates[1];
+                        const lng = shelter.geometry.coordinates[0];
+                        
+                        if (isMobile) {
+                          const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                          const isAndroid = /Android/i.test(navigator.userAgent);
+                          
+                          if (isIOS) {
+                            window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
+                          } else if (isAndroid) {
+                            window.open(`geo:${lat},${lng}?q=${lat},${lng}`, '_blank');
+                          }
+                        } else {
+                          window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15`, '_blank');
+                        }
+                      }}
+                      className="w-full bg-orange-500/90 hover:bg-orange-500 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors border border-orange-500/20"
+                      title="Åbn i kort"
+                    >
+                      <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Åbn i kort
+                    </button>
                   </div>
                 </div>
               )
