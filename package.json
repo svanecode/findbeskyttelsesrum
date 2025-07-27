@@ -7,16 +7,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-        "lint": "next lint"
+    "lint": "next lint",
+    "verify-assets": "node scripts/verify-hashed-assets.js",
+    "test-caching": "node scripts/test-caching-headers.js",
+    "check-mapbox": "node scripts/cache-busting-helper.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "@mapbox/mapbox-gl-geocoder": "^5.0.3",
     "@prisma/client": "^6.6.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.39.0",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
+    "dawa-autocomplete2": "^1.1.0",
     "dotenv": "^16.5.0",
     "framer-motion": "^11.0.0",
     "geolib": "^3.3.4",
@@ -29,7 +32,6 @@
   },
   "devDependencies": {
     "@types/dotenv": "^6.1.1",
-    "@types/mapbox__mapbox-gl-geocoder": "^5.0.0",
     "@types/mapbox-gl": "^3.1.0",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.0",

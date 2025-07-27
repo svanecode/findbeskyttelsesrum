@@ -1,12 +1,36 @@
 'use client'
 
+import { useEffect } from 'react'
 import ShelterCounter from '@/components/ShelterCounter'
 import GlobalFooter from '@/components/GlobalFooter'
 import Link from 'next/link'
-import Search from '@/components/search'
+import AddressSearchDAWA from '@/components/AddressSearchDAWA'
 import { APP_VERSION } from '@/lib/constants'
 
 export default function Home() {
+  useEffect(() => {
+    // Force reload if this is an old cached version
+    const currentVersion = 'v4'
+    const storedVersion = localStorage.getItem('app-version')
+    
+    if (storedVersion !== currentVersion) {
+      console.log('New version detected, clearing cache and reloading')
+      localStorage.setItem('app-version', currentVersion)
+      
+      // Clear service worker cache
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          registrations.forEach(registration => {
+            registration.unregister()
+          })
+        })
+      }
+      
+      // Force reload
+      window.location.reload()
+    }
+  }, [])
+
   return (
     <main className="min-h-screen bg-[#1a1a1a] text-white p-2 sm:p-8 flex flex-col justify-center items-center relative">
       <div className="fixed inset-0 -z-10 overflow-hidden">
@@ -30,7 +54,7 @@ export default function Home() {
         <div className="glass-effect p-4 sm:p-8 rounded-2xl shadow-2xl backdrop-blur-md bg-white/10 border border-white/10 relative overflow-visible">
           <div className="space-y-3 sm:space-y-6 relative z-20">
             <div suppressHydrationWarning className="relative z-20">
-              <Search />
+              <AddressSearchDAWA key="dawa-v2" />
             </div>
             
             <div className="text-center mt-4">

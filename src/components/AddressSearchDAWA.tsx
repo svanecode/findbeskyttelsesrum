@@ -12,14 +12,13 @@ declare global {
   }
 }
 
-export default function Search() {
+export default function AddressSearchDAWA() {
   const [loading, setLoading] = useState(false)
   const [selectedAddress, setSelectedAddress] = useState('')
   const [scriptsLoaded, setScriptsLoaded] = useState(false)
   const [dawaFailed, setDawaFailed] = useState(false)
   const router = useRouter()
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const debounceTimerRef = useRef<NodeJS.Timeout>()
 
   const handleLocationClick = () => {
     if (!navigator.geolocation) {
