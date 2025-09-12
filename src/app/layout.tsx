@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -91,8 +92,8 @@ export const metadata: Metadata = {
     'data-source': 'Data kommer fra BBR og DAR. Private hjem og steder med færre end 40 pladser er udeladt.',
     'geo.region': 'DK',
     'geo.placename': 'Danmark',
+    'version': '1.0.0',
   },
-  version: '1.0.0',
 };
 
 export default function RootLayout({
@@ -109,14 +110,16 @@ export default function RootLayout({
         <meta name="theme-color" content="#ffffff" />
       </head>
       <body className={`${inter.className} ${spaceGrotesk.className} antialiased`}>
-        {children}
-        {process.env.NODE_ENV === "production" && (
-          <>
-            <Analytics />
-            <SpeedInsights />
-            <ServiceWorkerRegistration />
-          </>
-        )}
+        <ErrorBoundary>
+          {children}
+          {process.env.NODE_ENV === "production" && (
+            <>
+              <Analytics />
+              <SpeedInsights />
+              <ServiceWorkerRegistration />
+            </>
+          )}
+        </ErrorBoundary>
       </body>
     </html>
   );

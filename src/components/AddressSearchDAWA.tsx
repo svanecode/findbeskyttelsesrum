@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Script from 'next/script'
+import LoadingSpinner from './LoadingSpinner'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { usePageReturn, usePageVisibility } from '@/hooks/useNavigation'
+import { scriptLoader } from '@/utils/scriptLoader'
 
 declare global {
   interface Window {
@@ -17,120 +20,223 @@ export default function AddressSearchDAWA() {
   const [selectedAddress, setSelectedAddress] = useState('')
   const [scriptsLoaded, setScriptsLoaded] = useState(false)
   const [dawaFailed, setDawaFailed] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [scriptLoadingProgress, setScriptLoadingProgress] = useState('')
   const router = useRouter()
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const { handleError } = useErrorHandler()
 
-  const handleLocationClick = () => {
+  const handleLocationClick = async () => {
     if (!navigator.geolocation) {
-      alert('Geolocation er ikke understøttet i din browser')
+      handleError(new Error('Geolocation not supported'), 'Geolocation API not available')
       return
     }
 
     setLoading(true)
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        router.push(`/shelters/nearby?lat=${position.coords.latitude}&lng=${position.coords.longitude}`)
-        setLoading(false)
-      },
-      (error) => {
-        console.error('Error getting location:', error)
-        setLoading(false)
-        alert('Kunne ikke hente din position. Tjek om du har givet tilladelse til at bruge din lokation.')
-      }
-    )
+    
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 10000,
+          enableHighAccuracy: true
+        })
+      })
+      
+      router.push(`/shelters/nearby?lat=${position.coords.latitude}&lng=${position.coords.longitude}`)
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error('Failed to get location')
+      handleError(err, 'Geolocation failed')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // Initialize DAWA Autocomplete
+  // Load DAWA scripts with improved error handling and navigation support
+  useEffect(() => {
+    let isMounted = true
+
+    const loadDAWAScripts = async () => {
+      try {
+        setScriptLoadingProgress('Indlæser scripts...')
+        
+        // ALWAYS clear and reload scripts for maximum reliability
+        console.log('AGGRESSIVE: Clearing all DAWA scripts for fresh load...')
+        scriptLoader.clearScript('core-js')
+        scriptLoader.clearScript('fetch-polyfill')
+        scriptLoader.clearScript('dawa-autocomplete')
+        
+        // Clear any existing DAWA autocomplete instances
+        if (window.dawaAutocomplete) {
+          delete window.dawaAutocomplete
+        }
+        
+        // Load scripts in sequence with retry logic
+        await scriptLoader.loadScript({
+          src: 'https://cdnjs.cloudflare.com/ajax/libs/core-js/2.4.1/core.min.js',
+          id: 'core-js',
+          timeout: 15000,
+          retries: 3,
+          onLoad: () => {
+            if (isMounted) setScriptLoadingProgress('Core.js indlæst, henter fetch...')
+          },
+          onError: (error) => {
+            console.error('Core.js failed to load:', error)
+            if (isMounted) {
+              handleError(new Error('Core.js load failed'), 'Core.js script failed to load')
+              setDawaFailed(true)
+            }
+          }
+        })
+
+        await scriptLoader.loadScript({
+          src: 'https://cdnjs.cloudflare.com/ajax/libs/fetch/2.0.3/fetch.min.js',
+          id: 'fetch-polyfill',
+          timeout: 15000,
+          retries: 3,
+          onLoad: () => {
+            if (isMounted) setScriptLoadingProgress('Fetch indlæst, henter DAWA...')
+          },
+          onError: (error) => {
+            console.error('Fetch polyfill failed to load:', error)
+            if (isMounted) {
+              handleError(new Error('Fetch polyfill load failed'), 'Fetch polyfill script failed to load')
+              setDawaFailed(true)
+            }
+          }
+        })
+
+        await scriptLoader.loadScript({
+          src: '/dawa-autocomplete2.min.js',
+          id: 'dawa-autocomplete',
+          timeout: 20000,
+          retries: 5, // More retries for local script
+          onLoad: () => {
+            if (isMounted) {
+              setScriptLoadingProgress('DAWA indlæst, initialiserer...')
+              setScriptsLoaded(true)
+            }
+          },
+          onError: (error) => {
+            console.error('DAWA Autocomplete failed to load:', error)
+            if (isMounted) {
+              handleError(new Error('DAWA Autocomplete load failed'), 'DAWA Autocomplete script failed to load')
+              setDawaFailed(true)
+            }
+          }
+        })
+
+      } catch (error) {
+        if (isMounted) {
+          const err = error instanceof Error ? error : new Error('Script loading failed')
+          handleError(err, 'Failed to load required scripts')
+          setDawaFailed(true)
+        }
+      }
+    }
+
+    loadDAWAScripts()
+
+    return () => {
+      isMounted = false
+      // Don't clear scripts on unmount as they might be needed by other components
+      // Only clear if this is a full page unload
+    }
+  }, [handleError])
+
+  // Handle return to home page - ALWAYS reload
+  usePageReturn('/', () => {
+    console.log('AGGRESSIVE: User returned to home page, FORCE reloading all scripts...')
+    // Clear everything and force reload
+    scriptLoader.clearScript('core-js')
+    scriptLoader.clearScript('fetch-polyfill')
+    scriptLoader.clearScript('dawa-autocomplete')
+    
+    // Clear window object
+    if (window.dawaAutocomplete) {
+      delete window.dawaAutocomplete
+    }
+    
+    // Force reload
+    setScriptsLoaded(false)
+    setDawaFailed(false)
+    setScriptLoadingProgress('')
+  })
+
+  // Handle page visibility changes
+  usePageVisibility((isVisible) => {
+    if (isVisible && !scriptsLoaded && !dawaFailed) {
+      console.log('Page became visible, checking scripts...')
+      const needsReload = scriptLoader.needsReload('dawa-autocomplete', 30000)
+      if (needsReload) {
+        console.log('Scripts need reloading after visibility change')
+        setScriptsLoaded(false)
+        setDawaFailed(false)
+        setScriptLoadingProgress('')
+      }
+    }
+  })
+
+  // Initialize DAWA Autocomplete when scripts are loaded
   useEffect(() => {
     if (scriptsLoaded && searchInputRef.current && window.dawaAutocomplete) {
       try {
+        setSearchLoading(true)
+        setScriptLoadingProgress('Initialiserer søgning...')
+        
         window.dawaAutocomplete.dawaAutocomplete(searchInputRef.current, {
           select: function(selected: any) {
             setSelectedAddress(selected.tekst)
+            setSearchLoading(true)
+            
             // Extract coordinates from the selected address
             if (selected.data && selected.data.x && selected.data.y) {
               const lng = selected.data.x
               const lat = selected.data.y
               router.push(`/shelters/nearby?lat=${lat}&lng=${lng}`)
+            } else {
+              handleError(new Error('Invalid address data'), 'Selected address missing coordinates')
             }
+          },
+          onError: function(error: any) {
+            handleError(new Error('DAWA autocomplete error'), error.message || 'Unknown DAWA error')
+            setDawaFailed(true)
           }
         })
+        
         console.log('DAWA Autocomplete2 initialized successfully')
+        setSearchLoading(false)
+        setScriptLoadingProgress('')
       } catch (error) {
-        console.error('Failed to initialize DAWA Autocomplete2:', error)
+        const err = error instanceof Error ? error : new Error('Failed to initialize DAWA')
+        handleError(err, 'DAWA Autocomplete2 initialization failed')
         setDawaFailed(true)
+        setSearchLoading(false)
+        setScriptLoadingProgress('')
       }
     } else if (scriptsLoaded && !window.dawaAutocomplete) {
-      console.error('DAWA Autocomplete2 script loaded but window.dawaAutocomplete is not available')
+      const error = new Error('DAWA Autocomplete2 not available')
+      handleError(error, 'Script loaded but window.dawaAutocomplete is not available')
       setDawaFailed(true)
+      setScriptLoadingProgress('')
     }
-  }, [scriptsLoaded, router])
-
-  // Set fallback mode after a timeout if DAWA doesn't load
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (!scriptsLoaded) {
-        console.log('DAWA scripts taking too long, enabling fallback mode')
-        setDawaFailed(true)
-      }
-    }, 5000) // 5 second timeout
-
-    return () => clearTimeout(timeout)
-  }, [scriptsLoaded])
+  }, [scriptsLoaded, router, handleError])
 
   return (
     <div className="space-y-3 sm:space-y-6">
-      {/* Load required scripts - NO QUERY STRINGS for proper caching */}
-      <Script
-        src="https://cdnjs.cloudflare.com/ajax/libs/core-js/2.4.1/core.min.js"
-        onLoad={() => {
-          console.log('Core.js loaded successfully')
-          // Core.js loaded, now load fetch
-          const fetchScript = document.createElement('script')
-          fetchScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/fetch/2.0.3/fetch.min.js'
-          fetchScript.onload = () => {
-            console.log('Fetch polyfill loaded successfully')
-            // Fetch loaded, now load DAWA - NO QUERY STRING
-            const dawaScript = document.createElement('script')
-            dawaScript.src = '/dawa-autocomplete2.min.js'
-            dawaScript.onload = () => {
-              console.log('DAWA Autocomplete2 script loaded successfully')
-              setScriptsLoaded(true)
-            }
-            dawaScript.onerror = (error) => {
-              console.error('Failed to load DAWA Autocomplete2 script:', error)
-              setDawaFailed(true)
-            }
-            document.head.appendChild(dawaScript)
-          }
-          fetchScript.onerror = (error) => {
-            console.error('Failed to load fetch polyfill:', error)
-            setDawaFailed(true)
-          }
-          document.head.appendChild(fetchScript)
-        }}
-        onError={(error) => {
-          console.error('Failed to load core.js:', error)
-          setDawaFailed(true)
-        }}
-      />
 
       <button
         onClick={handleLocationClick}
-        className="w-full bg-[#F97316] text-white py-4 px-6 rounded-full flex items-center justify-center gap-2 hover:bg-[#EA580C] transition-colors"
+        className="w-full bg-[#F97316] text-white py-4 px-6 rounded-full flex items-center justify-center gap-2 hover:bg-[#EA580C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         disabled={loading}
+        aria-label="Brug min nuværende position til at finde beskyttelsesrum"
+        role="button"
+        tabIndex={0}
       >
         {loading ? (
-          <>
-            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            <span>Henter din position...</span>
-          </>
+          <LoadingSpinner size="sm" text="Henter din position..." />
         ) : (
           <>
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="currentColor"/>
             </svg>
             <span>Brug min nuværende position</span>
@@ -141,27 +247,65 @@ export default function AddressSearchDAWA() {
       <div className="text-center text-gray-400">eller</div>
 
       <div className="relative w-full">
+        {/* Script loading progress */}
+        {scriptLoadingProgress && !dawaFailed && (
+          <div className="mb-2 p-3 bg-blue-900/20 border border-blue-600/30 rounded-lg text-blue-200 text-sm" role="status">
+            <div className="flex items-center gap-2">
+              <LoadingSpinner size="sm" />
+              <p>{scriptLoadingProgress}</p>
+            </div>
+          </div>
+        )}
+
         {dawaFailed && (
-          <div className="mb-2 p-2 bg-yellow-900/20 border border-yellow-600/30 rounded-lg text-yellow-200 text-sm">
-            <p>⚠️ DAWA Autocomplete er ikke tilgængelig. Prøv at genindlæse siden.</p>
+          <div className="mb-2 p-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg text-yellow-200 text-sm" role="alert">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <p className="font-medium">DAWA Autocomplete er ikke tilgængelig</p>
+                <p className="text-xs mt-1 opacity-80">Prøv at genindlæse siden eller brug GPS-funktionen ovenfor</p>
+              </div>
+              <button
+                onClick={() => window.location.reload()}
+                className="ml-2 px-2 py-1 bg-yellow-600/20 hover:bg-yellow-600/30 rounded text-xs transition-colors"
+                aria-label="Genindlæs siden"
+              >
+                Genindlæs
+              </button>
+            </div>
           </div>
         )}
         
-        <div className="autocomplete-container w-full">
+        <div className="autocomplete-container w-full relative">
           <svg
             className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-10 pointer-events-none"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
+          
+          {searchLoading && (
+            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10">
+              <LoadingSpinner size="sm" />
+            </div>
+          )}
+          
           <input
             ref={searchInputRef}
             type="text"
             id="adresse"
             placeholder="Søg efter en adresse i Danmark"
-            className="w-full bg-[#1a1a1a] text-white py-3 px-12 rounded-full border border-[#E97B4D] focus:outline-none focus:border-[#E97B4D] focus:bg-[#141414] transition-all placeholder-gray-400"
+            className="w-full bg-[#1a1a1a] text-white py-3 px-12 rounded-full border border-[#E97B4D] focus:outline-none focus:border-[#E97B4D] focus:bg-[#141414] transition-all placeholder-gray-400 disabled:opacity-50"
+            disabled={searchLoading || dawaFailed}
+            aria-label="Søg efter en adresse i Danmark"
+            aria-describedby={dawaFailed ? "dawa-error" : undefined}
+            role="searchbox"
+            autoComplete="off"
           />
         </div>
         
