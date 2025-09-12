@@ -91,7 +91,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Skip cross-origin requests
+  // Handle DAWA API requests - always go to network, no caching
+  if (url.hostname.includes('dawa.aws.dk')) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // Return a basic response if DAWA is unavailable
+        return new Response('[]', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      })
+    );
+    return;
+  }
+
+  // Skip other cross-origin requests
   if (!url.origin.startsWith(self.location.origin)) {
     return;
   }
