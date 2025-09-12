@@ -1,7 +1,12 @@
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = `app-cache-${CACHE_VERSION}`;
 const STATIC_CACHE_NAME = `static-cache-${CACHE_VERSION}`;
 const IS_DEV = false; // Service workers run in production context
+
+// Get deployment ID from environment or use timestamp
+const DEPLOYMENT_ID = self.location.search.includes('dpl=') ? 
+  self.location.search.match(/dpl=([^&]+)/)?.[1] || Date.now() : 
+  Date.now();
 
 // List of patterns for URLs to never cache
 const NO_CACHE_PATTERNS = [
@@ -59,12 +64,25 @@ const getCacheKey = (url) => {
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME).then((cache) => {
-      return cache.addAll([
+      // Add files one by one to handle failures gracefully
+      const urlsToCache = [
         '/',
         '/index.html',
         '/manifest.json',
         '/favicon.ico',
-      ]);
+      ];
+      
+      return Promise.allSettled(
+        urlsToCache.map(url => 
+          cache.add(url).catch(err => {
+            log('Failed to cache:', url, err);
+            return null; // Continue with other files
+          })
+        )
+      );
+    }).catch(err => {
+      log('Cache installation failed:', err);
+      // Don't fail the service worker installation
     })
   );
 });
@@ -92,7 +110,10 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Skip DAWA API requests entirely - let them go through normally
-  if (url.hostname.includes('dawa.aws.dk') || url.hostname.includes('api.dataforsyningen.dk')) {
+  if (url.hostname.includes('dawa.aws.dk') || 
+      url.hostname.includes('api.dataforsyningen.dk') ||
+      url.hostname.includes('aws.dk') ||
+      url.pathname.includes('/autocomplete')) {
     return;
   }
 
@@ -101,7 +122,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Skip other cross-origin requests
+  // Skip all external API requests
   if (!url.origin.startsWith(self.location.origin)) {
     return;
   }

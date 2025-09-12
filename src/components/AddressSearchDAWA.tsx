@@ -65,9 +65,12 @@ export default function AddressSearchDAWA() {
           return
         }
 
-        // Load the DAWA script directly
+        // Load the DAWA script directly with deployment-based cache busting
+        const deploymentId = window.location.search.includes('dpl=') ? 
+          window.location.search.match(/dpl=([^&]+)/)?.[1] || Date.now() : 
+          Date.now();
         const script = document.createElement('script')
-        script.src = '/dawa-autocomplete2.min.js?v=' + Date.now()
+        script.src = `/dawa-autocomplete2.min.js?v=${deploymentId}&t=${Date.now()}`
         script.async = true
         script.onload = () => {
           if (isMounted) {

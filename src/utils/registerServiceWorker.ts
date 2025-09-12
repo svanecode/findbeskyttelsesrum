@@ -1,7 +1,11 @@
 export function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      const swUrl = '/sw.js';
+      // Add cache busting to service worker URL
+      const deploymentId = window.location.search.includes('dpl=') ? 
+        window.location.search.match(/dpl=([^&]+)/)?.[1] || Date.now() : 
+        Date.now();
+      const swUrl = `/sw.js?v=${deploymentId}&t=${Date.now()}`;
 
       // Check if we're in a production environment
       if (process.env.NODE_ENV === 'production' && typeof window !== 'undefined') {

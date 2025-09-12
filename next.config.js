@@ -180,7 +180,7 @@ const nextConfig = {
               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com;
               script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.leafletjs.com https://dawa.aws.dk https://*.aws.dk;
               img-src 'self' data: https:;
-              connect-src 'self' https://*.leafletjs.com https://dawa.aws.dk https://api.dataforsyningen.dk https://*.aws.dk;
+              connect-src 'self' https://*.leafletjs.com https://dawa.aws.dk https://api.dataforsyningen.dk https://*.aws.dk https://*.dataforsyningen.dk https:;
               frame-ancestors 'none';
               base-uri 'self';
               form-action 'self';
