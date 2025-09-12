@@ -4,8 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import LoadingSpinner from './LoadingSpinner'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { usePageReturn, usePageVisibility } from '@/hooks/useNavigation'
-import { scriptLoader } from '@/utils/scriptLoader'
 
 declare global {
   interface Window {
@@ -51,85 +49,60 @@ export default function AddressSearchDAWA() {
     }
   }
 
-  // Load DAWA scripts with improved error handling and navigation support
+  // Simple script loading approach
   useEffect(() => {
     let isMounted = true
+    let timeoutId: NodeJS.Timeout
 
-    const loadDAWAScripts = async () => {
+    const loadDAWAScripts = () => {
       try {
-        setScriptLoadingProgress('Indlæser scripts...')
+        setScriptLoadingProgress('Indlæser DAWA Autocomplete...')
         
-        // ALWAYS clear and reload scripts for maximum reliability
-        console.log('AGGRESSIVE: Clearing all DAWA scripts for fresh load...')
-        scriptLoader.clearScript('core-js')
-        scriptLoader.clearScript('fetch-polyfill')
-        scriptLoader.clearScript('dawa-autocomplete')
-        
-        // Clear any existing DAWA autocomplete instances
+        // Check if already loaded
         if (window.dawaAutocomplete) {
-          delete window.dawaAutocomplete
+          setScriptsLoaded(true)
+          setScriptLoadingProgress('')
+          return
         }
-        
-        // Load scripts in sequence with retry logic
-        await scriptLoader.loadScript({
-          src: 'https://cdnjs.cloudflare.com/ajax/libs/core-js/2.4.1/core.min.js',
-          id: 'core-js',
-          timeout: 15000,
-          retries: 3,
-          onLoad: () => {
-            if (isMounted) setScriptLoadingProgress('Core.js indlæst, henter fetch...')
-          },
-          onError: (error) => {
-            console.error('Core.js failed to load:', error)
-            if (isMounted) {
-              handleError(new Error('Core.js load failed'), 'Core.js script failed to load')
-              setDawaFailed(true)
-            }
-          }
-        })
 
-        await scriptLoader.loadScript({
-          src: 'https://cdnjs.cloudflare.com/ajax/libs/fetch/2.0.3/fetch.min.js',
-          id: 'fetch-polyfill',
-          timeout: 15000,
-          retries: 3,
-          onLoad: () => {
-            if (isMounted) setScriptLoadingProgress('Fetch indlæst, henter DAWA...')
-          },
-          onError: (error) => {
-            console.error('Fetch polyfill failed to load:', error)
-            if (isMounted) {
-              handleError(new Error('Fetch polyfill load failed'), 'Fetch polyfill script failed to load')
-              setDawaFailed(true)
-            }
+        // Load the DAWA script directly
+        const script = document.createElement('script')
+        script.src = '/dawa-autocomplete2.min.js'
+        script.async = true
+        script.onload = () => {
+          if (isMounted) {
+            console.log('DAWA script loaded successfully')
+            setScriptsLoaded(true)
+            setScriptLoadingProgress('')
           }
-        })
+        }
+        script.onerror = (error) => {
+          console.error('DAWA script failed to load:', error)
+          if (isMounted) {
+            handleError(new Error('DAWA script failed to load'), 'DAWA Autocomplete script failed to load')
+            setDawaFailed(true)
+            setScriptLoadingProgress('')
+          }
+        }
 
-        await scriptLoader.loadScript({
-          src: '/dawa-autocomplete2.min.js',
-          id: 'dawa-autocomplete',
-          timeout: 20000,
-          retries: 5, // More retries for local script
-          onLoad: () => {
-            if (isMounted) {
-              setScriptLoadingProgress('DAWA indlæst, initialiserer...')
-              setScriptsLoaded(true)
-            }
-          },
-          onError: (error) => {
-            console.error('DAWA Autocomplete failed to load:', error)
-            if (isMounted) {
-              handleError(new Error('DAWA Autocomplete load failed'), 'DAWA Autocomplete script failed to load')
-              setDawaFailed(true)
-            }
+        document.head.appendChild(script)
+
+        // Timeout after 10 seconds
+        timeoutId = setTimeout(() => {
+          if (isMounted && !window.dawaAutocomplete) {
+            console.error('DAWA script load timeout')
+            handleError(new Error('DAWA script load timeout'), 'DAWA Autocomplete took too long to load')
+            setDawaFailed(true)
+            setScriptLoadingProgress('')
           }
-        })
+        }, 10000)
 
       } catch (error) {
         if (isMounted) {
           const err = error instanceof Error ? error : new Error('Script loading failed')
-          handleError(err, 'Failed to load required scripts')
+          handleError(err, 'Failed to load DAWA script')
           setDawaFailed(true)
+          setScriptLoadingProgress('')
         }
       }
     }
@@ -138,86 +111,53 @@ export default function AddressSearchDAWA() {
 
     return () => {
       isMounted = false
-      // Don't clear scripts on unmount as they might be needed by other components
-      // Only clear if this is a full page unload
-    }
-  }, [handleError])
-
-  // Handle return to home page - ALWAYS reload
-  usePageReturn('/', () => {
-    console.log('AGGRESSIVE: User returned to home page, FORCE reloading all scripts...')
-    // Clear everything and force reload
-    scriptLoader.clearScript('core-js')
-    scriptLoader.clearScript('fetch-polyfill')
-    scriptLoader.clearScript('dawa-autocomplete')
-    
-    // Clear window object
-    if (window.dawaAutocomplete) {
-      delete window.dawaAutocomplete
-    }
-    
-    // Force reload
-    setScriptsLoaded(false)
-    setDawaFailed(false)
-    setScriptLoadingProgress('')
-  })
-
-  // Handle page visibility changes
-  usePageVisibility((isVisible) => {
-    if (isVisible && !scriptsLoaded && !dawaFailed) {
-      console.log('Page became visible, checking scripts...')
-      const needsReload = scriptLoader.needsReload('dawa-autocomplete', 30000)
-      if (needsReload) {
-        console.log('Scripts need reloading after visibility change')
-        setScriptsLoaded(false)
-        setDawaFailed(false)
-        setScriptLoadingProgress('')
+      if (timeoutId) {
+        clearTimeout(timeoutId)
       }
     }
-  })
+  }, [handleError])
 
   // Initialize DAWA Autocomplete when scripts are loaded
   useEffect(() => {
     if (scriptsLoaded && searchInputRef.current && window.dawaAutocomplete) {
       try {
-        setSearchLoading(true)
-        setScriptLoadingProgress('Initialiserer søgning...')
+        console.log('Initializing DAWA Autocomplete...')
         
         window.dawaAutocomplete.dawaAutocomplete(searchInputRef.current, {
           select: function(selected: any) {
+            console.log('Address selected:', selected)
             setSelectedAddress(selected.tekst)
-            setSearchLoading(true)
             
             // Extract coordinates from the selected address
             if (selected.data && selected.data.x && selected.data.y) {
               const lng = selected.data.x
               const lat = selected.data.y
+              console.log('Navigating to coordinates:', lat, lng)
               router.push(`/shelters/nearby?lat=${lat}&lng=${lng}`)
             } else {
+              console.error('Invalid address data:', selected)
               handleError(new Error('Invalid address data'), 'Selected address missing coordinates')
             }
           },
           onError: function(error: any) {
+            console.error('DAWA autocomplete error:', error)
             handleError(new Error('DAWA autocomplete error'), error.message || 'Unknown DAWA error')
             setDawaFailed(true)
           }
         })
         
-        console.log('DAWA Autocomplete2 initialized successfully')
-        setSearchLoading(false)
-        setScriptLoadingProgress('')
+        console.log('DAWA Autocomplete initialized successfully')
       } catch (error) {
+        console.error('Failed to initialize DAWA:', error)
         const err = error instanceof Error ? error : new Error('Failed to initialize DAWA')
-        handleError(err, 'DAWA Autocomplete2 initialization failed')
+        handleError(err, 'DAWA Autocomplete initialization failed')
         setDawaFailed(true)
-        setSearchLoading(false)
-        setScriptLoadingProgress('')
       }
     } else if (scriptsLoaded && !window.dawaAutocomplete) {
-      const error = new Error('DAWA Autocomplete2 not available')
+      console.error('Script loaded but window.dawaAutocomplete is not available')
+      const error = new Error('DAWA Autocomplete not available')
       handleError(error, 'Script loaded but window.dawaAutocomplete is not available')
       setDawaFailed(true)
-      setScriptLoadingProgress('')
     }
   }, [scriptsLoaded, router, handleError])
 
