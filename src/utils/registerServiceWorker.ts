@@ -4,7 +4,7 @@ export function registerServiceWorker() {
       const swUrl = '/sw.js';
 
       // Check if we're in a production environment
-      if (process.env.NODE_ENV === 'production') {
+      if (process.env.NODE_ENV === 'production' && typeof window !== 'undefined') {
         navigator.serviceWorker
           .register(swUrl)
           .then((registration) => {
@@ -37,6 +37,7 @@ export function registerServiceWorker() {
           })
           .catch((error) => {
             console.error('ServiceWorker registration failed:', error);
+            // Don't fail the app if service worker registration fails
           });
       }
     });

@@ -178,9 +178,9 @@ const nextConfig = {
               default-src 'self';
               font-src 'self' https://fonts.gstatic.com data:;
               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com;
-              script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.leafletjs.com https://dawa.aws.dk;
+              script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.leafletjs.com https://dawa.aws.dk https://*.aws.dk;
               img-src 'self' data: https:;
-              connect-src 'self' https://*.leafletjs.com https://dawa.aws.dk;
+              connect-src 'self' https://*.leafletjs.com https://dawa.aws.dk https://api.dataforsyningen.dk https://*.aws.dk;
               frame-ancestors 'none';
               base-uri 'self';
               form-action 'self';

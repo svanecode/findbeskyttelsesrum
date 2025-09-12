@@ -1,7 +1,7 @@
 const CACHE_VERSION = 'v4';
 const CACHE_NAME = `app-cache-${CACHE_VERSION}`;
 const STATIC_CACHE_NAME = `static-cache-${CACHE_VERSION}`;
-const IS_DEV = process.env.NODE_ENV === 'development';
+const IS_DEV = false; // Service workers run in production context
 
 // List of patterns for URLs to never cache
 const NO_CACHE_PATTERNS = [
@@ -91,17 +91,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle DAWA API requests - always go to network, no caching
-  if (url.hostname.includes('dawa.aws.dk')) {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        // Return a basic response if DAWA is unavailable
-        return new Response('[]', {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      })
-    );
+  // Skip DAWA API requests entirely - let them go through normally
+  if (url.hostname.includes('dawa.aws.dk') || url.hostname.includes('api.dataforsyningen.dk')) {
+    return;
+  }
+
+  // Skip service worker registration requests
+  if (url.pathname.includes('sw.js') || url.pathname.includes('service-worker')) {
     return;
   }
 
@@ -164,4 +160,13 @@ self.addEventListener('message', (event) => {
     log('Received skip waiting message');
     self.skipWaiting();
   }
+});
+
+// Handle errors
+self.addEventListener('error', (event) => {
+  log('Service worker error:', event.error);
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  log('Service worker unhandled rejection:', event.reason);
 }); 

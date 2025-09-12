@@ -67,7 +67,7 @@ export default function AddressSearchDAWA() {
 
         // Load the DAWA script directly
         const script = document.createElement('script')
-        script.src = '/dawa-autocomplete2.min.js'
+        script.src = '/dawa-autocomplete2.min.js?v=' + Date.now()
         script.async = true
         script.onload = () => {
           if (isMounted) {
