@@ -6,8 +6,16 @@ import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
-const spaceGrotesk = Space_Grotesk({ subsets: ["latin"] });
+const inter = Inter({ 
+  subsets: ["latin"],
+  display: 'swap',
+  fallback: ['system-ui', 'sans-serif']
+});
+const spaceGrotesk = Space_Grotesk({ 
+  subsets: ["latin"],
+  display: 'swap',
+  fallback: ['system-ui', 'sans-serif']
+});
 
 export const metadata: Metadata = {
   title: {
