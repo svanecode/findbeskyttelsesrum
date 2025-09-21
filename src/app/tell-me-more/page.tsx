@@ -5,9 +5,9 @@ import Link from 'next/link'
 
 export default function TellMeMore() {
   return (
-    <main className="min-h-screen text-white p-4 sm:p-8 relative">
+    <main className="min-h-screen text-white p-4 sm:p-6 lg:p-8 relative">
       {/* Background gradient overlay */}
-      <div className="fixed inset-0 bg-gradient-to-br from-[#1a1a1a] via-[#0f0f0f] to-[#1a1a1a] -z-10" />
+      <div className="fixed inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#0f0f0f] to-[#0a0a0a] -z-10" />
       <div className="fixed inset-0 bg-[url('/grid.svg')] opacity-10 -z-10" />
       
       <div className="max-w-3xl mx-auto">
@@ -15,7 +15,7 @@ export default function TellMeMore() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative glass-effect p-6 sm:p-10 rounded-2xl overflow-hidden"
+          className="relative glass-effect p-6 sm:p-10 rounded-2xl overflow-hidden card-interactive"
         >
           {/* Card background effects */}
           <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
@@ -25,7 +25,8 @@ export default function TellMeMore() {
           <div className="relative z-10">
             <Link 
               href="/"
-              className="inline-flex items-center text-base font-medium text-white hover:text-white transition-all duration-200 mb-8 group bg-[#F97316]/90 hover:bg-[#F97316] px-6 py-3 rounded-xl border border-white/20 backdrop-blur-sm relative overflow-hidden shadow-lg hover:shadow-xl"
+              className="inline-flex items-center text-base font-medium text-white hover:text-white transition-all duration-200 mb-8 group bg-[#F97316]/90 hover:bg-[#F97316] px-6 py-3 rounded-xl border border-white/20 backdrop-blur-sm relative overflow-hidden shadow-lg hover:shadow-xl touch-target focus-visible btn-interactive"
+              aria-label="Gå tilbage til forsiden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
               <div className="relative z-10 flex items-center">

@@ -169,7 +169,7 @@ export default function AddressSearchDAWA() {
 
       <button
         onClick={handleLocationClick}
-        className="w-full bg-[#F97316] text-white py-4 px-6 rounded-full flex items-center justify-center gap-2 hover:bg-[#EA580C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="btn-primary w-full py-4 px-6 rounded-full flex items-center justify-center gap-3 hover:bg-[#EA580C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target focus-visible btn-interactive"
         disabled={loading}
         aria-label="Brug min nuværende position til at finde beskyttelsesrum"
         role="button"
@@ -179,15 +179,15 @@ export default function AddressSearchDAWA() {
           <LoadingSpinner size="sm" text="Henter din position..." />
         ) : (
           <>
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="currentColor"/>
             </svg>
-            <span>Brug min nuværende position</span>
+            <span className="text-sm sm:text-base font-medium">Brug min nuværende position</span>
           </>
         )}
       </button>
 
-      <div className="text-center text-gray-400">eller</div>
+      <div className="text-center text-gray-400 text-sm sm:text-base font-medium">eller</div>
 
       <div className="relative w-full">
         {/* Script loading progress */}
@@ -243,19 +243,27 @@ export default function AddressSearchDAWA() {
             type="text"
             id="adresse"
             placeholder="Søg efter en adresse i Danmark"
-            className="w-full bg-[#1a1a1a] text-white py-3 px-12 rounded-full border border-[#E97B4D] focus:outline-none focus:border-[#E97B4D] focus:bg-[#141414] transition-all placeholder-gray-400 disabled:opacity-50"
+            className="w-full bg-[#1a1a1a] text-white py-3 sm:py-4 px-12 sm:px-14 rounded-full border border-[#E97B4D] focus:outline-none focus:border-[#E97B4D] focus:bg-[#141414] transition-all placeholder-gray-400 disabled:opacity-50 text-sm sm:text-base touch-target focus-visible input-interactive"
             disabled={searchLoading || dawaFailed}
             aria-label="Søg efter en adresse i Danmark"
             aria-describedby={dawaFailed ? "dawa-error" : undefined}
             role="searchbox"
             autoComplete="off"
+            minLength={2}
           />
         </div>
         
         {selectedAddress && (
-          <p className="mt-2 text-sm text-gray-400">
-            Valgt adresse: <span className="text-white">{selectedAddress}</span>
-          </p>
+          <div className="mt-3 p-3 bg-success-bg border border-success/30 rounded-lg" role="status" aria-live="polite">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-success success-animation" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <p className="text-sm sm:text-base text-success font-medium">
+                Valgt adresse: <span className="text-white">{selectedAddress}</span>
+              </p>
+            </div>
+          </div>
         )}
       </div>
 

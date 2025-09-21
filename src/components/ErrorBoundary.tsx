@@ -72,14 +72,16 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="space-y-4">
               <button
                 onClick={() => window.location.reload()}
-                className="w-full bg-[#F97316] hover:bg-[#EA580C] text-white py-3 px-6 rounded-full font-medium transition-colors"
+                className="btn-primary w-full py-3 px-6 rounded-full font-medium transition-colors touch-target focus-visible btn-interactive"
+                aria-label="Genindlæs siden for at prøve igen"
               >
                 Genindlæs siden
               </button>
               
               <button
                 onClick={() => window.history.back()}
-                className="w-full bg-white/10 hover:bg-white/20 text-white py-3 px-6 rounded-full font-medium transition-colors"
+                className="w-full bg-white/10 hover:bg-white/20 text-white py-3 px-6 rounded-full font-medium transition-colors touch-target focus-visible btn-interactive"
+                aria-label="Gå tilbage til forrige side"
               >
                 Gå tilbage
               </button>

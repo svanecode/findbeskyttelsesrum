@@ -54,20 +54,20 @@ export default function ShelterCounter({ targetNumber, version }: ShelterCounter
   }, [targetNumber, handleError]);
 
   return (
-    <div className="text-center mt-8" role="status" aria-live="polite">
+    <div className="text-center mt-6 sm:mt-8 lg:mt-10" role="status" aria-live="polite">
       <div 
-        className={`text-2xl sm:text-3xl font-bold text-[#F97316] transition-all duration-300 ${
+        className={`text-heading-sm sm:text-heading-md lg:text-heading-lg text-[#F97316] transition-all duration-300 ${
           isAnimating ? 'scale-105' : 'scale-100'
         }`}
         aria-label={`${count.toLocaleString('da-DK')} sikringspladser i databasen`}
       >
         {isClient ? count.toLocaleString('da-DK') : targetNumber.toLocaleString('da-DK')}
       </div>
-      <div className="text-sm sm:text-base text-[#E5E7EB] mt-2">
+      <div className="text-body-sm sm:text-body-md lg:text-body-lg text-[#E5E7EB] mt-3 sm:mt-4 font-medium">
         sikringspladser i databasen
       </div>
       {isAnimating && (
-        <div className="text-xs text-gray-500 mt-1" aria-hidden="true">
+        <div className="text-caption text-gray-500 mt-3" aria-hidden="true">
           Opdaterer...
         </div>
       )}
