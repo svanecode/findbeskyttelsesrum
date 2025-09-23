@@ -10,19 +10,12 @@ export default function HardCacheBuster() {
 
     const currentVersion = APP_VERSION
     const storedVersion = localStorage.getItem('app-version')
-    const lastCacheBust = localStorage.getItem('last-cache-bust')
-    const now = Date.now()
-
-    // Force cache bust on version change or if it's been more than 1 hour
-    const shouldBust = !storedVersion ||
-                      storedVersion !== currentVersion ||
-                      !lastCacheBust ||
-                      (now - parseInt(lastCacheBust)) > 3600000 // 1 hour
+    // Only bust when the deployed app version changes.
+    const shouldBust = !storedVersion || storedVersion !== currentVersion
 
     if (shouldBust) {
       console.log('Hard cache bust triggered', {
-        reason: !storedVersion ? 'no version' :
-               storedVersion !== currentVersion ? 'version change' : 'time expired',
+        reason: !storedVersion ? 'no version' : 'version change',
         oldVersion: storedVersion,
         newVersion: currentVersion
       })
@@ -45,21 +38,13 @@ export default function HardCacheBuster() {
 
         // Update version tracking
         localStorage.setItem('app-version', currentVersion)
-        localStorage.setItem('last-cache-bust', now.toString())
-
-        // Only reload if version changed (not on time-based bust)
-        if (storedVersion && storedVersion !== currentVersion) {
-          // Add timestamp to URL to force fresh fetch
-          const url = new URL(window.location.href)
-          url.searchParams.set('_cb', now.toString())
-          window.location.href = url.toString()
+        // Reload only if we had a previous version (not first visit)
+        if (storedVersion) {
+          window.location.reload()
         }
       } catch (error) {
         console.error('Cache bust failed:', error)
       }
-    } else if (!lastCacheBust) {
-      // First visit - just set the timestamp
-      localStorage.setItem('last-cache-bust', now.toString())
     }
   }, [])
 

@@ -9,68 +9,12 @@ import { APP_VERSION } from '@/lib/constants'
 
 export default function Home() {
   useEffect(() => {
-    // Aggressive cache busting for production deployments
-    const currentVersion = APP_VERSION
+    // Minimal first-visit version store (avoid aggressive busting: handled by HardCacheBuster)
+    if (typeof window === 'undefined') return
     const storedVersion = localStorage.getItem('app-version')
-    const isReloading = sessionStorage.getItem('version-update-in-progress')
-
-    // Prevent infinite loops - check if we're already in a reload cycle
-    if (isReloading) {
-      sessionStorage.removeItem('version-update-in-progress')
-      return
+    if (!storedVersion) {
+      localStorage.setItem('app-version', APP_VERSION)
     }
-
-    // Force immediate cache check
-    const versionCheckTimer = setTimeout(() => {
-      if (storedVersion !== currentVersion && !isReloading) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('New version detected, forcing hard refresh')
-        }
-
-        // Mark that we're starting the update process
-        sessionStorage.setItem('version-update-in-progress', 'true')
-
-        // Set the new version immediately to prevent loops
-        localStorage.setItem('app-version', currentVersion)
-
-        // Aggressive cache clearing and hard reload
-        const hardCacheBust = async () => {
-          try {
-            // Clear service worker cache
-            if ('serviceWorker' in navigator) {
-              const registrations = await navigator.serviceWorker.getRegistrations()
-              await Promise.all(registrations.map(reg => reg.unregister()))
-            }
-
-            // Clear all cache storage
-            if ('caches' in window) {
-              const cacheNames = await caches.keys()
-              await Promise.all(cacheNames.map(name => caches.delete(name)))
-            }
-
-            // Clear localStorage and sessionStorage
-            localStorage.clear()
-            sessionStorage.clear()
-
-            // Force hard reload with cache bypass
-            window.location.href = window.location.href + '?v=' + Date.now()
-          } catch (error) {
-            // Fallback: force hard reload anyway
-            if (process.env.NODE_ENV === 'development') {
-              console.error('Cache clearing failed, forcing hard reload anyway:', error)
-            }
-            window.location.href = window.location.href + '?v=' + Date.now()
-          }
-        }
-
-        hardCacheBust()
-      } else if (!storedVersion) {
-        // First visit - store the version
-        localStorage.setItem('app-version', currentVersion)
-      }
-    }, 500) // Shorter delay for faster detection
-
-    return () => clearTimeout(versionCheckTimer)
   }, [])
 
   return (

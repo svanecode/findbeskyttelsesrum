@@ -1,6 +1,7 @@
-const CACHE_VERSION = 'v7-cache-fix';
+const CACHE_VERSION = 'v8';
 const CACHE_NAME = `app-cache-${CACHE_VERSION}`;
-const IS_DEV = false; // Service workers run in production context
+const STATIC_CACHE_NAME = CACHE_NAME; // unify naming (fix undefined reference)
+const IS_DEV = false; // flip to true locally if debugging
 
 // Simplified cache strategy - less aggressive
 
@@ -21,13 +22,11 @@ const NO_CACHE_PATTERNS = [
 ];
 
 // List of static assets to cache first
+// We no longer try to manually cache Next hashed assets; the CDN + immutable headers handle them.
+// Keep a minimal list for public runtime assets that may not be hashed.
 const STATIC_ASSETS = [
-  /\/_next\/static\/css\//,
-  /\/_next\/static\/media\//,
-  /\/_next\/static\/chunks\//,
-  /\/_next\/image\//,
   /\/images\//,
-  /\/favicons\//
+  /\/favicons\//,
 ];
 
 // List of dynamic routes that should use network-first strategy
@@ -129,16 +128,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle static assets
+  // Handle static public assets (cache-first)
   if (matchesPattern(url.pathname, STATIC_ASSETS)) {
     event.respondWith(
-      caches.match(event.request).then((response) => {
-        return response || fetch(event.request).then((response) => {
-          const responseToCache = response.clone();
-          caches.open(STATIC_CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-          return response;
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(STATIC_CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return res;
         });
       })
     );
@@ -163,17 +163,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle other requests with cache-first strategy
+  // For everything else rely on network (no opaque stale data) with fallback to cache if previously stored.
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request).then((response) => {
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-        return response;
-      });
-    })
+    fetch(event.request)
+      .then(res => {
+        return res; // don't cache by default
+      })
+      .catch(() => caches.match(event.request))
   );
 });
 

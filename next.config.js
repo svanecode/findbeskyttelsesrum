@@ -37,11 +37,12 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=3600, s-maxage=86400',
+            // 1 year immutable for hashed build assets
+            value: 'public, max-age=31536000, immutable',
           },
           {
             key: 'Access-Control-Allow-Origin',
-            value: 'https://findbeskyttelsesrum.dk',
+            value: '*',
           },
           {
             key: 'Access-Control-Allow-Methods',
@@ -63,7 +64,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=86400',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },
@@ -72,7 +73,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=3600',
+            value: 'public, max-age=86400',
           },
         ],
       },
@@ -81,7 +82,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=3600',
+            value: 'public, max-age=86400',
           },
         ],
       },
@@ -90,7 +91,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=86400',
+            value: 'public, max-age=3600',
           },
         ],
       },
@@ -100,7 +101,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=86400',
+            value: 'public, max-age=604800',
           },
         ],
       },
@@ -109,7 +110,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=86400',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },
@@ -118,7 +119,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=86400',
+            value: 'public, max-age=2592000',
           },
         ],
       },
@@ -127,7 +128,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=3600',
+            value: 'public, max-age=86400',
           },
         ],
       },
@@ -136,15 +137,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate, max-age=0',
-          },
-          {
-            key: 'Pragma',
-            value: 'no-cache',
-          },
-          {
-            key: 'Expires',
-            value: '0',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },
@@ -154,7 +147,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=86400',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },
@@ -188,19 +181,7 @@ const nextConfig = {
           },
           {
             key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate, max-age=0',
-          },
-          {
-            key: 'Pragma',
-            value: 'no-cache',
-          },
-          {
-            key: 'Expires',
-            value: '0',
-          },
-          {
-            key: 'ETag',
-            value: `"cache-fix-${Date.now()}"`,
+            value: 'no-store',
           },
         ],
       },
