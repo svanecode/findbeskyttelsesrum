@@ -9,7 +9,7 @@ import { APP_VERSION } from '@/lib/constants'
 
 export default function Home() {
   useEffect(() => {
-    // Mobile-safe version detection
+    // Aggressive cache busting for production deployments
     const currentVersion = APP_VERSION
     const storedVersion = localStorage.getItem('app-version')
     const isReloading = sessionStorage.getItem('version-update-in-progress')
@@ -20,11 +20,11 @@ export default function Home() {
       return
     }
 
-    // Only check version after a short delay to ensure page is stable
+    // Force immediate cache check
     const versionCheckTimer = setTimeout(() => {
       if (storedVersion !== currentVersion && !isReloading) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('New version detected, preparing update')
+          console.log('New version detected, forcing hard refresh')
         }
 
         // Mark that we're starting the update process
@@ -33,38 +33,42 @@ export default function Home() {
         // Set the new version immediately to prevent loops
         localStorage.setItem('app-version', currentVersion)
 
-        // Mobile-friendly cache clearing
-        const clearCachesAndReload = async () => {
+        // Aggressive cache clearing and hard reload
+        const hardCacheBust = async () => {
           try {
-            // Clear service worker cache (mobile-safe)
+            // Clear service worker cache
             if ('serviceWorker' in navigator) {
               const registrations = await navigator.serviceWorker.getRegistrations()
               await Promise.all(registrations.map(reg => reg.unregister()))
             }
 
-            // Clear cache storage (mobile-safe)
+            // Clear all cache storage
             if ('caches' in window) {
               const cacheNames = await caches.keys()
               await Promise.all(cacheNames.map(name => caches.delete(name)))
             }
 
-            // Wait a bit longer on mobile for cleanup
-            await new Promise(resolve => setTimeout(resolve, 500))
+            // Clear localStorage and sessionStorage
+            localStorage.clear()
+            sessionStorage.clear()
 
-            // Force reload
-            window.location.reload()
+            // Force hard reload with cache bypass
+            window.location.href = window.location.href + '?v=' + Date.now()
           } catch (error) {
-            // If cache clearing fails, still reload
+            // Fallback: force hard reload anyway
             if (process.env.NODE_ENV === 'development') {
-              console.error('Cache clearing failed, forcing reload anyway:', error)
+              console.error('Cache clearing failed, forcing hard reload anyway:', error)
             }
-            window.location.reload()
+            window.location.href = window.location.href + '?v=' + Date.now()
           }
         }
 
-        clearCachesAndReload()
+        hardCacheBust()
+      } else if (!storedVersion) {
+        // First visit - store the version
+        localStorage.setItem('app-version', currentVersion)
       }
-    }, 1000) // Wait 1 second before checking version
+    }, 500) // Shorter delay for faster detection
 
     return () => clearTimeout(versionCheckTimer)
   }, [])
