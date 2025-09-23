@@ -1,12 +1,8 @@
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6-simplified';
 const CACHE_NAME = `app-cache-${CACHE_VERSION}`;
-const STATIC_CACHE_NAME = `static-cache-${CACHE_VERSION}`;
 const IS_DEV = false; // Service workers run in production context
 
-// Get deployment ID from environment or use timestamp
-const DEPLOYMENT_ID = self.location.search.includes('dpl=') ? 
-  self.location.search.match(/dpl=([^&]+)/)?.[1] || Date.now() : 
-  Date.now();
+// Simplified cache strategy - less aggressive
 
 // List of patterns for URLs to never cache
 const NO_CACHE_PATTERNS = [
@@ -60,43 +56,49 @@ const getCacheKey = (url) => {
   return version ? `${urlObj.pathname}?v=${version}` : urlObj.pathname;
 };
 
-// Install event
+// Install event - minimal caching
 self.addEventListener('install', (event) => {
+  // Skip waiting to activate immediately
+  self.skipWaiting();
+
   event.waitUntil(
-    caches.open(STATIC_CACHE_NAME).then((cache) => {
-      // Add files one by one to handle failures gracefully
+    caches.open(CACHE_NAME).then((cache) => {
+      // Only cache essential offline assets
       const urlsToCache = [
-        '/',
-        '/index.html',
-        '/manifest.json',
         '/favicon.ico',
+        '/site.webmanifest',
       ];
-      
+
       return Promise.allSettled(
-        urlsToCache.map(url => 
+        urlsToCache.map(url =>
           cache.add(url).catch(err => {
             log('Failed to cache:', url, err);
-            return null; // Continue with other files
+            return null;
           })
         )
       );
     }).catch(err => {
       log('Cache installation failed:', err);
-      // Don't fail the service worker installation
     })
   );
 });
 
 // Activate event
 self.addEventListener('activate', (event) => {
+  // Claim clients immediately
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME && name !== STATIC_CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    })
+    Promise.all([
+      // Clean up old caches
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames
+            .filter((name) => name !== CACHE_NAME)
+            .map((name) => caches.delete(name))
+        );
+      }),
+      // Claim all clients
+      self.clients.claim()
+    ])
   );
 });
 

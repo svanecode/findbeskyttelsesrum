@@ -1,12 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: false, // <-- change to false when test
+  reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,
   },
   typedRoutes: true,
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -31,13 +31,13 @@ const nextConfig = {
   // Add headers for static assets
   async headers() {
     return [
-      // Long-term caching for hashed static assets
+      // Moderate caching for hashed static assets (Next.js handles versioning)
       {
         source: '/_next/static/:path*',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=3600, s-maxage=86400',
           },
           {
             key: 'Access-Control-Allow-Origin',
@@ -57,13 +57,13 @@ const nextConfig = {
           },
         ],
       },
-      // Cache static files in public directory
+      // Cache static files with shorter duration
       {
         source: '/favicon.ico',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=86400',
           },
         ],
       },
@@ -72,7 +72,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=3600',
           },
         ],
       },
@@ -81,7 +81,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=3600',
           },
         ],
       },
@@ -94,13 +94,13 @@ const nextConfig = {
           },
         ],
       },
-      // Cache images and other static assets
+      // Cache images with reasonable duration
       {
         source: '/images/:path*',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=86400',
           },
         ],
       },
@@ -109,7 +109,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=86400',
           },
         ],
       },
@@ -118,7 +118,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=86400',
           },
         ],
       },
@@ -127,7 +127,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=3600',
           },
         ],
       },
@@ -154,7 +154,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=86400',
           },
         ],
       },

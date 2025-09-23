@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { errorTracker } from '@/lib/errorTracking'
 
 interface ErrorState {
   hasError: boolean
@@ -16,19 +17,18 @@ export function useErrorHandler() {
   })
 
   const handleError = useCallback((error: Error, errorInfo?: string) => {
-    console.error('Error caught by useErrorHandler:', error, errorInfo)
-    
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error caught by useErrorHandler:', error, errorInfo)
+    }
+
     setErrorState({
       hasError: true,
       error,
       errorInfo: errorInfo || null
     })
 
-    // In production, you might want to send this to a logging service
-    if (process.env.NODE_ENV === 'production') {
-      // Example: send to Sentry, LogRocket, etc.
-      console.error('Production error:', { error, errorInfo })
-    }
+    // Send to error tracking service
+    errorTracker.captureError(error, { errorInfo, component: 'useErrorHandler' })
   }, [])
 
   const clearError = useCallback(() => {
@@ -68,12 +68,12 @@ export function useAsyncOperation<T>() {
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error occurred')
       setError(error)
-      handleError(error, 'Async operation failed')
+      errorTracker.captureError(error, { component: 'useAsyncOperation' })
       return null
     } finally {
       setLoading(false)
     }
-  }, [handleError])
+  }, [])
 
   const clearError = useCallback(() => {
     setError(null)

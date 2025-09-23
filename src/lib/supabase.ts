@@ -7,9 +7,11 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 // Validate environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing required environment variables for Supabase configuration')
-  console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? 'present' : 'missing')
-  console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'present' : 'missing')
+  if (process.env.NODE_ENV === 'development') {
+    console.error('Missing required environment variables for Supabase configuration')
+    console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? 'present' : 'missing')
+    console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'present' : 'missing')
+  }
   
   // In development, provide more helpful error messages
   if (process.env.NODE_ENV === 'development') {
@@ -49,7 +51,9 @@ export async function retryRPC<T>(fn: () => Promise<SupabaseRPCResponse<T>>): Pr
       return await fn()
     } catch (error) {
       lastError = error as Error
-      console.error(`Attempt ${i + 1} failed:`, error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`Attempt ${i + 1} failed:`, error)
+      }
       
       if (i < MAX_RETRIES - 1) {
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (i + 1)))
@@ -70,7 +74,9 @@ export async function getAllKommuneSlugs(): Promise<string[]> {
         .order('slug')
 
       if (error) {
-        console.error('Error fetching kommune slugs:', error)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error fetching kommune slugs:', error)
+        }
         return []
       }
 
@@ -88,7 +94,9 @@ export async function getShelterCount(): Promise<number> {
         .select('*', { count: 'exact', head: true })
 
       if (error) {
-        console.error('Error counting shelters:', error)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error counting shelters:', error)
+        }
         return 0
       }
 
@@ -106,7 +114,9 @@ export async function getTotalShelterCapacity(): Promise<number> {
         .select('shelter_capacity')
 
       if (error) {
-        console.error('Error fetching total shelter capacity:', error)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error fetching total shelter capacity:', error)
+        }
         return 0
       }
 

@@ -56,7 +56,63 @@
   background: #2a2a2a;
 }
 
-/* Leaflet Map Styles */
+/* Mapbox Map Styles */
+.mapboxgl-map {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* Enhanced mobile-friendly map controls */
+.mapboxgl-ctrl-group {
+  background: rgba(26, 26, 26, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.mapboxgl-ctrl-zoom-in,
+.mapboxgl-ctrl-zoom-out {
+  background-color: rgba(26, 26, 26, 0.9) !important;
+  color: white !important;
+  border: none !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.mapboxgl-ctrl-zoom-in:hover,
+.mapboxgl-ctrl-zoom-out:hover {
+  background-color: rgba(249, 115, 22, 0.9) !important;
+}
+
+.mapboxgl-ctrl-zoom-in:active,
+.mapboxgl-ctrl-zoom-out:active {
+  transform: scale(0.95) !important;
+}
+
+/* Mobile-specific map adjustments */
+@media (max-width: 768px) {
+  .mapboxgl-ctrl-top-right {
+    top: 10px !important;
+    right: 10px !important;
+  }
+
+  .mapboxgl-ctrl-zoom-in,
+  .mapboxgl-ctrl-zoom-out {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    font-size: 20px !important;
+  }
+}
+
+/* Legacy Leaflet Map Styles */
 .leaflet-container {
   width: 100%;
   height: 100%;

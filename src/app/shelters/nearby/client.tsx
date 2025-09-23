@@ -19,7 +19,9 @@ interface ShelterWithDistance extends Shelter {
 }
 
 async function getNearbyShelters(lat: number, lng: number) {
-  console.log('Calling get_nearby_shelters_v2 with:', { p_lat: lat, p_lng: lng })
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Calling get_nearby_shelters_v2 with:', { p_lat: lat, p_lng: lng })
+  }
   
   try {
     const response = await retryRPC<ShelterWithDistance[]>(async () => {
@@ -31,22 +33,28 @@ async function getNearbyShelters(lat: number, lng: number) {
     })
 
     if (response.error) {
-      console.error('Supabase RPC error:', {
-        message: response.error.message,
-        details: response.error.details,
-        hint: response.error.hint,
-        code: response.error.code,
-        stack: response.error.stack
-      })
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Supabase RPC error:', {
+          message: response.error.message,
+          details: response.error.details,
+          hint: response.error.hint,
+          code: response.error.code,
+          stack: response.error.stack
+        })
+      }
       throw response.error
     }
 
     if (!response.data) {
-      console.log('No data returned from get_nearby_shelters_v2')
+      if (process.env.NODE_ENV === 'development') {
+        console.log('No data returned from get_nearby_shelters_v2')
+      }
       return []
     }
 
-    console.log('Successfully fetched shelters:', response.data.length)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Successfully fetched shelters:', response.data.length)
+    }
     
     const nearbyShelters = response.data
       .map((shelter: ShelterWithDistance) => ({
@@ -56,7 +64,9 @@ async function getNearbyShelters(lat: number, lng: number) {
       
     return nearbyShelters
   } catch (error) {
-    console.error('Error in getNearbyShelters:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error in getNearbyShelters:', error)
+    }
     return []
   }
 }
@@ -129,7 +139,9 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
     async function loadData() {
       try {
         setIsLoading(true)
-        console.log('Starting data load with coordinates:', { lat, lng })
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Starting data load with coordinates:', { lat, lng })
+        }
         
         const [sheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
           getNearbyShelters(lat, lng),
@@ -137,11 +149,13 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           getKommunekoder()
         ])
         
-        console.log('Data loaded:', {
-          sheltersCount: sheltersData.length,
-          anvendelseskoderCount: anvendelseskoderData.length,
-          kommunekoderCount: kommunekoderData.length
-        })
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Data loaded:', {
+            sheltersCount: sheltersData.length,
+            anvendelseskoderCount: anvendelseskoderData.length,
+            kommunekoderCount: kommunekoderData.length
+          })
+        }
         
         if (isMounted) {
           setShelters(sheltersData)
@@ -149,7 +163,9 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           setKommunekoder(kommunekoderData)
         }
       } catch (error) {
-        console.error('Error in loadData:', error)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error in loadData:', error)
+        }
         if (isMounted) {
           setShelters([])
           setAnvendelseskoder([])
@@ -198,13 +214,14 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
         <div className="flex items-center mb-6">
           <Link
             href="/"
-            className="text-gray-400 hover:text-white transition-colors mr-4"
+            className="text-gray-400 hover:text-white transition-colors mr-3 sm:mr-4 p-2 -ml-2 rounded-lg hover:bg-gray-800/50 touch-target"
+            aria-label="Tilbage til forsiden"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </Link>
-          <h1 className="text-2xl font-bold">Dine 10 nærmeste beskyttelsesrum</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Dine 10 nærmeste beskyttelsesrum</h1>
         </div>
 
         {/* Back to top button */}
@@ -354,7 +371,9 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                   latitude={lat}
                   color="#3B82F6"
                 >
-                  <div className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg" />
+                  <div className="w-8 h-8 sm:w-6 sm:h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                  </div>
                 </Marker>
 
                 {shelters.map((shelter) => (
@@ -367,18 +386,21 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                       onClick={() => {
                         setSelectedShelter(shelter.id)
                         if (shelterRefs.current[shelter.id]) {
-                          shelterRefs.current[shelter.id]?.scrollIntoView({ 
+                          shelterRefs.current[shelter.id]?.scrollIntoView({
                             behavior: 'smooth',
                             block: 'center'
                           })
                         }
                       }}
                     >
-                      <div 
-                        className={`w-6 h-6 rounded-full border-2 border-white shadow-lg ${
-                          hoveredShelter === shelter.id ? 'bg-orange-400' : 'bg-red-500'
+                      <div
+                        className={`w-8 h-8 sm:w-6 sm:h-6 rounded-full border-2 border-white shadow-lg cursor-pointer transition-all duration-200 transform hover:scale-110 flex items-center justify-center ${
+                          hoveredShelter === shelter.id || selectedShelter === shelter.id ? 'bg-orange-400 scale-110' : 'bg-red-500'
                         }`}
-                      />
+                        style={{ minWidth: '32px', minHeight: '32px' }}
+                      >
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      </div>
                     </Marker>
                   )
                 ))}
