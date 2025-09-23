@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v6-simplified';
+const CACHE_VERSION = 'v7-cache-fix';
 const CACHE_NAME = `app-cache-${CACHE_VERSION}`;
 const IS_DEV = false; // Service workers run in production context
 
