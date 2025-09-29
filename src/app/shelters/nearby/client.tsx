@@ -183,8 +183,9 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
 
       // Wait a bit longer to ensure tiles are loaded
       timeoutId = setTimeout(() => {
+        map.invalidateSize()
         fitMapBounds()
-      }, 300)
+      }, 500)
     }
 
     // Listen for when map is ready

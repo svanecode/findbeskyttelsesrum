@@ -87,11 +87,30 @@ export default function KommuneMap({ kommunekode }: Props) {
 
   // Fit bounds when shelters are loaded
   useEffect(() => {
-    if (isClient && mapRef.current && shelters.length > 0) {
-      // Small delay to ensure map is fully rendered
-      setTimeout(() => {
+    if (!isClient || !mapRef.current || shelters.length === 0) return
+
+    const map = mapRef.current
+    let timeoutId: NodeJS.Timeout
+
+    const performFit = () => {
+      if (timeoutId) clearTimeout(timeoutId)
+
+      // Wait for map to be fully rendered and tiles loaded
+      timeoutId = setTimeout(() => {
+        map.invalidateSize()
         fitAllMarkers()
-      }, 100)
+      }, 500)
+    }
+
+    // Trigger on map ready
+    map.whenReady(performFit)
+
+    // Also trigger on tile load
+    map.on('load', performFit)
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      map.off('load', performFit)
     }
   }, [shelters, isClient, fitAllMarkers])
 
