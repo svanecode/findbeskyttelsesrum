@@ -1,29 +1,31 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { APP_VERSION } from './src/lib/constants';
 
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
 
-  // Set cache headers for static assets
-  if (request.nextUrl.pathname.startsWith('/_next/static/')) {
-    response.headers.set(
-      'Cache-Control',
-      'public, max-age=31536000, immutable'
-    );
+  const path = request.nextUrl.pathname;
+  if (path.startsWith('/_next/static/')) {
+    // Hashed assets
+    response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
   } else {
-    // Set no-cache headers for all other routes
-    response.headers.set(
-      'Cache-Control',
-      'no-cache, no-store, must-revalidate'
-    );
-    response.headers.set('Pragma', 'no-cache');
-    response.headers.set('Expires', '0');
+    // HTML / dynamic responses: allow conditional revalidation but never reuse stale
+    response.headers.set('Cache-Control', 'max-age=0, must-revalidate');
+    response.headers.delete('Pragma');
+    response.headers.delete('Expires');
   }
 
-  // Add version header for service worker detection
-  const version = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || 'dev';
-  response.headers.set('X-Next-Version', version);
-  response.headers.set('X-Next-Build-Time', Date.now().toString());
+  // Add version headers
+  response.headers.set('X-App-Version', APP_VERSION);
+  response.headers.set('X-Build-Time', Date.now().toString());
+
+  // Security headers only in production
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  } else {
+    response.headers.delete('Strict-Transport-Security');
+  }
 
   return response;
 }

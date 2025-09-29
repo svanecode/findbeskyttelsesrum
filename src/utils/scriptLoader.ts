@@ -60,7 +60,7 @@ class ScriptLoader {
   }
 
   private async loadWithRetry(config: ScriptConfig): Promise<void> {
-    const { src, id, retries = 3, timeout = 10000 } = config
+    const { src, id = this.generateId(src), retries = 3, timeout = 10000 } = config
     let lastError: Error | null = null
 
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -93,7 +93,7 @@ class ScriptLoader {
 
   private loadSingleScript(config: ScriptConfig, timeout: number): Promise<void> {
     return new Promise((resolve, reject) => {
-      const { src, id, async = true, defer = false, onLoad, onError } = config
+      const { src, id = this.generateId(src), async = true, defer = false, onLoad, onError } = config
 
       // Check if script already exists
       const existingScript = document.getElementById(id) as HTMLScriptElement
@@ -127,7 +127,8 @@ class ScriptLoader {
       script.onerror = (error) => {
         clearTimeout(timeoutId)
         script.remove()
-        onError?.(error)
+        const errorEvent = error instanceof Event ? error : new Event('error')
+        onError?.(errorEvent)
         reject(new Error(`Script load error: ${src}`))
       }
 

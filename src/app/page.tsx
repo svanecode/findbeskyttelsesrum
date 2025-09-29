@@ -9,25 +9,11 @@ import { APP_VERSION } from '@/lib/constants'
 
 export default function Home() {
   useEffect(() => {
-    // Force reload if this is an old cached version
-    const currentVersion = 'v4'
+    // Minimal first-visit version store (avoid aggressive busting: handled by HardCacheBuster)
+    if (typeof window === 'undefined') return
     const storedVersion = localStorage.getItem('app-version')
-    
-    if (storedVersion !== currentVersion) {
-      console.log('New version detected, clearing cache and reloading')
-      localStorage.setItem('app-version', currentVersion)
-      
-      // Clear service worker cache
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(registrations => {
-          registrations.forEach(registration => {
-            registration.unregister()
-          })
-        })
-      }
-      
-      // Force reload
-      window.location.reload()
+    if (!storedVersion) {
+      localStorage.setItem('app-version', APP_VERSION)
     }
   }, [])
 
@@ -52,22 +38,22 @@ export default function Home() {
         </div>
         
         <div className="glass-effect p-6 sm:p-8 lg:p-10 rounded-2xl shadow-2xl backdrop-blur-md bg-white/10 border border-white/10 relative overflow-visible card-interactive">
-          <div className="space-y-4 sm:space-y-6 lg:space-y-8 relative z-20">
+          <div className="space-y-8 sm:space-y-6 lg:space-y-8 relative z-20">
             <div suppressHydrationWarning className="relative z-20">
               <AddressSearchDAWA key="dawa-v2" />
             </div>
             
-            <div className="text-center mt-6 sm:mt-8">
-              <Link 
-                href="/tell-me-more" 
-                className="inline-flex items-center px-6 py-3 rounded-full text-body-sm sm:text-body-md font-medium bg-white/5 hover:bg-white/10 text-white transition-all duration-200 group touch-target focus-visible btn-interactive"
+            <div className="text-center mt-12 sm:mt-10">
+              <Link
+                href="/tell-me-more"
+                className="inline-flex items-center px-4 sm:px-6 py-3 rounded-full text-body-sm sm:text-body-md font-medium bg-white/5 hover:bg-white/10 text-white transition-all duration-200 group touch-target focus-visible btn-interactive"
                 aria-label="Læs mere om data og kilder til beskyttelsesrum"
               >
                 <span>Læs mere om data</span>
-                <svg 
-                  className="w-4 h-4 sm:w-5 sm:h-5 ml-2 transform group-hover:translate-x-1 transition-transform duration-200" 
-                  fill="none" 
-                  stroke="currentColor" 
+                <svg
+                  className="w-4 h-4 sm:w-5 sm:h-5 ml-2 transform group-hover:translate-x-1 transition-transform duration-200"
+                  fill="none"
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                   aria-hidden="true"
                 >

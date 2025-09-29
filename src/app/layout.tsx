@@ -2,16 +2,21 @@ import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import HardCacheBuster from "@/components/HardCacheBuster";
 import "./globals.css";
 
-const inter = Inter({ 
+// Initialize error tracking for production
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
+  import('@/lib/errorTracking');
+}
+
+const inter = Inter({
   subsets: ["latin"],
   display: 'swap',
   fallback: ['system-ui', 'sans-serif']
 });
-const spaceGrotesk = Space_Grotesk({ 
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   display: 'swap',
   fallback: ['system-ui', 'sans-serif']
@@ -114,17 +119,26 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/site.webmanifest" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#ffffff" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#1a1a1a" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Beskyttelsesrum" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="format-detection" content="telephone=no" />
+        {/* Critical: Prevent browser and CDN caching */}
+        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
+        <meta httpEquiv="Pragma" content="no-cache" />
+        <meta httpEquiv="Expires" content="0" />
       </head>
       <body className={`${inter.className} ${spaceGrotesk.className} antialiased`}>
         <ErrorBoundary>
+          <HardCacheBuster />
           {children}
           {process.env.NODE_ENV === "production" && (
             <>
               <Analytics />
               <SpeedInsights />
-              <ServiceWorkerRegistration />
             </>
           )}
         </ErrorBoundary>

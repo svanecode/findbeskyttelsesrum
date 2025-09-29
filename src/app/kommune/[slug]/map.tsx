@@ -1,16 +1,21 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import Map, { Marker, Popup, MapRef, Source, Layer } from 'react-map-gl'
-import type { ViewState } from 'react-map-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import dynamic from 'next/dynamic'
+import 'leaflet/dist/leaflet.css'
 import { supabase } from '@/lib/supabase'
 import { Shelter } from '@/types/shelter'
 import { Anvendelseskode } from '@/types/anvendelseskode'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
 import { Kommunekode } from '@/types/kommunekode'
-import mapboxgl from 'mapbox-gl'
+
+// Dynamic import to avoid SSR issues with Leaflet
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
+const MarkerClusterGroup = dynamic(() => import('@/components/MarkerClusterGroup').then(mod => mod.default), { ssr: false })
 
 interface Props {
   kommunekode: string
@@ -24,72 +29,84 @@ interface GroupedShelter extends Shelter {
 
 export default function KommuneMap({ kommunekode }: Props) {
   const [shelters, setShelters] = useState<GroupedShelter[]>([])
-  const [mapRef, setMapRef] = useState<MapRef | null>(null)
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
-  const [selectedShelter, setSelectedShelter] = useState<string | null>(null)
-  const [viewState, setViewState] = useState<Partial<ViewState>>({
-    latitude: 56.2639,
-    longitude: 9.5018,
-    zoom: 7
-  })
+  const [isClient, setIsClient] = useState(false)
+  const [L, setL] = useState<any>(null)
+  const mapRef = useRef<any>(null)
+
+  useEffect(() => {
+    setIsClient(true)
+    // Import Leaflet only on client side
+    import('leaflet').then((leaflet) => {
+      const L = leaflet.default
+      // Fix Leaflet default markers
+      delete (L.Icon.Default.prototype as any)._getIconUrl
+      L.Icon.Default.mergeOptions({
+        iconUrl: '/leaflet/marker-icon.png',
+        iconRetinaUrl: '/leaflet/marker-icon-2x.png',
+        shadowUrl: '/leaflet/marker-shadow.png',
+      })
+      setL(L)
+    })
+  }, [])
+
+  // Create custom div icon for shelters
+  const createShelterIcon = useCallback(() => {
+    if (!L) return null
+    return L.divIcon({
+      className: 'shelter-marker',
+      html: '<div style="width: 26px; height: 26px; background: #EF4444; border: 4px solid white; border-radius: 50%; box-shadow: 0 3px 8px rgba(0,0,0,0.4);"></div>',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+      popupAnchor: [0, -18]
+    })
+  }, [L])
 
   // Function to fit all markers in view
-  const fitBounds = useCallback((map: MapRef) => {
-    if (shelters.length === 0) return
+  const fitAllMarkers = useCallback(() => {
+    if (!mapRef.current || shelters.length === 0 || !L) return
 
-    const bounds = new mapboxgl.LngLatBounds()
-    
+    const bounds = L.latLngBounds([])
+
     // Add all shelter locations
     shelters.forEach(shelter => {
       if (shelter.location) {
-        bounds.extend([
-          shelter.location.coordinates[0],
-          shelter.location.coordinates[1]
-        ])
+        bounds.extend([shelter.location.coordinates[1], shelter.location.coordinates[0]])
       }
     })
 
-    map.fitBounds(bounds, {
-      padding: 50,
-      maxZoom: 15
-    })
-  }, [shelters])
+    // Fit map to bounds with padding
+    if (bounds.isValid()) {
+      mapRef.current.fitBounds(bounds, {
+        padding: [30, 30],
+        maxZoom: 15
+      })
+    }
+  }, [shelters, L])
 
-  // Fit bounds when shelters change
+  // Fit bounds when shelters are loaded
   useEffect(() => {
-    if (mapRef && shelters.length > 0) {
-      fitBounds(mapRef)
+    if (isClient && mapRef.current && shelters.length > 0) {
+      // Small delay to ensure map is fully rendered
+      setTimeout(() => {
+        fitAllMarkers()
+      }, 100)
     }
-  }, [mapRef, shelters, fitBounds])
+  }, [shelters, isClient, fitAllMarkers])
 
-  // Convert shelters to GeoJSON
-  const geojsonData = useMemo(() => {
-    return {
-      type: 'FeatureCollection',
-      features: shelters
-        .filter(shelter => shelter.location)
-        .map(shelter => ({
-          type: 'Feature',
-          properties: {
-            id: shelter.id,
-            vejnavn: shelter.vejnavn,
-            husnummer: shelter.husnummer,
-            postnummer: shelter.postnummer,
-            kommunekode: shelter.kommunekode,
-            total_capacity: shelter.total_capacity,
-            shelter_count: shelter.shelter_count,
-            anvendelse: shelter.anvendelse,
-            anvendelseskoder: shelter.anvendelseskoder,
-            last_checked: shelter.last_checked,
-            created_at: shelter.created_at
-          },
-          geometry: {
-            type: 'Point',
-            coordinates: shelter.location!.coordinates
-          }
-        }))
-    }
+  // Get map center from shelters
+  const mapCenter = useMemo(() => {
+    if (shelters.length === 0) return [56.2639, 9.5018] as [number, number]
+
+    const latSum = shelters.reduce((sum, shelter) => {
+      return sum + (shelter.location?.coordinates[1] || 0)
+    }, 0)
+    const lngSum = shelters.reduce((sum, shelter) => {
+      return sum + (shelter.location?.coordinates[0] || 0)
+    }, 0)
+
+    return [latSum / shelters.length, lngSum / shelters.length] as [number, number]
   }, [shelters])
 
   // Fetch kommunekoder
@@ -204,203 +221,135 @@ export default function KommuneMap({ kommunekode }: Props) {
     fetchShelters()
   }, [kommunekode])
 
+  if (!isClient || !L) {
+    return <div className="h-screen w-full bg-gray-100 flex items-center justify-center">Indlæser kort...</div>
+  }
+
   return (
     <div className="h-screen w-full">
-      <Map
-        {...viewState}
-        onMove={(evt) => setViewState(evt.viewState)}
-        mapStyle="mapbox://styles/mapbox/streets-v12"
-        mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+      <MapContainer
+        center={mapCenter}
+        zoom={10}
         style={{ width: '100%', height: '100%' }}
-        ref={setMapRef}
-        interactiveLayerIds={['clusters', 'unclustered-point']}
-        onClick={(e) => {
-          const features = e.features
-          if (!features || features.length === 0) {
-            // Clicked on empty space, close popup
-            setSelectedShelter(null)
-            return
-          }
-
-          // Clear any existing popup first
-          setSelectedShelter(null)
-
-          const feature = features[0]
-          if (!feature.geometry || !('coordinates' in feature.geometry)) return
-
-          if (feature.properties?.cluster) {
-            const clusterId = feature.properties.cluster_id
-            const mapboxSource = mapRef?.getSource('shelters') as any
-            mapboxSource.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
-              if (err) return
-              const coordinates = (feature.geometry as GeoJSON.Point).coordinates
-              mapRef?.easeTo({
-                center: coordinates as [number, number],
-                zoom,
-                duration: 500
-              })
-            })
-          } else if (feature.properties?.id) {
-            // Set the selected shelter with a small delay to ensure state is cleared
-            setTimeout(() => {
-              if (feature.properties?.id) {
-                setSelectedShelter(feature.properties.id)
-              }
-            }, 50)
-          }
-        }}
+        className="leaflet-container"
+        ref={mapRef}
       >
-        <Source
-          id="shelters"
-          type="geojson"
-          data={geojsonData}
-          cluster={true}
-          clusterMaxZoom={12}
-          clusterRadius={40}
-        >
-          <Layer
-            id="clusters"
-            type="circle"
-            filter={['has', 'point_count']}
-            paint={{
-              'circle-color': [
-                'step',
-                ['get', 'point_count'],
-                '#FB923C',
-                10,
-                '#F97316',
-                30,
-                '#EA580C'
-              ],
-              'circle-radius': [
-                'step',
-                ['get', 'point_count'],
-                20,
-                10,
-                30,
-                30,
-                40
-              ]
-            }}
-          />
-          <Layer
-            id="cluster-count"
-            type="symbol"
-            filter={['has', 'point_count']}
-            layout={{
-              'text-field': '{point_count_abbreviated}',
-              'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-              'text-size': 12
-            }}
-            paint={{
-              'text-color': '#FFFFFF'
-            }}
-          />
-          <Layer
-            id="unclustered-point"
-            type="circle"
-            filter={['!', ['has', 'point_count']]}
-            paint={{
-              'circle-color': '#EF4444',
-              'circle-radius': 8,
-              'circle-stroke-width': 2,
-              'circle-stroke-color': '#FFFFFF'
-            }}
-          />
-        </Source>
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
 
-        {selectedShelter && (
-          <Popup
-            longitude={geojsonData.features.find(f => f.properties.id === selectedShelter)?.geometry.coordinates[0] || 0}
-            latitude={geojsonData.features.find(f => f.properties.id === selectedShelter)?.geometry.coordinates[1] || 0}
-            offset={[0, -10]}
-            closeButton={true}
-            anchor="bottom"
-            onClose={() => setSelectedShelter(null)}
-            maxWidth="400px"
-          >
-            {(() => {
-              const shelter = geojsonData.features.find(f => f.properties.id === selectedShelter)
-              if (!shelter) return null
-              return (
-                <div className="min-w-[380px] p-4">
-                  <div className="font-semibold text-lg mb-2 text-gray-900">
-                    {shelter.properties.vejnavn} {shelter.properties.husnummer}
-                    {shelter.properties.shelter_count > 1 && (
-                      <span className="inline-flex items-center ml-2 text-sm bg-orange-500/20 text-orange-600 px-2 py-0.5 rounded-md font-medium border border-orange-500/10">
-                        {shelter.properties.shelter_count} beskyttelsesrum
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-600 mb-3">
-                    {shelter.properties.postnummer} {getKommunenavn(shelter.properties.kommunekode, kommunekoder)}
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                      <div className="text-sm text-gray-600 mb-1">Total kapacitet</div>
-                      <div className="text-gray-900 font-medium text-base">{shelter.properties.total_capacity} personer</div>
+        <MarkerClusterGroup
+          maxClusterRadius={60}
+          spiderfyOnMaxZoom={true}
+          showCoverageOnHover={false}
+          zoomToBoundsOnClick={true}
+          disableClusteringAtZoom={16}
+          iconCreateFunction={(cluster: any) => {
+            if (!L) return null
+            const count = cluster.getChildCount()
+            let c = ' marker-cluster-'
+
+            if (count < 10) {
+              c += 'small'
+            } else if (count < 50) {
+              c += 'medium'
+            } else {
+              c += 'large'
+            }
+
+            return L.divIcon({
+              html: `<div><span>${count}</span></div>`,
+              className: 'marker-cluster' + c,
+              iconSize: L.point(40, 40)
+            })
+          }}
+        >
+          {shelters.map((shelter) => {
+            if (!shelter.location) return null
+
+            return (
+              <Marker
+                key={shelter.id}
+                position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
+                icon={createShelterIcon()}
+              >
+                <Popup>
+                  <div className="min-w-[360px] p-4">
+                    <div className="font-semibold text-lg mb-2 text-gray-900">
+                      {shelter.vejnavn} {shelter.husnummer}
+                      {shelter.shelter_count > 1 && (
+                        <span className="inline-flex items-center ml-2 text-sm bg-orange-500/20 text-orange-600 px-2 py-0.5 rounded-md font-medium border border-orange-500/10">
+                          {shelter.shelter_count} beskyttelsesrum
+                        </span>
+                      )}
                     </div>
-                    {shelter.properties.anvendelse && (
+                    <div className="text-sm text-gray-600 mb-3">
+                      {shelter.postnummer} {getKommunenavn(shelter.kommunekode, kommunekoder)}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        <div className="text-sm text-gray-600 mb-1">Type</div>
-                        <div className="text-gray-900 font-medium text-sm line-clamp-2">
-                          {shelter.properties.anvendelseskoder?.beskrivelse || 
-                           getAnvendelseskodeBeskrivelse(shelter.properties.anvendelse, anvendelseskoder)}
+                        <div className="text-sm text-gray-600 mb-1">Total kapacitet</div>
+                        <div className="text-gray-900 font-medium text-base">{shelter.total_capacity} personer</div>
+                      </div>
+                      {shelter.anvendelse && (
+                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                          <div className="text-sm text-gray-600 mb-1">Type</div>
+                          <div className="text-gray-900 font-medium text-sm line-clamp-2">
+                            {shelter.anvendelseskoder?.beskrivelse ||
+                             getAnvendelseskodeBeskrivelse(shelter.anvendelse, anvendelseskoder)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {shelter.anvendelseskoder && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="text-sm text-gray-600 mb-1">Detaljer</div>
+                        <div className="text-xs text-gray-700">
+                          {shelter.anvendelseskoder.beskrivelse}
                         </div>
                       </div>
                     )}
-                  </div>
 
-
-
-                  {shelter.properties.anvendelseskoder && (
                     <div className="mt-3 pt-3 border-t border-gray-200">
-                      <div className="text-sm text-gray-600 mb-1">Detaljer</div>
-                      <div className="text-xs text-gray-700">
-                        {shelter.properties.anvendelseskoder.beskrivelse}
-                      </div>
-                    </div>
-                  )}
+                      <button
+                        onClick={() => {
+                          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                          const lat = shelter.location!.coordinates[1];
+                          const lng = shelter.location!.coordinates[0];
 
+                          if (isMobile) {
+                            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                            const isAndroid = /Android/i.test(navigator.userAgent);
 
-
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <button
-                      onClick={() => {
-                        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                        const lat = shelter.geometry.coordinates[1];
-                        const lng = shelter.geometry.coordinates[0];
-                        
-                        if (isMobile) {
-                          const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-                          const isAndroid = /Android/i.test(navigator.userAgent);
-                          
-                          if (isIOS) {
-                            window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
-                          } else if (isAndroid) {
-                            window.open(`geo:${lat},${lng}?q=${lat},${lng}`, '_blank');
+                            if (isIOS) {
+                              window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
+                            } else if (isAndroid) {
+                              window.open(`geo:${lat},${lng}?q=${lat},${lng}`, '_blank');
+                            }
+                          } else {
+                            window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15`, '_blank');
                           }
-                        } else {
-                          window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15`, '_blank');
-                        }
-                      }}
-                      className="w-full bg-orange-500/90 hover:bg-orange-500 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors border border-orange-500/20"
-                      title="Åbn i kort"
-                    >
-                      <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      Åbn i kort
-                    </button>
+                        }}
+                        className="w-full bg-orange-500/90 hover:bg-orange-500 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors border border-orange-500/20"
+                        title="Åbn i kort"
+                      >
+                        <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Åbn i kort
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )
-            })()}
-          </Popup>
-        )}
-      </Map>
+                </Popup>
+              </Marker>
+            )
+          })}
+        </MarkerClusterGroup>
+      </MapContainer>
     </div>
   )
-} 
+}

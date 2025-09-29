@@ -1,12 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true, // Enable strict mode for better debugging
+  reactStrictMode: true,
   eslint: {
-    ignoreDuringBuilds: false, // Enable ESLint during builds
+    ignoreDuringBuilds: false,
   },
   typedRoutes: true,
   typescript: {
-    ignoreBuildErrors: false, // Enable TypeScript error checking
+    ignoreBuildErrors: false,
   },
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -31,17 +31,18 @@ const nextConfig = {
   // Add headers for static assets
   async headers() {
     return [
-      // Long-term caching for hashed static assets
+      // Moderate caching for hashed static assets (Next.js handles versioning)
       {
         source: '/_next/static/:path*',
         headers: [
           {
             key: 'Cache-Control',
+            // 1 year immutable for hashed build assets
             value: 'public, max-age=31536000, immutable',
           },
           {
             key: 'Access-Control-Allow-Origin',
-            value: 'https://findbeskyttelsesrum.dk',
+            value: '*',
           },
           {
             key: 'Access-Control-Allow-Methods',
@@ -57,7 +58,7 @@ const nextConfig = {
           },
         ],
       },
-      // Cache static files in public directory
+      // Cache static files with shorter duration
       {
         source: '/favicon.ico',
         headers: [
@@ -72,7 +73,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=86400',
           },
         ],
       },
@@ -81,7 +82,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=86400',
           },
         ],
       },
@@ -90,17 +91,17 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=86400',
+            value: 'public, max-age=3600',
           },
         ],
       },
-      // Cache images and other static assets
+      // Cache images with reasonable duration
       {
         source: '/images/:path*',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=604800',
           },
         ],
       },
@@ -118,7 +119,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=2592000',
           },
         ],
       },
@@ -127,7 +128,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=86400',
           },
         ],
       },
@@ -136,15 +137,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate, max-age=0',
-          },
-          {
-            key: 'Pragma',
-            value: 'no-cache',
-          },
-          {
-            key: 'Expires',
-            value: '0',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },
@@ -185,18 +178,6 @@ const nextConfig = {
               base-uri 'self';
               form-action 'self';
             `.replace(/\s+/g, ' ').trim(),
-          },
-          {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
-          },
-          {
-            key: 'Pragma',
-            value: 'no-cache',
-          },
-          {
-            key: 'Expires',
-            value: '0',
           },
         ],
       },

@@ -19,7 +19,9 @@ export async function getKommunekoder(): Promise<Kommunekode[]> {
     .order('navn')
 
   if (error) {
-    console.error('Error fetching kommunekoder:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error fetching kommunekoder:', error)
+    }
     return []
   }
 

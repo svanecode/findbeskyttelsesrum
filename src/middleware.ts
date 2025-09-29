@@ -28,14 +28,22 @@ export function middleware(request: NextRequest) {
 
   // Set cache headers based on route
   if (pathname.startsWith('/_next/static/')) {
-    // Long-term caching for static assets
+    // Long-term caching for hashed static assets only
     response.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-  } else {
-    // Aggressive no-cache for all pages to force fresh content
+  } else if (pathname === '/sw.js') {
+    // Service worker must never be cached
     response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0')
     response.headers.set('Pragma', 'no-cache')
     response.headers.set('Expires', '0')
+  } else {
+    // Aggressive no-cache for ALL pages to force fresh content
+    // Critical for society-critical website - users MUST get latest version
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
     response.headers.set('Surrogate-Control', 'no-store')
+    response.headers.set('CDN-Cache-Control', 'no-store')
+    response.headers.set('Vercel-CDN-Cache-Control', 'no-store')
   }
 
   // Add CSP header for map tiles and Cookiebot
@@ -45,9 +53,9 @@ export function middleware(request: NextRequest) {
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://consent.cookiebot.com https://consentcdn.cookiebot.com https://*.vercel-scripts.com https://*.vercel-insights.com https://unpkg.com https://*.leafletjs.com https://*.vercel.app https://cdnjs.cloudflare.com;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com https://*.vercel.app https://cdnjs.cloudflare.com;
-      img-src 'self' data: https://*.tile.openstreetmap.org https://raw.githubusercontent.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://cdnjs.cloudflare.com https://unpkg.com https://*.leafletjs.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.cookiebot.com https://imgsct.cookiebot.com https://tiles.stadiamaps.com https://tiles.maptiler.com https://tiles.mapbox.com https://api.mapbox.com https://api.tiles.mapbox.com https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.css https://*.vercel.app;
+      img-src 'self' data: https://*.tile.openstreetmap.org https://raw.githubusercontent.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://cdnjs.cloudflare.com https://unpkg.com https://*.leafletjs.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.cookiebot.com https://imgsct.cookiebot.com https://tiles.stadiamaps.com https://tiles.maptiler.com https://*.vercel.app;
       font-src 'self' https://fonts.gstatic.com data: https://*.vercel.app;
-      connect-src 'self' https://irafzkpgqxdhsahoddxr.supabase.co https://*.tile.openstreetmap.org https://*.vercel-scripts.com https://*.vercel-insights.com https://*.vercel.com https://va.vercel-scripts.com https://consent.cookiebot.com https://consentcdn.cookiebot.com https://*.leafletjs.com https://unpkg.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://tiles.stadiamaps.com https://tiles.maptiler.com https://tiles.mapbox.com https://api.mapbox.com https://api.tiles.mapbox.com https://events.mapbox.com https://api.mapbox.com/styles/v1/mapbox/ https://api.dataforsyningen.dk https://dawa.aws.dk https://nominatim.openstreetmap.org ws: wss: https://*.vercel.app;
+      connect-src 'self' https://irafzkpgqxdhsahoddxr.supabase.co https://*.tile.openstreetmap.org https://*.vercel-scripts.com https://*.vercel-insights.com https://*.vercel.com https://va.vercel-scripts.com https://consent.cookiebot.com https://consentcdn.cookiebot.com https://*.leafletjs.com https://unpkg.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://tiles.stadiamaps.com https://tiles.maptiler.com https://api.dataforsyningen.dk https://dawa.aws.dk https://nominatim.openstreetmap.org ws: wss: https://*.vercel.app;
       frame-src 'self' https://consent.cookiebot.com https://consentcdn.cookiebot.com;
       object-src 'none';
       base-uri 'self';
