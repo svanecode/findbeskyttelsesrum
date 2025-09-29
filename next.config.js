@@ -179,10 +179,6 @@ const nextConfig = {
               form-action 'self';
             `.replace(/\s+/g, ' ').trim(),
           },
-          {
-            key: 'Cache-Control',
-            value: 'no-store',
-          },
         ],
       },
     ];

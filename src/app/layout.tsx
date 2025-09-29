@@ -118,6 +118,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Beskyttelsesrum" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="format-detection" content="telephone=no" />
+        {/* Critical: Prevent browser and CDN caching */}
+        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
+        <meta httpEquiv="Pragma" content="no-cache" />
+        <meta httpEquiv="Expires" content="0" />
       </head>
       <body className={`${inter.className} ${spaceGrotesk.className} antialiased`}>
         <ErrorBoundary>

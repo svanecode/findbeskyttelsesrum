@@ -56,70 +56,25 @@
   background: #2a2a2a;
 }
 
-/* Mapbox Map Styles */
-.mapboxgl-map {
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-  border-radius: 0.75rem;
-  overflow: hidden;
-}
-
-/* Enhanced mobile-friendly map controls */
-.mapboxgl-ctrl-group {
-  background: rgba(26, 26, 26, 0.9) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-}
-
-.mapboxgl-ctrl-zoom-in,
-.mapboxgl-ctrl-zoom-out {
-  background-color: rgba(26, 26, 26, 0.9) !important;
-  color: white !important;
-  border: none !important;
-  min-width: 44px !important;
-  min-height: 44px !important;
-  font-size: 18px !important;
-  font-weight: bold !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-.mapboxgl-ctrl-zoom-in:hover,
-.mapboxgl-ctrl-zoom-out:hover {
-  background-color: rgba(249, 115, 22, 0.9) !important;
-}
-
-.mapboxgl-ctrl-zoom-in:active,
-.mapboxgl-ctrl-zoom-out:active {
-  transform: scale(0.95) !important;
-}
-
-/* Mobile-specific map adjustments */
-@media (max-width: 768px) {
-  .mapboxgl-ctrl-top-right {
-    top: 10px !important;
-    right: 10px !important;
-  }
-
-  .mapboxgl-ctrl-zoom-in,
-  .mapboxgl-ctrl-zoom-out {
-    min-width: 48px !important;
-    min-height: 48px !important;
-    font-size: 20px !important;
-  }
-}
-
-/* Legacy Leaflet Map Styles */
+/* Leaflet Map Styles */
 .leaflet-container {
   width: 100%;
   height: 100%;
   z-index: 1;
-  background: #ffffff !important;
-  border-radius: 0.75rem;
-  overflow: hidden;
+}
+
+/* Custom marker styles */
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.user-location-marker,
+.shelter-marker,
+.shelter-marker-hovered {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 .leaflet-tile-container {
@@ -928,14 +883,57 @@ input:focus:not(:focus-visible) {
 }
 
 .skeleton {
-  background: linear-gradient(90deg, 
-    rgba(255, 255, 255, 0.1) 25%, 
-    rgba(255, 255, 255, 0.2) 50%, 
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 50%,
     rgba(255, 255, 255, 0.1) 75%
   );
   background-size: 200px 100%;
   animation: skeleton-loading 1.5s infinite;
   border-radius: 4px;
+}
+
+/* Leaflet Marker Cluster Styles */
+.marker-cluster-small {
+  background-color: rgba(239, 68, 68, 0.6);
+}
+.marker-cluster-small div {
+  background-color: rgba(239, 68, 68, 0.8);
+}
+
+.marker-cluster-medium {
+  background-color: rgba(234, 88, 12, 0.6);
+}
+.marker-cluster-medium div {
+  background-color: rgba(234, 88, 12, 0.8);
+}
+
+.marker-cluster-large {
+  background-color: rgba(220, 38, 38, 0.6);
+}
+.marker-cluster-large div {
+  background-color: rgba(220, 38, 38, 0.8);
+}
+
+.marker-cluster {
+  background-clip: padding-box;
+  border-radius: 20px;
+}
+.marker-cluster div {
+  width: 30px;
+  height: 30px;
+  margin-left: 5px;
+  margin-top: 5px;
+  text-align: center;
+  border-radius: 15px;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 30px;
+  color: white;
+}
+
+.marker-cluster span {
+  line-height: 30px;
 }
 
 

@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { MapErrorBoundary } from '@/components/MapErrorBoundary'
 
 const ShelterMapClient = dynamic(
@@ -41,12 +42,12 @@ export default function MapWrapper({ lat, lng }: MapWrapperProps) {
           <p className="text-gray-400 mb-4">
             Ingen koordinater blev sendt med. Gå tilbage til forsiden og prøv at søge efter en adresse igen.
           </p>
-          <a
+          <Link
             href="/"
             className="inline-flex items-center px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
           >
             ← Tilbage til forsiden
-          </a>
+          </Link>
         </div>
       </main>
     )

@@ -38,10 +38,12 @@ export default function HardCacheBuster() {
 
         // Update version tracking
         localStorage.setItem('app-version', currentVersion)
-        // Reload only if we had a previous version (not first visit)
-        if (storedVersion) {
+
+        // Always reload after cache clearing to ensure fresh content
+        // Use a small delay to ensure cache clearing completes
+        setTimeout(() => {
           window.location.reload()
-        }
+        }, 100)
       } catch (error) {
         console.error('Cache bust failed:', error)
       }

@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import Link from 'next/link'
 
 interface Props {
   children: React.ReactNode
@@ -42,12 +43,12 @@ export class MapErrorBoundary extends React.Component<Props, State> {
                 >
                   Genindlæs siden
                 </button>
-                <a
+                <Link
                   href="/"
                   className="inline-flex items-center px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
                 >
                   ← Tilbage til forsiden
-                </a>
+                </Link>
               </div>
               {process.env.NODE_ENV === 'development' && this.state.error && (
                 <details className="mt-4 text-sm">

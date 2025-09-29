@@ -1,11 +1,47 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
-import Map, { Marker, Popup, MapRef } from 'react-map-gl'
-import type { ViewState, MapLayerMouseEvent } from 'react-map-gl'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import dynamic from 'next/dynamic'
+import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
 import { supabase, retryRPC } from '@/lib/supabase'
+
+// Fix Leaflet default markers
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconUrl: '/leaflet/marker-icon.png',
+  iconRetinaUrl: '/leaflet/marker-icon-2x.png',
+  shadowUrl: '/leaflet/marker-shadow.png',
+})
+
+// Create custom icons using div icons for better reliability
+const createDivIcon = (className: string, html: string, size: number = 40) => {
+  return L.divIcon({
+    className: className,
+    html: html,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+    popupAnchor: [0, -size/2]
+  })
+}
+
+const userLocationIcon = createDivIcon(
+  'user-location-marker',
+  '<div style="width: 16px; height: 16px; background: #3B82F6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.5);"></div>',
+  22
+)
+
+const shelterIcon = createDivIcon(
+  'shelter-marker',
+  '<div style="width: 16px; height: 16px; background: #EF4444; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.5);"></div>',
+  22
+)
+
+const hoveredShelterIcon = createDivIcon(
+  'shelter-marker-hovered',
+  '<div style="width: 20px; height: 20px; background: #FB923C; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 10px rgba(0,0,0,0.6);"></div>',
+  26
+)
 import { Shelter } from '@/types/shelter'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
@@ -14,15 +50,21 @@ import GlobalFooter from '@/components/GlobalFooter'
 import { Kommunekode } from '@/types/kommunekode'
 import { Anvendelseskode } from '@/types/anvendelseskode'
 
+// Dynamic import to avoid SSR issues with Leaflet
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+
 interface ShelterWithDistance extends Shelter {
   distance: number
 }
+
 
 async function getNearbyShelters(lat: number, lng: number) {
   if (process.env.NODE_ENV === 'development') {
     console.log('Calling get_nearby_shelters_v2 with:', { p_lat: lat, p_lng: lng })
   }
-  
+
   try {
     const response = await retryRPC<ShelterWithDistance[]>(async () => {
       const result = await supabase.rpc('get_nearby_shelters_v2', {
@@ -55,13 +97,13 @@ async function getNearbyShelters(lat: number, lng: number) {
     if (process.env.NODE_ENV === 'development') {
       console.log('Successfully fetched shelters:', response.data.length)
     }
-    
+
     const nearbyShelters = response.data
       .map((shelter: ShelterWithDistance) => ({
         ...shelter,
         distance: (shelter.distance || 0) / 1000
       }))
-      
+
     return nearbyShelters
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
@@ -83,55 +125,85 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   const [selectedShelter, setSelectedShelter] = useState<string | null>(null)
   const [hoveredShelter, setHoveredShelter] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isClient, setIsClient] = useState(false)
   const shelterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
-  const mapRef = useRef<MapRef>(null)
+  const mapRef = useRef<any>(null)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
-  const [viewState, setViewState] = useState<Partial<ViewState>>({
-    latitude: lat,
-    longitude: lng,
-    zoom: 12
-  })
 
-  // Store initial view state for reset
-  const initialViewState = useRef<Partial<ViewState>>({
-    latitude: lat,
-    longitude: lng,
-    zoom: 12
-  })
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
-  // Function to fit all markers in view
-  const fitBounds = useCallback((map: MapRef) => {
-    if (shelters.length === 0) return
+  // Function to fit bounds to all markers
+  const fitMapBounds = useCallback(() => {
+    if (!mapRef.current || shelters.length === 0) return
 
-    const bounds = new mapboxgl.LngLatBounds()
-    
+    const map = mapRef.current
+    const bounds = L.latLngBounds([])
+
     // Add user location
-    bounds.extend([lng, lat])
-    
+    bounds.extend([lat, lng])
+
     // Add all shelter locations
     shelters.forEach(shelter => {
       if (shelter.location) {
-        bounds.extend([
-          shelter.location.coordinates[0],
-          shelter.location.coordinates[1]
-        ])
+        bounds.extend([shelter.location.coordinates[1], shelter.location.coordinates[0]])
       }
     })
 
-    map.fitBounds(bounds, {
-      padding: 50,
-      maxZoom: 15
-    })
+    if (bounds.isValid()) {
+      // Calculate padding based on screen size
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+      const padding = isMobile ? [30, 30] : [60, 60]
+
+      // Invalidate size to handle any layout changes
+      map.invalidateSize()
+
+      // Fit bounds with appropriate padding
+      map.fitBounds(bounds, {
+        padding: padding,
+        animate: true,
+        duration: 0.5
+      })
+    }
   }, [shelters, lat, lng])
 
-  // Function to handle back to top
-  const handleBackToTop = useCallback(() => {
-    if (mapRef.current) {
-      fitBounds(mapRef.current)
+  // Fit bounds when map is ready and shelters are loaded
+  useEffect(() => {
+    if (!isClient || !mapRef.current || shelters.length === 0) return
+
+    const map = mapRef.current
+    let timeoutId: NodeJS.Timeout
+
+    // Wait for map to be fully ready and tiles to load
+    const performFit = () => {
+      // Clear any pending timeouts
+      if (timeoutId) clearTimeout(timeoutId)
+
+      // Wait a bit longer to ensure tiles are loaded
+      timeoutId = setTimeout(() => {
+        fitMapBounds()
+      }, 300)
     }
+
+    // Listen for when map is ready
+    map.whenReady(performFit)
+
+    // Also trigger on tile load events
+    map.on('load', performFit)
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      map.off('load', performFit)
+    }
+  }, [shelters, isClient, fitMapBounds])
+
+  // Function to handle back to top
+  const handleBackToTop = () => {
+    fitMapBounds()
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [fitBounds])
+  }
 
   useEffect(() => {
     let isMounted = true
@@ -142,13 +214,13 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
         if (process.env.NODE_ENV === 'development') {
           console.log('Starting data load with coordinates:', { lat, lng })
         }
-        
+
         const [sheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
           getNearbyShelters(lat, lng),
           getAnvendelseskoder(),
           getKommunekoder()
         ])
-        
+
         if (process.env.NODE_ENV === 'development') {
           console.log('Data loaded:', {
             sheltersCount: sheltersData.length,
@@ -156,7 +228,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
             kommunekoderCount: kommunekoderData.length
           })
         }
-        
+
         if (isMounted) {
           setShelters(sheltersData)
           setAnvendelseskoder(anvendelseskoderData)
@@ -184,13 +256,6 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
       isMounted = false
     }
   }, [lat, lng])
-
-  // Fit bounds when shelters change
-  useEffect(() => {
-    if (mapRef.current && shelters.length > 0) {
-      fitBounds(mapRef.current)
-    }
-  }, [shelters, fitBounds])
 
   if (isNaN(lat) || isNaN(lng)) {
     return (
@@ -259,13 +324,8 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                   onMouseLeave={() => setHoveredShelter(null)}
                   onClick={() => {
                     setSelectedShelter(shelter.id)
-                    if (shelter.location) {
-                      setViewState({
-                        ...viewState,
-                        latitude: shelter.location.coordinates[1],
-                        longitude: shelter.location.coordinates[0],
-                        zoom: 16
-                      })
+                    if (shelter.location && mapRef.current) {
+                      mapRef.current.setView([shelter.location.coordinates[1], shelter.location.coordinates[0]], 16)
                     }
                   }}
                 >
@@ -293,11 +353,11 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                           const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
                           const lat = shelter.location!.coordinates[1];
                           const lng = shelter.location!.coordinates[0];
-                          
+
                           if (isMobile) {
                             const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
                             const isAndroid = /Android/i.test(navigator.userAgent);
-                            
+
                             if (isIOS) {
                               window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
                             } else if (isAndroid) {
@@ -358,53 +418,49 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
 
           <div className="order-1 lg:order-2 h-[400px] lg:h-[600px] relative lg:sticky lg:top-4">
             <div className="absolute inset-0 rounded-lg overflow-hidden">
-              <Map
-                {...viewState}
-                onMove={(evt: { viewState: ViewState }) => setViewState(evt.viewState)}
-                mapStyle="mapbox://styles/mapbox/streets-v12"
-                mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
-                style={{ width: '100%', height: '100%' }}
-                ref={mapRef}
-              >
-                <Marker
-                  longitude={lng}
-                  latitude={lat}
-                  color="#3B82F6"
+              {isClient && (
+                <MapContainer
+                  center={[lat, lng]}
+                  zoom={13}
+                  style={{ width: '100%', height: '100%' }}
+                  ref={mapRef}
+                  zoomControl={true}
+                  scrollWheelZoom={true}
                 >
-                  <div className="w-8 h-8 sm:w-6 sm:h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  </div>
-                </Marker>
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  />
 
-                {shelters.map((shelter) => (
-                  shelter.location && (
-                    <Marker
-                      key={shelter.id}
-                      longitude={shelter.location.coordinates[0]}
-                      latitude={shelter.location.coordinates[1]}
-                      color={hoveredShelter === shelter.id ? '#FB923C' : '#EF4444'}
-                      onClick={() => {
-                        setSelectedShelter(shelter.id)
-                        if (shelterRefs.current[shelter.id]) {
-                          shelterRefs.current[shelter.id]?.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center'
-                          })
-                        }
-                      }}
-                    >
-                      <div
-                        className={`w-8 h-8 sm:w-6 sm:h-6 rounded-full border-2 border-white shadow-lg cursor-pointer transition-all duration-200 transform hover:scale-110 flex items-center justify-center ${
-                          hoveredShelter === shelter.id || selectedShelter === shelter.id ? 'bg-orange-400 scale-110' : 'bg-red-500'
-                        }`}
-                        style={{ minWidth: '32px', minHeight: '32px' }}
-                      >
-                        <div className="w-2 h-2 bg-white rounded-full"></div>
-                      </div>
-                    </Marker>
-                  )
-                ))}
-              </Map>
+                  {/* User location marker */}
+                  <Marker
+                    position={[lat, lng]}
+                    icon={userLocationIcon}
+                  />
+
+                  {/* Shelter markers */}
+                  {shelters.map((shelter) => (
+                    shelter.location && (
+                      <Marker
+                        key={shelter.id}
+                        position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
+                        icon={hoveredShelter === shelter.id || selectedShelter === shelter.id ? hoveredShelterIcon : shelterIcon}
+                        eventHandlers={{
+                          click: () => {
+                            setSelectedShelter(shelter.id)
+                            if (shelterRefs.current[shelter.id]) {
+                              shelterRefs.current[shelter.id]?.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'center'
+                              })
+                            }
+                          }
+                        }}
+                      />
+                    )
+                  ))}
+                </MapContainer>
+              )}
             </div>
           </div>
         </div>
@@ -412,4 +468,4 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
       <GlobalFooter />
     </main>
   )
-} 
+}
