@@ -27,20 +27,20 @@ const createDivIcon = (className: string, html: string, size: number = 40) => {
 
 const userLocationIcon = createDivIcon(
   'user-location-marker',
-  '<div style="width: 16px; height: 16px; background: #3B82F6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.5);"></div>',
-  22
+  '<div style="width: 24px; height: 24px; background: #3B82F6; border: 4px solid white; border-radius: 50%; box-shadow: 0 3px 8px rgba(0,0,0,0.5);"></div>',
+  32
 )
 
 const shelterIcon = createDivIcon(
   'shelter-marker',
-  '<div style="width: 16px; height: 16px; background: #EF4444; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.5);"></div>',
-  22
+  '<div style="width: 24px; height: 24px; background: #EF4444; border: 4px solid white; border-radius: 50%; box-shadow: 0 3px 8px rgba(0,0,0,0.5);"></div>',
+  32
 )
 
 const hoveredShelterIcon = createDivIcon(
   'shelter-marker-hovered',
-  '<div style="width: 20px; height: 20px; background: #FB923C; border: 3px solid white; border-radius: 50%; box-shadow: 0 3px 10px rgba(0,0,0,0.6);"></div>',
-  26
+  '<div style="width: 28px; height: 28px; background: #FB923C; border: 4px solid white; border-radius: 50%; box-shadow: 0 3px 10px rgba(0,0,0,0.6);"></div>',
+  36
 )
 import { Shelter } from '@/types/shelter'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'

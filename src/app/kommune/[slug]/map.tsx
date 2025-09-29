@@ -56,10 +56,10 @@ export default function KommuneMap({ kommunekode }: Props) {
     if (!L) return null
     return L.divIcon({
       className: 'shelter-marker',
-      html: '<div style="width: 26px; height: 26px; background: #EF4444; border: 4px solid white; border-radius: 50%; box-shadow: 0 3px 8px rgba(0,0,0,0.4);"></div>',
-      iconSize: [36, 36],
-      iconAnchor: [18, 18],
-      popupAnchor: [0, -18]
+      html: '<div style="width: 28px; height: 28px; background: #EF4444; border: 4px solid white; border-radius: 50%; box-shadow: 0 3px 8px rgba(0,0,0,0.4);"></div>',
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -20]
     })
   }, [L])
 
