@@ -6,11 +6,6 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import HardCacheBuster from "@/components/HardCacheBuster";
 import "./globals.css";
 
-// Initialize error tracking for production
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
-  import('@/lib/errorTracking');
-}
-
 const inter = Inter({
   subsets: ["latin"],
   display: 'swap',
