@@ -55,6 +55,67 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 
+// Component to auto-fit map bounds to markers
+function FitBounds({ userLocation, shelters }: { userLocation: [number, number], shelters: ShelterWithDistance[] }) {
+  // This will be loaded client-side only
+  const [MapHook, setMapHook] = useState<any>(null)
+
+  useEffect(() => {
+    import('react-leaflet').then(mod => {
+      setMapHook(() => mod.useMap)
+    })
+  }, [])
+
+  if (!MapHook) return null
+
+  return <FitBoundsInner userLocation={userLocation} shelters={shelters} useMapHook={MapHook} />
+}
+
+function FitBoundsInner({ userLocation, shelters, useMapHook }: {
+  userLocation: [number, number],
+  shelters: ShelterWithDistance[],
+  useMapHook: any
+}) {
+  const map = useMapHook()
+
+  useEffect(() => {
+    if (!map || shelters.length === 0) return
+
+    // Create a feature group with all markers
+    const group = L.featureGroup([
+      L.marker(userLocation),
+      ...shelters
+        .filter(s => s.location)
+        .map(s => L.marker([s.location!.coordinates[1], s.location!.coordinates[0]]))
+    ])
+
+    const bounds = group.getBounds()
+
+    if (!bounds.isValid()) {
+      group.clearLayers()
+      return
+    }
+
+    // If only user location (no shelters with location), just center on user
+    if (shelters.filter(s => s.location).length === 0) {
+      map.setView(userLocation, 13, { animate: true })
+    } else {
+      // Fit to all markers with padding
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+      map.fitBounds(bounds, {
+        padding: isMobile ? [30, 30] : [50, 50],
+        maxZoom: 16,
+        animate: true
+      })
+    }
+
+    // Clean up
+    group.clearLayers()
+  }, [map, userLocation, shelters, useMapHook])
+
+  return null
+}
+
 interface ShelterWithDistance extends Shelter {
   distance: number
 }
@@ -135,74 +196,8 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
     setIsClient(true)
   }, [])
 
-  // Function to fit bounds to all markers
-  const fitMapBounds = useCallback(() => {
-    if (!mapRef.current || shelters.length === 0) return
-
-    const map = mapRef.current
-    const bounds = L.latLngBounds([])
-
-    // Add user location
-    bounds.extend([lat, lng])
-
-    // Add all shelter locations
-    shelters.forEach(shelter => {
-      if (shelter.location) {
-        bounds.extend([shelter.location.coordinates[1], shelter.location.coordinates[0]])
-      }
-    })
-
-    if (bounds.isValid()) {
-      // Calculate padding based on screen size
-      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
-      const padding = isMobile ? [30, 30] : [60, 60]
-
-      // Invalidate size to handle any layout changes
-      map.invalidateSize()
-
-      // Fit bounds with appropriate padding
-      map.fitBounds(bounds, {
-        padding: padding,
-        animate: true,
-        duration: 0.5
-      })
-    }
-  }, [shelters, lat, lng])
-
-  // Fit bounds when map is ready and shelters are loaded
-  useEffect(() => {
-    if (!isClient || !mapRef.current || shelters.length === 0) return
-
-    const map = mapRef.current
-    let timeoutId: NodeJS.Timeout
-
-    // Wait for map to be fully ready and tiles to load
-    const performFit = () => {
-      // Clear any pending timeouts
-      if (timeoutId) clearTimeout(timeoutId)
-
-      // Wait a bit longer to ensure tiles are loaded
-      timeoutId = setTimeout(() => {
-        map.invalidateSize()
-        fitMapBounds()
-      }, 500)
-    }
-
-    // Listen for when map is ready
-    map.whenReady(performFit)
-
-    // Also trigger on tile load events
-    map.on('load', performFit)
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId)
-      map.off('load', performFit)
-    }
-  }, [shelters, isClient, fitMapBounds])
-
   // Function to handle back to top
   const handleBackToTop = () => {
-    fitMapBounds()
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -460,6 +455,9 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                       />
                     )
                   ))}
+
+                  {/* Auto-fit bounds to all markers */}
+                  <FitBounds userLocation={[lat, lng]} shelters={shelters} />
                 </MapContainer>
               )}
             </div>
