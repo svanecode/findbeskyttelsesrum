@@ -19,7 +19,7 @@ export default function Search() {
   const [dawaFailed, setDawaFailed] = useState(false)
   const router = useRouter()
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const debounceTimerRef = useRef<NodeJS.Timeout>()
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleLocationClick = () => {
     if (!navigator.geolocation) {
@@ -59,11 +59,11 @@ export default function Search() {
         console.log('DAWA Autocomplete2 initialized successfully')
       } catch (error) {
         console.error('Failed to initialize DAWA Autocomplete2:', error)
-        setDawaFailed(true)
+        setTimeout(() => setDawaFailed(true), 0)
       }
     } else if (scriptsLoaded && !window.dawaAutocomplete) {
       console.error('DAWA Autocomplete2 script loaded but window.dawaAutocomplete is not available')
-      setDawaFailed(true)
+      setTimeout(() => setDawaFailed(true), 0)
     }
   }, [scriptsLoaded, router])
 

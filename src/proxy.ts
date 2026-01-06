@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { rateLimit } from './lib/rate-limit'
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // Get the pathname
   const pathname = request.nextUrl.pathname
 
@@ -78,7 +78,7 @@ export function middleware(request: NextRequest) {
   return response
 }
 
-// Configure the paths that should be matched by middleware
+// Configure the paths that should be matched by proxy
 export const config = {
   matcher: [
     '/((?!api|_next/static|_next/image|favicon.ico).*)',

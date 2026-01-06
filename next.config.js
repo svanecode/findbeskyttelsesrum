@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
   typedRoutes: true,
   typescript: {
     ignoreBuildErrors: false,
@@ -194,6 +191,9 @@ const nextConfig = {
     }
     return config;
   },
+  // Turbopack configuration (Next.js 16 uses Turbopack by default)
+  // Adding empty config to silence the warning since webpack config is still needed for production builds
+  turbopack: {},
 };
 
 export default nextConfig;

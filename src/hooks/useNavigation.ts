@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 
 interface NavigationOptions {
@@ -11,38 +11,39 @@ interface NavigationOptions {
 
 export function useNavigation(options: NavigationOptions = {}) {
   const pathname = usePathname()
-  const previousPathname = useRef<string | null>(null)
+  const [prevPath, setPrevPath] = useState<string | null>(null)
+  const [currPath, setCurrPath] = useState<string>(pathname)
   const isHomePage = pathname === '/'
 
-  useEffect(() => {
-    const currentPath = pathname
-    const previousPath = previousPathname.current
+  if (pathname !== currPath) {
+    setPrevPath(currPath)
+    setCurrPath(pathname)
+  }
 
+  useEffect(() => {
     // Detect navigation to home page
-    if (currentPath === '/' && previousPath && previousPath !== '/') {
-      console.log('User returned to home page from:', previousPath)
+    if (currPath === '/' && prevPath && prevPath !== '/') {
+      console.log('User returned to home page from:', prevPath)
       options.onReturnToHome?.()
     }
 
     // Detect leaving home page
-    if (previousPath === '/' && currentPath !== '/') {
-      console.log('User left home page for:', currentPath)
+    if (prevPath === '/' && currPath !== '/') {
+      console.log('User left home page for:', currPath)
       options.onLeaveHome?.()
     }
 
     // General route change
-    if (previousPath !== currentPath) {
-      console.log('Route changed from', previousPath, 'to', currentPath)
-      options.onRouteChange?.(currentPath)
+    if (prevPath !== currPath) {
+      console.log('Route changed from', prevPath, 'to', currPath)
+      options.onRouteChange?.(currPath)
     }
-
-    previousPathname.current = currentPath
-  }, [pathname, options])
+  }, [currPath, prevPath, options])
 
   return {
-    currentPath: pathname,
+    currentPath: currPath,
     isHomePage,
-    previousPath: previousPathname.current
+    previousPath: prevPath
   }
 }
 
