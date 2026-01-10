@@ -122,18 +122,54 @@ interface ShelterWithDistance extends Shelter {
 
 
 async function getNearbyShelters(lat: number, lng: number) {
+  // Try v3 first (optimized with ST_DWithin and exclusions), fallback to v2
+  let useV3 = process.env.NEXT_PUBLIC_USE_SHELTERS_V3 !== 'false' // Default to true unless explicitly disabled
+  
   if (process.env.NODE_ENV === 'development') {
-    console.log('Calling get_nearby_shelters_v2 with:', { p_lat: lat, p_lng: lng })
+    console.log(`Calling get_nearby_shelters_v${useV3 ? '3' : '2'} with:`, { p_lat: lat, p_lng: lng })
   }
 
   try {
-    const response = await retryRPC<ShelterWithDistance[]>(async () => {
-      const result = await supabase.rpc('get_nearby_shelters_v2', {
-        p_lat: lat,
-        p_lng: lng
+    let response: { data: ShelterWithDistance[] | null; error: any } | null = null
+
+    if (useV3) {
+      // Try v3 first with 50km radius (50000 meters)
+      response = await retryRPC<ShelterWithDistance[]>(async () => {
+        const result = await supabase.rpc('get_nearby_shelters_v3', {
+          p_lat: lat,
+          p_lng: lng,
+          p_radius_meters: 50000 // 50km default radius
+        })
+        return result
       })
-      return result
-    })
+
+      // If v3 function doesn't exist (error code 42883 = function does not exist), fallback to v2
+      if (response && response.error && response.error.code === '42883') {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('get_nearby_shelters_v3 not found, falling back to v2')
+        }
+        useV3 = false // Fallback flag
+        response = null // Reset to use v2
+      } else if (response && response.error) {
+        // Some other error with v3 - try v2 as fallback
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('get_nearby_shelters_v3 had an error, falling back to v2:', response.error.message)
+        }
+        useV3 = false
+        response = null
+      }
+    }
+
+    // Use v2 if v3 not available, disabled, or failed
+    if (!useV3 || !response) {
+      response = await retryRPC<ShelterWithDistance[]>(async () => {
+        const result = await supabase.rpc('get_nearby_shelters_v2', {
+          p_lat: lat,
+          p_lng: lng
+        })
+        return result
+      })
+    }
 
     if (response.error) {
       if (process.env.NODE_ENV === 'development') {
@@ -150,13 +186,13 @@ async function getNearbyShelters(lat: number, lng: number) {
 
     if (!response.data) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('No data returned from get_nearby_shelters_v2')
+        console.log(`No data returned from get_nearby_shelters_v${useV3 ? '3' : '2'}`)
       }
       return []
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('Successfully fetched shelters:', response.data.length)
+      console.log(`Successfully fetched shelters (v${useV3 ? '3' : '2'}):`, response.data.length)
     }
 
     const nearbyShelters = response.data

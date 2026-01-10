@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import ShelterCounter from '@/components/ShelterCounter'
 import GlobalFooter from '@/components/GlobalFooter'
 import Link from 'next/link'
@@ -8,6 +8,8 @@ import AddressSearchDAWA from '@/components/AddressSearchDAWA'
 import { APP_VERSION } from '@/lib/constants'
 
 export default function Home() {
+  const [shelterCount, setShelterCount] = useState<number | null>(null)
+
   useEffect(() => {
     // Minimal first-visit version store (avoid aggressive busting: handled by HardCacheBuster)
     if (typeof window === 'undefined') return
@@ -15,6 +17,35 @@ export default function Home() {
     if (!storedVersion) {
       localStorage.setItem('app-version', APP_VERSION)
     }
+
+    // Fetch actual shelter count from database
+    async function fetchShelterCount() {
+      try {
+        const response = await fetch('/api/shelter-count')
+        if (response.ok) {
+          const data = await response.json()
+          // Only use the count if it's a valid positive number
+          const count = typeof data.count === 'number' ? data.count : null
+          if (count !== null && count > 0) {
+            setShelterCount(count)
+          } else {
+            console.warn('Invalid shelter count from API:', data.count)
+            // Fallback to default if count is invalid
+            setShelterCount(3435834)
+          }
+        } else {
+          console.error('Failed to fetch shelter count')
+          // Fallback to default if API fails
+          setShelterCount(3435834)
+        }
+      } catch (error) {
+        console.error('Error fetching shelter count:', error)
+        // Fallback to default if API fails
+        setShelterCount(3435834)
+      }
+    }
+
+    fetchShelterCount()
   }, [])
 
   return (
@@ -33,7 +64,14 @@ export default function Home() {
             Find det nærmeste beskyttelsesrum i dit område
           </p>
           <div className="text-center mt-6 sm:mt-8 lg:mt-10">
-            <ShelterCounter targetNumber={3435834} version={APP_VERSION} />
+            <ShelterCounter 
+              targetNumber={
+                shelterCount !== null && shelterCount > 0 
+                  ? shelterCount 
+                  : 3435834
+              } 
+              version={APP_VERSION} 
+            />
           </div>
         </div>
         

@@ -87,31 +87,33 @@ export async function getAllKommuneSlugs(): Promise<string[]> {
 
 export async function getShelterCount(): Promise<number> {
   return cachedQuery(
-    generateCacheKey('shelters', { count: true }),
+    generateCacheKey('sheltersv2', { capacity_sum: true, active: true }),
     async () => {
-      const { count, error } = await supabase
-        .from('shelters')
-        .select('*', { count: 'exact', head: true })
+      // Use RPC function to get total capacity - this is efficient and avoids fetching all records
+      const response = await retryRPC<number>(async () => {
+        return await supabase.rpc('get_total_shelter_capacity')
+      })
 
-      if (error) {
+      if (response.error) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Error counting shelters:', error)
+          console.error('Error getting total shelter capacity:', response.error)
         }
         return 0
       }
 
-      return count || 0
+      return response.data || 0
     }
   )
 }
 
 export async function getTotalShelterCapacity(): Promise<number> {
   return cachedQuery(
-    generateCacheKey('shelters', { capacity: true }),
+    generateCacheKey('sheltersv2', { capacity: true, active: true }),
     async () => {
       const { data, error } = await supabase
-        .from('shelters')
+        .from('sheltersv2')
         .select('shelter_capacity')
+        .is('deleted', null) // Only count capacity from active (non-deleted) shelters
 
       if (error) {
         if (process.env.NODE_ENV === 'development') {
