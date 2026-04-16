@@ -1,0 +1,42 @@
+# Data Schema
+
+## Current Boundary
+The current public app still reads the existing live structures in `public`. The new `app_v2` schema is a foundation for importer and later read-model work.
+
+## App V2 Tables
+- `app_v2.municipalities`
+  - canonical municipality records
+  - code-backed identity for importer convergence
+- `app_v2.shelters`
+  - imported shelter baseline
+  - lifecycle fields for active, missing, or suppressed records
+- `app_v2.shelter_sources`
+  - source provenance and freshness
+- `app_v2.import_runs`
+  - importer run bookkeeping, checkpoints, and failure summaries
+- `app_v2.shelter_overrides`
+  - future manual corrections, separate from imported baseline
+- `app_v2.shelter_reports`
+  - future operational feedback surface
+- `app_v2.audit_events`
+  - append-only operational audit trail
+
+## Migration Set
+The live repo now carries these `app_v2` migrations:
+- `006_app_v2_foundation.sql`
+- `007_app_v2_security_tightening.sql`
+- `008_app_v2_import_run_resilience.sql`
+- `009_app_v2_municipality_code_anchor.sql`
+
+These migrations do not reshape legacy `public` tables.
+
+## Access Boundary
+- Importer writes use `createAppV2AdminClient()` from `src/lib/supabase/app-v2.ts`.
+- The helper explicitly targets the `app_v2` schema through Supabase's schema API.
+- Browser/server public read helpers for `app_v2` are intentionally not ported yet.
+- `SUPABASE_SECRET_KEY` is server-only and must not be exposed to client code.
+
+## Operational Notes
+- `pgcrypto` is created in the foundation migration because the schema uses `gen_random_uuid()`.
+- Supabase API schema exposure for `app_v2` must be confirmed before later public reads or non-SQL PostgREST access are expected to work.
+- Public read policies exist for active shelter-related reads, but the live app does not rely on them yet.

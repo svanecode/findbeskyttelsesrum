@@ -108,7 +108,7 @@ function generateTestReport() {
   console.log('\n🎯 Expected Behavior:');
   console.log('   • All static assets should have content-based hashes');
   console.log('   • Hashed assets should have "Cache-Control: public, max-age=31536000, immutable"');
-  console.log('   • Dynamic content should have "Cache-Control: no-cache, no-store, must-revalidate"');
+  console.log('   • Dynamic content should rely on route/platform defaults or explicit route-level policies');
   console.log('   • Service worker should have "Cache-Control: public, max-age=0, must-revalidate"');
 
   console.log('\n🔍 Manual Verification Steps:');

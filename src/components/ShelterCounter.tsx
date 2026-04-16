@@ -4,23 +4,30 @@ import { useEffect, useState } from 'react';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 
 interface ShelterCounterProps {
-  targetNumber: number;
+  targetNumber: number | null;
   version: string;
 }
 
 export default function ShelterCounter({ targetNumber, version }: ShelterCounterProps) {
-  const [count, setCount] = useState(targetNumber);
+  const [count, setCount] = useState(targetNumber ?? 0);
   const [isClient, setIsClient] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const { handleError } = useErrorHandler();
 
   useEffect(() => {
+    setIsClient(true);
+
+    if (targetNumber === null) {
+      setCount(0);
+      setIsAnimating(false);
+      return;
+    }
+
     if (targetNumber <= 0) {
       handleError(new Error('Invalid target number'), `Target number must be positive, got: ${targetNumber}`);
       return;
     }
 
-    setIsClient(true);
     setCount(0);
     setIsAnimating(true);
     
@@ -53,15 +60,25 @@ export default function ShelterCounter({ targetNumber, version }: ShelterCounter
     };
   }, [targetNumber, handleError]);
 
+  const displayValue = targetNumber === null
+    ? '—'
+    : isClient
+      ? count.toLocaleString('da-DK')
+      : targetNumber.toLocaleString('da-DK');
+
+  const ariaLabel = targetNumber === null
+    ? 'Antal sikringspladser er ikke tilgængeligt'
+    : `${(isClient ? count : targetNumber).toLocaleString('da-DK')} sikringspladser i databasen`;
+
   return (
     <div className="text-center mt-6 sm:mt-8 lg:mt-10" role="status" aria-live="polite">
       <div 
         className={`text-heading-sm sm:text-heading-md lg:text-heading-lg text-[#F97316] transition-all duration-300 ${
           isAnimating ? 'scale-105' : 'scale-100'
         }`}
-        aria-label={`${count.toLocaleString('da-DK')} sikringspladser i databasen`}
+        aria-label={ariaLabel}
       >
-        {isClient ? count.toLocaleString('da-DK') : targetNumber.toLocaleString('da-DK')}
+        {displayValue}
       </div>
       <div className="text-body-sm sm:text-body-md lg:text-body-lg text-[#E5E7EB] mt-3 sm:mt-4 font-medium">
         sikringspladser i databasen

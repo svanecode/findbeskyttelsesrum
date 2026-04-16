@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import KommuneMap from './map'
-import { getCachedKommune } from '@/lib/cached-queries'
+import { getKommuneBySlug } from '@/lib/supabase'
 import { notFound } from 'next/navigation'
 
 interface Kommune {
@@ -17,7 +17,7 @@ interface Props {
 
 export default async function KommunePage({ params }: Props) {
   const resolvedParams = await params
-  const kommune = await getCachedKommune(resolvedParams.slug) as Kommune
+  const kommune = await getKommuneBySlug(resolvedParams.slug) as Kommune | null
 
   if (!kommune) {
     notFound()

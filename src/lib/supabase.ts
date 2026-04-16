@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { cachedQuery, generateCacheKey } from './cache'
+import { generateCacheKey, withInMemoryCache } from './cache'
+import type { Kommunekode } from '@/types/kommunekode'
 
 // Ensure environment variables are available and properly typed
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -65,7 +66,7 @@ export async function retryRPC<T>(fn: () => Promise<SupabaseRPCResponse<T>>): Pr
 }
 
 export async function getAllKommuneSlugs(): Promise<string[]> {
-  return cachedQuery(
+  return withInMemoryCache(
     generateCacheKey('kommunekoder', { slugs: true }),
     async () => {
       const { data, error } = await supabase
@@ -85,8 +86,25 @@ export async function getAllKommuneSlugs(): Promise<string[]> {
   )
 }
 
-export async function getShelterCount(): Promise<number> {
-  return cachedQuery(
+export async function getKommuneBySlug(slug: string): Promise<Pick<Kommunekode, 'slug' | 'navn' | 'kode'> | null> {
+  const { data, error } = await supabase
+    .from('kommunekoder')
+    .select('slug,navn,kode')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  if (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error fetching kommune by slug:', error)
+    }
+    return null
+  }
+
+  return data
+}
+
+export async function getTotalShelterCapacity(): Promise<number> {
+  return withInMemoryCache(
     generateCacheKey('sheltersv2', { capacity_sum: true, active: true }),
     async () => {
       // Use RPC function to get total capacity - this is efficient and avoids fetching all records
@@ -105,24 +123,3 @@ export async function getShelterCount(): Promise<number> {
     }
   )
 }
-
-export async function getTotalShelterCapacity(): Promise<number> {
-  return cachedQuery(
-    generateCacheKey('sheltersv2', { capacity: true, active: true }),
-    async () => {
-      const { data, error } = await supabase
-        .from('sheltersv2')
-        .select('shelter_capacity')
-        .is('deleted', null) // Only count capacity from active (non-deleted) shelters
-
-      if (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Error fetching total shelter capacity:', error)
-        }
-        return 0
-      }
-
-      return data.reduce((total, shelter) => total + (shelter.shelter_capacity || 0), 0)
-    }
-  )
-} 

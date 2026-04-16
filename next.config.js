@@ -23,8 +23,6 @@ const nextConfig = {
       return `build-${Date.now()}`;
     }
   },
-  // Remove assetPrefix to serve assets from the same domain
-  // assetPrefix: process.env.NODE_ENV === 'production' ? `https://${process.env.VERCEL_URL}` : '',
   // Add headers for static assets
   async headers() {
     return [
@@ -180,20 +178,6 @@ const nextConfig = {
       },
     ];
   },
-  // Configure webpack to handle build ID changes
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        path: false,
-      };
-    }
-    return config;
-  },
-  // Turbopack configuration (Next.js 16 uses Turbopack by default)
-  // Adding empty config to silence the warning since webpack config is still needed for production builds
-  turbopack: {},
 };
 
 export default nextConfig;

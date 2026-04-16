@@ -3,7 +3,6 @@ import { Inter, Space_Grotesk } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import HardCacheBuster from "@/components/HardCacheBuster";
 import "./globals.css";
 
 const inter = Inter({
@@ -90,11 +89,6 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  verification: {
-    google: 'your-google-site-verification',
-    yandex: 'your-yandex-verification',
-    yahoo: 'your-yahoo-verification',
-  },
   other: {
     'disclaimer': 'Denne tjeneste er uafhængig og er ikke tilknyttet, drevet eller godkendt af den danske stat eller nogen offentlige myndigheder.',
     'data-source': 'Data kommer fra BBR og DAR. Private hjem og steder med færre end 40 pladser er udeladt.',
@@ -121,14 +115,9 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Beskyttelsesrum" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="format-detection" content="telephone=no" />
-        {/* Critical: Prevent browser and CDN caching */}
-        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
-        <meta httpEquiv="Pragma" content="no-cache" />
-        <meta httpEquiv="Expires" content="0" />
       </head>
       <body className={`${inter.className} ${spaceGrotesk.className} antialiased`}>
         <ErrorBoundary>
-          <HardCacheBuster />
           {children}
           {process.env.NODE_ENV === "production" && (
             <>

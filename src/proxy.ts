@@ -26,24 +26,9 @@ export function proxy(request: NextRequest) {
     'camera=(), microphone=(), geolocation=(self), interest-cohort=()'
   )
 
-  // Set cache headers based on route
+  // Set cache headers for hashed build assets only.
   if (pathname.startsWith('/_next/static/')) {
-    // Long-term caching for hashed static assets only
     response.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-  } else if (pathname === '/sw.js') {
-    // Service worker must never be cached
-    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0')
-    response.headers.set('Pragma', 'no-cache')
-    response.headers.set('Expires', '0')
-  } else {
-    // Aggressive no-cache for ALL pages to force fresh content
-    // Critical for society-critical website - users MUST get latest version
-    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0')
-    response.headers.set('Pragma', 'no-cache')
-    response.headers.set('Expires', '0')
-    response.headers.set('Surrogate-Control', 'no-store')
-    response.headers.set('CDN-Cache-Control', 'no-store')
-    response.headers.set('Vercel-CDN-Cache-Control', 'no-store')
   }
 
   // Add CSP header for map tiles and Cookiebot

@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +13,8 @@
     "lint": "eslint .",
     "verify-assets": "node scripts/verify-hashed-assets.js",
     "test-caching": "node scripts/test-caching-headers.js",
-    "check-mapbox": "node scripts/cache-busting-helper.js"
+    "importer:fixture": "tsx scripts/importer/run.ts fixture",
+    "importer:datafordeler": "tsx scripts/importer/run.ts datafordeler"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -23,11 +27,11 @@
     "@vercel/speed-insights": "^1.2.0",
     "dawa-autocomplete2": "^1.1.0",
     "dotenv": "^16.5.0",
-    "framer-motion": "^11.0.0",
     "geolib": "^3.3.4",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "next": "^16.1.1",
+    "proj4": "^2.20.8",
     "prisma": "^6.6.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -46,6 +50,7 @@
     "sharp": "^0.34.1",
     "tailwindcss": "^3.4.17",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.3.3"
   }
 }

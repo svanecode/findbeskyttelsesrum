@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getShelterCount } from '@/lib/supabase'
+import { getAppV2TotalShelterCapacity } from '@/lib/supabase/app-v2-queries'
 
-export const revalidate = 3600 // Revalidate every hour
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const count = await getShelterCount()
+    const count = await getAppV2TotalShelterCapacity()
     
     // Validate count is a valid positive number
-    // If count is 0 or invalid, it likely means an error occurred in getShelterCount
+    // If count is 0 or invalid, it likely means app_v2 is not populated or the query failed.
     // (which returns 0 on error), so we should return an error status
     if (!count || count <= 0) {
       console.error('Invalid shelter count returned:', count)

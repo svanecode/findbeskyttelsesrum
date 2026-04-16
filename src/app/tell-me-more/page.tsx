@@ -1,6 +1,3 @@
-'use client'
-
-import { motion } from 'framer-motion'
 import Link from 'next/link'
 
 export default function TellMeMore() {
@@ -11,11 +8,8 @@ export default function TellMeMore() {
       <div className="fixed inset-0 bg-[url('/grid.svg')] opacity-10 -z-10" />
       
       <div className="max-w-3xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative glass-effect p-6 sm:p-10 rounded-2xl overflow-hidden card-interactive"
+        <div
+          className="tell-me-more-enter relative glass-effect p-6 sm:p-10 rounded-2xl overflow-hidden card-interactive"
         >
           {/* Card background effects */}
           <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
@@ -42,20 +36,16 @@ export default function TellMeMore() {
               </div>
             </Link>
 
-            <motion.h1 
+            <h1 
               className="text-3xl sm:text-4xl font-bold mb-8 font-space-grotesk bg-gradient-to-r from-white to-[#E5E7EB] bg-clip-text text-transparent"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+              style={{ animationDelay: '200ms' }}
             >
               Om Sikringsrum, Beskyttelsesrum og Sikringspladser i Danmark
-            </motion.h1>
+            </h1>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
+            <div
               className="space-y-10 text-[#E5E7EB]"
+              style={{ animationDelay: '400ms' }}
             >
               <div className="space-y-4">
                 <p className="text-base sm:text-lg leading-relaxed">
@@ -216,10 +206,28 @@ export default function TellMeMore() {
                   </p>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
-        </motion.div>
+        </div>
       </div>
+      <style>{`
+        @keyframes tell-me-more-enter {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .tell-me-more-enter,
+        .tell-me-more-enter h1,
+        .tell-me-more-enter .space-y-10 {
+          animation: tell-me-more-enter 500ms ease-out both;
+        }
+      `}</style>
     </main>
   )
 } 

@@ -11,13 +11,6 @@ export default function Home() {
   const [shelterCount, setShelterCount] = useState<number | null>(null)
 
   useEffect(() => {
-    // Minimal first-visit version store (avoid aggressive busting: handled by HardCacheBuster)
-    if (typeof window === 'undefined') return
-    const storedVersion = localStorage.getItem('app-version')
-    if (!storedVersion) {
-      localStorage.setItem('app-version', APP_VERSION)
-    }
-
     // Fetch actual shelter count from database
     async function fetchShelterCount() {
       try {
@@ -30,18 +23,15 @@ export default function Home() {
             setShelterCount(count)
           } else {
             console.warn('Invalid shelter count from API:', data.count)
-            // Fallback to default if count is invalid
-            setShelterCount(3435834)
+            setShelterCount(null)
           }
         } else {
           console.error('Failed to fetch shelter count')
-          // Fallback to default if API fails
-          setShelterCount(3435834)
+          setShelterCount(null)
         }
       } catch (error) {
         console.error('Error fetching shelter count:', error)
-        // Fallback to default if API fails
-        setShelterCount(3435834)
+        setShelterCount(null)
       }
     }
 
@@ -65,11 +55,7 @@ export default function Home() {
           </p>
           <div className="text-center mt-6 sm:mt-8 lg:mt-10">
             <ShelterCounter 
-              targetNumber={
-                shelterCount !== null && shelterCount > 0 
-                  ? shelterCount 
-                  : 3435834
-              } 
+              targetNumber={shelterCount} 
               version={APP_VERSION} 
             />
           </div>

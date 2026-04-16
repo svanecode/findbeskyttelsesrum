@@ -1,5 +1,3 @@
-import { supabase } from './supabase'
-
 // Cache duration in seconds
 const CACHE_DURATION = 60 * 60 * 24 * 30 // 30 days
 
@@ -10,7 +8,7 @@ interface CacheEntry<T> {
 
 const cache: Record<string, CacheEntry<any>> = {}
 
-export async function cachedQuery<T>(
+export async function withInMemoryCache<T>(
   key: string,
   queryFn: () => Promise<T>,
   duration: number = CACHE_DURATION
