@@ -11,6 +11,7 @@ Establish the importer-side model for the future `app_v2` data layer without cha
    - `app_v2.import_runs`
 2. Manual corrections and operational state:
    - `app_v2.shelter_overrides`
+   - `app_v2.shelter_exclusions`
    - `app_v2.audit_events`
 3. Future effective public read model:
    - not active in the live app yet
@@ -35,6 +36,7 @@ The importer may write:
 - featured/curated ordering
 - municipality editorial descriptions
 - manual override rows
+- manual or migrated exclusion rows
 - public route cutover decisions
 - current legacy/public tables
 
@@ -45,6 +47,11 @@ Expected behavior:
 - mark records as `missing_from_source` only after a complete, non-resumed, adequately covered run
 - keep source history and audit history
 - restore the same shelter row when the canonical official identity reappears
+
+## Exclusions
+Owner-request exclusions are manual/operational state, not official import lifecycle state.
+
+The importer should not turn legacy `public.excluded_shelters` rows directly into `import_state = 'suppressed'`. Dedicated exclusion requests belong in `app_v2.shelter_exclusions`, where they can preserve legacy address and `bygning_id` identities and later be applied by the effective public read model.
 
 ## Current Skeleton
 The fixture importer proves the contract, dry-run summary, source identity validation, and `app_v2` write surface. The Datafordeler adapter can validate a bounded live-source read/normalize path in dry-run mode. Neither path proves production scheduling, broad write safety, or public runtime cutover yet.

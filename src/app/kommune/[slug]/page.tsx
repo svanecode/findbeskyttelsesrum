@@ -1,11 +1,11 @@
 import Link from 'next/link'
 import KommuneMap from './map'
-import { getKommuneBySlug } from '@/lib/supabase'
+import { getAppV2MunicipalityBySlug } from '@/lib/supabase/app-v2-queries'
 import { notFound } from 'next/navigation'
 
 interface Kommune {
   slug: string
-  navn: string
+  name: string
   kode: string
 }
 
@@ -17,7 +17,14 @@ interface Props {
 
 export default async function KommunePage({ params }: Props) {
   const resolvedParams = await params
-  const kommune = await getKommuneBySlug(resolvedParams.slug) as Kommune | null
+  const appV2Kommune = await getAppV2MunicipalityBySlug(resolvedParams.slug)
+  const kommune: Kommune | null = appV2Kommune?.code
+    ? {
+        slug: appV2Kommune.slug,
+        name: appV2Kommune.name,
+        kode: appV2Kommune.code,
+      }
+    : null
 
   if (!kommune) {
     notFound()
@@ -37,7 +44,7 @@ export default async function KommunePage({ params }: Props) {
           <span className="hidden sm:inline">Tilbage til forsiden</span>
           <span className="sm:hidden">Tilbage</span>
         </Link>
-        <h1 className="text-lg sm:text-xl font-bold text-gray-900">Beskyttelsesrum i {kommune.navn}</h1>
+        <h1 className="text-lg sm:text-xl font-bold text-gray-900">Beskyttelsesrum i {kommune.name}</h1>
       </div>
 
       <KommuneMap kommunekode={kommune.kode} />

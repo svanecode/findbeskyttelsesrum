@@ -13,6 +13,10 @@
     "lint": "eslint .",
     "verify-assets": "node scripts/verify-hashed-assets.js",
     "test-caching": "node scripts/test-caching-headers.js",
+    "parity:municipalities": "tsx scripts/parity/municipalities.ts",
+    "parity:nearby": "tsx scripts/parity/nearby.ts",
+    "parity:exclusions": "tsx scripts/parity/exclusions.ts",
+    "read:shelter-detail": "tsx scripts/read/app-v2-shelter-detail.ts",
     "importer:fixture": "tsx scripts/importer/run.ts fixture",
     "importer:datafordeler": "tsx scripts/importer/run.ts datafordeler"
   },

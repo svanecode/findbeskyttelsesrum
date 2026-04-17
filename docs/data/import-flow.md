@@ -69,6 +69,8 @@ The later write-enabled Datafordeler importer should keep the same normalized co
 5. Mark missing records through lifecycle state after a guarded complete run.
 6. Keep manual or editorial fields separate from importer-owned baseline data.
 
+Legacy owner-request exclusions are also kept separate from importer-owned baseline data. The app_v2 foundation now has `app_v2.shelter_exclusions`, but this flow does not seed it, write it from the importer, or apply it to runtime reads yet.
+
 ## Guardrails
 - Do not mutate legacy `public` tables as part of `app_v2` importer work.
 - Do not move public app reads to `app_v2` until data coverage and sparse-data UX are validated.

@@ -1,8 +1,8 @@
 import { getMunicipalitySlugCandidates, normalizeMunicipalityDisplay } from "@/lib/municipalities/metadata";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 
-type AppV2ShelterStatus = "active" | "temporarily_closed" | "under_review";
-type AppV2ImportState = "active" | "missing_from_source" | "suppressed";
+export type AppV2ShelterStatus = "active" | "temporarily_closed" | "under_review";
+export type AppV2ImportState = "active" | "missing_from_source" | "suppressed";
 type AppV2ImportRunStatus = "running" | "succeeded" | "failed";
 
 type MunicipalityRow = {
@@ -32,6 +32,12 @@ type ShelterRow = {
   import_state: AppV2ImportState;
   last_seen_at: string | null;
   last_imported_at: string | null;
+  canonical_source_name: string | null;
+  canonical_source_reference: string | null;
+};
+
+type ShelterExclusionRow = {
+  shelter_id: string | null;
   canonical_source_name: string | null;
   canonical_source_reference: string | null;
 };
@@ -89,6 +95,22 @@ export type AppV2ShelterDetail = {
   municipality: AppV2MunicipalityDetail;
 };
 
+export type AppV2NearbyShelter = {
+  id: string;
+  slug: string;
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  capacity: number;
+  status: AppV2ShelterStatus;
+  importState: AppV2ImportState;
+  distanceMeters: number;
+  municipality: AppV2MunicipalitySummary;
+};
+
 export type AppV2ImportRunSummary = {
   id: string;
   sourceName: string;
@@ -111,7 +133,22 @@ type ShelterCountOptions = {
   includeMissing?: boolean;
 };
 
+export type AppV2NearbySheltersOptions = {
+  latitude: number;
+  longitude: number;
+  radiusMeters?: number;
+  limit?: number;
+  candidateLimit?: number;
+  importStates?: AppV2ImportState[];
+};
+
 const shelterCapacityPageSize = 1000;
+const defaultNearbyRadiusMeters = 50_000;
+const defaultNearbyLimit = 10;
+const defaultNearbyCandidateLimit = 500;
+const defaultNearbyImportStates: AppV2ImportState[] = ["active"];
+const allowedImportStates: AppV2ImportState[] = ["active", "missing_from_source", "suppressed"];
+const earthRadiusMeters = 6_371_000;
 
 function createAppV2ReadClient() {
   return createAppV2AdminClient();
@@ -177,6 +214,146 @@ function normalizeShelter(row: ShelterRow, municipality: AppV2MunicipalityDetail
     canonicalSourceReference: row.canonical_source_reference,
     municipality,
   };
+}
+
+function toRadians(degrees: number) {
+  return (degrees * Math.PI) / 180;
+}
+
+function toDegrees(radians: number) {
+  return (radians * 180) / Math.PI;
+}
+
+function assertValidCoordinate(input: AppV2NearbySheltersOptions) {
+  if (!Number.isFinite(input.latitude) || input.latitude < -90 || input.latitude > 90) {
+    throw new Error("Nearby app_v2 query requires latitude between -90 and 90.");
+  }
+
+  if (!Number.isFinite(input.longitude) || input.longitude < -180 || input.longitude > 180) {
+    throw new Error("Nearby app_v2 query requires longitude between -180 and 180.");
+  }
+}
+
+function getNearbyImportStates(input: AppV2NearbySheltersOptions) {
+  const importStates = Array.from(new Set(input.importStates ?? defaultNearbyImportStates));
+
+  if (importStates.length === 0) {
+    throw new Error("Nearby app_v2 query requires at least one import state.");
+  }
+
+  const invalidStates = importStates.filter((state) => !allowedImportStates.includes(state));
+
+  if (invalidStates.length > 0) {
+    throw new Error(`Nearby app_v2 query received unsupported import states: ${invalidStates.join(", ")}.`);
+  }
+
+  return importStates;
+}
+
+function getNearbyBounds(latitude: number, longitude: number, radiusMeters: number) {
+  const latitudeDelta = toDegrees(radiusMeters / earthRadiusMeters);
+  const latitudeRadians = toRadians(latitude);
+  const longitudeDivisor = Math.max(Math.cos(latitudeRadians), 0.01);
+  const longitudeDelta = toDegrees(radiusMeters / (earthRadiusMeters * longitudeDivisor));
+
+  return {
+    minLatitude: Math.max(latitude - latitudeDelta, -90),
+    maxLatitude: Math.min(latitude + latitudeDelta, 90),
+    minLongitude: Math.max(longitude - longitudeDelta, -180),
+    maxLongitude: Math.min(longitude + longitudeDelta, 180),
+  };
+}
+
+function getDistanceMeters(input: {
+  fromLatitude: number;
+  fromLongitude: number;
+  toLatitude: number;
+  toLongitude: number;
+}) {
+  const fromLatitude = toRadians(input.fromLatitude);
+  const toLatitude = toRadians(input.toLatitude);
+  const latitudeDelta = toRadians(input.toLatitude - input.fromLatitude);
+  const longitudeDelta = toRadians(input.toLongitude - input.fromLongitude);
+  const a =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(fromLatitude) * Math.cos(toLatitude) * Math.sin(longitudeDelta / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusMeters * c;
+}
+
+function toFiniteNumber(value: number | string | null) {
+  if (value === null) {
+    return null;
+  }
+
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function getSourceIdentityKey(sourceName: string | null, sourceReference: string | null) {
+  return sourceName && sourceReference ? `${sourceName}\u0000${sourceReference}` : null;
+}
+
+async function getActiveExclusionsForShelters(shelters: ShelterRow[]) {
+  const supabase = createAppV2ReadClient();
+  const shelterIds = Array.from(new Set(shelters.map((row) => row.id)));
+  const sourceNames = Array.from(
+    new Set(shelters.map((row) => row.canonical_source_name).filter((value): value is string => Boolean(value))),
+  );
+  const sourceReferences = Array.from(
+    new Set(
+      shelters.map((row) => row.canonical_source_reference).filter((value): value is string => Boolean(value)),
+    ),
+  );
+  const [shelterExclusions, sourceExclusions] = await Promise.all([
+    shelterIds.length > 0
+      ? supabase
+          .from("shelter_exclusions")
+          .select("shelter_id, canonical_source_name, canonical_source_reference")
+          .eq("is_active", true)
+          .in("shelter_id", shelterIds)
+      : Promise.resolve({ data: [], error: null }),
+    sourceNames.length > 0 && sourceReferences.length > 0
+      ? supabase
+          .from("shelter_exclusions")
+          .select("shelter_id, canonical_source_name, canonical_source_reference")
+          .eq("is_active", true)
+          .in("canonical_source_name", sourceNames)
+          .in("canonical_source_reference", sourceReferences)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (shelterExclusions.error || sourceExclusions.error) {
+    throw new Error("Could not load active app_v2 shelter exclusions.");
+  }
+
+  const rows = [
+    ...((shelterExclusions.data ?? []) as ShelterExclusionRow[]),
+    ...((sourceExclusions.data ?? []) as ShelterExclusionRow[]),
+  ];
+
+  return {
+    excludedShelterIds: new Set(rows.map((row) => row.shelter_id).filter((value): value is string => Boolean(value))),
+    excludedSourceIdentityKeys: new Set(
+      rows
+        .map((row) => getSourceIdentityKey(row.canonical_source_name, row.canonical_source_reference))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  };
+}
+
+function isExcludedShelter(
+  row: ShelterRow,
+  exclusions: Awaited<ReturnType<typeof getActiveExclusionsForShelters>>,
+) {
+  const sourceIdentityKey = getSourceIdentityKey(row.canonical_source_name, row.canonical_source_reference);
+
+  return (
+    exclusions.excludedShelterIds.has(row.id) ||
+    (sourceIdentityKey !== null && exclusions.excludedSourceIdentityKeys.has(sourceIdentityKey))
+  );
 }
 
 async function getActiveShelterCountByMunicipalityId(municipalityId: string) {
@@ -263,6 +440,118 @@ export async function getLatestAppV2ImportRun(sourceName?: string) {
   return data ? normalizeImportRun(data as ImportRunRow) : null;
 }
 
+export async function getAppV2NearbyShelters(options: AppV2NearbySheltersOptions): Promise<AppV2NearbyShelter[]> {
+  assertValidCoordinate(options);
+
+  const supabase = createAppV2ReadClient();
+  const radiusMeters = options.radiusMeters ?? defaultNearbyRadiusMeters;
+  const limit = options.limit ?? defaultNearbyLimit;
+  const candidateLimit = options.candidateLimit ?? defaultNearbyCandidateLimit;
+  const importStates = getNearbyImportStates(options);
+
+  if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
+    throw new Error("Nearby app_v2 query requires a positive radiusMeters value.");
+  }
+
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error("Nearby app_v2 query requires a positive integer limit.");
+  }
+
+  if (!Number.isInteger(candidateLimit) || candidateLimit <= 0) {
+    throw new Error("Nearby app_v2 query requires a positive integer candidateLimit.");
+  }
+
+  const bounds = getNearbyBounds(options.latitude, options.longitude, radiusMeters);
+  const { data, error } = await supabase
+    .from("shelters")
+    .select(
+      "id, municipality_id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, last_seen_at, last_imported_at, canonical_source_name, canonical_source_reference",
+    )
+    .in("import_state", importStates)
+    .not("latitude", "is", null)
+    .not("longitude", "is", null)
+    .gte("latitude", bounds.minLatitude)
+    .lte("latitude", bounds.maxLatitude)
+    .gte("longitude", bounds.minLongitude)
+    .lte("longitude", bounds.maxLongitude)
+    .limit(candidateLimit);
+
+  if (error) {
+    throw new Error("Could not load app_v2 nearby shelter candidates.");
+  }
+
+  const visibleShelterRows = (data ?? []) as ShelterRow[];
+  const exclusions = await getActiveExclusionsForShelters(visibleShelterRows);
+  const shelterCandidates = visibleShelterRows
+    .filter((row) => !isExcludedShelter(row, exclusions))
+    .map((row) => {
+      const latitude = toFiniteNumber(row.latitude);
+      const longitude = toFiniteNumber(row.longitude);
+
+      if (latitude === null || longitude === null) {
+        return null;
+      }
+
+      return {
+        row,
+        latitude,
+        longitude,
+        distanceMeters: getDistanceMeters({
+          fromLatitude: options.latitude,
+          fromLongitude: options.longitude,
+          toLatitude: latitude,
+          toLongitude: longitude,
+        }),
+      };
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+    .filter((candidate) => candidate.distanceMeters <= radiusMeters)
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)
+    .slice(0, limit);
+
+  if (shelterCandidates.length === 0) {
+    return [];
+  }
+
+  const municipalityIds = Array.from(new Set(shelterCandidates.map((candidate) => candidate.row.municipality_id)));
+  const { data: municipalityData, error: municipalityError } = await supabase
+    .from("municipalities")
+    .select("id, code, slug, name, description, region_name")
+    .in("id", municipalityIds);
+
+  if (municipalityError) {
+    throw new Error("Could not load app_v2 municipalities for nearby shelters.");
+  }
+
+  const municipalitiesById = new Map(
+    ((municipalityData ?? []) as MunicipalityRow[]).map((row) => [row.id, normalizeMunicipality(row, 0)]),
+  );
+
+  return shelterCandidates.map(({ row, latitude, longitude, distanceMeters }) => {
+    const municipality = municipalitiesById.get(row.municipality_id);
+
+    if (!municipality) {
+      throw new Error(`Could not resolve app_v2 municipality for nearby shelter "${row.slug}".`);
+    }
+
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      addressLine1: row.address_line1,
+      postalCode: row.postal_code,
+      city: row.city,
+      latitude,
+      longitude,
+      capacity: row.capacity,
+      status: row.status,
+      importState: row.import_state,
+      distanceMeters,
+      municipality,
+    };
+  });
+}
+
 export async function getAppV2MunicipalitySummaries() {
   const supabase = createAppV2ReadClient();
   const { data, error } = await supabase
@@ -282,6 +571,22 @@ export async function getAppV2MunicipalitySummaries() {
       return normalizeMunicipality(row, activeShelterCount);
     }),
   );
+}
+
+export async function getAppV2MunicipalitySlugs() {
+  const supabase = createAppV2ReadClient();
+  const { data, error } = await supabase
+    .from("municipalities")
+    .select("id, code, slug, name, description, region_name")
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw new Error("Could not load app_v2 municipality slugs.");
+  }
+
+  const rows = (data ?? []) as MunicipalityRow[];
+
+  return rows.map((row) => normalizeMunicipality(row, 0).slug);
 }
 
 export async function getAppV2MunicipalityBySlug(slug: string) {

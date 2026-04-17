@@ -16,6 +16,9 @@ The current public app still reads the existing live structures in `public`. The
   - importer run bookkeeping, checkpoints, and failure summaries
 - `app_v2.shelter_overrides`
   - future manual corrections, separate from imported baseline
+- `app_v2.shelter_exclusions`
+  - manual or migrated owner-request exclusions for future public read models
+  - preserves legacy exclusion identities without overloading importer-owned lifecycle state
 - `app_v2.shelter_reports`
   - future operational feedback surface
 - `app_v2.audit_events`
@@ -27,6 +30,7 @@ The live repo now carries these `app_v2` migrations:
 - `007_app_v2_security_tightening.sql`
 - `008_app_v2_import_run_resilience.sql`
 - `009_app_v2_municipality_code_anchor.sql`
+- `010_app_v2_shelter_exclusions.sql`
 
 These migrations do not reshape legacy `public` tables.
 
@@ -40,3 +44,4 @@ These migrations do not reshape legacy `public` tables.
 - `pgcrypto` is created in the foundation migration because the schema uses `gen_random_uuid()`.
 - Supabase API schema exposure for `app_v2` must be confirmed before later public reads or non-SQL PostgREST access are expected to work.
 - Public read policies exist for active shelter-related reads, but the live app does not rely on them yet.
+- `app_v2.shelter_exclusions` has RLS enabled and no public read policy in this foundation phase. It is intended for service-role migration, parity scripts, and future server-side read-model work, not direct browser access.

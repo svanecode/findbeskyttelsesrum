@@ -1,5 +1,7 @@
 import { MetadataRoute } from 'next'
-import { getAllKommuneSlugs } from '@/lib/supabase'
+import { getAppV2MunicipalitySlugs } from '@/lib/supabase/app-v2-queries'
+
+export const dynamic = 'force-dynamic'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://findbeskyttelsesrum.dk'
@@ -34,7 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 // Helper function to generate kommune routes
 async function getKommuneRoutes(baseUrl: string) {
   try {
-    const kommuner = await getAllKommuneSlugs()
+    const kommuner = await getAppV2MunicipalitySlugs()
     
     return kommuner.map(kommune => ({
       url: `${baseUrl}/kommune/${kommune}`,
