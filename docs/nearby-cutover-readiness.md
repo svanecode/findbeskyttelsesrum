@@ -148,9 +148,11 @@ What app_v2 can already express:
 
 - active shelter filtering via `import_state = 'active'`
 - first suppression/exclusion filtering by keeping nearby reads scoped to `import_state = 'active'` by default
-- active app_v2 shelter exclusion filtering by exact `shelter_id` or canonical source identity
+- active app_v2 shelter exclusion filtering by exact `shelter_id`, canonical source identity, or exact app_v2 address/postal identity
 - point-like location data through `latitude` and `longitude`
 - first server-only nearby candidate reads through `getAppV2NearbyShelters()`
+- read diagnostics through `getAppV2NearbySheltersWithDiagnostics()`
+- a first server-side native app_v2 API at `/api/app-v2/nearby`
 - basic capacity display through `capacity`
 - basic address display through `address_line1`, `postal_code`, and `city`
 - municipality relation through `municipality_id`
@@ -166,7 +168,7 @@ What app_v2 does not currently expose:
 - `kommunekode` on the shelter row
 - `anvendelse` / application-code display semantics
 - full `public.excluded_shelters` address/building-id equivalent
-- app_v2 exclusion matching by address or legacy `bygning_id`
+- app_v2 exclusion matching by legacy `bygning_id` or legacy split-address fields
 - known indexes optimized for nearest-neighbor/radius queries over app_v2 coordinates
 
 ## 5. Gaps blocking cutover
@@ -181,17 +183,18 @@ app_v2 currently stores latitude/longitude as numeric columns. `getAppV2NearbySh
 - validates coordinate/radius/limit inputs
 - filters active shelters with non-null coordinates
 - excludes `missing_from_source` and `suppressed` rows by default through its `importStates` contract
-- excludes rows matched by active `app_v2.shelter_exclusions` records through `shelter_id` or exact canonical source identity
+- excludes rows matched by active `app_v2.shelter_exclusions` records through `shelter_id`, exact canonical source identity, or exact app_v2 address/postal identity
 - applies a bounding-box prefilter
 - computes Haversine distance in application code
 - returns app_v2-native results ordered by `distanceMeters`
+- can return diagnostics for candidate rows read, exclusion effect, coordinate-bearing candidates, radius matches, and returned rows
 
 It is not yet equivalent to the legacy RPC because it does not:
 
 - use PostGIS or a spatial index
 - perform database-side ordering by distance
 - provide address grouping
-- fully mirror legacy owner-request exclusions from `public.excluded_shelters`
+- fully mirror legacy owner-request exclusions from `public.excluded_shelters`, especially `bygning_id` and split-address matches not yet represented on app_v2 shelters
 - match the current client result shape
 
 ### Result shape compatibility
@@ -249,7 +252,7 @@ Legacy excludes owner-requested rows through `public.excluded_shelters`.
 
 app_v2 has `import_state` with `active`, `missing_from_source`, and `suppressed`, plus a dedicated `app_v2.shelter_exclusions` table. `getAppV2NearbyShelters()` now defaults to `importStates: ['active']`, so app_v2 rows marked `missing_from_source` or `suppressed` are excluded from the first nearby read contract. The parity script can opt into `--include-suppressed` for diagnostics.
 
-The nearby helper also filters active app_v2 exclusions by `shelter_id` and exact `(canonical_source_name, canonical_source_reference)` pairs. This is still only partial exclusions support. There is still no migrated legacy exclusion data and no read helper that mirrors current `public.excluded_shelters` semantics by address, split road/house/postal fields, or `bygning_id`. A cutover without that mapping would still risk re-showing legacy-excluded addresses.
+The nearby helper also filters active app_v2 exclusions by `shelter_id`, exact `(canonical_source_name, canonical_source_reference)` pairs, and exact app_v2 address/postal fields. This is still only partial exclusions support. There is still no migrated legacy exclusion data and no read helper that mirrors current `public.excluded_shelters` semantics by `bygning_id` or legacy split road/house/postal fields. A cutover without that mapping would still risk re-showing legacy-excluded addresses.
 
 ### Client/server boundary
 
@@ -261,7 +264,40 @@ Current app_v2 read helpers use `createAppV2AdminClient()` and `SUPABASE_SECRET_
 - a Next route handler that calls server-side app_v2 helpers, or
 - a server-rendered data path with client map rendering
 
-This boundary is not implemented yet.
+The first Next route handler boundary now exists at `/api/app-v2/nearby`.
+
+Current request contract:
+
+- `lat` required, number between `-90` and `90`
+- `lng` required, number between `-180` and `180`
+- `radius` optional, integer meters, max `100000`
+- `limit` optional, integer, max `50`
+- `candidateLimit` optional, integer, max `2000`, must be greater than or equal to `limit`
+
+Current response contract:
+
+- `results`
+  - native app_v2 shelter rows with id, slug, name, address, coordinates, distance, capacity, status, import state, and municipality summary
+- `meta`
+  - contract name `app_v2_nearby_native_v1`
+  - request id for correlating API probes and server logs
+  - normalized query values
+  - effective defaults and max bounds
+  - result count
+  - capabilities that explicitly mark legacy grouping, legacy `anvendelse` semantics, full legacy exclusions parity, and database-side spatial ordering as unsupported
+  - exclusion mode summary: `import_state = active`, active app_v2 exclusion filtering, and no reads from `public.excluded_shelters`
+  - app_v2 diagnostics
+  - explicit limitations
+
+The API deliberately reads only `import_state = 'active'`. It does not expose suppressed rows and does not try to emulate the legacy grouped RPC shape.
+
+Read-only API probe:
+
+```bash
+npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --lat 55.6761 --lng 12.5683
+```
+
+This script calls only `/api/app-v2/nearby`. It does not read Supabase directly and does not write data. It is intended for local or preview evaluation once the app is running with the required server-side app_v2 environment.
 
 ### Data parity and coverage
 
@@ -278,7 +314,7 @@ Prematurely switching `/shelters/nearby` to app_v2 can break the primary user fl
 - missing municipality names because app_v2 returns municipality relation instead of `kommunekode`
 - missing or incorrect type labels because app_v2 lacks `anvendelse` semantics
 - reappearance of legacy-excluded addresses if `public.excluded_shelters` behavior is not carried over
-- server secret leakage risk if existing app_v2 admin helpers are imported into client components
+- server secret leakage risk if existing app_v2 admin helpers are imported into client components instead of going through a server route
 - degraded performance if nearby is implemented as a broad client-side table scan instead of a spatial/radius query
 - UX copy mismatch remains: empty state says 5 km while current v3 query uses 50 km
 
@@ -286,24 +322,30 @@ Mixing legacy and app_v2 in one nearby result also has risk. For example, using 
 
 ## 7. Recommended next nearby-related task
 
-The first app_v2 nearby read contract now exists as `getAppV2NearbyShelters()` in `src/lib/supabase/app-v2-queries.ts`. It is server-only and not connected to `/shelters/nearby`.
+The first app_v2 nearby read contract now exists as `getAppV2NearbyShelters()` in `src/lib/supabase/app-v2-queries.ts`, and the first server-side API boundary exists at `/api/app-v2/nearby`. Neither is connected to `/shelters/nearby`.
 
 Recommended next PR:
 
-1. Run the read-only nearby parity script against real Supabase data for fixed coordinates.
+1. Run the read-only nearby parity script and the `/api/app-v2/nearby` route against real Supabase data for fixed coordinates.
    - Copenhagen sample
    - Aarhus sample
    - one sparse/rural sample
+   - invalid-input API probe, for example missing `lat` or an out-of-range `radius`, to confirm `invalid_nearby_query`
+   - valid-input API probe in an environment without server-side app_v2 env to confirm `app_v2_unavailable`
 2. Compare `import_state = active` output with the diagnostic `--include-suppressed` mode.
    - Confirm whether app_v2 suppression is populated in the target environment.
-   - Separately compare known `public.excluded_shelters` rows, because address and `bygning_id` matching are not mirrored yet.
-3. Add an app_v2 nearby RPC proposal or migration draft.
+   - Review app_v2 diagnostics for candidate count, exclusion effect, and within-radius count.
+   - Separately compare known `public.excluded_shelters` rows, because legacy `bygning_id` and split-address matching are not mirrored yet.
+3. Review the API response meta during evaluation.
+   - Confirm the effective query values, result count, diagnostics, and limitations are clear enough for cutover planning.
+   - Treat `capabilities.groupedLegacyShape = false` and `capabilities.databaseSideSpatialOrdering = false` as active blockers, not just documentation notes.
+4. Decide whether the next implementation should harden the server-side API shape further or move distance/grouping into a database-side app_v2 nearby RPC proposal.
    - Prefer a database-side function if using radius/distance ordering at production scale.
    - Include input lat/lng/radius and output distance in meters.
-4. Include grouping rules explicitly.
+5. Include grouping rules explicitly.
    - Decide whether grouping is by exact `address_line1 + postal_code + city + coordinates`, by source identity, or no grouping.
    - If no grouping, document the expected UX change before runtime cutover.
-5. Decide how legacy exclusions should enter app_v2.
+6. Decide how legacy exclusions should enter app_v2.
    - Either migrate current `public.excluded_shelters` into an app_v2 suppression/override model.
    - Or create an app_v2 read-side exclusion table/function that can preserve the address and `bygning_id` matching behavior.
 

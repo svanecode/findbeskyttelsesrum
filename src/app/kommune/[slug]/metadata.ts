@@ -1,18 +1,25 @@
 import { Metadata } from 'next'
+import { getAppV2MunicipalityBySlug } from '@/lib/supabase/app-v2-queries'
 
 type Props = {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const kommuneName = decodeURIComponent(params.slug)
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+  const { slug } = await params
+  const kommune = await getAppV2MunicipalityBySlug(slug)
+
+  if (!kommune?.code) {
+    return {
+      title: 'Kommune ikke fundet',
+    }
+  }
+
+  const kommuneName = kommune.name
 
   return {
-    title: `Beskyttelsesrum ${kommuneName} | Find beskyttelsesrum i ${kommuneName} kommune`,
-    description: `Find alle beskyttelsesrum i ${kommuneName} kommune. Oversigt over offentlige beskyttelsesrum, adresser og kapacitet. Komplet liste over beskyttelsesrum i ${kommuneName}.`,
+    title: `Beskyttelsesrum i ${kommuneName}`,
+    description: `Se registrerede beskyttelsesrum i ${kommuneName} kommune. Kommunesiden bruger app_v2 til kommuneopslag og det eksisterende registerflow til kort og liste.`,
     keywords: [
       `beskyttelsesrum ${kommuneName}`,
       `beskyttelsesrum ${kommuneName} kommune`,
@@ -28,14 +35,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       'nærmeste beskyttelsesrum'
     ],
     openGraph: {
-      title: `Beskyttelsesrum ${kommuneName} | Find beskyttelsesrum i ${kommuneName} kommune`,
-      description: `Find alle beskyttelsesrum i ${kommuneName} kommune. Oversigt over offentlige beskyttelsesrum, adresser og kapacitet.`,
+      title: `Beskyttelsesrum i ${kommuneName}`,
+      description: `Se registrerede beskyttelsesrum i ${kommuneName} kommune.`,
       type: 'website',
       locale: 'da_DK',
       siteName: 'Find Beskyttelsesrum',
+      url: `https://findbeskyttelsesrum.dk/kommune/${kommune.slug}`,
     },
     alternates: {
-      canonical: `https://findbeskyttelsesrum.dk/kommune/${params.slug}`,
+      canonical: `/kommune/${kommune.slug}`,
     },
     robots: {
       index: true,

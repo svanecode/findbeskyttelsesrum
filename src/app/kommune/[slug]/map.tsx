@@ -31,6 +31,8 @@ export default function KommuneMap({ kommunekode }: Props) {
   const [shelters, setShelters] = useState<GroupedShelter[]>([])
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
+  const [isLoadingShelters, setIsLoadingShelters] = useState(true)
+  const [shelterError, setShelterError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
   const [L, setL] = useState<any>(null)
   const mapRef = useRef<any>(null)
@@ -168,6 +170,9 @@ export default function KommuneMap({ kommunekode }: Props) {
   // Fetch shelters for the kommune
   useEffect(() => {
     async function fetchShelters() {
+      setIsLoadingShelters(true)
+      setShelterError(null)
+
       // First get all anvendelseskoder that should be included
       const { data: anvendelseskoderData, error: anvendelseskoderError } = await supabase
         .from('anvendelseskoder')
@@ -176,6 +181,9 @@ export default function KommuneMap({ kommunekode }: Props) {
 
       if (anvendelseskoderError) {
         console.error('Error fetching anvendelseskoder:', anvendelseskoderError)
+        setShelterError('Kortets registreringer kunne ikke hentes lige nu.')
+        setShelters([])
+        setIsLoadingShelters(false)
         return
       }
 
@@ -214,6 +222,9 @@ export default function KommuneMap({ kommunekode }: Props) {
 
       if (error) {
         console.error('Error fetching shelters:', error)
+        setShelterError('Kortets registreringer kunne ikke hentes lige nu.')
+        setShelters([])
+        setIsLoadingShelters(false)
         return
       }
 
@@ -235,6 +246,7 @@ export default function KommuneMap({ kommunekode }: Props) {
       }, {})
 
       setShelters(Object.values(groupedShelters))
+      setIsLoadingShelters(false)
     }
 
     fetchShelters()
@@ -245,7 +257,18 @@ export default function KommuneMap({ kommunekode }: Props) {
   }
 
   return (
-    <div className="h-screen w-full">
+    <div className="relative h-screen w-full">
+      {(isLoadingShelters || shelterError || shelters.length === 0) && (
+        <div className="absolute bottom-4 left-2 right-2 z-10 rounded-lg bg-white/95 p-3 text-sm text-gray-800 shadow-lg backdrop-blur-sm sm:left-4 sm:right-auto sm:max-w-sm sm:p-4">
+          {isLoadingShelters ? (
+            <p>Henter kortets registreringer...</p>
+          ) : shelterError ? (
+            <p>{shelterError}</p>
+          ) : (
+            <p>Der er ingen legacy-kortmarkører for denne kommune i det nuværende registerflow.</p>
+          )}
+        </div>
+      )}
       <MapContainer
         center={mapCenter}
         zoom={10}

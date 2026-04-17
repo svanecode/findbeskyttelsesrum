@@ -40,6 +40,9 @@ type ShelterExclusionRow = {
   shelter_id: string | null;
   canonical_source_name: string | null;
   canonical_source_reference: string | null;
+  address_line1: string | null;
+  postal_code: string | null;
+  city: string | null;
 };
 
 type ImportRunRow = {
@@ -109,6 +112,23 @@ export type AppV2NearbyShelter = {
   importState: AppV2ImportState;
   distanceMeters: number;
   municipality: AppV2MunicipalitySummary;
+};
+
+export type AppV2NearbyDiagnostics = {
+  radiusMeters: number;
+  limit: number;
+  candidateLimit: number;
+  importStates: AppV2ImportState[];
+  candidateRowsRead: number;
+  excludedByAppV2Exclusions: number;
+  candidatesWithCoordinates: number;
+  candidatesWithinRadius: number;
+  returnedRows: number;
+};
+
+export type AppV2NearbySheltersResult = {
+  rows: AppV2NearbyShelter[];
+  diagnostics: AppV2NearbyDiagnostics;
 };
 
 export type AppV2ImportRunSummary = {
@@ -296,6 +316,29 @@ function getSourceIdentityKey(sourceName: string | null, sourceReference: string
   return sourceName && sourceReference ? `${sourceName}\u0000${sourceReference}` : null;
 }
 
+function normalizeAddressPart(value: string | null | undefined) {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function getAddressKey(input: {
+  addressLine1: string | null | undefined;
+  postalCode: string | null | undefined;
+  city?: string | null | undefined;
+}) {
+  const addressLine1 = normalizeAddressPart(input.addressLine1);
+  const postalCode = normalizeAddressPart(input.postalCode);
+  const city = normalizeAddressPart(input.city);
+
+  if (!addressLine1 || !postalCode) {
+    return null;
+  }
+
+  return city ? `${addressLine1}\u0000${postalCode}\u0000${city}` : `${addressLine1}\u0000${postalCode}`;
+}
+
 async function getActiveExclusionsForShelters(shelters: ShelterRow[]) {
   const supabase = createAppV2ReadClient();
   const shelterIds = Array.from(new Set(shelters.map((row) => row.id)));
@@ -307,31 +350,42 @@ async function getActiveExclusionsForShelters(shelters: ShelterRow[]) {
       shelters.map((row) => row.canonical_source_reference).filter((value): value is string => Boolean(value)),
     ),
   );
-  const [shelterExclusions, sourceExclusions] = await Promise.all([
+  const addressLines = Array.from(new Set(shelters.map((row) => row.address_line1).filter(Boolean)));
+  const postalCodes = Array.from(new Set(shelters.map((row) => row.postal_code).filter(Boolean)));
+  const [shelterExclusions, sourceExclusions, addressExclusions] = await Promise.all([
     shelterIds.length > 0
       ? supabase
           .from("shelter_exclusions")
-          .select("shelter_id, canonical_source_name, canonical_source_reference")
+          .select("shelter_id, canonical_source_name, canonical_source_reference, address_line1, postal_code, city")
           .eq("is_active", true)
           .in("shelter_id", shelterIds)
       : Promise.resolve({ data: [], error: null }),
     sourceNames.length > 0 && sourceReferences.length > 0
       ? supabase
           .from("shelter_exclusions")
-          .select("shelter_id, canonical_source_name, canonical_source_reference")
+          .select("shelter_id, canonical_source_name, canonical_source_reference, address_line1, postal_code, city")
           .eq("is_active", true)
           .in("canonical_source_name", sourceNames)
           .in("canonical_source_reference", sourceReferences)
       : Promise.resolve({ data: [], error: null }),
+    addressLines.length > 0 && postalCodes.length > 0
+      ? supabase
+          .from("shelter_exclusions")
+          .select("shelter_id, canonical_source_name, canonical_source_reference, address_line1, postal_code, city")
+          .eq("is_active", true)
+          .in("address_line1", addressLines)
+          .in("postal_code", postalCodes)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
-  if (shelterExclusions.error || sourceExclusions.error) {
+  if (shelterExclusions.error || sourceExclusions.error || addressExclusions.error) {
     throw new Error("Could not load active app_v2 shelter exclusions.");
   }
 
   const rows = [
     ...((shelterExclusions.data ?? []) as ShelterExclusionRow[]),
     ...((sourceExclusions.data ?? []) as ShelterExclusionRow[]),
+    ...((addressExclusions.data ?? []) as ShelterExclusionRow[]),
   ];
 
   return {
@@ -339,6 +393,27 @@ async function getActiveExclusionsForShelters(shelters: ShelterRow[]) {
     excludedSourceIdentityKeys: new Set(
       rows
         .map((row) => getSourceIdentityKey(row.canonical_source_name, row.canonical_source_reference))
+        .filter((value): value is string => Boolean(value)),
+    ),
+    excludedFullAddressKeys: new Set(
+      rows
+        .map((row) =>
+          getAddressKey({
+            addressLine1: row.address_line1,
+            postalCode: row.postal_code,
+            city: row.city,
+          }),
+        )
+        .filter((value): value is string => Boolean(value)),
+    ),
+    excludedAddressPostalKeys: new Set(
+      rows
+        .map((row) =>
+          getAddressKey({
+            addressLine1: row.address_line1,
+            postalCode: row.postal_code,
+          }),
+        )
         .filter((value): value is string => Boolean(value)),
     ),
   };
@@ -349,10 +424,21 @@ function isExcludedShelter(
   exclusions: Awaited<ReturnType<typeof getActiveExclusionsForShelters>>,
 ) {
   const sourceIdentityKey = getSourceIdentityKey(row.canonical_source_name, row.canonical_source_reference);
+  const fullAddressKey = getAddressKey({
+    addressLine1: row.address_line1,
+    postalCode: row.postal_code,
+    city: row.city,
+  });
+  const addressPostalKey = getAddressKey({
+    addressLine1: row.address_line1,
+    postalCode: row.postal_code,
+  });
 
   return (
     exclusions.excludedShelterIds.has(row.id) ||
-    (sourceIdentityKey !== null && exclusions.excludedSourceIdentityKeys.has(sourceIdentityKey))
+    (sourceIdentityKey !== null && exclusions.excludedSourceIdentityKeys.has(sourceIdentityKey)) ||
+    (fullAddressKey !== null && exclusions.excludedFullAddressKeys.has(fullAddressKey)) ||
+    (addressPostalKey !== null && exclusions.excludedAddressPostalKeys.has(addressPostalKey))
   );
 }
 
@@ -440,7 +526,9 @@ export async function getLatestAppV2ImportRun(sourceName?: string) {
   return data ? normalizeImportRun(data as ImportRunRow) : null;
 }
 
-export async function getAppV2NearbyShelters(options: AppV2NearbySheltersOptions): Promise<AppV2NearbyShelter[]> {
+export async function getAppV2NearbySheltersWithDiagnostics(
+  options: AppV2NearbySheltersOptions,
+): Promise<AppV2NearbySheltersResult> {
   assertValidCoordinate(options);
 
   const supabase = createAppV2ReadClient();
@@ -459,6 +547,10 @@ export async function getAppV2NearbyShelters(options: AppV2NearbySheltersOptions
 
   if (!Number.isInteger(candidateLimit) || candidateLimit <= 0) {
     throw new Error("Nearby app_v2 query requires a positive integer candidateLimit.");
+  }
+
+  if (candidateLimit < limit) {
+    throw new Error("Nearby app_v2 query requires candidateLimit to be greater than or equal to limit.");
   }
 
   const bounds = getNearbyBounds(options.latitude, options.longitude, radiusMeters);
@@ -482,8 +574,8 @@ export async function getAppV2NearbyShelters(options: AppV2NearbySheltersOptions
 
   const visibleShelterRows = (data ?? []) as ShelterRow[];
   const exclusions = await getActiveExclusionsForShelters(visibleShelterRows);
-  const shelterCandidates = visibleShelterRows
-    .filter((row) => !isExcludedShelter(row, exclusions))
+  const nonExcludedRows = visibleShelterRows.filter((row) => !isExcludedShelter(row, exclusions));
+  const shelterCandidatesWithCoordinates = nonExcludedRows
     .map((row) => {
       const latitude = toFiniteNumber(row.latitude);
       const longitude = toFiniteNumber(row.longitude);
@@ -504,13 +596,29 @@ export async function getAppV2NearbyShelters(options: AppV2NearbySheltersOptions
         }),
       };
     })
-    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate));
+  const shelterCandidatesWithinRadius = shelterCandidatesWithCoordinates
     .filter((candidate) => candidate.distanceMeters <= radiusMeters)
-    .sort((a, b) => a.distanceMeters - b.distanceMeters)
-    .slice(0, limit);
+    .sort((a, b) => a.distanceMeters - b.distanceMeters || a.row.slug.localeCompare(b.row.slug));
+  const shelterCandidates = shelterCandidatesWithinRadius.slice(0, limit);
+
+  const baseDiagnostics = {
+    radiusMeters,
+    limit,
+    candidateLimit,
+    importStates,
+    candidateRowsRead: visibleShelterRows.length,
+    excludedByAppV2Exclusions: visibleShelterRows.length - nonExcludedRows.length,
+    candidatesWithCoordinates: shelterCandidatesWithCoordinates.length,
+    candidatesWithinRadius: shelterCandidatesWithinRadius.length,
+    returnedRows: shelterCandidates.length,
+  };
 
   if (shelterCandidates.length === 0) {
-    return [];
+    return {
+      rows: [],
+      diagnostics: baseDiagnostics,
+    };
   }
 
   const municipalityIds = Array.from(new Set(shelterCandidates.map((candidate) => candidate.row.municipality_id)));
@@ -527,7 +635,7 @@ export async function getAppV2NearbyShelters(options: AppV2NearbySheltersOptions
     ((municipalityData ?? []) as MunicipalityRow[]).map((row) => [row.id, normalizeMunicipality(row, 0)]),
   );
 
-  return shelterCandidates.map(({ row, latitude, longitude, distanceMeters }) => {
+  const rows = shelterCandidates.map(({ row, latitude, longitude, distanceMeters }) => {
     const municipality = municipalitiesById.get(row.municipality_id);
 
     if (!municipality) {
@@ -550,6 +658,20 @@ export async function getAppV2NearbyShelters(options: AppV2NearbySheltersOptions
       municipality,
     };
   });
+
+  return {
+    rows,
+    diagnostics: {
+      ...baseDiagnostics,
+      returnedRows: rows.length,
+    },
+  };
+}
+
+export async function getAppV2NearbyShelters(options: AppV2NearbySheltersOptions): Promise<AppV2NearbyShelter[]> {
+  const result = await getAppV2NearbySheltersWithDiagnostics(options);
+
+  return result.rows;
 }
 
 export async function getAppV2MunicipalitySummaries() {

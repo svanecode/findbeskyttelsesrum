@@ -37,7 +37,7 @@ These migrations do not reshape legacy `public` tables.
 ## Access Boundary
 - Importer writes use `createAppV2AdminClient()` from `src/lib/supabase/app-v2.ts`.
 - The helper explicitly targets the `app_v2` schema through Supabase's schema API.
-- Browser/server public read helpers for `app_v2` are intentionally not ported yet.
+- Server-side public read helpers and routes for selected `app_v2` surfaces now exist. Browser code must not import service-role app_v2 helpers directly.
 - `SUPABASE_SECRET_KEY` is server-only and must not be exposed to client code.
 
 ## Operational Notes

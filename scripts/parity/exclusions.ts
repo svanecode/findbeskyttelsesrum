@@ -29,6 +29,13 @@ type AppV2ShelterRow = {
 type AppV2ShelterExclusionRow = {
   id: string;
   is_active: boolean;
+  shelter_id: string | null;
+  canonical_source_name: string | null;
+  canonical_source_reference: string | null;
+  address_line1: string | null;
+  postal_code: string | null;
+  city: string | null;
+  legacy_bygning_id: string | null;
 };
 
 type SupabaseParityEnv =
@@ -166,7 +173,11 @@ async function readAppV2Shelters(url: string, secretKey: string) {
 
 async function readExistingAppV2Exclusions(url: string, secretKey: string) {
   const supabase = createSupabaseClient(url, secretKey, "app_v2");
-  const { data, error } = await supabase.from("shelter_exclusions").select("id, is_active");
+  const { data, error } = await supabase
+    .from("shelter_exclusions")
+    .select(
+      "id, is_active, shelter_id, canonical_source_name, canonical_source_reference, address_line1, postal_code, city, legacy_bygning_id",
+    );
 
   if (error) {
     console.log(`[parity:exclusions] warning: could not read app_v2.shelter_exclusions: ${error.message}`);
@@ -221,6 +232,35 @@ function getLegacyRowsWithoutMatches(legacyRows: LegacyExcludedShelterRow[], mat
   return legacyRows.filter((row) => !matchedIds.has(row.id));
 }
 
+function getUniqueLegacyCount(matchGroups: MatchCandidate[][]) {
+  return new Set(matchGroups.flat().map((candidate) => candidate.legacy.id)).size;
+}
+
+function getStrongestMatchBuckets(input: {
+  legacyRows: LegacyExcludedShelterRow[];
+  sourceReferenceMatches: MatchCandidate[];
+  fullAddressMatches: MatchCandidate[];
+  splitAddressMatches: MatchCandidate[];
+}) {
+  const sourceReferenceIds = new Set(input.sourceReferenceMatches.map((candidate) => candidate.legacy.id));
+  const fullAddressOnly = input.fullAddressMatches.filter((candidate) => !sourceReferenceIds.has(candidate.legacy.id));
+  const sourceOrFullAddressIds = new Set([
+    ...Array.from(sourceReferenceIds),
+    ...fullAddressOnly.map((candidate) => candidate.legacy.id),
+  ]);
+  const splitAddressOnly = input.splitAddressMatches.filter(
+    (candidate) => !sourceOrFullAddressIds.has(candidate.legacy.id),
+  );
+  const unresolved = input.legacyRows.filter((row) => !sourceOrFullAddressIds.has(row.id) && !splitAddressOnly.some((candidate) => candidate.legacy.id === row.id));
+
+  return {
+    sourceReference: input.sourceReferenceMatches,
+    fullAddressOnly,
+    splitAddressOnly,
+    unresolved,
+  };
+}
+
 async function main() {
   console.log("[parity:exclusions] read-only legacy excluded_shelters/app_v2 mapping check");
 
@@ -269,7 +309,7 @@ async function main() {
     getLegacySplitAddressKey,
     getAppV2AddressWithoutCityKey,
   );
-  const allMatchedLegacyRows = getLegacyRowsWithoutMatches(legacyRows, [
+  const unresolvedLegacyRows = getLegacyRowsWithoutMatches(legacyRows, [
     sourceReferenceMatches,
     fullAddressMatches,
     splitAddressMatches,
@@ -278,6 +318,22 @@ async function main() {
     (candidate) => candidate.matches.length > 1,
   );
   const existingActiveAppV2Exclusions = existingAppV2Exclusions?.filter((row) => row.is_active).length ?? null;
+  const existingAppV2ExclusionsWithShelterId =
+    existingAppV2Exclusions?.filter((row) => row.is_active && row.shelter_id).length ?? null;
+  const existingAppV2ExclusionsWithSourceIdentity =
+    existingAppV2Exclusions?.filter(
+      (row) => row.is_active && row.canonical_source_name && row.canonical_source_reference,
+    ).length ?? null;
+  const existingAppV2ExclusionsWithAddress =
+    existingAppV2Exclusions?.filter((row) => row.is_active && row.address_line1 && row.postal_code).length ?? null;
+  const existingAppV2ExclusionsWithLegacyBuildingId =
+    existingAppV2Exclusions?.filter((row) => row.is_active && row.legacy_bygning_id).length ?? null;
+  const strongestBuckets = getStrongestMatchBuckets({
+    legacyRows,
+    sourceReferenceMatches,
+    fullAddressMatches,
+    splitAddressMatches,
+  });
 
   console.log(`[parity:exclusions] legacy exclusions: ${legacyRows.length}`);
   console.log(`[parity:exclusions] app_v2 shelters scanned: ${appV2Rows.length}`);
@@ -288,11 +344,31 @@ async function main() {
         : `${existingAppV2Exclusions.length} total, ${existingActiveAppV2Exclusions} active`
     }`,
   );
+  if (existingAppV2Exclusions !== null) {
+    console.log(
+      `[parity:exclusions] active app_v2 exclusion identities: shelter_id=${existingAppV2ExclusionsWithShelterId} source=${existingAppV2ExclusionsWithSourceIdentity} address=${existingAppV2ExclusionsWithAddress} legacy_bygning_id=${existingAppV2ExclusionsWithLegacyBuildingId}`,
+    );
+  }
   console.log("");
   console.log(
     "[parity:exclusions] note: source-reference matches are strong candidates only if legacy bygning_id and app_v2 canonical_source_reference use the same source identity.",
   );
   console.log("[parity:exclusions] note: address matches are potential matches and require review before migration.");
+  console.log("");
+
+  console.log("[parity:exclusions] strongest-match decision buckets");
+  console.log(`  strong source-reference candidates: ${strongestBuckets.sourceReference.length}`);
+  console.log(`  address-only candidates after source matches: ${strongestBuckets.fullAddressOnly.length}`);
+  console.log(`  split-address-only candidates after stronger matches: ${strongestBuckets.splitAddressOnly.length}`);
+  console.log(`  unresolved legacy exclusions: ${strongestBuckets.unresolved.length}`);
+  console.log(`  ambiguous candidate rows: ${ambiguousCandidates.length}`);
+  console.log(
+    `  unique legacy exclusions with any candidate: ${getUniqueLegacyCount([
+      sourceReferenceMatches,
+      fullAddressMatches,
+      splitAddressMatches,
+    ])}`,
+  );
   console.log("");
 
   printCandidates("strong candidate: legacy bygning_id to app_v2 canonical_source_reference", sourceReferenceMatches, formatCandidate);
@@ -304,17 +380,17 @@ async function main() {
   printCandidates("manual review: ambiguous candidates", ambiguousCandidates, formatCandidate);
   console.log("");
 
-  console.log(`unresolved legacy exclusions: ${allMatchedLegacyRows.length}`);
+  console.log(`unresolved legacy exclusions: ${unresolvedLegacyRows.length}`);
 
-  if (allMatchedLegacyRows.length === 0) {
+  if (unresolvedLegacyRows.length === 0) {
     console.log("  none");
   } else {
-    for (const row of allMatchedLegacyRows.slice(0, sampleLimit)) {
+    for (const row of unresolvedLegacyRows.slice(0, sampleLimit)) {
       console.log(`  - ${formatLegacy(row)}`);
     }
 
-    if (allMatchedLegacyRows.length > sampleLimit) {
-      console.log(`  ... ${allMatchedLegacyRows.length - sampleLimit} more`);
+    if (unresolvedLegacyRows.length > sampleLimit) {
+      console.log(`  ... ${unresolvedLegacyRows.length - sampleLimit} more`);
     }
   }
 

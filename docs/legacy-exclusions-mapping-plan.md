@@ -243,16 +243,20 @@ That data migration should be explicit and reviewable because owner-request excl
 
 The first matching pass should be conservative.
 
-`getAppV2NearbyShelters()` now implements the first two matching paths for active `app_v2.shelter_exclusions` rows:
+`getAppV2NearbyShelters()` now implements these conservative matching paths for active `app_v2.shelter_exclusions` rows:
 
 1. exact app_v2 shelter id;
 2. exact canonical source identity.
+3. exact app_v2 address/postal identity:
+   - `address_line1`
+   - `postal_code`
+   - `city` when present on the exclusion row
 
 Recommended match order:
 
 1. exact app_v2 shelter id, if manually resolved;
 2. canonical source identity, if `canonical_source_name` and `canonical_source_reference` can be mapped from legacy/source data;
-3. normalized address match:
+3. normalized app_v2 address match:
    - app_v2 `address_line1`
    - app_v2 `postal_code`
    - optionally app_v2 `city`
@@ -300,6 +304,7 @@ Before runtime cutover, run these read-only validations against a controlled env
    - confirm municipality identity parity;
 2. `npm run parity:nearby`
    - compare legacy grouped nearby output against active app_v2 output;
+   - review candidate/exclusion diagnostics from the app_v2 helper;
 3. `npm run parity:nearby -- --include-suppressed`
    - measure whether app_v2 suppression exists and affects candidates;
 4. `npm run parity:exclusions`
@@ -318,9 +323,10 @@ The next nearby-related PR should not cut over `/shelters/nearby`.
 Recommended next PR:
 
 1. run `npm run parity:exclusions` against the intended Supabase environment;
-2. review strong source-reference candidates separately from potential address matches;
+2. review strong source-reference candidates separately from exact app_v2 address candidates and legacy split-address candidates;
 3. decide which fields should be used in the eventual `app_v2.shelter_exclusions` data migration;
 4. keep the migration explicit and reviewable;
-5. do not cut over `/shelters/nearby` until the migrated exclusions are validated.
+5. run `npm run parity:nearby` for several fixed coordinate samples after the exclusion migration candidate set is understood;
+6. do not cut over `/shelters/nearby` until the migrated exclusions and result-shape gaps are validated.
 
-Only after that should the repo add the dedicated app_v2 exclusions table and a controlled migration path.
+The dedicated app_v2 exclusions table now exists. What remains is controlled data migration design, parity validation, and a nearby read model that handles grouping and runtime shape deliberately.

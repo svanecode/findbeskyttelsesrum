@@ -3,7 +3,7 @@ import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 
 import {
-  getAppV2NearbyShelters,
+  getAppV2NearbySheltersWithDiagnostics,
   type AppV2ImportState,
   type AppV2NearbyShelter,
 } from "@/lib/supabase/app-v2-queries";
@@ -220,7 +220,7 @@ function formatLegacyRow(row: LegacyNearbyShelter) {
 function formatAppV2Row(row: AppV2NearbyShelter) {
   const distanceKm = (row.distanceMeters / 1000).toFixed(1);
 
-  return `${row.addressLine1}, ${row.postalCode} ${row.city} | distance=${distanceKm}km capacity=${row.capacity} municipality=${row.municipality.name} id=${row.id}`;
+  return `${row.addressLine1}, ${row.postalCode} ${row.city} | distance=${distanceKm}km capacity=${row.capacity} status=${row.status} importState=${row.importState} municipality=${row.municipality.name} id=${row.id}`;
 }
 
 function printSamples(title: string, rows: string[]) {
@@ -254,7 +254,7 @@ async function main() {
     "[parity:nearby] note: legacy nearby is grouped by address/location; app_v2 nearby currently returns one shelter row per result.",
   );
   console.log(
-    "[parity:nearby] note: app_v2 excludes suppressed shelters by default through import_state and filters active app_v2 shelter_exclusions by shelter/source identity.",
+    "[parity:nearby] note: app_v2 excludes suppressed shelters by default through import_state and filters active app_v2 shelter_exclusions by shelter/source/address identity.",
   );
   console.log(
     "[parity:nearby] note: legacy public.excluded_shelters address and bygning_id matching is not mirrored yet.",
@@ -266,9 +266,9 @@ async function main() {
     return;
   }
 
-  const [legacyResult, appV2Rows] = await Promise.all([
+  const [legacyResult, appV2Result] = await Promise.all([
     readLegacyNearbyShelters(options, env),
-    getAppV2NearbyShelters({
+    getAppV2NearbySheltersWithDiagnostics({
       latitude: options.latitude,
       longitude: options.longitude,
       radiusMeters: options.radiusMeters,
@@ -279,6 +279,7 @@ async function main() {
   ]);
 
   const legacyRows = legacyResult.rows;
+  const appV2Rows = appV2Result.rows;
   const legacyAddressKeys = new Set(legacyRows.map(getLegacyAddressKey).filter(Boolean));
   const appV2AddressKeys = new Set(appV2Rows.map(getAppV2AddressKey).filter(Boolean));
   const sharedAddressKeys = Array.from(legacyAddressKeys).filter((key) => appV2AddressKeys.has(key));
@@ -295,6 +296,19 @@ async function main() {
   console.log(`[parity:nearby] shared address keys: ${sharedAddressKeys.length}`);
   console.log(`[parity:nearby] legacy-only address keys: ${legacyOnlyAddressKeys.length}`);
   console.log(`[parity:nearby] app_v2-only address keys: ${appV2OnlyAddressKeys.length}`);
+  console.log(
+    `[parity:nearby] app_v2 diagnostics: read=${appV2Result.diagnostics.candidateRowsRead} excluded=${appV2Result.diagnostics.excludedByAppV2Exclusions} withCoordinates=${appV2Result.diagnostics.candidatesWithCoordinates} withinRadius=${appV2Result.diagnostics.candidatesWithinRadius} returned=${appV2Result.diagnostics.returnedRows}`,
+  );
+  console.log("");
+
+  console.log("[parity:nearby] decision buckets");
+  console.log(`  likely comparable by normalized address: ${sharedAddressKeys.length}`);
+  console.log(`  legacy grouped-only addresses: ${legacyOnlyAddressKeys.length}`);
+  console.log(`  app_v2 native-only addresses: ${appV2OnlyAddressKeys.length}`);
+  console.log(`  shape difference: legacy grouped results vs app_v2 one-row-per-shelter remains unresolved`);
+  console.log(
+    `  exclusions difference: app_v2 active exclusions filtered=${appV2Result.diagnostics.excludedByAppV2Exclusions}; legacy public.excluded_shelters matching still requires separate exclusions parity review`,
+  );
   console.log("");
 
   printSamples("legacy top results", legacyRows.map(formatLegacyRow));
