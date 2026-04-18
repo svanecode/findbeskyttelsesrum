@@ -93,20 +93,27 @@ function normalizeText(value: string | null | undefined) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeAddressKey(value: string | null | undefined) {
+  return normalizeText(value)
+    .replace(/,/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getLegacyFullAddressKey(row: LegacyExcludedShelterRow) {
-  return normalizeText(row.address);
+  return normalizeAddressKey(row.address);
 }
 
 function getLegacySplitAddressKey(row: LegacyExcludedShelterRow) {
-  return normalizeText([row.vejnavn, row.husnummer, row.postnummer].filter(Boolean).join(" "));
+  return normalizeAddressKey([row.vejnavn, row.husnummer, row.postnummer].filter(Boolean).join(" "));
 }
 
 function getAppV2FullAddressKey(row: AppV2ShelterRow) {
-  return normalizeText([row.address_line1, row.postal_code, row.city].filter(Boolean).join(" "));
+  return normalizeAddressKey([row.address_line1, row.postal_code, row.city].filter(Boolean).join(" "));
 }
 
 function getAppV2AddressWithoutCityKey(row: AppV2ShelterRow) {
-  return normalizeText([row.address_line1, row.postal_code].filter(Boolean).join(" "));
+  return normalizeAddressKey([row.address_line1, row.postal_code].filter(Boolean).join(" "));
 }
 
 function getUniqueMatches(rows: AppV2ShelterRow[]) {
@@ -353,7 +360,9 @@ async function main() {
   console.log(
     "[parity:exclusions] note: source-reference matches are strong candidates only if legacy bygning_id and app_v2 canonical_source_reference use the same source identity.",
   );
-  console.log("[parity:exclusions] note: address matches are potential matches and require review before migration.");
+  console.log(
+    "[parity:exclusions] note: address matches lowercase, trim, collapse whitespace, and treat commas as separators; they do not use fuzzy typo matching.",
+  );
   console.log("");
 
   console.log("[parity:exclusions] strongest-match decision buckets");

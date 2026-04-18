@@ -24,6 +24,14 @@ The current public app still reads the existing live structures in `public`. The
 - `app_v2.audit_events`
   - append-only operational audit trail
 
+## App V2 Read Functions
+- `app_v2.get_nearby_shelters(...)`
+  - first database-side nearby read foundation for app_v2
+  - returns a JSON payload with app_v2-native shelter rows and diagnostics
+  - uses bounding-box prefiltering plus database-side Haversine distance ordering
+  - applies active app_v2 shelter exclusions for `shelter_id`, canonical source identity, and exact app_v2 address/postal matches
+  - does not return the legacy grouped nearby shape and does not read `public.excluded_shelters`
+
 ## Migration Set
 The live repo now carries these `app_v2` migrations:
 - `006_app_v2_foundation.sql`
@@ -31,6 +39,7 @@ The live repo now carries these `app_v2` migrations:
 - `008_app_v2_import_run_resilience.sql`
 - `009_app_v2_municipality_code_anchor.sql`
 - `010_app_v2_shelter_exclusions.sql`
+- `011_app_v2_nearby_read_rpc.sql`
 
 These migrations do not reshape legacy `public` tables.
 
@@ -45,3 +54,4 @@ These migrations do not reshape legacy `public` tables.
 - Supabase API schema exposure for `app_v2` must be confirmed before later public reads or non-SQL PostgREST access are expected to work.
 - Public read policies exist for active shelter-related reads, but the live app does not rely on them yet.
 - `app_v2.shelter_exclusions` has RLS enabled and no public read policy in this foundation phase. It is intended for service-role migration, parity scripts, and future server-side read-model work, not direct browser access.
+- `app_v2.get_nearby_shelters(...)` is granted to `service_role` in this foundation phase. It is intended for server-side helpers and diagnostics, not direct browser use.

@@ -3,6 +3,7 @@ import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 
 export type AppV2ShelterStatus = "active" | "temporarily_closed" | "under_review";
 export type AppV2ImportState = "active" | "missing_from_source" | "suppressed";
+export type AppV2NearbyEligibilityMode = "legacy_capacity_v1" | "none";
 type AppV2ImportRunStatus = "running" | "succeeded" | "failed";
 
 type MunicipalityRow = {
@@ -34,15 +35,6 @@ type ShelterRow = {
   last_imported_at: string | null;
   canonical_source_name: string | null;
   canonical_source_reference: string | null;
-};
-
-type ShelterExclusionRow = {
-  shelter_id: string | null;
-  canonical_source_name: string | null;
-  canonical_source_reference: string | null;
-  address_line1: string | null;
-  postal_code: string | null;
-  city: string | null;
 };
 
 type ImportRunRow = {
@@ -114,20 +106,55 @@ export type AppV2NearbyShelter = {
   municipality: AppV2MunicipalitySummary;
 };
 
+export type AppV2GroupedNearbyShelter = {
+  groupKey: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  distanceMeters: number;
+  shelterCount: number;
+  totalCapacity: number;
+  representativeShelter: AppV2NearbyShelter;
+  shelters: AppV2NearbyShelter[];
+  municipality: AppV2MunicipalitySummary;
+  statuses: AppV2ShelterStatus[];
+  importStates: AppV2ImportState[];
+};
+
 export type AppV2NearbyDiagnostics = {
+  readModel?: string;
   radiusMeters: number;
   limit: number;
   candidateLimit: number;
   importStates: AppV2ImportState[];
+  eligibilityMode?: AppV2NearbyEligibilityMode;
+  minimumCapacity?: number;
+  legacyAnvendelseSemantics?: "unresolved";
+  filteredByEligibility?: number;
+  eligibleRows?: number;
   candidateRowsRead: number;
   excludedByAppV2Exclusions: number;
   candidatesWithCoordinates: number;
   candidatesWithinRadius: number;
   returnedRows: number;
+  distanceStrategy?: string;
+  spatialIndex?: boolean;
+  groupedAppV2Shape?: boolean;
+  groupedLegacyShape?: boolean;
+  groupingKey?: string;
+  sourceReturnedRows?: number;
+  groupedRows?: number;
 };
 
 export type AppV2NearbySheltersResult = {
   rows: AppV2NearbyShelter[];
+  diagnostics: AppV2NearbyDiagnostics;
+};
+
+export type AppV2GroupedNearbySheltersResult = {
+  rows: AppV2GroupedNearbyShelter[];
   diagnostics: AppV2NearbyDiagnostics;
 };
 
@@ -160,6 +187,20 @@ export type AppV2NearbySheltersOptions = {
   limit?: number;
   candidateLimit?: number;
   importStates?: AppV2ImportState[];
+  eligibilityMode?: AppV2NearbyEligibilityMode;
+};
+
+export type AppV2NearbyEligibilitySummary = {
+  mode: AppV2NearbyEligibilityMode;
+  minimumCapacity: number | null;
+  legacyCapacityThreshold: boolean;
+  legacyAnvendelseSemantics: "unresolved";
+  note: string;
+};
+
+type AppV2NearbyRpcPayload = {
+  results: unknown;
+  diagnostics: unknown;
 };
 
 const shelterCapacityPageSize = 1000;
@@ -167,8 +208,9 @@ const defaultNearbyRadiusMeters = 50_000;
 const defaultNearbyLimit = 10;
 const defaultNearbyCandidateLimit = 500;
 const defaultNearbyImportStates: AppV2ImportState[] = ["active"];
+const defaultNearbyEligibilityMode: AppV2NearbyEligibilityMode = "legacy_capacity_v1";
+const legacyNearbyMinimumCapacity = 40;
 const allowedImportStates: AppV2ImportState[] = ["active", "missing_from_source", "suppressed"];
-const earthRadiusMeters = 6_371_000;
 
 function createAppV2ReadClient() {
   return createAppV2AdminClient();
@@ -236,14 +278,6 @@ function normalizeShelter(row: ShelterRow, municipality: AppV2MunicipalityDetail
   };
 }
 
-function toRadians(degrees: number) {
-  return (degrees * Math.PI) / 180;
-}
-
-function toDegrees(radians: number) {
-  return (radians * 180) / Math.PI;
-}
-
 function assertValidCoordinate(input: AppV2NearbySheltersOptions) {
   if (!Number.isFinite(input.latitude) || input.latitude < -90 || input.latitude > 90) {
     throw new Error("Nearby app_v2 query requires latitude between -90 and 90.");
@@ -270,176 +304,248 @@ function getNearbyImportStates(input: AppV2NearbySheltersOptions) {
   return importStates;
 }
 
-function getNearbyBounds(latitude: number, longitude: number, radiusMeters: number) {
-  const latitudeDelta = toDegrees(radiusMeters / earthRadiusMeters);
-  const latitudeRadians = toRadians(latitude);
-  const longitudeDivisor = Math.max(Math.cos(latitudeRadians), 0.01);
-  const longitudeDelta = toDegrees(radiusMeters / (earthRadiusMeters * longitudeDivisor));
+function getNearbyEligibilityMode(input: AppV2NearbySheltersOptions) {
+  const mode = input.eligibilityMode ?? defaultNearbyEligibilityMode;
+
+  if (mode !== "legacy_capacity_v1" && mode !== "none") {
+    throw new Error(`Nearby app_v2 query received unsupported eligibility mode: ${String(mode)}.`);
+  }
+
+  return mode;
+}
+
+export function getAppV2NearbyEligibilitySummary(
+  mode: AppV2NearbyEligibilityMode = defaultNearbyEligibilityMode,
+): AppV2NearbyEligibilitySummary {
+  if (mode === "none") {
+    return {
+      mode,
+      minimumCapacity: null,
+      legacyCapacityThreshold: false,
+      legacyAnvendelseSemantics: "unresolved",
+      note: "No app_v2 nearby eligibility filtering is applied beyond import_state, coordinates, radius, and active app_v2 exclusions.",
+    };
+  }
 
   return {
-    minLatitude: Math.max(latitude - latitudeDelta, -90),
-    maxLatitude: Math.min(latitude + latitudeDelta, 90),
-    minLongitude: Math.max(longitude - longitudeDelta, -180),
-    maxLongitude: Math.min(longitude + longitudeDelta, 180),
+    mode,
+    minimumCapacity: legacyNearbyMinimumCapacity,
+    legacyCapacityThreshold: true,
+    legacyAnvendelseSemantics: "unresolved",
+    note: "Applies the legacy nearby capacity threshold of capacity >= 40 before grouping. Legacy anvendelseskoder.skal_med is not modeled yet.",
   };
 }
 
-function getDistanceMeters(input: {
-  fromLatitude: number;
-  fromLongitude: number;
-  toLatitude: number;
-  toLongitude: number;
-}) {
-  const fromLatitude = toRadians(input.fromLatitude);
-  const toLatitude = toRadians(input.toLatitude);
-  const latitudeDelta = toRadians(input.toLatitude - input.fromLatitude);
-  const longitudeDelta = toRadians(input.toLongitude - input.fromLongitude);
-  const a =
-    Math.sin(latitudeDelta / 2) ** 2 +
-    Math.cos(fromLatitude) * Math.cos(toLatitude) * Math.sin(longitudeDelta / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return earthRadiusMeters * c;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function toFiniteNumber(value: number | string | null) {
-  if (value === null) {
+function getString(value: unknown, fieldName: string) {
+  if (typeof value !== "string") {
+    throw new Error(`app_v2 nearby RPC returned invalid ${fieldName}.`);
+  }
+
+  return value;
+}
+
+function getNullableString(value: unknown, fieldName: string) {
+  if (value === null || value === undefined) {
     return null;
   }
 
-  const numberValue = Number(value);
-
-  return Number.isFinite(numberValue) ? numberValue : null;
+  return getString(value, fieldName);
 }
 
-function getSourceIdentityKey(sourceName: string | null, sourceReference: string | null) {
-  return sourceName && sourceReference ? `${sourceName}\u0000${sourceReference}` : null;
-}
+function getNumber(value: unknown, fieldName: string) {
+  const numberValue = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
 
-function normalizeAddressPart(value: string | null | undefined) {
-  return (value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-}
-
-function getAddressKey(input: {
-  addressLine1: string | null | undefined;
-  postalCode: string | null | undefined;
-  city?: string | null | undefined;
-}) {
-  const addressLine1 = normalizeAddressPart(input.addressLine1);
-  const postalCode = normalizeAddressPart(input.postalCode);
-  const city = normalizeAddressPart(input.city);
-
-  if (!addressLine1 || !postalCode) {
-    return null;
+  if (!Number.isFinite(numberValue)) {
+    throw new Error(`app_v2 nearby RPC returned invalid ${fieldName}.`);
   }
 
-  return city ? `${addressLine1}\u0000${postalCode}\u0000${city}` : `${addressLine1}\u0000${postalCode}`;
+  return numberValue;
 }
 
-async function getActiveExclusionsForShelters(shelters: ShelterRow[]) {
-  const supabase = createAppV2ReadClient();
-  const shelterIds = Array.from(new Set(shelters.map((row) => row.id)));
-  const sourceNames = Array.from(
-    new Set(shelters.map((row) => row.canonical_source_name).filter((value): value is string => Boolean(value))),
-  );
-  const sourceReferences = Array.from(
-    new Set(
-      shelters.map((row) => row.canonical_source_reference).filter((value): value is string => Boolean(value)),
-    ),
-  );
-  const addressLines = Array.from(new Set(shelters.map((row) => row.address_line1).filter(Boolean)));
-  const postalCodes = Array.from(new Set(shelters.map((row) => row.postal_code).filter(Boolean)));
-  const [shelterExclusions, sourceExclusions, addressExclusions] = await Promise.all([
-    shelterIds.length > 0
-      ? supabase
-          .from("shelter_exclusions")
-          .select("shelter_id, canonical_source_name, canonical_source_reference, address_line1, postal_code, city")
-          .eq("is_active", true)
-          .in("shelter_id", shelterIds)
-      : Promise.resolve({ data: [], error: null }),
-    sourceNames.length > 0 && sourceReferences.length > 0
-      ? supabase
-          .from("shelter_exclusions")
-          .select("shelter_id, canonical_source_name, canonical_source_reference, address_line1, postal_code, city")
-          .eq("is_active", true)
-          .in("canonical_source_name", sourceNames)
-          .in("canonical_source_reference", sourceReferences)
-      : Promise.resolve({ data: [], error: null }),
-    addressLines.length > 0 && postalCodes.length > 0
-      ? supabase
-          .from("shelter_exclusions")
-          .select("shelter_id, canonical_source_name, canonical_source_reference, address_line1, postal_code, city")
-          .eq("is_active", true)
-          .in("address_line1", addressLines)
-          .in("postal_code", postalCodes)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+function getInteger(value: unknown, fieldName: string) {
+  const numberValue = getNumber(value, fieldName);
 
-  if (shelterExclusions.error || sourceExclusions.error || addressExclusions.error) {
-    throw new Error("Could not load active app_v2 shelter exclusions.");
+  if (!Number.isInteger(numberValue)) {
+    throw new Error(`app_v2 nearby RPC returned invalid ${fieldName}.`);
   }
 
-  const rows = [
-    ...((shelterExclusions.data ?? []) as ShelterExclusionRow[]),
-    ...((sourceExclusions.data ?? []) as ShelterExclusionRow[]),
-    ...((addressExclusions.data ?? []) as ShelterExclusionRow[]),
-  ];
+  return numberValue;
+}
+
+function getBoolean(value: unknown, fieldName: string) {
+  if (typeof value !== "boolean") {
+    throw new Error(`app_v2 nearby RPC returned invalid ${fieldName}.`);
+  }
+
+  return value;
+}
+
+function parseJsonArray(value: unknown, fieldName: string) {
+  if (!Array.isArray(value)) {
+    throw new Error(`app_v2 nearby RPC returned invalid ${fieldName}.`);
+  }
+
+  return value;
+}
+
+function normalizeNearbyRpcRow(value: unknown): AppV2NearbyShelter {
+  if (!isRecord(value)) {
+    throw new Error("app_v2 nearby RPC returned an invalid result row.");
+  }
+
+  const latitude = getNumber(value.latitude, "latitude");
+  const longitude = getNumber(value.longitude, "longitude");
 
   return {
-    excludedShelterIds: new Set(rows.map((row) => row.shelter_id).filter((value): value is string => Boolean(value))),
-    excludedSourceIdentityKeys: new Set(
-      rows
-        .map((row) => getSourceIdentityKey(row.canonical_source_name, row.canonical_source_reference))
-        .filter((value): value is string => Boolean(value)),
-    ),
-    excludedFullAddressKeys: new Set(
-      rows
-        .map((row) =>
-          getAddressKey({
-            addressLine1: row.address_line1,
-            postalCode: row.postal_code,
-            city: row.city,
-          }),
-        )
-        .filter((value): value is string => Boolean(value)),
-    ),
-    excludedAddressPostalKeys: new Set(
-      rows
-        .map((row) =>
-          getAddressKey({
-            addressLine1: row.address_line1,
-            postalCode: row.postal_code,
-          }),
-        )
-        .filter((value): value is string => Boolean(value)),
-    ),
+    id: getString(value.id, "id"),
+    slug: getString(value.slug, "slug"),
+    name: getString(value.name, "name"),
+    addressLine1: getString(value.address_line1, "address_line1"),
+    postalCode: getString(value.postal_code, "postal_code"),
+    city: getString(value.city, "city"),
+    latitude,
+    longitude,
+    capacity: getInteger(value.capacity, "capacity"),
+    status: getString(value.status, "status") as AppV2ShelterStatus,
+    importState: getString(value.import_state, "import_state") as AppV2ImportState,
+    distanceMeters: getNumber(value.distance_meters, "distance_meters"),
+    municipality: {
+      id: getString(value.municipality_id, "municipality_id"),
+      code: getNullableString(value.municipality_code, "municipality_code"),
+      slug: getString(value.municipality_slug, "municipality_slug"),
+      name: getString(value.municipality_name, "municipality_name"),
+      regionName: getNullableString(value.municipality_region_name, "municipality_region_name"),
+      activeShelterCount: 0,
+    },
   };
 }
 
-function isExcludedShelter(
-  row: ShelterRow,
-  exclusions: Awaited<ReturnType<typeof getActiveExclusionsForShelters>>,
-) {
-  const sourceIdentityKey = getSourceIdentityKey(row.canonical_source_name, row.canonical_source_reference);
-  const fullAddressKey = getAddressKey({
-    addressLine1: row.address_line1,
-    postalCode: row.postal_code,
-    city: row.city,
-  });
-  const addressPostalKey = getAddressKey({
-    addressLine1: row.address_line1,
-    postalCode: row.postal_code,
-  });
+function normalizeNearbyDiagnostics(value: unknown): AppV2NearbyDiagnostics {
+  if (!isRecord(value)) {
+    throw new Error("app_v2 nearby RPC returned invalid diagnostics.");
+  }
 
-  return (
-    exclusions.excludedShelterIds.has(row.id) ||
-    (sourceIdentityKey !== null && exclusions.excludedSourceIdentityKeys.has(sourceIdentityKey)) ||
-    (fullAddressKey !== null && exclusions.excludedFullAddressKeys.has(fullAddressKey)) ||
-    (addressPostalKey !== null && exclusions.excludedAddressPostalKeys.has(addressPostalKey))
-  );
+  const rawImportStates = parseJsonArray(value.importStates, "diagnostics.importStates");
+
+  return {
+    readModel: getNullableString(value.readModel, "diagnostics.readModel") ?? undefined,
+    radiusMeters: getInteger(value.radiusMeters, "diagnostics.radiusMeters"),
+    limit: getInteger(value.limit, "diagnostics.limit"),
+    candidateLimit: getInteger(value.candidateLimit, "diagnostics.candidateLimit"),
+    importStates: rawImportStates.map((state) => getString(state, "diagnostics.importStates")) as AppV2ImportState[],
+    eligibilityMode:
+      value.eligibilityMode === undefined
+        ? undefined
+        : (getString(value.eligibilityMode, "diagnostics.eligibilityMode") as AppV2NearbyEligibilityMode),
+    minimumCapacity:
+      value.minimumCapacity === undefined
+        ? undefined
+        : getInteger(value.minimumCapacity, "diagnostics.minimumCapacity"),
+    legacyAnvendelseSemantics:
+      value.legacyAnvendelseSemantics === undefined
+        ? undefined
+        : (getString(
+            value.legacyAnvendelseSemantics,
+            "diagnostics.legacyAnvendelseSemantics",
+          ) as "unresolved"),
+    filteredByEligibility:
+      value.filteredByEligibility === undefined
+        ? undefined
+        : getInteger(value.filteredByEligibility, "diagnostics.filteredByEligibility"),
+    eligibleRows:
+      value.eligibleRows === undefined ? undefined : getInteger(value.eligibleRows, "diagnostics.eligibleRows"),
+    candidateRowsRead: getInteger(value.candidateRowsRead, "diagnostics.candidateRowsRead"),
+    excludedByAppV2Exclusions: getInteger(
+      value.excludedByAppV2Exclusions,
+      "diagnostics.excludedByAppV2Exclusions",
+    ),
+    candidatesWithCoordinates: getInteger(value.candidatesWithCoordinates, "diagnostics.candidatesWithCoordinates"),
+    candidatesWithinRadius: getInteger(value.candidatesWithinRadius, "diagnostics.candidatesWithinRadius"),
+    returnedRows: getInteger(value.returnedRows, "diagnostics.returnedRows"),
+    distanceStrategy: getNullableString(value.distanceStrategy, "diagnostics.distanceStrategy") ?? undefined,
+    spatialIndex:
+      value.spatialIndex === undefined ? undefined : getBoolean(value.spatialIndex, "diagnostics.spatialIndex"),
+    groupedAppV2Shape:
+      value.groupedAppV2Shape === undefined
+        ? undefined
+        : getBoolean(value.groupedAppV2Shape, "diagnostics.groupedAppV2Shape"),
+    groupedLegacyShape:
+      value.groupedLegacyShape === undefined
+        ? undefined
+        : getBoolean(value.groupedLegacyShape, "diagnostics.groupedLegacyShape"),
+  };
+}
+
+function applyNearbyEligibility(rows: AppV2NearbyShelter[], mode: AppV2NearbyEligibilityMode) {
+  if (mode === "none") {
+    return {
+      rows,
+      minimumCapacity: null,
+      filteredByEligibility: 0,
+    };
+  }
+
+  const eligibleRows = rows.filter((row) => row.capacity >= legacyNearbyMinimumCapacity);
+
+  return {
+    rows: eligibleRows,
+    minimumCapacity: legacyNearbyMinimumCapacity,
+    filteredByEligibility: rows.length - eligibleRows.length,
+  };
+}
+
+function normalizeNearbyAddressPart(value: string) {
+  return value.trim().toLowerCase().replace(/,/g, " ").replace(/\s+/g, " ");
+}
+
+function getNearbyGroupKey(row: AppV2NearbyShelter) {
+  return [row.addressLine1, row.postalCode, row.city].map(normalizeNearbyAddressPart).join(" ");
+}
+
+function uniqueValues<TValue extends string>(values: TValue[]) {
+  return Array.from(new Set(values)).sort();
+}
+
+function groupNearbyRows(rows: AppV2NearbyShelter[], limit: number): AppV2GroupedNearbyShelter[] {
+  const groups = new Map<string, AppV2NearbyShelter[]>();
+
+  for (const row of rows) {
+    const key = getNearbyGroupKey(row);
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+
+  return Array.from(groups.entries())
+    .map(([groupKey, groupRows]) => {
+      const sortedRows = [...groupRows].sort((a, b) => a.distanceMeters - b.distanceMeters || a.slug.localeCompare(b.slug));
+      const representativeShelter = sortedRows[0];
+
+      if (!representativeShelter) {
+        throw new Error("app_v2 nearby grouping received an empty group.");
+      }
+
+      return {
+        groupKey,
+        addressLine1: representativeShelter.addressLine1,
+        postalCode: representativeShelter.postalCode,
+        city: representativeShelter.city,
+        latitude: representativeShelter.latitude,
+        longitude: representativeShelter.longitude,
+        distanceMeters: representativeShelter.distanceMeters,
+        shelterCount: sortedRows.length,
+        totalCapacity: sortedRows.reduce((sum, row) => sum + row.capacity, 0),
+        representativeShelter,
+        shelters: sortedRows,
+        municipality: representativeShelter.municipality,
+        statuses: uniqueValues(sortedRows.map((row) => row.status)),
+        importStates: uniqueValues(sortedRows.map((row) => row.importState)),
+      };
+    })
+    .sort((a, b) => a.distanceMeters - b.distanceMeters || a.groupKey.localeCompare(b.groupKey))
+    .slice(0, limit);
 }
 
 async function getActiveShelterCountByMunicipalityId(municipalityId: string) {
@@ -536,6 +642,7 @@ export async function getAppV2NearbySheltersWithDiagnostics(
   const limit = options.limit ?? defaultNearbyLimit;
   const candidateLimit = options.candidateLimit ?? defaultNearbyCandidateLimit;
   const importStates = getNearbyImportStates(options);
+  const eligibilityMode = getNearbyEligibilityMode(options);
 
   if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
     throw new Error("Nearby app_v2 query requires a positive radiusMeters value.");
@@ -553,123 +660,99 @@ export async function getAppV2NearbySheltersWithDiagnostics(
     throw new Error("Nearby app_v2 query requires candidateLimit to be greater than or equal to limit.");
   }
 
-  const bounds = getNearbyBounds(options.latitude, options.longitude, radiusMeters);
-  const { data, error } = await supabase
-    .from("shelters")
-    .select(
-      "id, municipality_id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, last_seen_at, last_imported_at, canonical_source_name, canonical_source_reference",
-    )
-    .in("import_state", importStates)
-    .not("latitude", "is", null)
-    .not("longitude", "is", null)
-    .gte("latitude", bounds.minLatitude)
-    .lte("latitude", bounds.maxLatitude)
-    .gte("longitude", bounds.minLongitude)
-    .lte("longitude", bounds.maxLongitude)
-    .limit(candidateLimit);
+  const rpcLimit = eligibilityMode === "none" ? limit : candidateLimit;
+  const { data, error } = await supabase.rpc("get_nearby_shelters", {
+    p_lat: options.latitude,
+    p_lng: options.longitude,
+    p_radius_meters: radiusMeters,
+    p_limit: rpcLimit,
+    p_candidate_limit: candidateLimit,
+    p_import_states: importStates,
+  });
 
   if (error) {
-    throw new Error("Could not load app_v2 nearby shelter candidates.");
+    throw new Error("Could not load app_v2 nearby shelters through database RPC.");
   }
 
-  const visibleShelterRows = (data ?? []) as ShelterRow[];
-  const exclusions = await getActiveExclusionsForShelters(visibleShelterRows);
-  const nonExcludedRows = visibleShelterRows.filter((row) => !isExcludedShelter(row, exclusions));
-  const shelterCandidatesWithCoordinates = nonExcludedRows
-    .map((row) => {
-      const latitude = toFiniteNumber(row.latitude);
-      const longitude = toFiniteNumber(row.longitude);
+  const payload = Array.isArray(data) ? (data[0] as AppV2NearbyRpcPayload | undefined) : undefined;
 
-      if (latitude === null || longitude === null) {
-        return null;
-      }
-
-      return {
-        row,
-        latitude,
-        longitude,
-        distanceMeters: getDistanceMeters({
-          fromLatitude: options.latitude,
-          fromLongitude: options.longitude,
-          toLatitude: latitude,
-          toLongitude: longitude,
-        }),
-      };
-    })
-    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate));
-  const shelterCandidatesWithinRadius = shelterCandidatesWithCoordinates
-    .filter((candidate) => candidate.distanceMeters <= radiusMeters)
-    .sort((a, b) => a.distanceMeters - b.distanceMeters || a.row.slug.localeCompare(b.row.slug));
-  const shelterCandidates = shelterCandidatesWithinRadius.slice(0, limit);
-
-  const baseDiagnostics = {
-    radiusMeters,
-    limit,
-    candidateLimit,
-    importStates,
-    candidateRowsRead: visibleShelterRows.length,
-    excludedByAppV2Exclusions: visibleShelterRows.length - nonExcludedRows.length,
-    candidatesWithCoordinates: shelterCandidatesWithCoordinates.length,
-    candidatesWithinRadius: shelterCandidatesWithinRadius.length,
-    returnedRows: shelterCandidates.length,
-  };
-
-  if (shelterCandidates.length === 0) {
-    return {
-      rows: [],
-      diagnostics: baseDiagnostics,
-    };
+  if (!payload) {
+    throw new Error("app_v2 nearby database RPC did not return a payload.");
   }
 
-  const municipalityIds = Array.from(new Set(shelterCandidates.map((candidate) => candidate.row.municipality_id)));
-  const { data: municipalityData, error: municipalityError } = await supabase
-    .from("municipalities")
-    .select("id, code, slug, name, description, region_name")
-    .in("id", municipalityIds);
-
-  if (municipalityError) {
-    throw new Error("Could not load app_v2 municipalities for nearby shelters.");
-  }
-
-  const municipalitiesById = new Map(
-    ((municipalityData ?? []) as MunicipalityRow[]).map((row) => [row.id, normalizeMunicipality(row, 0)]),
-  );
-
-  const rows = shelterCandidates.map(({ row, latitude, longitude, distanceMeters }) => {
-    const municipality = municipalitiesById.get(row.municipality_id);
-
-    if (!municipality) {
-      throw new Error(`Could not resolve app_v2 municipality for nearby shelter "${row.slug}".`);
-    }
-
-    return {
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      addressLine1: row.address_line1,
-      postalCode: row.postal_code,
-      city: row.city,
-      latitude,
-      longitude,
-      capacity: row.capacity,
-      status: row.status,
-      importState: row.import_state,
-      distanceMeters,
-      municipality,
-    };
-  });
+  const sourceRows = parseJsonArray(payload.results, "results").map(normalizeNearbyRpcRow);
+  const eligibility = applyNearbyEligibility(sourceRows, eligibilityMode);
+  const rows = eligibility.rows.slice(0, limit);
+  const baseDiagnostics = normalizeNearbyDiagnostics(payload.diagnostics);
+  const eligibilitySummary = getAppV2NearbyEligibilitySummary(eligibilityMode);
 
   return {
     rows,
     diagnostics: {
       ...baseDiagnostics,
+      limit,
       returnedRows: rows.length,
+      eligibilityMode,
+      minimumCapacity: eligibility.minimumCapacity ?? undefined,
+      legacyAnvendelseSemantics: eligibilitySummary.legacyAnvendelseSemantics,
+      filteredByEligibility: eligibility.filteredByEligibility,
+      eligibleRows: eligibility.rows.length,
+      sourceReturnedRows: sourceRows.length,
     },
   };
 }
 
 export async function getAppV2NearbyShelters(options: AppV2NearbySheltersOptions): Promise<AppV2NearbyShelter[]> {
   const result = await getAppV2NearbySheltersWithDiagnostics(options);
+
+  return result.rows;
+}
+
+export async function getAppV2GroupedNearbySheltersWithDiagnostics(
+  options: AppV2NearbySheltersOptions,
+): Promise<AppV2GroupedNearbySheltersResult> {
+  const groupLimit = options.limit ?? defaultNearbyLimit;
+  const rowFetchLimit = options.candidateLimit ?? defaultNearbyCandidateLimit;
+
+  if (!Number.isInteger(groupLimit) || groupLimit <= 0) {
+    throw new Error("Grouped nearby app_v2 query requires a positive integer limit.");
+  }
+
+  if (!Number.isInteger(rowFetchLimit) || rowFetchLimit <= 0) {
+    throw new Error("Grouped nearby app_v2 query requires a positive integer candidateLimit.");
+  }
+
+  if (rowFetchLimit < groupLimit) {
+    throw new Error("Grouped nearby app_v2 query requires candidateLimit to be greater than or equal to limit.");
+  }
+
+  const rowResult = await getAppV2NearbySheltersWithDiagnostics({
+    ...options,
+    limit: rowFetchLimit,
+    candidateLimit: rowFetchLimit,
+  });
+  const groupedRows = groupNearbyRows(rowResult.rows, groupLimit);
+
+  return {
+    rows: groupedRows,
+    diagnostics: {
+      ...rowResult.diagnostics,
+      limit: groupLimit,
+      returnedRows: groupedRows.length,
+      groupedAppV2Shape: true,
+      groupedLegacyShape: false,
+      groupingKey: "address_line1 + postal_code + city",
+      sourceReturnedRows: rowResult.diagnostics.sourceReturnedRows ?? rowResult.rows.length,
+      eligibleRows: rowResult.rows.length,
+      groupedRows: groupedRows.length,
+    },
+  };
+}
+
+export async function getAppV2GroupedNearbyShelters(
+  options: AppV2NearbySheltersOptions,
+): Promise<AppV2GroupedNearbyShelter[]> {
+  const result = await getAppV2GroupedNearbySheltersWithDiagnostics(options);
 
   return result.rows;
 }

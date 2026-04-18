@@ -206,7 +206,9 @@ Verdict: not recommended without changing the override schema. A dedicated exclu
 
 Use a dedicated `app_v2.shelter_exclusions` model as the durable source of truth for manual/owner-request exclusions.
 
-Then make future public reads apply effective visibility as:
+The first database-side nearby foundation, `app_v2.get_nearby_shelters(...)`, now applies the currently safe subset of this model for app_v2 reads.
+
+Future public reads should continue to apply effective visibility as:
 
 1. start from app_v2 shelter candidates;
 2. require `import_state = 'active'`;
@@ -243,7 +245,7 @@ That data migration should be explicit and reviewable because owner-request excl
 
 The first matching pass should be conservative.
 
-`getAppV2NearbyShelters()` now implements these conservative matching paths for active `app_v2.shelter_exclusions` rows:
+`app_v2.get_nearby_shelters(...)` now implements these conservative matching paths for active `app_v2.shelter_exclusions` rows:
 
 1. exact app_v2 shelter id;
 2. exact canonical source identity.

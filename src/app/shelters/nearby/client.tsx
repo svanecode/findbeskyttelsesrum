@@ -120,6 +120,80 @@ interface ShelterWithDistance extends Shelter {
   distance: number
 }
 
+type NearbyShadowComparison = {
+  comparison: {
+    sharedAddressCount: number
+    legacyOnlyAddressCount: number
+    appV2OnlyAddressCount: number
+    sharedAddressKeys: string[]
+    legacyOnlyAddressKeys: string[]
+    appV2OnlyAddressKeys: string[]
+    rankOverlap: {
+      shared: Array<{
+        key: string
+        legacyRank: number
+        appV2Rank: number
+        delta: number
+      }>
+      exactRankMatches: number
+      averageAbsRankDelta: number
+      maxAbsRankDelta: number
+    }
+    knownSemanticGaps: {
+      legacyAnvendelseSkalMed: string
+      note: string
+    }
+  }
+  meta: {
+    userVisibleSource: string
+    appV2: {
+      resultCount: number
+      eligibility: {
+        mode: string
+        minimumCapacity: number | null
+      }
+    }
+  }
+  legacyResults: Array<{
+    rank: number
+    addressKey: string
+    address: string | null
+    postalCode: string | null
+    municipalityCode: string | null
+    distanceMeters: number | null
+    shelterCount: number | null
+    totalCapacity: number | null
+    anvendelse: string | null
+  }>
+  appV2Results: Array<{
+    rank: number
+    addressKey: string
+    address: {
+      line1: string
+      postalCode: string
+      city: string
+    }
+    distanceMeters: number
+    shelterCount: number
+    totalCapacity: number
+    municipality: {
+      name: string
+      code: string | null
+    }
+  }>
+}
+
+function formatShadowDistance(distanceMeters: number | null | undefined) {
+  return typeof distanceMeters === 'number' ? `${(distanceMeters / 1000).toFixed(1)} km` : 'ukendt afstand'
+}
+
+function formatRankDelta(delta: number) {
+  if (delta === 0) {
+    return 'samme placering'
+  }
+
+  return delta > 0 ? `app_v2 +${delta}` : `app_v2 ${delta}`
+}
 
 async function getNearbyShelters(lat: number, lng: number) {
   // Try v3 first (optimized with ST_DWithin and exclusions), fallback to v2
@@ -210,15 +284,38 @@ async function getNearbyShelters(lat: number, lng: number) {
   }
 }
 
+async function getAppV2NearbyShadowComparison(lat: number, lng: number): Promise<NearbyShadowComparison | null> {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lng: String(lng),
+    radius: '50000',
+    limit: '10',
+    candidateLimit: '500',
+    shadow: '1'
+  })
+  const response = await fetch(`/api/app-v2/nearby/shadow?${params.toString()}`, {
+    cache: 'no-store'
+  })
+
+  if (!response.ok) {
+    throw new Error(`app_v2 nearby experiment failed with status ${response.status}`)
+  }
+
+  return response.json()
+}
+
 interface Props {
   lat: string
   lng: string
+  appV2NearbyExperiment?: boolean
 }
 
-export default function ShelterMapClient({ lat: latString, lng: lngString }: Props) {
+export default function ShelterMapClient({ lat: latString, lng: lngString, appV2NearbyExperiment = false }: Props) {
   const [shelters, setShelters] = useState<(Shelter & { distance: number })[]>([])
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
+  const [appV2ShadowComparison, setAppV2ShadowComparison] = useState<NearbyShadowComparison | null>(null)
+  const [appV2ShadowError, setAppV2ShadowError] = useState<string | null>(null)
   const [selectedShelter, setSelectedShelter] = useState<string | null>(null)
   const [hoveredShelter, setHoveredShelter] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -252,12 +349,24 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           getAnvendelseskoder(),
           getKommunekoder()
         ])
+        let shadowComparison: NearbyShadowComparison | null = null
+        let shadowError: string | null = null
+
+        if (appV2NearbyExperiment) {
+          try {
+            shadowComparison = await getAppV2NearbyShadowComparison(lat, lng)
+          } catch (error) {
+            shadowError = error instanceof Error ? error.message : 'app_v2 nearby experiment kunne ikke indlæses.'
+          }
+        }
 
         if (process.env.NODE_ENV === 'development') {
           console.log('Data loaded:', {
             sheltersCount: sheltersData.length,
             anvendelseskoderCount: anvendelseskoderData.length,
-            kommunekoderCount: kommunekoderData.length
+            kommunekoderCount: kommunekoderData.length,
+            appV2NearbyExperiment,
+            appV2ShadowResultCount: shadowComparison?.meta.appV2.resultCount ?? 0
           })
         }
 
@@ -265,6 +374,8 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           setShelters(sheltersData)
           setAnvendelseskoder(anvendelseskoderData)
           setKommunekoder(kommunekoderData)
+          setAppV2ShadowComparison(shadowComparison)
+          setAppV2ShadowError(shadowError)
         }
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
@@ -274,6 +385,8 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           setShelters([])
           setAnvendelseskoder([])
           setKommunekoder([])
+          setAppV2ShadowComparison(null)
+          setAppV2ShadowError(null)
         }
       } finally {
         if (isMounted) {
@@ -287,7 +400,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
     return () => {
       isMounted = false
     }
-  }, [lat, lng])
+  }, [lat, lng, appV2NearbyExperiment])
 
   if (isNaN(lat) || isNaN(lng)) {
     return (
@@ -305,6 +418,18 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
     )
   }
 
+  const legacyOnlyResults = appV2ShadowComparison
+    ? appV2ShadowComparison.legacyResults.filter((result) =>
+        appV2ShadowComparison.comparison.legacyOnlyAddressKeys.includes(result.addressKey),
+      )
+    : []
+  const appV2OnlyResults = appV2ShadowComparison
+    ? appV2ShadowComparison.appV2Results.filter((result) =>
+        appV2ShadowComparison.comparison.appV2OnlyAddressKeys.includes(result.addressKey),
+      )
+    : []
+  const sharedRankDifferences = appV2ShadowComparison?.comparison.rankOverlap.shared ?? []
+
   return (
     <main className="min-h-screen bg-[#1a1a1a] text-white">
       <div className="max-w-7xl mx-auto p-4">
@@ -320,6 +445,150 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           </Link>
           <h1 className="text-xl sm:text-2xl font-bold">Dine 10 nærmeste beskyttelsesrum</h1>
         </div>
+
+        {appV2NearbyExperiment && (
+          <section className="mb-6 rounded-lg border border-orange-500/30 bg-[#1f1f1f] p-4 sm:p-5">
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-400">
+                  Intern review mode
+                </p>
+                <h2 className="text-lg font-semibold text-white">
+                  Grouped app_v2 nearby review
+                </h2>
+              </div>
+              <div className="text-sm text-gray-400">
+                Legacy er stadig standardvisningen
+              </div>
+            </div>
+            <p className="mb-4 text-sm text-gray-300">
+              Denne blok vises kun med <span className="font-mono text-orange-300">appV2NearbyExperiment=grouped</span>.
+              Kortet og de normale resultatkort bruger stadig legacy-flowet. app_v2-previewet er grouped,
+              bruger <span className="font-mono text-orange-300">capacity &gt;= 40</span>, og mangler stadig den fulde
+              <span className="font-mono text-orange-300"> skal_med</span>-semantik.
+            </p>
+            {appV2ShadowError ? (
+              <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-200">
+                {appV2ShadowError}
+              </div>
+            ) : appV2ShadowComparison ? (
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Overlap</div>
+                    <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.sharedAddressCount}/10</div>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Kun legacy</div>
+                    <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.legacyOnlyAddressCount}</div>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Kun app_v2</div>
+                    <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.appV2OnlyAddressCount}</div>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Max rank-delta</div>
+                    <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.rankOverlap.maxAbsRankDelta}</div>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Exact rank</div>
+                    <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.rankOverlap.exactRankMatches}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <h3 className="mb-2 text-sm font-semibold text-white">Kun legacy</h3>
+                    <div className="space-y-2">
+                      {legacyOnlyResults.length === 0 ? (
+                        <p className="text-sm text-gray-400">Ingen legacy-only resultater.</p>
+                      ) : (
+                        legacyOnlyResults.map((result) => (
+                          <div key={`${result.rank}-${result.addressKey}`} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
+                            <div className="text-sm font-medium text-white">
+                              {result.rank}. {result.address ?? result.addressKey}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {formatShadowDistance(result.distanceMeters)} · {result.totalCapacity ?? 'ukendt'} pers. · anvendelse {result.anvendelse ?? 'ukendt'}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <h3 className="mb-2 text-sm font-semibold text-white">Kun app_v2</h3>
+                    <div className="space-y-2">
+                      {appV2OnlyResults.length === 0 ? (
+                        <p className="text-sm text-gray-400">Ingen app_v2-only resultater.</p>
+                      ) : (
+                        appV2OnlyResults.map((result) => (
+                          <div key={`${result.rank}-${result.addressKey}`} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
+                            <div className="text-sm font-medium text-white">
+                              {result.rank}. {result.address.line1}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {formatShadowDistance(result.distanceMeters)} · {result.totalCapacity} pers. · {result.shelterCount} gruppe-rækker
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <h3 className="mb-2 text-sm font-semibold text-white">Delte resultater med rank-delta</h3>
+                    <div className="space-y-2">
+                      {sharedRankDifferences.slice(0, 6).map((entry) => (
+                        <div key={entry.key} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
+                          <div className="text-sm font-medium text-white">{entry.key}</div>
+                          <div className="text-xs text-gray-400">
+                            legacy #{entry.legacyRank} · app_v2 #{entry.appV2Rank} · {formatRankDelta(entry.delta)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-[#252525] p-3">
+                  <h3 className="mb-2 text-sm font-semibold text-white">Grouped app_v2 top 5</h3>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    {appV2ShadowComparison.appV2Results.slice(0, 5).map((result) => (
+                      <div key={`${result.rank}-${result.addressKey}`} className="rounded-lg border border-white/5 bg-[#1f1f1f] p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-medium text-white">
+                              {result.rank}. {result.address.line1}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {result.address.postalCode} {result.address.city} · {result.municipality.name}
+                            </div>
+                          </div>
+                          <div className="text-right text-xs text-gray-300">
+                            <div>{formatShadowDistance(result.distanceMeters)}</div>
+                            <div>{result.totalCapacity} pers.</div>
+                            <div>{result.shelterCount} gruppe-rækker</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-orange-500/10 p-3 text-sm text-orange-100">
+                  Kortet viser stadig legacy-markører. Brug app_v2-only og legacy-only listerne til at vurdere, om forskelle ligner
+                  <span className="font-mono"> skal_med</span>, coverage, grouping eller ranking.
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-[#252525] p-3 text-sm text-gray-300">
+                Indlæser app_v2 preview...
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Back to top button */}
         <button

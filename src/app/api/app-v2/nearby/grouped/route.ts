@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 
 import {
   getAppV2NearbyEligibilitySummary,
-  getAppV2NearbySheltersWithDiagnostics,
-  type AppV2NearbyShelter,
+  getAppV2GroupedNearbySheltersWithDiagnostics,
+  type AppV2GroupedNearbyShelter,
 } from "@/lib/supabase/app-v2-queries";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ const defaultCandidateLimit = 500;
 const maxRadiusMeters = 100_000;
 const maxLimit = 50;
 const maxCandidateLimit = 2_000;
-const apiContract = "app_v2_nearby_native_v1";
+const apiContract = "app_v2_nearby_grouped_v1";
 const apiSource = "app_v2";
 const activeImportStates = ["active"] as const;
 const parameterDefaults = {
@@ -40,12 +40,19 @@ const parameterBounds = {
 };
 const capabilities = {
   nativeAppV2Shape: true,
+  groupedAppV2Shape: true,
   groupedLegacyShape: false,
   legacyCapacityThreshold: true,
   legacyAnvendelseSemantics: false,
   fullLegacyExclusionsParity: false,
   databaseSideDistanceOrdering: true,
   postgisSpatialIndex: false,
+};
+const grouping = {
+  key: "address_line1 + postal_code + city",
+  shelterCount: "number of app_v2 shelter rows in the deterministic address group",
+  totalCapacity: "sum of app_v2 capacity values in the group",
+  representative: "nearest row in the group by app_v2 distance ordering",
 };
 const exclusionMode = {
   importStates: activeImportStates,
@@ -55,8 +62,8 @@ const exclusionMode = {
 };
 const eligibility = getAppV2NearbyEligibilitySummary();
 const limitations = [
-  "Returns one app_v2 shelter row per result, not legacy grouped address results.",
-  "Applies the legacy nearby capacity threshold of capacity >= 40.",
+  "Groups app_v2 shelter rows by exact address_line1, postal_code, and city after deterministic normalization.",
+  "Applies the legacy nearby capacity threshold of capacity >= 40 before grouping.",
   "Does not include legacy anvendelse/type semantics.",
   "Does not mirror legacy public.excluded_shelters bygning_id or split-address matching.",
   "Uses database-side bounding-box filtering and Haversine distance ordering, not a PostGIS spatial index.",
@@ -153,11 +160,9 @@ function validateNearbyRequest(searchParams: URLSearchParams): ValidationResult 
   };
 }
 
-function toApiResult(row: AppV2NearbyShelter) {
+function toApiGroup(row: AppV2GroupedNearbyShelter) {
   return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
+    groupKey: row.groupKey,
     address: {
       line1: row.addressLine1,
       postalCode: row.postalCode,
@@ -168,15 +173,26 @@ function toApiResult(row: AppV2NearbyShelter) {
       longitude: row.longitude,
     },
     distanceMeters: row.distanceMeters,
-    capacity: row.capacity,
-    status: row.status,
-    importState: row.importState,
+    shelterCount: row.shelterCount,
+    totalCapacity: row.totalCapacity,
+    statuses: row.statuses,
+    importStates: row.importStates,
     municipality: {
       id: row.municipality.id,
       slug: row.municipality.slug,
       name: row.municipality.name,
       code: row.municipality.code,
     },
+    representativeShelter: {
+      id: row.representativeShelter.id,
+      slug: row.representativeShelter.slug,
+      name: row.representativeShelter.name,
+      capacity: row.representativeShelter.capacity,
+      status: row.representativeShelter.status,
+      importState: row.representativeShelter.importState,
+    },
+    shelterIds: row.shelters.map((shelter) => shelter.id),
+    shelterSlugs: row.shelters.map((shelter) => shelter.slug),
   };
 }
 
@@ -219,15 +235,15 @@ export async function GET(request: NextRequest) {
   if (!validation.ok) {
     return errorResponse({
       status: 400,
-      code: "invalid_nearby_query",
-      message: "Invalid app_v2 nearby query parameters.",
+      code: "invalid_grouped_nearby_query",
+      message: "Invalid grouped app_v2 nearby query parameters.",
       requestId,
       details: validation.errors,
     });
   }
 
   try {
-    const result = await getAppV2NearbySheltersWithDiagnostics({
+    const result = await getAppV2GroupedNearbySheltersWithDiagnostics({
       latitude: validation.value.latitude,
       longitude: validation.value.longitude,
       radiusMeters: validation.value.radiusMeters,
@@ -237,7 +253,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
-      results: result.rows.map(toApiResult),
+      results: result.rows.map(toApiGroup),
       meta: {
         requestId,
         contract: apiContract,
@@ -247,6 +263,7 @@ export async function GET(request: NextRequest) {
         defaults: parameterDefaults,
         bounds: parameterBounds,
         capabilities,
+        grouping,
         eligibility,
         exclusionMode,
         diagnostics: result.diagnostics,
@@ -258,18 +275,18 @@ export async function GET(request: NextRequest) {
       return errorResponse({
         status: 503,
         code: "app_v2_unavailable",
-        message: "The app_v2 nearby API is not available in this environment.",
+        message: "The grouped app_v2 nearby API is not available in this environment.",
         requestId,
         details: ["Required server-side Supabase app_v2 environment variables are missing."],
       });
     }
 
-    console.error("Failed to read app_v2 nearby shelters:", error);
+    console.error("Failed to read grouped app_v2 nearby shelters:", error);
 
     return errorResponse({
       status: 502,
-      code: "app_v2_nearby_read_failed",
-      message: "Could not read app_v2 nearby shelters.",
+      code: "app_v2_grouped_nearby_read_failed",
+      message: "Could not read grouped app_v2 nearby shelters.",
       requestId,
     });
   }

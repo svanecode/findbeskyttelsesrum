@@ -13,6 +13,8 @@ Small, low-risk reads have already moved to `app_v2`:
 
 The nearby flow is a different class of cutover. It is the primary result flow and depends on a legacy RPC result shape, distance calculation, address grouping, application-code filtering, municipality name lookup, map marker coordinates, and existing sparse-data UX. app_v2 currently has the base shelter table and simple read helpers, but it does not yet expose a nearby read model that matches the active UI contract.
 
+The first app_v2 database-side nearby foundation now exists as `app_v2.get_nearby_shelters(...)`. It improves the app_v2 read path by moving bounding-box filtering, Haversine distance ordering, and the currently supported app_v2 exclusion checks into the database. It is still not a legacy-compatible nearby model.
+
 ## 2. Current legacy nearby flow
 
 The active route chain is:
@@ -147,22 +149,25 @@ These are useful primitives, but they are not a nearby read model.
 What app_v2 can already express:
 
 - active shelter filtering via `import_state = 'active'`
+- first explicit nearby eligibility filtering through `legacy_capacity_v1`, currently `capacity >= 40`
 - first suppression/exclusion filtering by keeping nearby reads scoped to `import_state = 'active'` by default
 - active app_v2 shelter exclusion filtering by exact `shelter_id`, canonical source identity, or exact app_v2 address/postal identity
 - point-like location data through `latitude` and `longitude`
 - first server-only nearby candidate reads through `getAppV2NearbyShelters()`
 - read diagnostics through `getAppV2NearbySheltersWithDiagnostics()`
 - a first server-side native app_v2 API at `/api/app-v2/nearby`
+- a first grouped app_v2 nearby helper through `getAppV2GroupedNearbySheltersWithDiagnostics()`
+- a first grouped app_v2 API at `/api/app-v2/nearby/grouped`
+- a first database-side app_v2 nearby RPC through `app_v2.get_nearby_shelters(...)`
 - basic capacity display through `capacity`
 - basic address display through `address_line1`, `postal_code`, and `city`
 - municipality relation through `municipality_id`
 
 What app_v2 does not currently expose:
 
-- a nearby RPC
 - a shape-compatible nearby helper for the active `/shelters/nearby` UI
-- production-grade distance calculation in SQL
-- grouping equivalent to the legacy RPC
+- PostGIS-backed nearest-neighbor/radius ordering
+- full grouping equivalent to the legacy RPC
 - legacy-compatible `location: { type, coordinates }`
 - `vejnavn` / `husnummer` split fields
 - `kommunekode` on the shelter row
@@ -177,22 +182,21 @@ What app_v2 does not currently expose:
 
 Legacy nearby uses PostGIS `ST_DWithin` and `ST_Distance` inside `get_nearby_shelters_v3`.
 
-app_v2 currently stores latitude/longitude as numeric columns. `getAppV2NearbyShelters()` now provides a first server-only contract that:
+app_v2 currently stores latitude/longitude as numeric columns. `app_v2.get_nearby_shelters(...)` now provides a first database-side read foundation that:
 
 - accepts user coordinates
 - validates coordinate/radius/limit inputs
 - filters active shelters with non-null coordinates
 - excludes `missing_from_source` and `suppressed` rows by default through its `importStates` contract
 - excludes rows matched by active `app_v2.shelter_exclusions` records through `shelter_id`, exact canonical source identity, or exact app_v2 address/postal identity
-- applies a bounding-box prefilter
-- computes Haversine distance in application code
+- applies a database-side bounding-box prefilter
+- computes Haversine distance in SQL
 - returns app_v2-native results ordered by `distanceMeters`
 - can return diagnostics for candidate rows read, exclusion effect, coordinate-bearing candidates, radius matches, and returned rows
 
 It is not yet equivalent to the legacy RPC because it does not:
 
-- use PostGIS or a spatial index
-- perform database-side ordering by distance
+- use PostGIS or a spatial nearest-neighbor index
 - provide address grouping
 - fully mirror legacy owner-request exclusions from `public.excluded_shelters`, especially `bygning_id` and split-address matches not yet represented on app_v2 shelters
 - match the current client result shape
@@ -233,9 +237,16 @@ Legacy nearby groups multiple shelter rows at the same address/location and retu
 - summed `total_capacity`
 - a representative `anvendelse`
 
-app_v2 currently has no equivalent grouping helper. Returning one row per app_v2 shelter would change visible result counts, labels, capacity, markers, and probably marker density.
+app_v2 now has a first grouped read shape. It groups app_v2 rows by deterministic normalized `address_line1 + postal_code + city`, chooses the nearest row as representative, returns `shelterCount`, and sums `totalCapacity`.
 
-`getAppV2NearbyShelters()` intentionally returns one app_v2 shelter row per result. It is a contract foundation, not a drop-in replacement for `get_nearby_shelters_v3`.
+This is closer to the product's real shape needs, but it is still not a drop-in replacement for `get_nearby_shelters_v3` because:
+
+- the grouping key does not include exact legacy geometry
+- app_v2 still does not carry legacy `anvendelse` semantics
+- app_v2 grouped output still does not apply the legacy `anvendelseskoder.skal_med` inclusion rule
+- top-10 membership still differs in sampled real-environment runs
+
+`getAppV2NearbyShelters()` remains the row-level contract foundation. `getAppV2GroupedNearbySheltersWithDiagnostics()` is the first grouped app_v2 shape for evaluation and future cutover planning.
 
 ### Application-code/type semantics
 
@@ -245,6 +256,15 @@ Legacy filtering and display depend on `anvendelseskoder`:
 - UI maps `anvendelse` to a Danish description
 
 app_v2 has `status`, `summary`, `accessibility_notes`, and source fields, but it does not currently carry the same `anvendelse` code or a replacement public type taxonomy. A cutover must decide whether the app_v2 result cards still show "Type", and if so which field owns that display.
+
+The app_v2 nearby read layer now has an explicit first eligibility mode:
+
+- `legacy_capacity_v1`
+- filters app_v2 rows with `capacity < 40`
+- applies before grouping
+- reports `minimumCapacity=40`, `filteredByEligibility`, `eligibleRows`, and `legacyAnvendelseSemantics=unresolved` in diagnostics
+
+This intentionally solves only the capacity part of legacy eligibility. It does not model `anvendelseskoder.skal_med`.
 
 ### Exclusions and suppression
 
@@ -264,7 +284,7 @@ Current app_v2 read helpers use `createAppV2AdminClient()` and `SUPABASE_SECRET_
 - a Next route handler that calls server-side app_v2 helpers, or
 - a server-rendered data path with client map rendering
 
-The first Next route handler boundary now exists at `/api/app-v2/nearby`.
+The first Next route handler boundaries now exist at `/api/app-v2/nearby` and `/api/app-v2/nearby/grouped`.
 
 Current request contract:
 
@@ -284,20 +304,34 @@ Current response contract:
   - normalized query values
   - effective defaults and max bounds
   - result count
-  - capabilities that explicitly mark legacy grouping, legacy `anvendelse` semantics, full legacy exclusions parity, and database-side spatial ordering as unsupported
+  - capabilities that explicitly mark database-side distance ordering as supported, while legacy grouping, legacy `anvendelse` semantics, full legacy exclusions parity, and PostGIS spatial indexing remain unsupported
+  - eligibility meta describing `legacy_capacity_v1`
   - exclusion mode summary: `import_state = active`, active app_v2 exclusion filtering, and no reads from `public.excluded_shelters`
   - app_v2 diagnostics
   - explicit limitations
 
-The API deliberately reads only `import_state = 'active'`. It does not expose suppressed rows and does not try to emulate the legacy grouped RPC shape.
+The API deliberately reads only `import_state = 'active'`. It does not expose suppressed rows and does not try to emulate the legacy grouped RPC shape. The read layer applies `capacity >= 40` through `legacy_capacity_v1` by default.
+
+The grouped API deliberately exposes a grouped app_v2 shape, not a full legacy grouped shape. It returns groups with deterministic group keys, representative shelter, shelter ids/slugs, `shelterCount`, and `totalCapacity`. Its metadata marks `groupedAppV2Shape = true` and `groupedLegacyShape = false`.
+
+The server-side helper behind the API now calls `app_v2.get_nearby_shelters(...)`. That means distance ordering and the currently supported app_v2 exclusion checks happen inside the database, while the API still exposes only the same app_v2-native row shape.
+
+Focused ranking diagnostics now compare shared normalized address keys by rank. In the sampled grouped + eligibility runs, shared-address ordering differences are small: Copenhagen has max rank delta `1`, and Aarhus/Lemvig have max rank delta `2`. Increasing `candidateLimit` from `500` to `2000` did not change the sampled top-10 results. That reduces concern that the current top-10 mismatch is primarily caused by candidateLimit behavior or broken distance ordering.
+
+The first shadow compare route now exists at `/api/app-v2/nearby/shadow`. It is opt-in only and requires `shadow=1`. It reads the legacy nearby RPC and grouped app_v2 nearby in the same route handler and returns comparison JSON. It does not feed the visible `/shelters/nearby` UI and does not write telemetry or database state.
+
+A gated internal review mode is also available on `/shelters/nearby` with `appV2NearbyExperiment=grouped`. Without that explicit query flag, the page remains legacy-only and does not fetch the shadow route. With the flag, a grouped app_v2 review panel is shown above the normal legacy list; the map and the normal result cards still use legacy data. The panel shows overlap, legacy-only cases, app_v2-only cases, shared rank deltas, grouped top results, and a note that the map remains legacy.
+
+Semantic mismatch analysis now indicates that the sampled app_v2-only top-10 cases are dominated by unresolved legacy application-code inclusion semantics. The read-only `read:nearby-semantic-cases` script found that all `15/15` app_v2-only grouped cases across Copenhagen, Aarhus, Lemvig, Aalborg, Odense, and Esbjerg had exact normalized legacy address matches and were likely filtered by legacy `anvendelseskoder.skal_med` / eligibility semantics. The detailed analysis lives in `docs/app-v2-nearby-semantic-gap-analysis.md`.
 
 Read-only API probe:
 
 ```bash
 npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --lat 55.6761 --lng 12.5683
+npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --lat 55.6761 --lng 12.5683 --shape grouped
 ```
 
-This script calls only `/api/app-v2/nearby`. It does not read Supabase directly and does not write data. It is intended for local or preview evaluation once the app is running with the required server-side app_v2 environment.
+This script calls `/api/app-v2/nearby` by default and `/api/app-v2/nearby/grouped` when `--shape grouped` is passed. It does not read Supabase directly and does not write data. It is intended for local or preview evaluation once the app is running with the required server-side app_v2 environment.
 
 ### Data parity and coverage
 
@@ -326,28 +360,25 @@ The first app_v2 nearby read contract now exists as `getAppV2NearbyShelters()` i
 
 Recommended next PR:
 
-1. Run the read-only nearby parity script and the `/api/app-v2/nearby` route against real Supabase data for fixed coordinates.
-   - Copenhagen sample
-   - Aarhus sample
-   - one sparse/rural sample
-   - invalid-input API probe, for example missing `lat` or an out-of-range `radius`, to confirm `invalid_nearby_query`
-   - valid-input API probe in an environment without server-side app_v2 env to confirm `app_v2_unavailable`
-2. Compare `import_state = active` output with the diagnostic `--include-suppressed` mode.
-   - Confirm whether app_v2 suppression is populated in the target environment.
-   - Review app_v2 diagnostics for candidate count, exclusion effect, and within-radius count.
-   - Separately compare known `public.excluded_shelters` rows, because legacy `bygning_id` and split-address matching are not mirrored yet.
-3. Review the API response meta during evaluation.
-   - Confirm the effective query values, result count, diagnostics, and limitations are clear enough for cutover planning.
-   - Treat `capabilities.groupedLegacyShape = false` and `capabilities.databaseSideSpatialOrdering = false` as active blockers, not just documentation notes.
-4. Decide whether the next implementation should harden the server-side API shape further or move distance/grouping into a database-side app_v2 nearby RPC proposal.
-   - Prefer a database-side function if using radius/distance ordering at production scale.
-   - Include input lat/lng/radius and output distance in meters.
-5. Include grouping rules explicitly.
-   - Decide whether grouping is by exact `address_line1 + postal_code + city + coordinates`, by source identity, or no grouping.
-   - If no grouping, document the expected UX change before runtime cutover.
-6. Decide how legacy exclusions should enter app_v2.
-   - Either migrate current `public.excluded_shelters` into an app_v2 suppression/override model.
-   - Or create an app_v2 read-side exclusion table/function that can preserve the address and `bygning_id` matching behavior.
+1. Model a narrow, source-backed app_v2 nearby eligibility signal for application-code inclusion.
+   - The sampled app_v2-only cases now point at `anvendelseskoder.skal_med` as the dominant remaining semantic blocker.
+   - Do not fake this through address heuristics, status, summary text, or source copy.
+   - Prefer carrying the relevant source building/application code into app_v2 and applying a reviewed eligibility table or equivalent explicit rule.
+2. Keep the gated internal mode for grouped app_v2 nearby available, with no default cutover.
+   - Copenhagen currently has `9/10` grouped normalized address overlap.
+   - Aarhus currently has `7/10`.
+   - Lemvig currently has `8/10`.
+   - Include-suppressed mode did not change those three top-level grouped overlaps.
+   - Shared-address rank deltas are small, and larger `candidateLimit` did not change sampled top-10 output.
+   - The debug API route is `/api/app-v2/nearby/shadow?shadow=1&lat=...&lng=...`.
+   - The internal review URL is `/shelters/nearby?lat=...&lng=...&appV2NearbyExperiment=grouped`.
+   - The goal is to inspect app_v2-only, legacy-only, and rank-delta cases in nearby context while keeping the normal legacy UI response unchanged.
+3. Keep `anvendelseskoder.skal_med` explicit and unresolved until the source-backed eligibility model exists.
+   - `capacity >= 40` is now represented by `legacy_capacity_v1`.
+   - legacy `anvendelseskoder.skal_med` still should not be faked through status, summary, or source text.
+4. Keep exclusions separate.
+   - The one known legacy exclusion is represented in app_v2 now.
+   - Broad legacy exclusion migration is still not part of the nearby read-shape work.
 
 The first runtime cutover should not happen until the isolated app_v2 nearby read returns a stable result shape and a clear parity story against legacy.
 

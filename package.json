@@ -18,6 +18,7 @@
     "parity:exclusions": "tsx scripts/parity/exclusions.ts",
     "read:shelter-detail": "tsx scripts/read/app-v2-shelter-detail.ts",
     "read:app-v2-nearby-api": "tsx scripts/read/app-v2-nearby-api.ts",
+    "read:nearby-semantic-cases": "tsx scripts/read/nearby-semantic-cases.ts",
     "importer:fixture": "tsx scripts/importer/run.ts fixture",
     "importer:datafordeler": "tsx scripts/importer/run.ts datafordeler"
   },
