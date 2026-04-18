@@ -178,18 +178,54 @@ What should not happen:
 - broad migration of legacy semantics without reviewing what the app_v2 source model can actually carry
 - presenting grouped app_v2 as ready for broader visible rollout while it knowingly includes legacy-ineligible categories like application code `140`
 
+## 7.1 Source-Backed Model Status
+
+The first narrow app_v2 model now exists, but current target data is not populated enough to activate it as the default nearby behavior.
+
+Implemented pieces:
+
+- `app_v2.shelters.source_application_code`
+  - intended to store Datafordeler BBR `byg021BygningensAnvendelse`
+- `app_v2.application_code_eligibility`
+  - source-name + application-code eligibility table
+  - seeded from the reviewed legacy `public.anvendelseskoder.skal_med` rule by code
+- importer contract support
+  - `ImportedShelterBaseline.sourceApplicationCode`
+  - Datafordeler adapter maps `building.byg021BygningensAnvendelse`
+- read-layer support
+  - explicit `source_application_code_v1` nearby eligibility mode
+  - requires `capacity >= 40`
+  - requires `source_application_code` to be present and marked eligible
+  - treats missing source codes as unknown/ineligible
+
+Target environment verification after applying the focused app_v2 migration:
+
+- application-code eligibility rows: `105`
+- eligibility rows marked nearby eligible: `76`
+- app_v2 shelters with `source_application_code`: `0`
+- app_v2 shelters total: `23695`
+
+That means the model is real and source-backed, but it cannot improve grouped parity until app_v2 shelter rows are refreshed or populated with their source application code.
+
+Diagnostic source-code mode confirms this:
+
+```bash
+npm run parity:nearby -- --sample copenhagen --app-v2-shape grouped --eligibility source-application-code
+```
+
+The run returns `0` app_v2 results because all candidate rows have unknown `source_application_code`. This is intentional strict behavior; the model does not guess eligibility from address, name, capacity, or legacy result membership.
+
 ## 8. Recommendation for the Next Work Package
 
-Primary recommendation: add a narrow, source-backed app_v2 nearby eligibility model for application-code inclusion before any broader visible experiment.
+Primary recommendation: populate `app_v2.shelters.source_application_code` through a controlled importer/data-population follow-up, then rerun grouped parity with `--eligibility source-application-code`.
 
 That package should answer:
 
-- where the relevant source building/application code lives or can be carried in app_v2
-- whether app_v2 should store the raw code on shelters or shelter sources
-- how eligibility rules should be represented in app_v2
 - how grouped nearby parity changes after applying that rule
+- whether source-code coverage is complete enough to make `source_application_code_v1` the normal grouped nearby eligibility mode
+- whether any codes need product review before copying the legacy `skal_med` decision forward
 
-Secondary recommendation: keep the current internal review mode available, but do not broaden it until the application-code eligibility gap is modeled or explicitly accepted as the experiment's central known limitation.
+Secondary recommendation: keep the current internal review mode available, but do not broaden it until source-code coverage exists and the strict eligibility mode has been measured.
 
 ## 9. Risks and Limitations
 

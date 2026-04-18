@@ -44,6 +44,7 @@ const capabilities = {
   groupedLegacyShape: false,
   legacyCapacityThreshold: true,
   legacyAnvendelseSemantics: false,
+  sourceApplicationCodeEligibility: true,
   fullLegacyExclusionsParity: false,
   databaseSideDistanceOrdering: true,
   postgisSpatialIndex: false,
@@ -64,7 +65,8 @@ const eligibility = getAppV2NearbyEligibilitySummary();
 const limitations = [
   "Groups app_v2 shelter rows by exact address_line1, postal_code, and city after deterministic normalization.",
   "Applies the legacy nearby capacity threshold of capacity >= 40 before grouping.",
-  "Does not include legacy anvendelse/type semantics.",
+  "Supports a source_application_code_v1 eligibility mode in the server read layer, but this route still uses the default capacity-only mode until source_application_code coverage is populated.",
+  "Does not include legacy anvendelse/type display semantics.",
   "Does not mirror legacy public.excluded_shelters bygning_id or split-address matching.",
   "Uses database-side bounding-box filtering and Haversine distance ordering, not a PostGIS spatial index.",
   "Not wired to the live /shelters/nearby UI.",

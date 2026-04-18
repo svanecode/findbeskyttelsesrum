@@ -3,7 +3,7 @@ import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 
 export type AppV2ShelterStatus = "active" | "temporarily_closed" | "under_review";
 export type AppV2ImportState = "active" | "missing_from_source" | "suppressed";
-export type AppV2NearbyEligibilityMode = "legacy_capacity_v1" | "none";
+export type AppV2NearbyEligibilityMode = "legacy_capacity_v1" | "source_application_code_v1" | "none";
 type AppV2ImportRunStatus = "running" | "succeeded" | "failed";
 
 type MunicipalityRow = {
@@ -103,6 +103,8 @@ export type AppV2NearbyShelter = {
   status: AppV2ShelterStatus;
   importState: AppV2ImportState;
   distanceMeters: number;
+  sourceApplicationCode: string | null;
+  sourceApplicationCodeNearbyEligible: boolean | null;
   municipality: AppV2MunicipalitySummary;
 };
 
@@ -131,7 +133,12 @@ export type AppV2NearbyDiagnostics = {
   importStates: AppV2ImportState[];
   eligibilityMode?: AppV2NearbyEligibilityMode;
   minimumCapacity?: number;
-  legacyAnvendelseSemantics?: "unresolved";
+  legacyAnvendelseSemantics?: "unresolved" | "modeled_by_source_application_code";
+  sourceApplicationCodeSemantics?: "available" | "unpopulated" | "not_requested";
+  sourceApplicationCodeRuleSource?: string;
+  sourceApplicationCodeRows?: number;
+  sourceApplicationCodeEligibleRows?: number;
+  sourceApplicationCodeUnknownRows?: number;
   filteredByEligibility?: number;
   eligibleRows?: number;
   candidateRowsRead: number;
@@ -194,7 +201,9 @@ export type AppV2NearbyEligibilitySummary = {
   mode: AppV2NearbyEligibilityMode;
   minimumCapacity: number | null;
   legacyCapacityThreshold: boolean;
-  legacyAnvendelseSemantics: "unresolved";
+  sourceApplicationCodeRequired: boolean;
+  sourceApplicationCodeSemantics: "available" | "unpopulated" | "not_requested";
+  legacyAnvendelseSemantics: "unresolved" | "modeled_by_source_application_code";
   note: string;
 };
 
@@ -210,6 +219,8 @@ const defaultNearbyCandidateLimit = 500;
 const defaultNearbyImportStates: AppV2ImportState[] = ["active"];
 const defaultNearbyEligibilityMode: AppV2NearbyEligibilityMode = "legacy_capacity_v1";
 const legacyNearbyMinimumCapacity = 40;
+const sourceApplicationCodeRuleSource = "app_v2.application_code_eligibility";
+const sourceApplicationCodeLookupChunkSize = 100;
 const allowedImportStates: AppV2ImportState[] = ["active", "missing_from_source", "suppressed"];
 
 function createAppV2ReadClient() {
@@ -307,7 +318,7 @@ function getNearbyImportStates(input: AppV2NearbySheltersOptions) {
 function getNearbyEligibilityMode(input: AppV2NearbySheltersOptions) {
   const mode = input.eligibilityMode ?? defaultNearbyEligibilityMode;
 
-  if (mode !== "legacy_capacity_v1" && mode !== "none") {
+  if (mode !== "legacy_capacity_v1" && mode !== "source_application_code_v1" && mode !== "none") {
     throw new Error(`Nearby app_v2 query received unsupported eligibility mode: ${String(mode)}.`);
   }
 
@@ -322,8 +333,22 @@ export function getAppV2NearbyEligibilitySummary(
       mode,
       minimumCapacity: null,
       legacyCapacityThreshold: false,
+      sourceApplicationCodeRequired: false,
+      sourceApplicationCodeSemantics: "not_requested",
       legacyAnvendelseSemantics: "unresolved",
       note: "No app_v2 nearby eligibility filtering is applied beyond import_state, coordinates, radius, and active app_v2 exclusions.",
+    };
+  }
+
+  if (mode === "source_application_code_v1") {
+    return {
+      mode,
+      minimumCapacity: legacyNearbyMinimumCapacity,
+      legacyCapacityThreshold: true,
+      sourceApplicationCodeRequired: true,
+      sourceApplicationCodeSemantics: "available",
+      legacyAnvendelseSemantics: "modeled_by_source_application_code",
+      note: "Applies capacity >= 40 and requires a source-backed application code that app_v2.application_code_eligibility marks as nearby eligible. Rows without source_application_code are excluded in this mode.",
     };
   }
 
@@ -331,6 +356,8 @@ export function getAppV2NearbyEligibilitySummary(
     mode,
     minimumCapacity: legacyNearbyMinimumCapacity,
     legacyCapacityThreshold: true,
+    sourceApplicationCodeRequired: false,
+    sourceApplicationCodeSemantics: "not_requested",
     legacyAnvendelseSemantics: "unresolved",
     note: "Applies the legacy nearby capacity threshold of capacity >= 40 before grouping. Legacy anvendelseskoder.skal_med is not modeled yet.",
   };
@@ -413,6 +440,11 @@ function normalizeNearbyRpcRow(value: unknown): AppV2NearbyShelter {
     status: getString(value.status, "status") as AppV2ShelterStatus,
     importState: getString(value.import_state, "import_state") as AppV2ImportState,
     distanceMeters: getNumber(value.distance_meters, "distance_meters"),
+    sourceApplicationCode: getNullableString(value.source_application_code, "source_application_code"),
+    sourceApplicationCodeNearbyEligible:
+      value.source_application_code_nearby_eligible === undefined || value.source_application_code_nearby_eligible === null
+        ? null
+        : getBoolean(value.source_application_code_nearby_eligible, "source_application_code_nearby_eligible"),
     municipality: {
       id: getString(value.municipality_id, "municipality_id"),
       code: getNullableString(value.municipality_code, "municipality_code"),
@@ -451,7 +483,30 @@ function normalizeNearbyDiagnostics(value: unknown): AppV2NearbyDiagnostics {
         : (getString(
             value.legacyAnvendelseSemantics,
             "diagnostics.legacyAnvendelseSemantics",
-          ) as "unresolved"),
+          ) as "unresolved" | "modeled_by_source_application_code"),
+    sourceApplicationCodeSemantics:
+      value.sourceApplicationCodeSemantics === undefined
+        ? undefined
+        : (getString(
+            value.sourceApplicationCodeSemantics,
+            "diagnostics.sourceApplicationCodeSemantics",
+          ) as "available" | "unpopulated" | "not_requested"),
+    sourceApplicationCodeRuleSource:
+      value.sourceApplicationCodeRuleSource === undefined
+        ? undefined
+        : getString(value.sourceApplicationCodeRuleSource, "diagnostics.sourceApplicationCodeRuleSource"),
+    sourceApplicationCodeRows:
+      value.sourceApplicationCodeRows === undefined
+        ? undefined
+        : getInteger(value.sourceApplicationCodeRows, "diagnostics.sourceApplicationCodeRows"),
+    sourceApplicationCodeEligibleRows:
+      value.sourceApplicationCodeEligibleRows === undefined
+        ? undefined
+        : getInteger(value.sourceApplicationCodeEligibleRows, "diagnostics.sourceApplicationCodeEligibleRows"),
+    sourceApplicationCodeUnknownRows:
+      value.sourceApplicationCodeUnknownRows === undefined
+        ? undefined
+        : getInteger(value.sourceApplicationCodeUnknownRows, "diagnostics.sourceApplicationCodeUnknownRows"),
     filteredByEligibility:
       value.filteredByEligibility === undefined
         ? undefined
@@ -480,21 +535,102 @@ function normalizeNearbyDiagnostics(value: unknown): AppV2NearbyDiagnostics {
   };
 }
 
+async function attachSourceApplicationCodeEligibility(rows: AppV2NearbyShelter[]) {
+  if (rows.length === 0) {
+    return rows;
+  }
+
+  const supabase = createAppV2ReadClient();
+  const ids = rows.map((row) => row.id);
+  const shelterRows: Array<{ id: string; source_application_code: string | null }> = [];
+
+  for (let index = 0; index < ids.length; index += sourceApplicationCodeLookupChunkSize) {
+    const chunk = ids.slice(index, index + sourceApplicationCodeLookupChunkSize);
+    const { data, error } = await supabase.from("shelters").select("id, source_application_code").in("id", chunk);
+
+    if (error) {
+      throw new Error(`Could not load app_v2 source application codes for nearby eligibility: ${error.message}`);
+    }
+
+    shelterRows.push(...((data ?? []) as Array<{ id: string; source_application_code: string | null }>));
+  }
+
+  const sourceCodeById = new Map(
+    shelterRows.map((row) => [row.id, row.source_application_code]),
+  );
+  const sourceCodes = Array.from(new Set(Array.from(sourceCodeById.values()).filter((code): code is string => Boolean(code))));
+  const eligibilityByCode = new Map<string, boolean>();
+
+  if (sourceCodes.length > 0) {
+    const { data: eligibilityRows, error: eligibilityError } = await supabase
+      .from("application_code_eligibility")
+      .select("application_code, is_nearby_eligible")
+      .eq("source_name", "datafordeler-bbr-dar")
+      .in("application_code", sourceCodes);
+
+    if (eligibilityError) {
+      throw new Error(`Could not load app_v2 application-code nearby eligibility rules: ${eligibilityError.message}`);
+    }
+
+    for (const row of (eligibilityRows ?? []) as Array<{ application_code: string; is_nearby_eligible: boolean }>) {
+      eligibilityByCode.set(row.application_code, row.is_nearby_eligible);
+    }
+  }
+
+  return rows.map((row) => {
+    const sourceApplicationCode = sourceCodeById.get(row.id) ?? null;
+
+    return {
+      ...row,
+      sourceApplicationCode,
+      sourceApplicationCodeNearbyEligible: sourceApplicationCode
+        ? eligibilityByCode.get(sourceApplicationCode) ?? null
+        : null,
+    };
+  });
+}
+
 function applyNearbyEligibility(rows: AppV2NearbyShelter[], mode: AppV2NearbyEligibilityMode) {
   if (mode === "none") {
     return {
       rows,
       minimumCapacity: null,
       filteredByEligibility: 0,
+      sourceApplicationCodeRows: rows.filter((row) => row.sourceApplicationCode).length,
+      sourceApplicationCodeEligibleRows: 0,
+      sourceApplicationCodeUnknownRows: 0,
+      sourceApplicationCodeSemantics: "not_requested" as const,
     };
   }
 
-  const eligibleRows = rows.filter((row) => row.capacity >= legacyNearbyMinimumCapacity);
+  const capacityEligibleRows = rows.filter((row) => row.capacity >= legacyNearbyMinimumCapacity);
+  const sourceApplicationCodeRows = rows.filter((row) => row.sourceApplicationCode).length;
+
+  if (mode === "source_application_code_v1") {
+    const eligibleRows = capacityEligibleRows.filter((row) => row.sourceApplicationCodeNearbyEligible === true);
+    const sourceApplicationCodeUnknownRows = capacityEligibleRows.filter(
+      (row) => !row.sourceApplicationCode || row.sourceApplicationCodeNearbyEligible === null,
+    ).length;
+
+    return {
+      rows: eligibleRows,
+      minimumCapacity: legacyNearbyMinimumCapacity,
+      filteredByEligibility: rows.length - eligibleRows.length,
+      sourceApplicationCodeRows,
+      sourceApplicationCodeEligibleRows: eligibleRows.length,
+      sourceApplicationCodeUnknownRows,
+      sourceApplicationCodeSemantics: sourceApplicationCodeRows > 0 ? ("available" as const) : ("unpopulated" as const),
+    };
+  }
 
   return {
-    rows: eligibleRows,
+    rows: capacityEligibleRows,
     minimumCapacity: legacyNearbyMinimumCapacity,
-    filteredByEligibility: rows.length - eligibleRows.length,
+    filteredByEligibility: rows.length - capacityEligibleRows.length,
+    sourceApplicationCodeRows,
+    sourceApplicationCodeEligibleRows: 0,
+    sourceApplicationCodeUnknownRows: 0,
+    sourceApplicationCodeSemantics: "not_requested" as const,
   };
 }
 
@@ -681,7 +817,11 @@ export async function getAppV2NearbySheltersWithDiagnostics(
   }
 
   const sourceRows = parseJsonArray(payload.results, "results").map(normalizeNearbyRpcRow);
-  const eligibility = applyNearbyEligibility(sourceRows, eligibilityMode);
+  const sourceRowsWithEligibility =
+    eligibilityMode === "source_application_code_v1"
+      ? await attachSourceApplicationCodeEligibility(sourceRows)
+      : sourceRows;
+  const eligibility = applyNearbyEligibility(sourceRowsWithEligibility, eligibilityMode);
   const rows = eligibility.rows.slice(0, limit);
   const baseDiagnostics = normalizeNearbyDiagnostics(payload.diagnostics);
   const eligibilitySummary = getAppV2NearbyEligibilitySummary(eligibilityMode);
@@ -695,6 +835,12 @@ export async function getAppV2NearbySheltersWithDiagnostics(
       eligibilityMode,
       minimumCapacity: eligibility.minimumCapacity ?? undefined,
       legacyAnvendelseSemantics: eligibilitySummary.legacyAnvendelseSemantics,
+      sourceApplicationCodeSemantics: eligibility.sourceApplicationCodeSemantics,
+      sourceApplicationCodeRuleSource:
+        eligibilityMode === "source_application_code_v1" ? sourceApplicationCodeRuleSource : undefined,
+      sourceApplicationCodeRows: eligibility.sourceApplicationCodeRows,
+      sourceApplicationCodeEligibleRows: eligibility.sourceApplicationCodeEligibleRows,
+      sourceApplicationCodeUnknownRows: eligibility.sourceApplicationCodeUnknownRows,
       filteredByEligibility: eligibility.filteredByEligibility,
       eligibleRows: eligibility.rows.length,
       sourceReturnedRows: sourceRows.length,

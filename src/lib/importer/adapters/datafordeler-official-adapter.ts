@@ -1068,6 +1068,7 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
         capacity: shelterCapacity,
+        sourceApplicationCode: building.byg021BygningensAnvendelse,
         status: "under_review",
         accessibilityNotes: null,
         summary: buildSummary(),

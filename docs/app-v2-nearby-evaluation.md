@@ -399,6 +399,13 @@ Current real-environment observations:
   - All `15/15` app_v2-only cases had exact normalized legacy address matches and were classified as likely filtered by legacy `anvendelseskoder.skal_med` / eligibility semantics.
   - `0/15` app_v2-only cases matched legacy rows that still appeared legacy-eligible, and `0/15` lacked an exact legacy address match.
   - The detailed decision document is `docs/app-v2-nearby-semantic-gap-analysis.md`.
+- A narrow source-backed application-code eligibility model now exists, but it is not active as the default nearby behavior.
+  - `app_v2.shelters.source_application_code` stores the intended source code, currently Datafordeler BBR `byg021BygningensAnvendelse`.
+  - `app_v2.application_code_eligibility` stores source-name + application-code nearby eligibility.
+  - The Datafordeler adapter maps `building.byg021BygningensAnvendelse` into the importer contract.
+  - The read layer supports explicit `source_application_code_v1` eligibility.
+  - Target verification currently shows `105` application-code eligibility rows, `76` eligible rows, but `0/23695` app_v2 shelters with `source_application_code` populated.
+  - Diagnostic source-code parity therefore returns `0` app_v2 results because unknown source codes are treated as ineligible, not guessed.
 - The API/read stack remains isolated from `/shelters/nearby`.
 
 ## 8. Decision Status
@@ -418,11 +425,12 @@ The strongest current signal is:
 - the shadow compare route now makes that comparison available in a runtime-near API context without changing the visible nearby flow
 - the gated visible review mode makes grouped app_v2 inspectable in the actual nearby page context, while preserving legacy as the default and visible primary source
 - semantic mismatch analysis shows the sampled app_v2-only results are dominated by legacy `skal_med=false` application-code cases, especially code `140` and related residential/college categories
+- the source-backed model has been added, but target data must be populated with source application codes before it can improve grouped nearby overlap
 - suppression does not materially affect the three sampled outputs
 - the one known legacy exclusion is now represented in app_v2 and the RPC can filter it
 
 ## 9. Recommendation
 
-Primary recommendation: model a narrow, source-backed app_v2 nearby eligibility signal for application-code inclusion before any broader visible experiment. The current evidence says the dominant sampled mismatch is no longer grouping, capacity, exclusions, candidate behavior, or basic ordering; it is app_v2 including addresses that legacy filters through `anvendelseskoder.skal_med`.
+Primary recommendation: run a controlled importer/data-population follow-up that fills `app_v2.shelters.source_application_code` from Datafordeler BBR `byg021BygningensAnvendelse`, then rerun grouped nearby parity with `--eligibility source-application-code`.
 
-Secondary recommendation: keep the gated review mode available for internal inspection while the semantic eligibility model is designed, but do not broaden it until `skal_med` is either modeled or explicitly accepted as the experiment's central known limitation.
+Secondary recommendation: keep the gated review mode available for internal inspection, but do not broaden it until source-code coverage exists and the strict source-backed eligibility mode has been measured.

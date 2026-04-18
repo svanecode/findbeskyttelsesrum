@@ -18,6 +18,7 @@ export type ImportedShelterBaseline = {
   latitude: number | null;
   longitude: number | null;
   capacity: number;
+  sourceApplicationCode: string | null;
   status: ImportedShelterStatus;
   accessibilityNotes: string | null;
   summary: string;

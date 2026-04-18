@@ -134,7 +134,7 @@ Options:
   --limit               Result limit. Defaults to ${defaultOptions.limit}.
   --candidate-limit     app_v2 candidate limit. Defaults to ${defaultOptions.candidateLimit}.
   --app-v2-shape        app_v2 comparison shape: grouped or row. Defaults to ${defaultOptions.appV2Shape}.
-  --eligibility         app_v2 eligibility mode: legacy-capacity or none. Defaults to legacy-capacity.
+  --eligibility         app_v2 eligibility mode: legacy-capacity, source-application-code, or none. Defaults to legacy-capacity.
   --include-suppressed  Include app_v2 suppressed rows for diagnostics.
   --help                Print this help text.
 
@@ -164,14 +164,19 @@ function getOptions(): NearbyParityOptions {
     throw new Error('--app-v2-shape must be "grouped" or "row".');
   }
 
-  if (rawEligibility !== "legacy-capacity" && rawEligibility !== "none") {
-    throw new Error('--eligibility must be "legacy-capacity" or "none".');
+  if (rawEligibility !== "legacy-capacity" && rawEligibility !== "source-application-code" && rawEligibility !== "none") {
+    throw new Error('--eligibility must be "legacy-capacity", "source-application-code", or "none".');
   }
 
   return {
     sample: sample.name,
     appV2Shape,
-    eligibilityMode: rawEligibility === "legacy-capacity" ? "legacy_capacity_v1" : "none",
+    eligibilityMode:
+      rawEligibility === "legacy-capacity"
+        ? "legacy_capacity_v1"
+        : rawEligibility === "source-application-code"
+          ? "source_application_code_v1"
+          : "none",
     latitude: parseNumberFlag("--lat", sample.latitude),
     longitude: parseNumberFlag("--lng", sample.longitude),
     radiusMeters: parseIntegerFlag("--radius", defaultOptions.radiusMeters),
@@ -499,7 +504,7 @@ async function main() {
     `[parity:nearby] rank overlap: shared=${rankOverlap.shared.length} exactRankMatches=${rankOverlap.exactRankMatches} averageAbsRankDelta=${rankOverlap.averageAbsDelta.toFixed(2)} maxAbsRankDelta=${rankOverlap.maxAbsDelta}`,
   );
   console.log(
-    `[parity:nearby] app_v2 diagnostics: readModel=${diagnostics.readModel ?? "unknown"} distanceStrategy=${diagnostics.distanceStrategy ?? "unknown"} spatialIndex=${String(diagnostics.spatialIndex ?? "unknown")} eligibility=${diagnostics.eligibilityMode ?? "unknown"} minimumCapacity=${diagnostics.minimumCapacity ?? "n/a"} filteredByEligibility=${diagnostics.filteredByEligibility ?? "n/a"} eligibleRows=${diagnostics.eligibleRows ?? "n/a"} legacyAnvendelse=${diagnostics.legacyAnvendelseSemantics ?? "unknown"} groupedAppV2Shape=${String(diagnostics.groupedAppV2Shape ?? "unknown")} groupedLegacyShape=${String(diagnostics.groupedLegacyShape ?? "unknown")} groupingKey=${diagnostics.groupingKey ?? "none"} sourceReturned=${diagnostics.sourceReturnedRows ?? "n/a"} groupedRows=${diagnostics.groupedRows ?? "n/a"} read=${diagnostics.candidateRowsRead} excluded=${diagnostics.excludedByAppV2Exclusions} withCoordinates=${diagnostics.candidatesWithCoordinates} withinRadius=${diagnostics.candidatesWithinRadius} returned=${diagnostics.returnedRows}`,
+    `[parity:nearby] app_v2 diagnostics: readModel=${diagnostics.readModel ?? "unknown"} distanceStrategy=${diagnostics.distanceStrategy ?? "unknown"} spatialIndex=${String(diagnostics.spatialIndex ?? "unknown")} eligibility=${diagnostics.eligibilityMode ?? "unknown"} minimumCapacity=${diagnostics.minimumCapacity ?? "n/a"} filteredByEligibility=${diagnostics.filteredByEligibility ?? "n/a"} eligibleRows=${diagnostics.eligibleRows ?? "n/a"} legacyAnvendelse=${diagnostics.legacyAnvendelseSemantics ?? "unknown"} sourceApplicationCode=${diagnostics.sourceApplicationCodeSemantics ?? "unknown"} sourceCodeRows=${diagnostics.sourceApplicationCodeRows ?? "n/a"} sourceCodeEligibleRows=${diagnostics.sourceApplicationCodeEligibleRows ?? "n/a"} sourceCodeUnknownRows=${diagnostics.sourceApplicationCodeUnknownRows ?? "n/a"} groupedAppV2Shape=${String(diagnostics.groupedAppV2Shape ?? "unknown")} groupedLegacyShape=${String(diagnostics.groupedLegacyShape ?? "unknown")} groupingKey=${diagnostics.groupingKey ?? "none"} sourceReturned=${diagnostics.sourceReturnedRows ?? "n/a"} groupedRows=${diagnostics.groupedRows ?? "n/a"} read=${diagnostics.candidateRowsRead} excluded=${diagnostics.excludedByAppV2Exclusions} withCoordinates=${diagnostics.candidatesWithCoordinates} withinRadius=${diagnostics.candidatesWithinRadius} returned=${diagnostics.returnedRows}`,
   );
   console.log(
     `[parity:nearby] candidate-limit signal: ${candidateLimitHit ? "hit candidateLimit; top-N may be sensitive to candidateLimit and post-RPC eligibility/grouping" : "candidateLimit not hit for returned app_v2 source rows"}`,
@@ -520,8 +525,16 @@ async function main() {
   console.log(
     `  exclusions difference: app_v2 active exclusions filtered=${diagnostics.excludedByAppV2Exclusions}; legacy public.excluded_shelters matching still requires separate exclusions parity review`,
   );
+  const legacyAnvendelseNote =
+    diagnostics.legacyAnvendelseSemantics === "modeled_by_source_application_code"
+      ? "legacy anvendelseskoder.skal_med is modeled through source-backed application-code eligibility"
+      : "legacy anvendelseskoder.skal_med remains unresolved";
+
   console.log(
-    `  eligibility difference: app_v2 mode=${diagnostics.eligibilityMode ?? "unknown"} filtered=${diagnostics.filteredByEligibility ?? "n/a"}; legacy anvendelseskoder.skal_med remains unresolved`,
+    `  eligibility difference: app_v2 mode=${diagnostics.eligibilityMode ?? "unknown"} filtered=${diagnostics.filteredByEligibility ?? "n/a"}; ${legacyAnvendelseNote}`,
+  );
+  console.log(
+    `  source application-code eligibility: semantics=${diagnostics.sourceApplicationCodeSemantics ?? "unknown"} sourceCodeRows=${diagnostics.sourceApplicationCodeRows ?? "n/a"} eligibleByCode=${diagnostics.sourceApplicationCodeEligibleRows ?? "n/a"} unknownCodeRows=${diagnostics.sourceApplicationCodeUnknownRows ?? "n/a"}`,
   );
   console.log(
     `  ordering difference: shared=${rankOverlap.shared.length}; exact-rank=${rankOverlap.exactRankMatches}; avg-abs-rank-delta=${rankOverlap.averageAbsDelta.toFixed(2)}; max-abs-rank-delta=${rankOverlap.maxAbsDelta}`,

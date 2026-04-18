@@ -324,6 +324,14 @@ A gated internal review mode is also available on `/shelters/nearby` with `appV2
 
 Semantic mismatch analysis now indicates that the sampled app_v2-only top-10 cases are dominated by unresolved legacy application-code inclusion semantics. The read-only `read:nearby-semantic-cases` script found that all `15/15` app_v2-only grouped cases across Copenhagen, Aarhus, Lemvig, Aalborg, Odense, and Esbjerg had exact normalized legacy address matches and were likely filtered by legacy `anvendelseskoder.skal_med` / eligibility semantics. The detailed analysis lives in `docs/app-v2-nearby-semantic-gap-analysis.md`.
 
+The first source-backed app_v2 application-code model now exists:
+
+- `app_v2.shelters.source_application_code`
+- `app_v2.application_code_eligibility`
+- read-layer eligibility mode `source_application_code_v1`
+
+It is not yet usable as the default nearby eligibility mode in the target data because existing app_v2 shelters currently have `0` populated `source_application_code` values. Strict source-code mode therefore returns no app_v2 nearby results until the importer/data-population layer fills that field.
+
 Read-only API probe:
 
 ```bash
@@ -360,10 +368,11 @@ The first app_v2 nearby read contract now exists as `getAppV2NearbyShelters()` i
 
 Recommended next PR:
 
-1. Model a narrow, source-backed app_v2 nearby eligibility signal for application-code inclusion.
-   - The sampled app_v2-only cases now point at `anvendelseskoder.skal_med` as the dominant remaining semantic blocker.
-   - Do not fake this through address heuristics, status, summary text, or source copy.
-   - Prefer carrying the relevant source building/application code into app_v2 and applying a reviewed eligibility table or equivalent explicit rule.
+1. Populate `app_v2.shelters.source_application_code` through a controlled importer/data-population follow-up.
+   - The source-backed model exists, but current target rows predate it.
+   - The Datafordeler adapter now carries BBR `byg021BygningensAnvendelse`.
+   - Do not backfill this through fuzzy address inference.
+   - After population, rerun grouped parity with `--eligibility source-application-code`.
 2. Keep the gated internal mode for grouped app_v2 nearby available, with no default cutover.
    - Copenhagen currently has `9/10` grouped normalized address overlap.
    - Aarhus currently has `7/10`.

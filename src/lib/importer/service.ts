@@ -46,6 +46,7 @@ type ShelterRow = {
   latitude: number | null;
   longitude: number | null;
   capacity: number;
+  source_application_code: string | null;
   status: "active" | "temporarily_closed" | "under_review";
   accessibility_notes: string | null;
   summary: string;
@@ -141,6 +142,7 @@ function hasShelterBaselineChange(current: ShelterRow, next: Omit<ShelterRow, "i
     !isSameValue(current.latitude, next.latitude) ||
     !isSameValue(current.longitude, next.longitude) ||
     !isSameValue(current.capacity, next.capacity) ||
+    !isSameValue(current.source_application_code, next.source_application_code) ||
     !isSameValue(current.status, next.status) ||
     !isSameValue(current.accessibility_notes, next.accessibility_notes) ||
     !isSameValue(current.summary, next.summary) ||
@@ -695,7 +697,7 @@ async function findShelterByLegacySource(record: ImportedShelterRecord): Promise
   const shelterResponse = await supabase
     .from("shelters")
     .select(
-      "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
+      "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, source_application_code, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
     )
     .eq("id", legacySourceResponse.data.shelter_id)
     .maybeSingle();
@@ -713,7 +715,7 @@ async function loadExistingSheltersByCanonicalSource(canonicalSourceName: string
     const response = await supabase
       .from("shelters")
       .select(
-        "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
+        "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, source_application_code, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
       )
       .eq("canonical_source_name", canonicalSourceName)
       .range(from, to);
@@ -945,6 +947,7 @@ async function upsertShelterBaseline(input: {
     latitude: input.record.shelter.latitude,
     longitude: input.record.shelter.longitude,
     capacity: input.record.shelter.capacity,
+    source_application_code: input.record.shelter.sourceApplicationCode,
     status: input.record.shelter.status,
     accessibility_notes: input.record.shelter.accessibilityNotes,
     summary: input.record.shelter.summary,
@@ -963,7 +966,7 @@ async function upsertShelterBaseline(input: {
           .from("shelters")
           .insert(desiredBaseline)
           .select(
-            "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
+            "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, source_application_code, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
           )
           .single(),
       (response) => Boolean(response.error || !response.data),
@@ -1018,7 +1021,7 @@ async function upsertShelterBaseline(input: {
         .update(shelterUpdatePayload)
         .eq("id", existing.id)
         .select(
-          "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
+          "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, source_application_code, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
         )
         .single(),
     (response) => Boolean(response.error || !response.data),

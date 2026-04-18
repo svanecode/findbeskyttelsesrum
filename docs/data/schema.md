@@ -19,6 +19,10 @@ The current public app still reads the existing live structures in `public`. The
 - `app_v2.shelter_exclusions`
   - manual or migrated owner-request exclusions for future public read models
   - preserves legacy exclusion identities without overloading importer-owned lifecycle state
+- `app_v2.application_code_eligibility`
+  - narrow nearby eligibility reference for source-backed building/application usage codes
+  - first source namespace is Datafordeler BBR `byg021BygningensAnvendelse`
+  - seeded from the reviewed legacy `public.anvendelseskoder.skal_med` rule by code
 - `app_v2.shelter_reports`
   - future operational feedback surface
 - `app_v2.audit_events`
@@ -32,6 +36,13 @@ The current public app still reads the existing live structures in `public`. The
   - applies active app_v2 shelter exclusions for `shelter_id`, canonical source identity, and exact app_v2 address/postal matches
   - does not return the legacy grouped nearby shape and does not read `public.excluded_shelters`
 
+## App V2 Source-Backed Eligibility Fields
+
+- `app_v2.shelters.source_application_code`
+  - importer-owned source code, currently intended for Datafordeler BBR `byg021BygningensAnvendelse`
+  - nullable because older imported rows may predate this field
+  - used only by explicit source-code eligibility modes; missing values are unknown and must not be treated as eligible
+
 ## Migration Set
 The live repo now carries these `app_v2` migrations:
 - `006_app_v2_foundation.sql`
@@ -40,6 +51,7 @@ The live repo now carries these `app_v2` migrations:
 - `009_app_v2_municipality_code_anchor.sql`
 - `010_app_v2_shelter_exclusions.sql`
 - `011_app_v2_nearby_read_rpc.sql`
+- `012_app_v2_application_code_eligibility.sql`
 
 These migrations do not reshape legacy `public` tables.
 

@@ -24,6 +24,7 @@ The importer may write:
 - official name and address fields
 - coordinates
 - capacity
+- source-backed building/application code when available from the official source
 - status
 - accessibility notes when source-backed
 - summary when source-backed
@@ -55,3 +56,9 @@ The importer should not turn legacy `public.excluded_shelters` rows directly int
 
 ## Current Skeleton
 The fixture importer proves the contract, dry-run summary, source identity validation, and `app_v2` write surface. The Datafordeler adapter can validate a bounded live-source read/normalize path in dry-run mode. Neither path proves production scheduling, broad write safety, or public runtime cutover yet.
+
+## Application-Code Eligibility
+
+The Datafordeler adapter receives BBR `byg021BygningensAnvendelse`. The app_v2 importer contract now carries that value as `sourceApplicationCode`, written to `app_v2.shelters.source_application_code`.
+
+That field is the source-backed basis for future nearby application-code eligibility. Existing imported target rows may still have `source_application_code = null` until a controlled importer/data-population run refreshes them. Nearby read logic must treat missing source codes as unknown, not as eligible.

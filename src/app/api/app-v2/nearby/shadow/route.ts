@@ -59,7 +59,7 @@ const limitations = [
   "Shadow compare is opt-in only and requires shadow=1.",
   "Legacy remains the user-visible nearby source.",
   "app_v2 comparison uses grouped app_v2 output, not a full legacy-compatible shape.",
-  "app_v2 applies capacity >= 40 but does not model legacy anvendelseskoder.skal_med.",
+  "app_v2 shadow mode applies capacity >= 40; source-backed application-code eligibility exists in the read layer but is not active here until source_application_code coverage is populated.",
   "This route is read-only and does not write telemetry or database state.",
 ];
 
@@ -405,7 +405,7 @@ export async function GET(request: NextRequest) {
         rankOverlap,
         knownSemanticGaps: {
           legacyAnvendelseSkalMed: "unresolved",
-          note: "app_v2 shadow comparison applies capacity >= 40 but does not model legacy anvendelseskoder.skal_med.",
+          note: "app_v2 shadow comparison applies capacity >= 40. Source-backed application-code eligibility is a separate read-layer mode and is not active in this shadow response until source_application_code coverage is populated.",
         },
       },
       legacyResults: legacyResult.rows.map(toLegacyResult),
