@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import {
   getAppV2GroupedNearbySheltersWithDiagnostics,
   getAppV2NearbyEligibilitySummary,
+  type AppV2NearbyEligibilityMode,
   type AppV2GroupedNearbyShelter,
 } from "@/lib/supabase/app-v2-queries";
 
@@ -38,6 +39,7 @@ type ValidationResult =
         radiusMeters: number;
         limit: number;
         candidateLimit: number;
+        eligibilityMode: AppV2NearbyEligibilityMode;
       };
     }
   | {
@@ -54,12 +56,12 @@ const maxCandidateLimit = 2_000;
 const apiContract = "app_v2_nearby_shadow_compare_v1";
 const apiSource = "legacy_plus_app_v2";
 const activeImportStates = ["active"] as const;
-const eligibility = getAppV2NearbyEligibilitySummary();
 const limitations = [
   "Shadow compare is opt-in only and requires shadow=1.",
   "Legacy remains the user-visible nearby source.",
   "app_v2 comparison uses grouped app_v2 output, not a full legacy-compatible shape.",
-  "app_v2 shadow mode applies capacity >= 40; source-backed application-code eligibility exists in the read layer but is not active here until source_application_code coverage is populated.",
+  "app_v2 shadow mode defaults to strict source-backed application-code eligibility.",
+  "Capacity-only and none modes are available only as explicit review diagnostics.",
   "This route is read-only and does not write telemetry or database state.",
 ];
 
@@ -79,6 +81,22 @@ function parseInteger(value: string | null) {
   return parsed !== null && Number.isInteger(parsed) ? parsed : null;
 }
 
+function parseEligibilityMode(value: string | null) {
+  if (value === null || value.trim() === "" || value === "source-application-code") {
+    return "source_application_code_v1" satisfies AppV2NearbyEligibilityMode;
+  }
+
+  if (value === "legacy-capacity") {
+    return "legacy_capacity_v1" satisfies AppV2NearbyEligibilityMode;
+  }
+
+  if (value === "none") {
+    return "none" satisfies AppV2NearbyEligibilityMode;
+  }
+
+  return null;
+}
+
 function validateNearbyRequest(searchParams: URLSearchParams): ValidationResult {
   const errors: string[] = [];
   const latitude = parseNumber(searchParams.get("lat"));
@@ -86,6 +104,7 @@ function validateNearbyRequest(searchParams: URLSearchParams): ValidationResult 
   const radiusMeters = parseInteger(searchParams.get("radius")) ?? defaultRadiusMeters;
   const limit = parseInteger(searchParams.get("limit")) ?? defaultLimit;
   const candidateLimit = parseInteger(searchParams.get("candidateLimit")) ?? defaultCandidateLimit;
+  const eligibilityMode = parseEligibilityMode(searchParams.get("eligibility"));
 
   if (latitude === null) {
     errors.push("lat is required and must be a finite number.");
@@ -121,7 +140,11 @@ function validateNearbyRequest(searchParams: URLSearchParams): ValidationResult 
     errors.push("candidateLimit must be greater than or equal to limit.");
   }
 
-  if (errors.length > 0 || latitude === null || longitude === null) {
+  if (eligibilityMode === null) {
+    errors.push('eligibility must be "source-application-code", "legacy-capacity", or "none".');
+  }
+
+  if (errors.length > 0 || latitude === null || longitude === null || eligibilityMode === null) {
     return { ok: false, errors };
   }
 
@@ -133,6 +156,7 @@ function validateNearbyRequest(searchParams: URLSearchParams): ValidationResult 
       radiusMeters,
       limit,
       candidateLimit,
+      eligibilityMode,
     },
   };
 }
@@ -365,6 +389,7 @@ export async function GET(request: NextRequest) {
         limit: validation.value.limit,
         candidateLimit: validation.value.candidateLimit,
         importStates: [...activeImportStates],
+        eligibilityMode: validation.value.eligibilityMode,
       }),
     ]);
 
@@ -374,6 +399,7 @@ export async function GET(request: NextRequest) {
     const legacyOnlyAddressKeys = Array.from(legacyAddressKeys).filter((key) => !appV2AddressKeys.has(key));
     const appV2OnlyAddressKeys = Array.from(appV2AddressKeys).filter((key) => !legacyAddressKeys.has(key));
     const rankOverlap = summarizeRankOverlap(legacyResult.rows, appV2Result.rows);
+    const eligibility = getAppV2NearbyEligibilitySummary(validation.value.eligibilityMode);
 
     return NextResponse.json({
       meta: {
@@ -396,6 +422,7 @@ export async function GET(request: NextRequest) {
         limitations,
       },
       comparison: {
+        eligibilityMode: validation.value.eligibilityMode,
         sharedAddressCount: sharedAddressKeys.length,
         legacyOnlyAddressCount: legacyOnlyAddressKeys.length,
         appV2OnlyAddressCount: appV2OnlyAddressKeys.length,
@@ -404,8 +431,14 @@ export async function GET(request: NextRequest) {
         appV2OnlyAddressKeys,
         rankOverlap,
         knownSemanticGaps: {
-          legacyAnvendelseSkalMed: "unresolved",
-          note: "app_v2 shadow comparison applies capacity >= 40. Source-backed application-code eligibility is a separate read-layer mode and is not active in this shadow response until source_application_code coverage is populated.",
+          legacyAnvendelseSkalMed:
+            validation.value.eligibilityMode === "source_application_code_v1"
+              ? "modeled_by_source_application_code"
+              : "unresolved",
+          note:
+            validation.value.eligibilityMode === "source_application_code_v1"
+              ? "app_v2 shadow comparison applies capacity >= 40 and source-backed application-code eligibility. Full legacy anvendelse display semantics are still not exposed."
+              : "app_v2 shadow comparison is not using strict source-backed eligibility in this diagnostic mode.",
         },
       },
       legacyResults: legacyResult.rows.map(toLegacyResult),

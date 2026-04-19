@@ -70,6 +70,16 @@ const coordinateSamples = {
     latitude: 56.5486,
     longitude: 8.3102,
   },
+  odense: {
+    label: "Odense",
+    latitude: 55.4038,
+    longitude: 10.4024,
+  },
+  esbjerg: {
+    label: "Esbjerg",
+    latitude: 55.4765,
+    longitude: 8.4594,
+  },
 } satisfies Record<string, { label: string; latitude: number; longitude: number }>;
 
 const defaultOptions = {

@@ -8,6 +8,7 @@ export default function NearbyWrapper() {
   const lat = searchParams.get('lat') || ''
   const lng = searchParams.get('lng') || ''
   const appV2NearbyExperiment = searchParams.get('appV2NearbyExperiment') === 'grouped'
+  const appV2NearbyEligibility = searchParams.get('appV2NearbyEligibility') || 'source-application-code'
 
   // Only validate if both parameters are present
   if (lat && lng) {
@@ -29,5 +30,12 @@ export default function NearbyWrapper() {
     }
   }
 
-  return <MapWrapper lat={lat} lng={lng} appV2NearbyExperiment={appV2NearbyExperiment} />
+  return (
+    <MapWrapper
+      lat={lat}
+      lng={lng}
+      appV2NearbyExperiment={appV2NearbyExperiment}
+      appV2NearbyEligibility={appV2NearbyEligibility}
+    />
+  )
 } 

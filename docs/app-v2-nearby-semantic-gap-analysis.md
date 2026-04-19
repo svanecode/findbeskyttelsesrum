@@ -180,7 +180,7 @@ What should not happen:
 
 ## 7.1 Source-Backed Model Status
 
-The first narrow app_v2 model now exists, but current target data is not populated enough to activate it as the default nearby behavior.
+The first narrow app_v2 model now exists and target app_v2 data has been populated enough to evaluate it.
 
 Implemented pieces:
 
@@ -198,34 +198,51 @@ Implemented pieces:
   - requires `source_application_code` to be present and marked eligible
   - treats missing source codes as unknown/ineligible
 
-Target environment verification after applying the focused app_v2 migration:
+Population strategy:
+
+- read `public.sheltersv2` only as the source reference table
+- join by exact source identity: `app_v2.shelters.canonical_source_reference = public.sheltersv2.bygning_id`
+- write only `app_v2.shelters.source_application_code`
+- do not infer from address, name, municipality, capacity, or current nearby membership
+
+Target environment verification after population:
 
 - application-code eligibility rows: `105`
 - eligibility rows marked nearby eligible: `76`
-- app_v2 shelters with `source_application_code`: `0`
 - app_v2 shelters total: `23695`
+- app_v2 shelters with `source_application_code`: `23690`
+- app_v2 shelters still missing `source_application_code`: `5`
+- distinct populated source application codes: `86`
+- source-coded shelters eligible by code: `12324`
+- source-coded shelters ineligible by code: `11366`
+- populated source codes without an eligibility rule: `0`
 
-That means the model is real and source-backed, but it cannot improve grouped parity until app_v2 shelter rows are refreshed or populated with their source application code.
+Strict source-code mode now has measurable coverage:
 
-Diagnostic source-code mode confirms this:
+- Copenhagen: `10/10` shared grouped addresses, `0` app_v2-only, `0` legacy-only
+- Aarhus: `10/10` shared grouped addresses, `0` app_v2-only, `0` legacy-only
+- Lemvig: `9/10` shared grouped addresses, `1` app_v2-only, `1` legacy-only
+- Six-case semantic analysis: `59` shared grouped addresses, `1` app_v2-only, `1` legacy-only
+- Remaining sampled mismatch: Lemvig `Østergade 65, Nørlem` in legacy vs `Østergade 65` in app_v2
 
 ```bash
 npm run parity:nearby -- --sample copenhagen --app-v2-shape grouped --eligibility source-application-code
+npm run read:nearby-semantic-cases -- --eligibility source-application-code
 ```
 
-The run returns `0` app_v2 results because all candidate rows have unknown `source_application_code`. This is intentional strict behavior; the model does not guess eligibility from address, name, capacity, or legacy result membership.
+The model does not guess eligibility from address, name, capacity, or legacy result membership. Rows without source codes remain unknown/ineligible in strict mode.
 
 ## 8. Recommendation for the Next Work Package
 
-Primary recommendation: populate `app_v2.shelters.source_application_code` through a controlled importer/data-population follow-up, then rerun grouped parity with `--eligibility source-application-code`.
+Primary recommendation: use the broadened internal trial mode with `source_application_code_v1` eligibility across a wider set of real coordinates before approving any public-facing nearby experiment.
 
 That package should answer:
 
-- how grouped nearby parity changes after applying that rule
-- whether source-code coverage is complete enough to make `source_application_code_v1` the normal grouped nearby eligibility mode
-- whether any codes need product review before copying the legacy `skal_med` decision forward
+- whether strict source-backed app_v2 results remain convincing in more runtime-near review cases
+- whether the remaining address-normalization edge cases are acceptable or should be fixed before a public/default experiment
+- whether any source-code eligibility rules need product review before broader exposure
 
-Secondary recommendation: keep the current internal review mode available, but do not broaden it until source-code coverage exists and the strict eligibility mode has been measured.
+Secondary recommendation: keep capacity-only mode as a diagnostic fallback, not as the main candidate for broader app_v2 nearby evaluation, and do a focused address-normalization cleanup if the broader internal trial finds repeated `city/bydel` mismatches.
 
 ## 9. Risks and Limitations
 

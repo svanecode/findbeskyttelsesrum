@@ -28,9 +28,10 @@ interface MapWrapperProps {
   lat: string
   lng: string
   appV2NearbyExperiment?: boolean
+  appV2NearbyEligibility?: string
 }
 
-export default function MapWrapper({ lat, lng, appV2NearbyExperiment = false }: MapWrapperProps) {
+export default function MapWrapper({ lat, lng, appV2NearbyExperiment = false, appV2NearbyEligibility = 'source-application-code' }: MapWrapperProps) {
   // Add validation for coordinates
   const latNum = parseFloat(lat)
   const lngNum = parseFloat(lng)
@@ -56,7 +57,12 @@ export default function MapWrapper({ lat, lng, appV2NearbyExperiment = false }: 
 
   return (
     <MapErrorBoundary>
-      <ShelterMapClient lat={lat} lng={lng} appV2NearbyExperiment={appV2NearbyExperiment} />
+      <ShelterMapClient
+        lat={lat}
+        lng={lng}
+        appV2NearbyExperiment={appV2NearbyExperiment}
+        appV2NearbyEligibility={appV2NearbyEligibility}
+      />
     </MapErrorBoundary>
   )
 } 

@@ -2,6 +2,7 @@ type CliOptions = {
   baseUrl: string;
   sample: string;
   shape: "row" | "grouped" | "shadow";
+  eligibility: "legacy-capacity" | "source-application-code" | "none";
   latitude: number;
   longitude: number;
   radiusMeters: number;
@@ -25,12 +26,23 @@ const coordinateSamples = {
     latitude: 56.5486,
     longitude: 8.3102,
   },
+  odense: {
+    label: "Odense",
+    latitude: 55.4038,
+    longitude: 10.4024,
+  },
+  esbjerg: {
+    label: "Esbjerg",
+    latitude: 55.4765,
+    longitude: 8.4594,
+  },
 } satisfies Record<string, { label: string; latitude: number; longitude: number }>;
 
 const defaultOptions: CliOptions = {
   baseUrl: "http://localhost:3000",
   sample: "copenhagen",
   shape: "row",
+  eligibility: "legacy-capacity",
   latitude: 55.6761,
   longitude: 12.5683,
   radiusMeters: 50_000,
@@ -78,6 +90,7 @@ function getOptions(): CliOptions {
   const baseUrl = getFlagValue("--base-url") ?? defaultOptions.baseUrl;
   const sampleName = getFlagValue("--sample") ?? defaultOptions.sample;
   const shape = getFlagValue("--shape") ?? defaultOptions.shape;
+  const eligibility = getFlagValue("--eligibility") ?? defaultOptions.eligibility;
   const sample = coordinateSamples[sampleName as keyof typeof coordinateSamples];
 
   if (!sample) {
@@ -88,10 +101,15 @@ function getOptions(): CliOptions {
     throw new Error('--shape must be "row", "grouped", or "shadow".');
   }
 
+  if (eligibility !== "legacy-capacity" && eligibility !== "source-application-code" && eligibility !== "none") {
+    throw new Error('--eligibility must be "legacy-capacity", "source-application-code", or "none".');
+  }
+
   return {
     baseUrl,
     sample: sampleName,
     shape,
+    eligibility,
     latitude: parseNumberFlag("--lat", sample.latitude),
     longitude: parseNumberFlag("--lng", sample.longitude),
     radiusMeters: parseIntegerFlag("--radius", defaultOptions.radiusMeters),
@@ -111,6 +129,7 @@ Options:
   --base-url          Base URL for the app. Defaults to http://localhost:3000.
   --sample            Named coordinate sample: ${Object.keys(coordinateSamples).join(", ")}.
   --shape             API shape: row, grouped, or shadow. Defaults to ${defaultOptions.shape}.
+  --eligibility       Grouped API eligibility: legacy-capacity, source-application-code, or none. Defaults to legacy-capacity.
   --lat               Latitude. Overrides --sample latitude when provided.
   --lng               Longitude. Overrides --sample longitude when provided.
   --radius            Radius in meters. Defaults to 50000.
@@ -135,6 +154,10 @@ function buildUrl(options: CliOptions) {
   url.searchParams.set("radius", String(options.radiusMeters));
   url.searchParams.set("limit", String(options.limit));
   url.searchParams.set("candidateLimit", String(options.candidateLimit));
+
+  if (options.shape === "grouped" || options.shape === "shadow") {
+    url.searchParams.set("eligibility", options.eligibility);
+  }
 
   if (options.shape === "shadow") {
     url.searchParams.set("shadow", "1");
@@ -205,6 +228,7 @@ async function main() {
   console.log("[read:app-v2-nearby-api] read-only API probe");
   console.log(`[read:app-v2-nearby-api] sample: ${options.sample}`);
   console.log(`[read:app-v2-nearby-api] shape: ${options.shape}`);
+  console.log(`[read:app-v2-nearby-api] eligibility: ${options.shape === "grouped" || options.shape === "shadow" ? options.eligibility : "n/a"}`);
   console.log(`[read:app-v2-nearby-api] GET ${url.toString()}`);
 
   let response: Response;

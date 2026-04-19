@@ -8,13 +8,13 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Kommuner med beskyttelsesrum",
   description:
-    "Se kommuner med aktive registreringer af beskyttelsesrum og gå videre til den enkelte kommuneside.",
+    "Se kommuner med aktive registreringer af beskyttelsesrum og gå videre til lokale kommunesider med kort og datakontekst.",
   alternates: {
     canonical: "/kommune",
   },
   openGraph: {
     title: "Kommuner med beskyttelsesrum",
-    description: "Oversigt over kommuner med aktive registreringer af beskyttelsesrum.",
+    description: "Oversigt over kommuner med aktive registreringer og lokale kommunesider for beskyttelsesrum.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -55,6 +55,12 @@ export default async function MunicipalityOverviewPage() {
           >
             Om data
           </Link>
+          <Link
+            href="/land"
+            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
+          >
+            Hele landet
+          </Link>
         </nav>
 
         <header className="mb-10 max-w-3xl space-y-5">
@@ -63,8 +69,8 @@ export default async function MunicipalityOverviewPage() {
             Kommuner med registrerede beskyttelsesrum
           </h1>
           <p className="text-lg leading-8 text-gray-300">
-            En enkel oversigt over kommuner med aktive registreringer i det nye datalag. Vælg en kommune for at åbne
-            den eksisterende kommuneside.
+            Brug kommunerne som lokal indgang til registreringer, kort og videre datakontekst. Oversigten bygger på
+            app_v2-summarydata og linker videre til den enkelte kommuneside.
           </p>
           <p className="text-sm leading-6 text-gray-400">
             Oversigten viser kun kommuneoplysninger og overordnede tal. Kort, shelter-lister og nærliggende resultater
@@ -80,7 +86,24 @@ export default async function MunicipalityOverviewPage() {
           <div className="rounded-lg border border-white/10 bg-white/5 p-5">
             <p className="text-sm text-gray-400">Aktive registreringer</p>
             <p className="mt-2 text-2xl font-semibold text-white">{activeShelterCount.toLocaleString("da-DK")}</p>
+            <p className="mt-2 text-sm leading-6 text-gray-400">
+              Registreringer der er aktive i det aktuelle app_v2-datalag.
+            </p>
           </div>
+        </section>
+
+        <section className="mb-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-white">Fra hele landet til den enkelte kommune</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
+            Landssiden samler de nationale summarytal. Kommuneoversigten gør det muligt at gå fra det samlede billede
+            til lokale kort- og kommunevisninger uden at blande nearby-søgningen ind i denne side.
+          </p>
+          <Link
+            href="/land"
+            className="mt-4 inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
+          >
+            Se hele landet
+          </Link>
         </section>
 
         <section className="rounded-lg border border-white/10 bg-white/5">
@@ -119,8 +142,8 @@ export default async function MunicipalityOverviewPage() {
         <section className="mt-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-white">Om tallene</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
-            Tallene kommer fra app_v2-laget og tæller aktive shelterregistreringer pr. kommune. De er ikke en garanti
-            for adgang, stand eller myndighedsgodkendelse af et konkret rum.
+            Tallene kommer fra app_v2-laget og tæller registreringer, der er aktive i det aktuelle datalag. De er ikke
+            en garanti for adgang, fysisk stand, klargøring eller myndighedsgodkendelse af et konkret rum.
           </p>
           <Link
             href="/om-data"

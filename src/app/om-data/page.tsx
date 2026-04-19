@@ -13,13 +13,13 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Om data",
   description:
-    "Kort forklaring af datagrundlaget bag de nye offentlige app_v2-sider for kommuner og beskyttelsesrum.",
+    "Kort forklaring af datagrundlaget bag offentlige kommune-, land- og beskyttelsesrumssider.",
   alternates: {
     canonical: "/om-data",
   },
   openGraph: {
     title: "Om data",
-    description: "Læs hvordan de nye offentlige app_v2-sider bruger registerdata om beskyttelsesrum.",
+    description: "Læs hvordan offentlige kommune-, land- og beskyttelsesrumssider bruger registerdata.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -114,6 +114,12 @@ export default async function DataPage() {
           >
             Kommuner
           </Link>
+          <Link
+            href="/land"
+            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
+          >
+            Hele landet
+          </Link>
         </nav>
 
         <header className="mb-10 max-w-3xl space-y-5">
@@ -139,7 +145,7 @@ export default async function DataPage() {
             <StatCard
               label="Aktive registreringer"
               value={overview.activeShelterCount.toLocaleString("da-DK")}
-              note="Shelters med aktiv importtilstand."
+              note="Registreringer der er aktive i det aktuelle app_v2-datalag."
             />
             <StatCard
               label="Seneste import"
@@ -178,8 +184,22 @@ export default async function DataPage() {
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Hvad siden ikke lover</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Registreringer er ikke en garanti for adgang, klargøring, myndighedsgodkendelse eller aktuel fysisk stand.
-              Nærliggende resultater, kortvisninger og legacy kommune-lister er ikke flyttet til app_v2 i denne pakke.
+              Registreringer og registreret kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse
+              eller aktuel fysisk stand. Eksempelregistreringer på land- og kommunesider er indgange til detail-sider,
+              ikke anbefalinger eller komplette lister.
+            </p>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold text-white">Nærliggende resultater</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Den normale adressebaserede søgning og kortvisning bruger fortsat det eksisterende nearby-flow. Det nye
+              app_v2 nearby-lag bliver evalueret separat, fordi nærliggende resultater kræver præcis håndtering af
+              afstand, gruppering, exclusions og kildebaseret typefiltrering.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-gray-400">
+              Det betyder, at de offentlige app_v2-sider kan være længere fremme end den normale nearby-oplevelse. En
+              senere ændring af nearby kræver særskilt validering, før den kan blive bruger-synlig standard.
             </p>
           </section>
         </div>

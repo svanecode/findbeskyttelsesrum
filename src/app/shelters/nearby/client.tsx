@@ -120,8 +120,11 @@ interface ShelterWithDistance extends Shelter {
   distance: number
 }
 
+type AppV2NearbyReviewEligibility = 'source-application-code' | 'legacy-capacity' | 'none'
+
 type NearbyShadowComparison = {
   comparison: {
+    eligibilityMode: string
     sharedAddressCount: number
     legacyOnlyAddressCount: number
     appV2OnlyAddressCount: number
@@ -151,6 +154,17 @@ type NearbyShadowComparison = {
       eligibility: {
         mode: string
         minimumCapacity: number | null
+        sourceApplicationCodeRequired?: boolean
+        sourceApplicationCodeSemantics?: string
+        legacyAnvendelseSemantics?: string
+        note?: string
+      }
+      diagnostics?: {
+        sourceApplicationCodeRows?: number
+        sourceApplicationCodeEligibleRows?: number
+        sourceApplicationCodeUnknownRows?: number
+        filteredByEligibility?: number
+        eligibleRows?: number
       }
     }
   }
@@ -194,6 +208,53 @@ function formatRankDelta(delta: number) {
 
   return delta > 0 ? `app_v2 +${delta}` : `app_v2 ${delta}`
 }
+
+function normalizeReviewEligibility(value: string): AppV2NearbyReviewEligibility {
+  if (value === 'legacy-capacity' || value === 'none') {
+    return value
+  }
+
+  return 'source-application-code'
+}
+
+function getReviewEligibilityLabel(mode: string) {
+  if (mode === 'source_application_code_v1' || mode === 'source-application-code') {
+    return 'Strict source-backed'
+  }
+
+  if (mode === 'legacy_capacity_v1' || mode === 'legacy-capacity') {
+    return 'Capacity-only'
+  }
+
+  if (mode === 'none') {
+    return 'Ingen ekstra eligibility'
+  }
+
+  return mode
+}
+
+const reviewSampleLinks = [
+  {
+    label: 'København',
+    href: '/shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=grouped',
+  },
+  {
+    label: 'Aarhus',
+    href: '/shelters/nearby?lat=56.1629&lng=10.2039&appV2NearbyExperiment=grouped',
+  },
+  {
+    label: 'Lemvig',
+    href: '/shelters/nearby?lat=56.5486&lng=8.3102&appV2NearbyExperiment=grouped',
+  },
+  {
+    label: 'Odense',
+    href: '/shelters/nearby?lat=55.4038&lng=10.4024&appV2NearbyExperiment=grouped',
+  },
+  {
+    label: 'Esbjerg',
+    href: '/shelters/nearby?lat=55.4765&lng=8.4594&appV2NearbyExperiment=grouped',
+  },
+] as const
 
 async function getNearbyShelters(lat: number, lng: number) {
   // Try v3 first (optimized with ST_DWithin and exclusions), fallback to v2
@@ -284,14 +345,19 @@ async function getNearbyShelters(lat: number, lng: number) {
   }
 }
 
-async function getAppV2NearbyShadowComparison(lat: number, lng: number): Promise<NearbyShadowComparison | null> {
+async function getAppV2NearbyShadowComparison(
+  lat: number,
+  lng: number,
+  eligibility: AppV2NearbyReviewEligibility,
+): Promise<NearbyShadowComparison | null> {
   const params = new URLSearchParams({
     lat: String(lat),
     lng: String(lng),
     radius: '50000',
     limit: '10',
     candidateLimit: '500',
-    shadow: '1'
+    shadow: '1',
+    eligibility,
   })
   const response = await fetch(`/api/app-v2/nearby/shadow?${params.toString()}`, {
     cache: 'no-store'
@@ -308,9 +374,15 @@ interface Props {
   lat: string
   lng: string
   appV2NearbyExperiment?: boolean
+  appV2NearbyEligibility?: string
 }
 
-export default function ShelterMapClient({ lat: latString, lng: lngString, appV2NearbyExperiment = false }: Props) {
+export default function ShelterMapClient({
+  lat: latString,
+  lng: lngString,
+  appV2NearbyExperiment = false,
+  appV2NearbyEligibility = 'source-application-code',
+}: Props) {
   const [shelters, setShelters] = useState<(Shelter & { distance: number })[]>([])
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
@@ -324,6 +396,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString, appV2
   const mapRef = useRef<any>(null)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
+  const reviewEligibility = normalizeReviewEligibility(appV2NearbyEligibility)
 
   useEffect(() => {
     setIsClient(true)
@@ -354,7 +427,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString, appV2
 
         if (appV2NearbyExperiment) {
           try {
-            shadowComparison = await getAppV2NearbyShadowComparison(lat, lng)
+            shadowComparison = await getAppV2NearbyShadowComparison(lat, lng, reviewEligibility)
           } catch (error) {
             shadowError = error instanceof Error ? error.message : 'app_v2 nearby experiment kunne ikke indlæses.'
           }
@@ -366,6 +439,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString, appV2
             anvendelseskoderCount: anvendelseskoderData.length,
             kommunekoderCount: kommunekoderData.length,
             appV2NearbyExperiment,
+            reviewEligibility,
             appV2ShadowResultCount: shadowComparison?.meta.appV2.resultCount ?? 0
           })
         }
@@ -400,7 +474,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString, appV2
     return () => {
       isMounted = false
     }
-  }, [lat, lng, appV2NearbyExperiment])
+  }, [lat, lng, appV2NearbyExperiment, reviewEligibility])
 
   if (isNaN(lat) || isNaN(lng)) {
     return (
@@ -429,6 +503,28 @@ export default function ShelterMapClient({ lat: latString, lng: lngString, appV2
       )
     : []
   const sharedRankDifferences = appV2ShadowComparison?.comparison.rankOverlap.shared ?? []
+  const appV2Diagnostics = appV2ShadowComparison?.meta.appV2.diagnostics
+  const appV2Eligibility = appV2ShadowComparison?.meta.appV2.eligibility
+  const isStrictSourceBackedReview =
+    appV2ShadowComparison?.comparison.eligibilityMode === 'source_application_code_v1' ||
+    appV2Eligibility?.mode === 'source_application_code_v1'
+  const hasReviewMismatches = legacyOnlyResults.length > 0 || appV2OnlyResults.length > 0
+  const likelyAddressNormalizationEdge =
+    isStrictSourceBackedReview &&
+    legacyOnlyResults.length > 0 &&
+    legacyOnlyResults.length === appV2OnlyResults.length
+  const reviewModeLinks = [
+    {
+      key: 'source-application-code',
+      label: 'Strict source-backed',
+      href: `/shelters/nearby?lat=${encodeURIComponent(latString)}&lng=${encodeURIComponent(lngString)}&appV2NearbyExperiment=grouped&appV2NearbyEligibility=source-application-code`,
+    },
+    {
+      key: 'legacy-capacity',
+      label: 'Capacity-only',
+      href: `/shelters/nearby?lat=${encodeURIComponent(latString)}&lng=${encodeURIComponent(lngString)}&appV2NearbyExperiment=grouped&appV2NearbyEligibility=legacy-capacity`,
+    },
+  ]
 
   return (
     <main className="min-h-screen bg-[#1a1a1a] text-white">
@@ -463,10 +559,43 @@ export default function ShelterMapClient({ lat: latString, lng: lngString, appV2
             </div>
             <p className="mb-4 text-sm text-gray-300">
               Denne blok vises kun med <span className="font-mono text-orange-300">appV2NearbyExperiment=grouped</span>.
-              Kortet og de normale resultatkort bruger stadig legacy-flowet. app_v2-previewet er grouped,
-              bruger <span className="font-mono text-orange-300">capacity &gt;= 40</span>, og mangler stadig den fulde
-              <span className="font-mono text-orange-300"> skal_med</span>-semantik.
+              Kortet og de normale resultatkort bruger stadig legacy-flowet. app_v2-reviewet er grouped og bruger som
+              standard <span className="font-mono text-orange-300">source_application_code_v1</span>.
             </p>
+            <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+              <div className="rounded-lg border border-white/10 bg-[#252525] p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Mode</div>
+                <div className="flex flex-wrap gap-2">
+                  {reviewModeLinks.map((link) => (
+                    <a
+                      key={link.key}
+                      href={link.href}
+                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                        reviewEligibility === link.key
+                          ? 'border-orange-400 bg-orange-500/20 text-orange-100'
+                          : 'border-white/10 bg-[#1f1f1f] text-gray-300 hover:border-orange-400/60 hover:text-white'
+                      }`}
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-[#252525] p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Trial cases</div>
+                <div className="flex flex-wrap gap-2">
+                  {reviewSampleLinks.map((link) => (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      className="rounded-lg border border-white/10 bg-[#1f1f1f] px-3 py-2 text-xs font-medium text-gray-300 transition-colors hover:border-orange-400/60 hover:text-white"
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
             {appV2ShadowError ? (
               <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-200">
                 {appV2ShadowError}
@@ -495,6 +624,129 @@ export default function ShelterMapClient({ lat: latString, lng: lngString, appV2
                     <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.rankOverlap.exactRankMatches}</div>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Eligibility</div>
+                    <div className="text-sm font-semibold text-white">
+                      {getReviewEligibilityLabel(appV2Eligibility?.mode ?? appV2ShadowComparison.comparison.eligibilityMode)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Source-code rows</div>
+                    <div className="text-sm font-semibold text-white">{appV2Diagnostics?.sourceApplicationCodeRows ?? 'n/a'}</div>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Eligible by code</div>
+                    <div className="text-sm font-semibold text-white">{appV2Diagnostics?.sourceApplicationCodeEligibleRows ?? 'n/a'}</div>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Unknown code rows</div>
+                    <div className="text-sm font-semibold text-white">{appV2Diagnostics?.sourceApplicationCodeUnknownRows ?? 'n/a'}</div>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Filtered rows</div>
+                    <div className="text-sm font-semibold text-white">{appV2Diagnostics?.filteredByEligibility ?? 'n/a'}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-white/10 bg-[#252525] p-3">
+                  <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-white">Trial vurdering</h3>
+                      <p className="text-xs text-gray-400">
+                        Brug denne blok til intern vurdering af grouped app_v2 i samme koordinatkontekst som legacy-listen.
+                      </p>
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {hasReviewMismatches ? 'Mismatch kræver review' : 'Ingen membership-mismatch i top 10'}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 text-sm text-gray-300 md:grid-cols-3">
+                    <div className="rounded-lg bg-[#1f1f1f] p-3">
+                      <div className="mb-1 font-medium text-white">1. Membership</div>
+                      <div>
+                        Shared {appV2ShadowComparison.comparison.sharedAddressCount}/10,
+                        legacy-only {appV2ShadowComparison.comparison.legacyOnlyAddressCount},
+                        app_v2-only {appV2ShadowComparison.comparison.appV2OnlyAddressCount}.
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-[#1f1f1f] p-3">
+                      <div className="mb-1 font-medium text-white">2. Ranking</div>
+                      <div>
+                        Max rank-delta {appV2ShadowComparison.comparison.rankOverlap.maxAbsRankDelta};
+                        exact rank {appV2ShadowComparison.comparison.rankOverlap.exactRankMatches}.
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-[#1f1f1f] p-3">
+                      <div className="mb-1 font-medium text-white">3. Semantik</div>
+                      <div>
+                        {isStrictSourceBackedReview
+                          ? 'Strict source-backed eligibility er aktiv. Fokuser på edge cases, ikke capacity-only støj.'
+                          : 'Denne fallback-mode er diagnostisk. Brug strict source-backed til primær trial-vurdering.'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {hasReviewMismatches && (
+                  <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+                    <div className="mb-3">
+                      <h3 className="text-sm font-semibold text-yellow-100">Edge-case review</h3>
+                      <p className="text-sm text-yellow-100/80">
+                        {likelyAddressNormalizationEdge
+                          ? 'Legacy-only og app_v2-only har samme antal i strict mode. Det kan være address-normalization eller city/postal formatting, men skal vurderes konkret.'
+                          : 'Der er membership-forskelle i top 10. Vurder om de ligner coverage, grouping, ranking eller eligibility-semantik.'}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="rounded-lg bg-[#1f1f1f] p-3">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-yellow-200">Legacy-only keys</div>
+                        {legacyOnlyResults.length === 0 ? (
+                          <p className="text-sm text-gray-400">Ingen.</p>
+                        ) : (
+                          <ul className="space-y-2 text-sm text-gray-200">
+                            {legacyOnlyResults.map((result) => (
+                              <li key={`${result.rank}-${result.addressKey}`} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
+                                <span className="font-medium">#{result.rank}</span> {result.addressKey}
+                                {likelyAddressNormalizationEdge && (
+                                  <span className="mt-1 block text-xs text-yellow-100/70">
+                                    Sammenlign med app_v2-only key. Ligner ofte city/address-normalisering, hvis adresse og postnummer matcher.
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div className="rounded-lg bg-[#1f1f1f] p-3">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-yellow-200">app_v2-only keys</div>
+                        {appV2OnlyResults.length === 0 ? (
+                          <p className="text-sm text-gray-400">Ingen.</p>
+                        ) : (
+                          <ul className="space-y-2 text-sm text-gray-200">
+                            {appV2OnlyResults.map((result) => (
+                              <li key={`${result.rank}-${result.addressKey}`} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
+                                <span className="font-medium">#{result.rank}</span> {result.addressKey}
+                                {likelyAddressNormalizationEdge && (
+                                  <span className="mt-1 block text-xs text-yellow-100/70">
+                                    Hvis denne kun adskiller sig ved bydel/ekstra bynavn, bør casen vurderes som normalization før data-gap.
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!hasReviewMismatches && isStrictSourceBackedReview && (
+                  <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-100">
+                    Strict source-backed app_v2 matcher legacy top-10 membership for denne koordinat. Brug stadig rank-delta og grouped capacity til at vurdere kvaliteten.
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
                   <div className="rounded-lg bg-[#252525] p-3">
@@ -578,8 +830,43 @@ export default function ShelterMapClient({ lat: latString, lng: lngString, appV2
                 </div>
 
                 <div className="rounded-lg bg-orange-500/10 p-3 text-sm text-orange-100">
-                  Kortet viser stadig legacy-markører. Brug app_v2-only og legacy-only listerne til at vurdere, om forskelle ligner
-                  <span className="font-mono"> skal_med</span>, coverage, grouping eller ranking.
+                  Kortet viser stadig legacy-markører. Strict source-backed mode modellerer legacy
+                  <span className="font-mono"> skal_med</span> via source application codes, men fuld legacy anvendelse/typevisning
+                  er stadig ikke en del af app_v2-outputtet. Resterende forskelle bør især vurderes som address-normalization,
+                  coverage, grouping eller ranking.
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)]">
+                  <div className="rounded-lg bg-[#252525] p-3 text-sm text-gray-300">
+                    <h3 className="mb-2 text-sm font-semibold text-white">Reviewer checklist</h3>
+                    <ul className="list-disc space-y-1 pl-5">
+                      <li>Normal liste og kort er stadig legacy og skal bruges som reference.</li>
+                      <li>Strict source-backed er den primære app_v2 trial-variant; capacity-only er kun fallback-diagnostik.</li>
+                      <li>Undersøg altid legacy-only og app_v2-only cases før en koordinat vurderes god nok.</li>
+                      <li>Små rank-deltas er acceptable i intern trial, men systematiske membership-forskelle skal klassificeres.</li>
+                      <li>Gentag samme koordinat med fallback-mode, hvis en forskel skal isoleres til source-code eligibility.</li>
+                    </ul>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3 text-sm text-gray-300">
+                    <h3 className="mb-2 text-sm font-semibold text-white">Mere kontekst</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href="/om-data"
+                        className="rounded-lg border border-white/10 bg-[#1f1f1f] px-3 py-2 text-xs font-medium text-gray-300 transition-colors hover:border-orange-400/60 hover:text-white"
+                      >
+                        Om data
+                      </Link>
+                      <Link
+                        href="/kommune"
+                        className="rounded-lg border border-white/10 bg-[#1f1f1f] px-3 py-2 text-xs font-medium text-gray-300 transition-colors hover:border-orange-400/60 hover:text-white"
+                      >
+                        Kommuner
+                      </Link>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-gray-400">
+                      Brug de offentlige app_v2-sider til datakontekst. Nearby-trialen er stadig intern og ændrer ikke normal søgning.
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : (

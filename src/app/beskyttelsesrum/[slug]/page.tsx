@@ -95,13 +95,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `${shelter.name} | Beskyttelsesrum i ${shelter.municipality.name}`,
-    description: `${address}. Kapacitet: ${shelter.capacity.toLocaleString("da-DK")} sikringspladser. Registreret i kildedata.`,
+    description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} pladser. Registreret i kildedata.`,
     alternates: {
       canonical: getShelterCanonicalPath(shelter.slug),
     },
     openGraph: {
       title: `${shelter.name} | Beskyttelsesrum i ${shelter.municipality.name}`,
-      description: `${address}. Kapacitet: ${shelter.capacity.toLocaleString("da-DK")} sikringspladser.`,
+      description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} pladser.`,
       type: "article",
       locale: "da_DK",
       siteName: "Find Beskyttelsesrum",
@@ -156,6 +156,12 @@ export default async function ShelterDetailPage({ params }: Props) {
           >
             Om data
           </Link>
+          <Link
+            href="/land"
+            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
+          >
+            Hele landet
+          </Link>
         </nav>
 
         <article className="space-y-8">
@@ -175,7 +181,10 @@ export default async function ShelterDetailPage({ params }: Props) {
             <dl className="mt-3">
               <DetailRow label="Adresse" value={getShelterAddress(shelter)} />
               <DetailRow label="Kommune" value={shelter.municipality.name} />
-              <DetailRow label="Kapacitet" value={`${shelter.capacity.toLocaleString("da-DK")} sikringspladser`} />
+              <DetailRow
+                label="Registreret kapacitet"
+                value={`${shelter.capacity.toLocaleString("da-DK")} pladser`}
+              />
               <DetailRow label="Status" value={statusLabels[shelter.status]} />
               <DetailRow label="Datalagets tilstand" value={importStateLabels[shelter.importState]} />
               <DetailRow
@@ -188,9 +197,38 @@ export default async function ShelterDetailPage({ params }: Props) {
               />
             </dl>
             <p className="mt-4 text-sm leading-6 text-gray-400">
-              Kapacitet og status er registerfelter. De siger ikke i sig selv, om rummet er klargjort eller tilgængeligt
-              i en konkret situation.
+              Registreret kapacitet og status er registerfelter. De siger ikke i sig selv, om rummet er klargjort,
+              fysisk tilgængeligt eller kan bruges i en konkret situation.
             </p>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <p className="text-sm uppercase tracking-wide text-gray-400">Placering i overblikket</p>
+            <h2 className="mt-2 text-lg font-semibold text-white">Fra registrering til kommune og land</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Denne side viser en enkelt offentlig registrering. Brug kommunesiden til den lokale kortkontekst og
+              landssiden til at forstå hvordan registreringen indgår i det samlede overblik.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href={`/kommune/${shelter.municipality.slug}`}
+                className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+              >
+                Se {shelter.municipality.name}
+              </Link>
+              <Link
+                href="/land"
+                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
+              >
+                Se hele landet
+              </Link>
+              <Link
+                href="/om-data"
+                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
+              >
+                Om data
+              </Link>
+            </div>
           </section>
 
           {(shelter.summary || shelter.accessibilityNotes) && (
@@ -229,12 +267,20 @@ export default async function ShelterDetailPage({ params }: Props) {
           </section>
 
           <div>
-            <Link
-              href={`/kommune/${shelter.municipality.slug}`}
-              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
-            >
-              Se {shelter.municipality.name}
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href={`/kommune/${shelter.municipality.slug}`}
+                className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+              >
+                Se {shelter.municipality.name}
+              </Link>
+              <Link
+                href="/land"
+                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
+              >
+                Se hele landet
+              </Link>
+            </div>
           </div>
         </article>
       </div>

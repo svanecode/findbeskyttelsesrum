@@ -187,6 +187,32 @@ type ShelterCountOptions = {
   includeMissing?: boolean;
 };
 
+type FeaturedShelterOptions = {
+  limit?: number;
+  municipalityId?: string;
+};
+
+type ShelterPreviewMunicipality = {
+  id: string;
+  code: string | null;
+  slug: string;
+  name: string;
+  regionName: string | null;
+};
+
+export type AppV2ShelterPreview = {
+  id: string;
+  slug: string;
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  capacity: number;
+  status: AppV2ShelterStatus;
+  importState: AppV2ImportState;
+  municipality: ShelterPreviewMunicipality;
+};
+
 export type AppV2NearbySheltersOptions = {
   latitude: number;
   longitude: number;
@@ -286,6 +312,37 @@ function normalizeShelter(row: ShelterRow, municipality: AppV2MunicipalityDetail
     canonicalSourceName: row.canonical_source_name,
     canonicalSourceReference: row.canonical_source_reference,
     municipality,
+  };
+}
+
+function normalizeShelterPreview(row: ShelterRow, municipality: ShelterPreviewMunicipality): AppV2ShelterPreview {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    addressLine1: row.address_line1,
+    postalCode: row.postal_code,
+    city: row.city,
+    capacity: row.capacity,
+    status: row.status,
+    importState: row.import_state,
+    municipality,
+  };
+}
+
+function normalizeShelterPreviewMunicipality(row: MunicipalityRow): ShelterPreviewMunicipality {
+  const display = normalizeMunicipalityDisplay({
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+  });
+
+  return {
+    id: row.id,
+    code: row.code,
+    slug: display.slug,
+    name: display.name,
+    regionName: row.region_name,
   };
 }
 
@@ -743,6 +800,64 @@ export async function getAppV2TotalShelterCapacity() {
   }
 
   return totalCapacity;
+}
+
+export async function getAppV2FeaturedShelters(options: FeaturedShelterOptions = {}) {
+  const supabase = createAppV2ReadClient();
+  const limit = options.limit ?? 5;
+
+  if (!Number.isInteger(limit) || limit <= 0 || limit > 12) {
+    throw new Error("Featured app_v2 shelters require a limit between 1 and 12.");
+  }
+
+  let query = supabase
+    .from("shelters")
+    .select(
+      "id, municipality_id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, last_seen_at, last_imported_at, canonical_source_name, canonical_source_reference",
+    )
+    .eq("import_state", "active")
+    .order("capacity", { ascending: false })
+    .order("name", { ascending: true })
+    .limit(limit);
+
+  if (options.municipalityId) {
+    query = query.eq("municipality_id", options.municipalityId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error("Could not load featured app_v2 shelters.");
+  }
+
+  const shelters = (data ?? []) as ShelterRow[];
+  const municipalityIds = Array.from(new Set(shelters.map((shelter) => shelter.municipality_id)));
+
+  if (municipalityIds.length === 0) {
+    return [];
+  }
+
+  const { data: municipalityData, error: municipalityError } = await supabase
+    .from("municipalities")
+    .select("id, code, slug, name, description, region_name")
+    .in("id", municipalityIds);
+
+  if (municipalityError) {
+    throw new Error("Could not load municipalities for featured app_v2 shelters.");
+  }
+
+  const municipalityById = new Map(
+    ((municipalityData ?? []) as MunicipalityRow[]).map((row) => [
+      row.id,
+      normalizeShelterPreviewMunicipality(row),
+    ]),
+  );
+
+  return shelters.flatMap((shelter) => {
+    const municipality = municipalityById.get(shelter.municipality_id);
+
+    return municipality ? [normalizeShelterPreview(shelter, municipality)] : [];
+  });
 }
 
 export async function getLatestAppV2ImportRun(sourceName?: string) {

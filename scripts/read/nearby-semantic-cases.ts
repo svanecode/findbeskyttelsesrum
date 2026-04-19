@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import {
   getAppV2GroupedNearbySheltersWithDiagnostics,
+  type AppV2NearbyEligibilityMode,
   type AppV2GroupedNearbyShelter,
 } from "@/lib/supabase/app-v2-queries";
 
@@ -68,6 +69,7 @@ type Options = {
   limit: number;
   candidateLimit: number;
   examples: number;
+  eligibilityMode: AppV2NearbyEligibilityMode;
 };
 
 type AppV2OnlyClassification =
@@ -115,6 +117,7 @@ const defaultOptions: Options = {
   limit: 10,
   candidateLimit: 500,
   examples: 5,
+  eligibilityMode: "legacy_capacity_v1",
 };
 
 function getFlagValue(flag: string) {
@@ -145,9 +148,14 @@ function parseIntegerFlag(flag: string, fallback: number) {
 
 function getOptions(): Options {
   const sample = getFlagValue("--sample") ?? defaultOptions.sample;
+  const rawEligibility = getFlagValue("--eligibility") ?? "legacy-capacity";
 
   if (sample !== "all" && !(sample in coordinateSamples)) {
     throw new Error(`Unknown --sample "${sample}". Expected all or one of: ${Object.keys(coordinateSamples).join(", ")}.`);
+  }
+
+  if (rawEligibility !== "legacy-capacity" && rawEligibility !== "source-application-code" && rawEligibility !== "none") {
+    throw new Error('--eligibility must be "legacy-capacity", "source-application-code", or "none".');
   }
 
   return {
@@ -156,6 +164,12 @@ function getOptions(): Options {
     limit: parseIntegerFlag("--limit", defaultOptions.limit),
     candidateLimit: parseIntegerFlag("--candidate-limit", defaultOptions.candidateLimit),
     examples: parseIntegerFlag("--examples", defaultOptions.examples),
+    eligibilityMode:
+      rawEligibility === "legacy-capacity"
+        ? "legacy_capacity_v1"
+        : rawEligibility === "source-application-code"
+          ? "source_application_code_v1"
+          : "none",
   };
 }
 
@@ -172,6 +186,7 @@ Options:
   --limit             Result limit. Defaults to ${defaultOptions.limit}.
   --candidate-limit   app_v2 candidate limit. Defaults to ${defaultOptions.candidateLimit}.
   --examples          Examples per bucket. Defaults to ${defaultOptions.examples}.
+  --eligibility       app_v2 eligibility mode: legacy-capacity, source-application-code, or none. Defaults to legacy-capacity.
   --help              Print this help text.
 
 This script is read-only. It compares legacy nearby output with grouped app_v2 nearby output and annotates app_v2-only cases by exact normalized address lookup against legacy sheltersv2/anvendelseskoder.`);
@@ -406,7 +421,7 @@ async function analyzeSample(
       limit: options.limit,
       candidateLimit: options.candidateLimit,
       importStates: ["active"],
-      eligibilityMode: "legacy_capacity_v1",
+      eligibilityMode: options.eligibilityMode,
     }),
   ]);
 
@@ -519,7 +534,7 @@ async function main() {
 
   console.log("[read:nearby-semantic-cases] read-only nearby semantic mismatch analysis");
   console.log(
-    `[read:nearby-semantic-cases] sample=${options.sample} radius=${options.radiusMeters} limit=${options.limit} candidateLimit=${options.candidateLimit}`,
+    `[read:nearby-semantic-cases] sample=${options.sample} radius=${options.radiusMeters} limit=${options.limit} candidateLimit=${options.candidateLimit} eligibility=${options.eligibilityMode}`,
   );
   console.log(
     "[read:nearby-semantic-cases] matching rule: app_v2-only groups are annotated through exact normalized address + postal lookup in legacy sheltersv2; no fuzzy matching.",
@@ -583,7 +598,7 @@ async function main() {
       `  legacyOnly=${result.legacyOnly.length} appV2Only=${result.appV2OnlyDetails.length} likelySkalMed=${result.bucketCounts.likely_skal_med_filtered} stillEligible=${result.bucketCounts.legacy_match_still_eligible} mixed=${result.bucketCounts.legacy_match_mixed_semantics} noLegacyMatch=${result.bucketCounts.no_exact_legacy_address_match}`,
     );
     console.log(
-      `  diagnostics: filteredByEligibility=${result.diagnostics.filteredByEligibility ?? "n/a"} eligibleRows=${result.diagnostics.eligibleRows ?? "n/a"} groupedRows=${result.diagnostics.groupedRows ?? "n/a"} legacyAnvendelse=${result.diagnostics.legacyAnvendelseSemantics ?? "unknown"}`,
+      `  diagnostics: filteredByEligibility=${result.diagnostics.filteredByEligibility ?? "n/a"} eligibleRows=${result.diagnostics.eligibleRows ?? "n/a"} groupedRows=${result.diagnostics.groupedRows ?? "n/a"} legacyAnvendelse=${result.diagnostics.legacyAnvendelseSemantics ?? "unknown"} sourceApplicationCode=${result.diagnostics.sourceApplicationCodeSemantics ?? "unknown"} sourceCodeRows=${result.diagnostics.sourceApplicationCodeRows ?? "n/a"} sourceCodeUnknownRows=${result.diagnostics.sourceApplicationCodeUnknownRows ?? "n/a"}`,
     );
 
     printExamples(

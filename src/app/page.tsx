@@ -69,8 +69,24 @@ export default function Home() {
             
             <div className="text-center mt-12 sm:mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
-                href="/kommune"
+                href="/land"
                 className="inline-flex items-center rounded-lg px-4 py-3 text-body-sm font-medium bg-white text-black hover:bg-gray-200 transition-all duration-200 group touch-target focus-visible btn-interactive sm:px-6 sm:text-body-md"
+                aria-label="Se samlet indgang til beskyttelsesrum i Danmark"
+              >
+                <span>Hele landet</span>
+                <svg
+                  className="w-4 h-4 sm:w-5 sm:h-5 ml-2 transform group-hover:translate-x-1 transition-transform duration-200"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+              <Link
+                href="/kommune"
+                className="inline-flex items-center rounded-lg px-4 py-3 text-body-sm font-medium bg-white/5 hover:bg-white/10 text-white transition-all duration-200 group touch-target focus-visible btn-interactive sm:px-6 sm:text-body-md"
                 aria-label="Se oversigt over kommuner med registrerede beskyttelsesrum"
               >
                 <span>Se kommuner</span>

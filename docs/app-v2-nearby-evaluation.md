@@ -10,6 +10,7 @@ This document captures the current read-only evaluation status for the new app_v
 - `/api/app-v2/nearby`
 - `/api/app-v2/nearby/grouped`
 - app_v2 nearby eligibility mode `legacy_capacity_v1`
+- app_v2 nearby eligibility mode `source_application_code_v1`
 - municipality, nearby, and exclusions parity scripts
 
 No runtime cutover has happened. The live `/shelters/nearby` UI still uses the legacy `public` nearby flow.
@@ -293,9 +294,9 @@ npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --sample lemv
 Shadow compare probe:
 
 ```bash
-npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --sample copenhagen --shape shadow
-npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --sample aarhus --shape shadow
-npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --sample lemvig --shape shadow
+npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --sample copenhagen --shape shadow --eligibility source-application-code
+npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --sample aarhus --shape shadow --eligibility source-application-code
+npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --sample lemvig --shape shadow --eligibility source-application-code
 ```
 
 API error-shape probes:
@@ -393,19 +394,35 @@ Current real-environment observations:
   - Review mode renders a separate grouped app_v2 comparison panel above the legacy list.
   - It shows overlap, legacy-only results, app_v2-only results, shared rank deltas, grouped top results, and a map-context note.
   - The map and legacy result cards are not replaced.
+  - Review mode now defaults to strict source-backed eligibility.
+  - Activate it with:
+    - `/shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=grouped`
+    - optional diagnostic fallback: add `appV2NearbyEligibility=legacy-capacity`
+  - The review panel now shows eligibility mode, source-code coverage, source-code eligible rows, unknown code rows, overlap, rank deltas, app_v2-only cases, and legacy-only cases.
+  - Work Package T expands this from a preview block into a more useful internal trial surface: it adds a trial summary, explicit strict/fallback mode links, filtered-row diagnostics, edge-case review cues, and a reviewer checklist.
+  - Work Package U broadens the trial surface for internal use: it adds quick links for representative trial cases, clearer strict/fallback mode grouping, stronger edge-case hints for address-normalization cases, and direct links to the app_v2 data context pages.
 - Semantic mismatch analysis now runs through `npm run read:nearby-semantic-cases`.
-  - It analyzed Copenhagen, Aarhus, Lemvig, Aalborg, Odense, and Esbjerg with grouped app_v2 and capacity eligibility active.
-  - Across those samples, shared grouped addresses were `45`, legacy-only grouped addresses were `15`, and app_v2-only grouped addresses were `15`.
-  - All `15/15` app_v2-only cases had exact normalized legacy address matches and were classified as likely filtered by legacy `anvendelseskoder.skal_med` / eligibility semantics.
-  - `0/15` app_v2-only cases matched legacy rows that still appeared legacy-eligible, and `0/15` lacked an exact legacy address match.
+  - Earlier capacity-only analysis across Copenhagen, Aarhus, Lemvig, Aalborg, Odense, and Esbjerg found `45` shared grouped addresses, `15` legacy-only grouped addresses, and `15` app_v2-only grouped addresses.
+  - All `15/15` capacity-only app_v2-only cases had exact normalized legacy address matches and were classified as likely filtered by legacy `anvendelseskoder.skal_med` / eligibility semantics.
+  - After `source_application_code_v1` population, strict source-backed analysis improved the same six-case set to `59` shared grouped addresses, `1` legacy-only grouped address, and `1` app_v2-only grouped address.
+  - The remaining sampled strict-mode mismatch is the Lemvig `Østergade 65, Nørlem` vs `Østergade 65` address/city normalization edge case.
   - The detailed decision document is `docs/app-v2-nearby-semantic-gap-analysis.md`.
-- A narrow source-backed application-code eligibility model now exists, but it is not active as the default nearby behavior.
+- A narrow source-backed application-code eligibility model now exists, and the target app_v2 data has now been populated with source codes.
   - `app_v2.shelters.source_application_code` stores the intended source code, currently Datafordeler BBR `byg021BygningensAnvendelse`.
   - `app_v2.application_code_eligibility` stores source-name + application-code nearby eligibility.
   - The Datafordeler adapter maps `building.byg021BygningensAnvendelse` into the importer contract.
   - The read layer supports explicit `source_application_code_v1` eligibility.
-  - Target verification currently shows `105` application-code eligibility rows, `76` eligible rows, but `0/23695` app_v2 shelters with `source_application_code` populated.
-  - Diagnostic source-code parity therefore returns `0` app_v2 results because unknown source codes are treated as ineligible, not guessed.
+  - Population used the deterministic source identity join `app_v2.shelters.canonical_source_reference = public.sheltersv2.bygning_id`; no address/name/capacity heuristics were used.
+  - Target verification now shows `23690/23695` app_v2 shelters with `source_application_code` populated, `86` distinct source codes, and `0` populated source codes without an eligibility rule.
+  - Of the populated rows, `12324` are nearby eligible by code and `11366` are nearby ineligible by code.
+  - Strict source-code grouped parity now improves the three standard samples from `9/10`, `7/10`, `8/10` address overlap to `10/10`, `10/10`, `9/10`.
+  - The six-case semantic analysis improves from `45` shared / `15` app_v2-only / `15` legacy-only grouped addresses to `59` shared / `1` app_v2-only / `1` legacy-only; the remaining mismatch is Lemvig `Østergade 65, Nørlem` vs `Østergade 65`.
+- Broader Work Package U runtime probes through the shadow route now show:
+  - Copenhagen: `10/10` shared, max rank delta `1`
+  - Aarhus: `10/10` shared, max rank delta `2`
+  - Lemvig: `9/10` shared, remaining `Østergade 65, Nørlem` vs `Østergade 65`
+  - Odense: `10/10` shared, max rank delta `3`
+  - Esbjerg: `10/10` shared, max rank delta `2`, with `1` unknown source-code row in candidates but no top-10 membership mismatch
 - The API/read stack remains isolated from `/shelters/nearby`.
 
 ## 8. Decision Status
@@ -423,14 +440,68 @@ The strongest current signal is:
 - the biggest visible remaining cause is no longer "app_v2 is only row-level", "capacity threshold is missing", or "candidateLimit is too small"; it is now unresolved inclusion semantics plus residual coordinate/distance differences
 - after focused ranking evaluation, pure ordering/spatial quality no longer looks like the dominant blocker for a limited shadow test
 - the shadow compare route now makes that comparison available in a runtime-near API context without changing the visible nearby flow
-- the gated visible review mode makes grouped app_v2 inspectable in the actual nearby page context, while preserving legacy as the default and visible primary source
+- the gated visible review mode now makes strict source-backed grouped app_v2 inspectable in the actual nearby page context, while preserving legacy as the default and visible primary source
 - semantic mismatch analysis shows the sampled app_v2-only results are dominated by legacy `skal_med=false` application-code cases, especially code `140` and related residential/college categories
-- the source-backed model has been added, but target data must be populated with source application codes before it can improve grouped nearby overlap
+- the source-backed model is now populated and materially improves grouped nearby overlap
+- the remaining sampled strict-mode mismatch looks like address/city normalization rather than application-code inclusion
+- the strict source-backed internal review mode is now mature enough for a broader internal trial pass because it exposes membership, ranking, eligibility diagnostics, edge-case cues, and map-context limitations in the real nearby page context
+- the broader internal trial cases now show `10/10` membership in Copenhagen, Aarhus, Odense, and Esbjerg, and `9/10` in Lemvig
 - suppression does not materially affect the three sampled outputs
 - the one known legacy exclusion is now represented in app_v2 and the RPC can filter it
 
+## 8.1 Internal Trial Guide
+
+Activate the strict source-backed internal trial surface with:
+
+```text
+/shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=grouped
+```
+
+The default review variant is `source_application_code_v1`. Use the capacity-only fallback only for diagnostics:
+
+```text
+/shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=grouped&appV2NearbyEligibility=legacy-capacity
+```
+
+Internal reviewers should inspect:
+
+- shared top-10 membership and rank deltas
+- legacy-only and app_v2-only keys before judging a coordinate
+- source-code coverage, eligible-by-code rows, unknown code rows, and filtered rows
+- grouped app_v2 top results, especially grouped count and total capacity
+- whether remaining differences look like address normalization, coverage, grouping, or ranking
+
+Use the built-in trial-case links in the review panel for a consistent first pass:
+
+- Copenhagen
+- Aarhus
+- Lemvig
+- Odense
+- Esbjerg
+
+For any mismatch:
+
+1. Check whether legacy-only and app_v2-only counts are symmetric.
+2. Compare normalized address keys, especially postal code and city/bydel fragments.
+3. Re-run the same coordinate with `appV2NearbyEligibility=legacy-capacity` only if you need to isolate source-code eligibility from grouping/ranking.
+4. Treat the legacy list and map as the visible reference until a separate public experiment is approved.
+5. Use `/om-data` for public data-context language; do not present internal trial output as public truth.
+
+Acceptable internal-trial findings:
+
+- small rank deltas on shared addresses
+- isolated address/city normalization cases that are easy to explain
+- no default-user-visible behavior change
+
+Findings that should block a broader visible experiment:
+
+- repeated app_v2-only cases that look semantically ineligible
+- repeated legacy-only cases that look like app_v2 data coverage gaps
+- high unknown source-code rows in nearby candidates
+- systematic ranking divergence beyond small rank deltas
+
 ## 9. Recommendation
 
-Primary recommendation: run a controlled importer/data-population follow-up that fills `app_v2.shelters.source_application_code` from Datafordeler BBR `byg021BygningensAnvendelse`, then rerun grouped nearby parity with `--eligibility source-application-code`.
+Primary recommendation: run a broader internal visible review pass using the default strict source-backed review mode across more addresses/geographies, while keeping legacy as the normal user-visible source.
 
-Secondary recommendation: keep the gated review mode available for internal inspection, but do not broaden it until source-code coverage exists and the strict source-backed eligibility mode has been measured.
+Secondary recommendation: prepare a very small public-facing experiment only after the broader internal trial confirms that remaining mismatches are limited to address-normalization/ranking edge cases rather than semantic inclusion or coverage failures.
