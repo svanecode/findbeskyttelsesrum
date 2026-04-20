@@ -3,6 +3,8 @@ import KommuneMap from './map'
 import {
   getAppV2FeaturedShelters,
   getAppV2MunicipalityBySlug,
+  getAppV2MunicipalityShelterStats,
+  type AppV2MunicipalityShelterStats,
   type AppV2ShelterPreview,
 } from '@/lib/supabase/app-v2-queries'
 import { notFound } from 'next/navigation'
@@ -25,19 +27,89 @@ function isLegacyKommuneCode(value: string | null | undefined): value is string 
   return typeof value === 'string' && /^\d{4}$/.test(value)
 }
 
-function LocalShelterExample({ shelter }: { shelter: AppV2ShelterPreview }) {
+function formatDate(value: string | null) {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return new Intl.DateTimeFormat('da-DK', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
+}
+
+function LocalInsightCard({ label, value, note }: { label: string; value: string; note: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="mt-1 text-base font-semibold text-gray-900">{value}</p>
+      <p className="mt-1 text-xs leading-5 text-gray-600">{note}</p>
+    </div>
+  )
+}
+
+function PostalAreaSummary({ stats }: { stats: AppV2MunicipalityShelterStats }) {
+  if (stats.postalAreas.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="mt-4">
+      <h2 className="text-sm font-semibold text-gray-900">Lokale tyngdepunkter i datalaget</h2>
+      <p className="mt-1 text-xs leading-5 text-gray-600">
+        Postområderne her har flest aktive registreringer i kommunen. Det er en lokal dataoversigt, ikke en vurdering
+        af adgang eller beredskab.
+      </p>
+      <ul className="mt-2 divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
+        {stats.postalAreas.map((area) => (
+          <li
+            key={`${area.postalCode}-${area.city}`}
+            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-3 py-2 text-sm"
+          >
+            <span className="min-w-0">
+              <span className="block font-medium text-gray-900">
+                {area.postalCode} {area.city}
+              </span>
+              <span className="block text-xs text-gray-600">
+                {area.totalCapacity.toLocaleString('da-DK')} registrerede pladser
+              </span>
+            </span>
+            <span className="self-center whitespace-nowrap text-xs font-semibold text-gray-700">
+              {area.activeShelterCount.toLocaleString('da-DK')} registreringer
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function LocalShelterExample({ shelter, position }: { shelter: AppV2ShelterPreview; position: number }) {
   return (
     <li>
       <Link
         href={`/beskyttelsesrum/${shelter.slug}`}
         className="block rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition hover:bg-gray-50"
       >
-        <span className="block font-semibold text-gray-900">{shelter.name}</span>
+        <span className="flex items-start gap-2">
+          <span className="mt-0.5 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-600">
+            Eksempel {position}
+          </span>
+          <span className="min-w-0 flex-1 font-semibold text-gray-900">{shelter.name}</span>
+        </span>
         <span className="mt-1 block text-xs leading-5 text-gray-600">
           {shelter.addressLine1}, {shelter.postalCode} {shelter.city}
         </span>
-        <span className="mt-1 block text-xs text-gray-500">
-          {shelter.capacity.toLocaleString('da-DK')} registrerede pladser
+        <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+          <span>{shelter.capacity.toLocaleString('da-DK')} registrerede pladser</span>
+          <span>Åbn detail-side</span>
         </span>
       </Link>
     </li>
@@ -60,10 +132,14 @@ export default async function KommunePage({ params }: Props) {
     kode: legacyKommuneCode,
     activeShelterCount: appV2Kommune.activeShelterCount,
   }
-  const featuredShelters = await getAppV2FeaturedShelters({
-    municipalityId: appV2Kommune.id,
-    limit: 3,
-  })
+  const [featuredShelters, municipalityStats] = await Promise.all([
+    getAppV2FeaturedShelters({
+      municipalityId: appV2Kommune.id,
+      limit: 4,
+    }),
+    getAppV2MunicipalityShelterStats(appV2Kommune.id),
+  ])
+  const latestSeenAt = formatDate(municipalityStats.latestSeenAt)
 
   return (
     <main className="relative h-screen w-full">
@@ -110,8 +186,8 @@ export default async function KommunePage({ params }: Props) {
           Beskyttelsesrum i {kommune.name}
         </h1>
         <p className="mt-2 text-sm leading-6 text-gray-700">
-          Kommunesiden samler den lokale indgang til registrerede beskyttelsesrum og giver en vej videre til
-          landsoverblik, datagrundlag og andre kommuner.
+          Kommunesiden samler lokale nøgletal, kortkontekst og udvalgte indgange til detail-sider for registrerede
+          beskyttelsesrum i {kommune.name}.
         </p>
 
         <dl className="mt-4 divide-y divide-gray-200 border-y border-gray-200 text-sm">
@@ -128,31 +204,67 @@ export default async function KommunePage({ params }: Props) {
         <div className="mt-4">
           <h2 className="text-sm font-semibold text-gray-900">Brug siden til</h2>
           <ul className="mt-2 space-y-1 text-sm leading-6 text-gray-700">
-            <li>at orientere dig i kommunens registreringer på kortet</li>
-            <li>at gå videre til hele landet eller alle kommuner</li>
-            <li>at læse hvordan data vises og afgrænses offentligt</li>
+            <li>at se hvor mange aktive registreringer kommunen har i app_v2-datalaget</li>
+            <li>at orientere dig i postområder og kort uden at ændre det eksisterende nearby-flow</li>
+            <li>at åbne få konkrete detail-sider og læse hvordan data er afgrænset</li>
           </ul>
         </div>
 
+        <section className="mt-4" aria-labelledby="local-overview-title">
+          <h2 id="local-overview-title" className="text-sm font-semibold text-gray-900">
+            Lokalt overblik
+          </h2>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <LocalInsightCard
+              label="Registrerede pladser"
+              value={municipalityStats.totalCapacity.toLocaleString('da-DK')}
+              note="Summen af registreret kapacitet i aktive rækker for kommunen."
+            />
+            <LocalInsightCard
+              label="Postområder"
+              value={municipalityStats.postalAreaCount.toLocaleString('da-DK')}
+              note="Antal postnummer/by-kombinationer med aktive registreringer."
+            />
+            {municipalityStats.largestCapacity !== null && (
+              <LocalInsightCard
+                label="Største enkeltregistrering"
+                value={municipalityStats.largestCapacity.toLocaleString('da-DK')}
+                note="Højeste registrerede kapacitet for en enkelt aktiv række."
+              />
+            )}
+            {latestSeenAt && (
+              <LocalInsightCard
+                label="Senest set i kilden"
+                value={latestSeenAt}
+                note="Seneste kildeobservation blandt kommunens aktive registreringer."
+              />
+            )}
+          </div>
+        </section>
+
+        <PostalAreaSummary stats={municipalityStats} />
+
         {featuredShelters.length > 0 && (
-          <div className="mt-4">
-            <h2 className="text-sm font-semibold text-gray-900">Udvalgte eksempelregistreringer</h2>
+          <section className="mt-4" aria-labelledby="local-examples-title">
+            <h2 id="local-examples-title" className="text-sm font-semibold text-gray-900">
+              Udvalgte lokale indgange
+            </h2>
             <p className="mt-1 text-xs leading-5 text-gray-600">
-              Få aktive app_v2-registreringer med høj registreret kapacitet. De er ikke anbefalinger eller en komplet
-              liste over kommunen.
+              Få aktive app_v2-registreringer med høj registreret kapacitet i {kommune.name}. De er konkrete veje ind
+              til detail-sider, ikke anbefalinger, beredskabsvurderinger eller en komplet kommuneliste.
             </p>
             <ul className="mt-2 space-y-2">
-              {featuredShelters.map((shelter) => (
-                <LocalShelterExample key={shelter.id} shelter={shelter} />
+              {featuredShelters.map((shelter, index) => (
+                <LocalShelterExample key={shelter.id} shelter={shelter} position={index + 1} />
               ))}
             </ul>
-          </div>
+          </section>
         )}
 
         <div className="mt-4 border-l-4 border-gray-300 pl-3">
           <p className="text-xs leading-5 text-gray-600">
-            Kommunesiden viser stadig data fra to spor: kommuneopslag, tal og eksempler kommer fra app_v2, mens kort og
-            markører vises med det eksisterende registerflow, indtil nearby- og kortlaget er valideret separat.
+            Kortet nedenfor er stadig det eksisterende registerflow. Lokale nøgletal, postområder og eksempler herover
+            kommer fra app_v2, så siden kan give lokal kontekst uden at ændre den normale nearby-oplevelse.
           </p>
         </div>
 

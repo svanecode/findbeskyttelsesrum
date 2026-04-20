@@ -182,6 +182,29 @@ export default async function DataPage() {
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold text-white">Sådan hænger siderne sammen</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Landssiden giver nationalt overblik og regional struktur. Kommuneoversigten leder videre til lokale
+              kommunesider med nøgletal, postområder og få udvalgte indgange. Detail-sider viser én aktiv registrering
+              med kilde- og opdateringskontekst.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href="/land"
+                className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+              >
+                Se hele landet
+              </Link>
+              <Link
+                href="/kommune"
+                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
+              >
+                Se kommuner
+              </Link>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Hvad siden ikke lover</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Registreringer og registreret kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse

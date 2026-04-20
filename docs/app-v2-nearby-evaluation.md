@@ -502,6 +502,27 @@ Findings that should block a broader visible experiment:
 
 ## 9. Recommendation
 
-Primary recommendation: run a broader internal visible review pass using the default strict source-backed review mode across more addresses/geographies, while keeping legacy as the normal user-visible source.
+Primary recommendation: prepare a tiny public-facing nearby experiment behind explicit gating, while keeping legacy as the normal user-visible source.
 
-Secondary recommendation: prepare a very small public-facing experiment only after the broader internal trial confirms that remaining mismatches are limited to address-normalization/ranking edge cases rather than semantic inclusion or coverage failures.
+Secondary recommendation: keep the internal strict source-backed trial mode available unchanged for continued reviewer checks and fallback diagnostics.
+
+The tiny public experiment should be deliberately narrower than a cutover:
+
+- require an explicit opt-in flag
+- activate with `appV2NearbyExperiment=public-preview`
+- keep the normal result list and map on legacy nearby
+- show grouped app_v2 nearby as a labelled comparison or preview
+- use `source_application_code_v1` eligibility
+- expose overlap and known-gap language in plain public copy
+- link to `/om-data` for data-context explanation
+- avoid changing DAWA/search, markers, routing, or default result ordering
+
+The current public destination surfaces are now coherent enough to support that limited experiment: `/land`, `/kommune`, `/kommune/[slug]`, `/beskyttelsesrum/[slug]`, and `/om-data` give users a clearer app_v2 data context before any nearby result becomes public-facing.
+
+Example public-preview URL:
+
+```text
+/shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=public-preview
+```
+
+The older `appV2NearbyExperiment=grouped` mode remains the larger internal review surface. The public preview is intentionally smaller and does not expose the internal reviewer checklist, mode switcher, or detailed diagnostics.

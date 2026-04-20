@@ -406,13 +406,14 @@ The first app_v2 nearby read contract now exists as `getAppV2NearbyShelters()` i
 
 Recommended next PR:
 
-1. Run a broader internal visible review pass with strict source-backed app_v2 eligibility.
+1. Prepare a tiny public-facing nearby experiment behind explicit gating.
    - Keep legacy as the normal user-visible nearby source.
-   - Use `source_application_code_v1` as the main app_v2 comparison mode.
-   - Keep capacity-only mode available for diagnostics.
-   - Use the built-in trial sample links for Copenhagen, Aarhus, Lemvig, Odense, and Esbjerg before adding ad hoc coordinates.
-   - Treat symmetric legacy-only/app_v2-only differences as address-normalization candidates before calling them data coverage gaps.
-   - Do not broaden to public/default behavior until more review cases confirm the remaining mismatches are address-normalization/ranking issues, not semantic inclusion failures.
+   - Keep the map and default result list on legacy nearby.
+   - Show grouped app_v2 nearby as a clearly labelled comparison or preview only after explicit opt-in with `appV2NearbyExperiment=public-preview`.
+   - Use `source_application_code_v1` as the app_v2 comparison mode.
+   - Keep capacity-only mode available for internal diagnostics, not as the public experiment default.
+   - Use plain public language from `/om-data` for data caveats and known gaps.
+   - Treat the experiment as a comprehension and confidence test, not cutover proof.
 2. Keep the gated internal mode for grouped app_v2 nearby available, with no default cutover.
    - Copenhagen currently has `10/10` grouped normalized address overlap in strict source-code mode.
    - Aarhus currently has `10/10`.
@@ -422,6 +423,7 @@ Recommended next PR:
    - Shared-address rank deltas are small, and larger `candidateLimit` did not change sampled top-10 output.
    - The debug API route is `/api/app-v2/nearby/shadow?shadow=1&lat=...&lng=...`.
    - The internal review URL is `/shelters/nearby?lat=...&lng=...&appV2NearbyExperiment=grouped`.
+   - The tiny public preview URL is `/shelters/nearby?lat=...&lng=...&appV2NearbyExperiment=public-preview`.
    - The goal is to inspect app_v2-only, legacy-only, and rank-delta cases in nearby context while keeping the normal legacy UI response unchanged.
 3. Keep `anvendelseskoder.skal_med` explicit as modeled by source-backed application-code eligibility, while still documenting that app_v2 does not expose full legacy anvendelse/type display semantics.
    - `capacity >= 40` is now represented by `legacy_capacity_v1`.

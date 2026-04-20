@@ -51,7 +51,7 @@ export default function Home() {
             Find Beskyttelsesrum
           </h1>
           <p className="text-body-lg sm:text-xl text-[#E5E7EB] mb-8 sm:mb-10 lg:mb-12 max-w-lg mx-auto">
-            Find det nærmeste beskyttelsesrum i dit område
+            Søg efter nærliggende beskyttelsesrum med en adresse, eller brug land- og kommunesiderne til overblik.
           </p>
           <div className="text-center mt-6 sm:mt-8 lg:mt-10">
             <ShelterCounter 
@@ -117,6 +117,10 @@ export default function Home() {
                 </svg>
               </Link>
             </div>
+            <p className="mx-auto mt-5 max-w-xl text-center text-body-sm leading-6 text-[#D1D5DB]">
+              Adressebaseret søgning bruger fortsat den etablerede nearby-oplevelse. Land, kommuner og data-siden giver
+              den offentlige indgang til det nye app_v2-datalag.
+            </p>
           </div>
         </div>
       </div>

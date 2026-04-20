@@ -374,6 +374,7 @@ interface Props {
   lat: string
   lng: string
   appV2NearbyExperiment?: boolean
+  appV2NearbyPublicExperiment?: boolean
   appV2NearbyEligibility?: string
 }
 
@@ -381,6 +382,7 @@ export default function ShelterMapClient({
   lat: latString,
   lng: lngString,
   appV2NearbyExperiment = false,
+  appV2NearbyPublicExperiment = false,
   appV2NearbyEligibility = 'source-application-code',
 }: Props) {
   const [shelters, setShelters] = useState<(Shelter & { distance: number })[]>([])
@@ -396,7 +398,10 @@ export default function ShelterMapClient({
   const mapRef = useRef<any>(null)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
-  const reviewEligibility = normalizeReviewEligibility(appV2NearbyEligibility)
+  const reviewEligibility = appV2NearbyPublicExperiment
+    ? 'source-application-code'
+    : normalizeReviewEligibility(appV2NearbyEligibility)
+  const shouldLoadAppV2Shadow = appV2NearbyExperiment || appV2NearbyPublicExperiment
 
   useEffect(() => {
     setIsClient(true)
@@ -425,7 +430,7 @@ export default function ShelterMapClient({
         let shadowComparison: NearbyShadowComparison | null = null
         let shadowError: string | null = null
 
-        if (appV2NearbyExperiment) {
+        if (shouldLoadAppV2Shadow) {
           try {
             shadowComparison = await getAppV2NearbyShadowComparison(lat, lng, reviewEligibility)
           } catch (error) {
@@ -439,6 +444,7 @@ export default function ShelterMapClient({
             anvendelseskoderCount: anvendelseskoderData.length,
             kommunekoderCount: kommunekoderData.length,
             appV2NearbyExperiment,
+            appV2NearbyPublicExperiment,
             reviewEligibility,
             appV2ShadowResultCount: shadowComparison?.meta.appV2.resultCount ?? 0
           })
@@ -474,7 +480,7 @@ export default function ShelterMapClient({
     return () => {
       isMounted = false
     }
-  }, [lat, lng, appV2NearbyExperiment, reviewEligibility])
+  }, [lat, lng, shouldLoadAppV2Shadow, appV2NearbyExperiment, appV2NearbyPublicExperiment, reviewEligibility])
 
   if (isNaN(lat) || isNaN(lng)) {
     return (
@@ -541,6 +547,89 @@ export default function ShelterMapClient({
           </Link>
           <h1 className="text-xl sm:text-2xl font-bold">Dine 10 nærmeste beskyttelsesrum</h1>
         </div>
+
+        {appV2NearbyPublicExperiment && (
+          <section className="mb-6 rounded-lg border border-sky-500/30 bg-[#1f1f1f] p-4 sm:p-5">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-300">
+                  Eksperimentel preview
+                </p>
+                <h2 className="text-lg font-semibold text-white">
+                  Ny app_v2 nearby-sammenligning
+                </h2>
+              </div>
+              <div className="text-sm text-gray-400">
+                Legacy-listen og kortet er stadig standard
+              </div>
+            </div>
+            <p className="text-sm leading-6 text-gray-300">
+              Denne lille preview vises kun, fordi siden er åbnet med et eksplicit eksperiment-flag. Den sammenligner
+              den normale legacy-visning med grouped app_v2 nearby i strict source-backed mode. Den erstatter ikke
+              resultatlisten eller kortet.
+            </p>
+
+            {appV2ShadowError ? (
+              <div className="mt-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-200">
+                app_v2-preview kunne ikke indlæses lige nu. Den normale legacy-visning nedenfor er uændret.
+              </div>
+            ) : appV2ShadowComparison ? (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Fælles adresser</div>
+                    <div className="mt-1 text-lg font-semibold text-white">
+                      {appV2ShadowComparison.comparison.sharedAddressCount}/10
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Kun normal visning</div>
+                    <div className="mt-1 text-lg font-semibold text-white">
+                      {appV2ShadowComparison.comparison.legacyOnlyAddressCount}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-[#252525] p-3">
+                    <div className="text-xs text-gray-400">Kun app_v2-preview</div>
+                    <div className="mt-1 text-lg font-semibold text-white">
+                      {appV2ShadowComparison.comparison.appV2OnlyAddressCount}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-white">app_v2-preview, første resultater</h3>
+                  <div className="mt-2 grid gap-2 md:grid-cols-3">
+                    {appV2ShadowComparison.appV2Results.slice(0, 3).map((result) => (
+                      <div key={`${result.rank}-${result.addressKey}`} className="rounded-lg border border-white/10 bg-[#252525] p-3">
+                        <div className="text-sm font-medium text-white">
+                          {result.rank}. {result.address.line1}
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-gray-400">
+                          {result.address.postalCode} {result.address.city} · {formatShadowDistance(result.distanceMeters)}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {result.totalCapacity.toLocaleString('da-DK')} registrerede pladser · {result.shelterCount} gruppe-rækker
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-sky-500/10 p-3 text-sm leading-6 text-sky-100">
+                  Previewen bruger <span className="font-mono">source_application_code_v1</span> og grouped app_v2.
+                  Den normale liste og alle kortmarkører nedenfor kommer stadig fra legacy-flowet.
+                  <Link href="/om-data" className="ml-1 font-semibold underline underline-offset-4">
+                    Læs om datagrundlaget.
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-lg bg-[#252525] p-3 text-sm text-gray-300">
+                Indlæser app_v2-preview...
+              </div>
+            )}
+          </section>
+        )}
 
         {appV2NearbyExperiment && (
           <section className="mb-6 rounded-lg border border-orange-500/30 bg-[#1f1f1f] p-4 sm:p-5">

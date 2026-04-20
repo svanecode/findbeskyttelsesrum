@@ -96,7 +96,7 @@ export default async function MunicipalityOverviewPage() {
           <h2 className="text-lg font-semibold text-white">Fra hele landet til den enkelte kommune</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
             Landssiden samler de nationale summarytal. Kommuneoversigten gør det muligt at gå fra det samlede billede
-            til lokale kort- og kommunevisninger uden at blande nearby-søgningen ind i denne side.
+            til lokale kommunesider med nøgletal, postområder, udvalgte lokale indgange og eksisterende kortflow.
           </p>
           <Link
             href="/land"

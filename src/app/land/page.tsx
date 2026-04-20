@@ -16,14 +16,14 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Beskyttelsesrum i Danmark",
   description:
-    "National destinationsside for registrerede beskyttelsesrum i Danmark med kommuner, udvalgte eksempelregistreringer og datagrundlag.",
+    "National destinationsside for registrerede beskyttelsesrum i Danmark med landstal, regional struktur, kommuner, udvalgte indgange og datagrundlag.",
   alternates: {
     canonical: "/land",
   },
   openGraph: {
     title: "Beskyttelsesrum i Danmark",
     description:
-      "National indgang til kommuner, udvalgte eksempelregistreringer og datagrundlag for beskyttelsesrum.",
+      "National indgang til landstal, regional struktur, kommuner, udvalgte registreringer og datagrundlag.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -35,10 +35,16 @@ type CountryOverview =
   | {
       ok: true;
       municipalityCount: number;
+      activeMunicipalityCount: number;
       activeShelterCount: number;
       totalCapacity: number;
       latestImportRun: AppV2ImportRunSummary | null;
       featuredShelters: AppV2ShelterPreview[];
+      regionSummaries: Array<{
+        name: string;
+        municipalityCount: number;
+        activeShelterCount: number;
+      }>;
       topMunicipalities: Array<{
         name: string;
         slug: string;
@@ -76,14 +82,34 @@ async function getCountryOverview(): Promise<CountryOverview> {
       getLatestAppV2ImportRun(),
       getAppV2FeaturedShelters({ limit: 4 }),
     ]);
+    const regionSummaries = Array.from(
+      municipalities
+        .reduce((regions, municipality) => {
+          const regionName = municipality.regionName ?? "Region ikke angivet";
+          const region = regions.get(regionName) ?? {
+            name: regionName,
+            municipalityCount: 0,
+            activeShelterCount: 0,
+          };
+
+          region.municipalityCount += 1;
+          region.activeShelterCount += municipality.activeShelterCount;
+          regions.set(regionName, region);
+
+          return regions;
+        }, new Map<string, { name: string; municipalityCount: number; activeShelterCount: number }>())
+        .values(),
+    ).sort((a, b) => b.activeShelterCount - a.activeShelterCount || a.name.localeCompare(b.name, "da-DK"));
 
     return {
       ok: true,
       municipalityCount: municipalities.length,
+      activeMunicipalityCount: municipalities.filter((municipality) => municipality.activeShelterCount > 0).length,
       activeShelterCount,
       totalCapacity,
       latestImportRun,
       featuredShelters,
+      regionSummaries,
       topMunicipalities: municipalities
         .slice()
         .sort((a, b) => b.activeShelterCount - a.activeShelterCount || a.name.localeCompare(b.name, "da-DK"))
@@ -105,6 +131,16 @@ function StatCard({ label, value, note }: { label: string; value: string; note: 
     <div className="rounded-lg border border-white/10 bg-white/5 p-5">
       <p className="text-sm text-gray-400">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-gray-400">{note}</p>
+    </div>
+  );
+}
+
+function NationalDepthItem({ label, value, note }: { label: string; value: string; note: string }) {
+  return (
+    <div className="border-t border-white/10 py-4 first:border-t-0">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
       <p className="mt-2 text-sm leading-6 text-gray-400">{note}</p>
     </div>
   );
@@ -143,6 +179,7 @@ function ShelterExampleCard({ shelter }: { shelter: AppV2ShelterPreview }) {
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
         <span>{shelter.municipality.name}</span>
         <span>{shelter.capacity.toLocaleString("da-DK")} registrerede pladser</span>
+        <span>Åbn detail-side</span>
       </div>
     </Link>
   );
@@ -188,12 +225,12 @@ export default async function CountryPage() {
             Beskyttelsesrum i Danmark
           </h1>
           <p className="text-lg leading-8 text-gray-300">
-            En national indgang til registrerede beskyttelsesrum, kommuner og datagrundlag.
+            Den nationale indgang til registrerede beskyttelsesrum, kommuner og datagrundlag.
           </p>
           <p className="text-sm leading-6 text-gray-400">
-            Brug landssiden til at forstå helheden, gå videre til en kommune og se hvordan de enkelte registreringer
-            hænger sammen med datagrundlaget. Adressebaseret nearby-søgning og kort kører fortsat på det eksisterende
-            flow, indtil app_v2 nearby er valideret separat.
+            Brug landssiden til at se national struktur, finde vej til kommunesider og åbne få konkrete detail-sider.
+            Den er ikke en komplet national shelter-browser. Adressebaseret nearby-søgning og kort kører fortsat på det
+            eksisterende flow, indtil app_v2 nearby er valideret separat.
           </p>
         </header>
 
@@ -202,7 +239,7 @@ export default async function CountryPage() {
             <StatCard
               label="Kommuner"
               value={overview.municipalityCount.toLocaleString("da-DK")}
-              note="Kommuner med registreringer i app_v2."
+              note={`${overview.activeMunicipalityCount.toLocaleString("da-DK")} kommuner har aktive registreringer i datalaget.`}
             />
             <StatCard
               label="Aktive registreringer"
@@ -221,6 +258,66 @@ export default async function CountryPage() {
             <p className="mt-2 text-sm leading-6 text-gray-300">
               Appen kunne ikke hente app_v2-summarytal lige nu. Derfor viser siden ingen fallback-tal.
             </p>
+          </section>
+        )}
+
+        {overview.ok && (
+          <section className="mb-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <div className="max-w-3xl">
+              <p className="text-sm uppercase tracking-wide text-gray-400">Nationalt overblik</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">Hvad landssiden kan bruges til</h2>
+              <p className="mt-3 text-sm leading-6 text-gray-300">
+                Landssiden giver et samlet billede af det aktuelle app_v2-datalag og peger videre til de sider, hvor
+                registreringerne bliver lokale og konkrete. Tallene er registerbaserede og skal læses sammen med
+                dataforklaringen.
+              </p>
+            </div>
+            <div className="mt-5 grid gap-x-6 md:grid-cols-3">
+              <NationalDepthItem
+                label="Dækning"
+                value={`${overview.activeMunicipalityCount.toLocaleString("da-DK")} kommuner`}
+                note="Kommuner med mindst én aktiv registrering i det aktuelle app_v2-datalag."
+              />
+              <NationalDepthItem
+                label="Kommuneniveau"
+                value="Lokale sider"
+                note="Kommunesiderne viser lokalt overblik, postområder, udvalgte lokale indgange og eksisterende kortflow."
+              />
+              <NationalDepthItem
+                label="Detailniveau"
+                value="Enkelte registreringer"
+                note="Shelter-detail viser én aktiv app_v2-registrering med adresse, registreret kapacitet og kildekontekst."
+              />
+            </div>
+          </section>
+        )}
+
+        {overview.ok && overview.regionSummaries.length > 0 && (
+          <section className="mb-8 rounded-lg border border-white/10 bg-white/5">
+            <div className="border-b border-white/10 px-5 py-4 sm:px-6">
+              <p className="text-sm uppercase tracking-wide text-gray-400">National struktur</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">Regioner i datalaget</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-400">
+                Regional fordeling hjælper med at forstå datalagets nationale bredde. Det er ikke en rangering af
+                sikkerhed, adgang eller beredskab.
+              </p>
+            </div>
+            <ul className="divide-y divide-white/10">
+              {overview.regionSummaries.map((region) => (
+                <li
+                  key={region.name}
+                  className="grid gap-2 px-5 py-4 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:px-6"
+                >
+                  <span className="font-medium text-white">{region.name}</span>
+                  <span className="text-gray-300">
+                    {region.municipalityCount.toLocaleString("da-DK")} kommuner
+                  </span>
+                  <span className="text-gray-400">
+                    {region.activeShelterCount.toLocaleString("da-DK")} aktive registreringer
+                  </span>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 
@@ -265,8 +362,9 @@ export default async function CountryPage() {
               <p className="text-sm uppercase tracking-wide text-gray-400">Konkrete indgange</p>
               <h2 className="mt-2 text-xl font-semibold text-white">Udvalgte eksempelregistreringer</h2>
               <p className="mt-3 text-sm leading-6 text-gray-300">
-                Her vises få aktive registreringer med høj registreret kapacitet som konkrete indgange til
-                detail-siderne. De er ikke anbefalinger, en komplet national liste eller en vurdering af beredskab.
+                Her vises få aktive registreringer med høj registreret kapacitet på tværs af landet. De giver konkrete
+                veje til detail-siderne og viser hvordan nationale tal kan læses ned på enkeltregistreringer. De er ikke
+                anbefalinger, en komplet national liste eller en vurdering af beredskab.
               </p>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -281,9 +379,9 @@ export default async function CountryPage() {
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Start med en kommune</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Kommuneoversigten er den mest stabile offentlige indgang til lokale registreringer. Den enkelte
-              kommuneside viser lokal kontekst og forklarer tydeligt, når app_v2-data og eksisterende kortflow vises
-              side om side.
+              Kommuneoversigten er den mest stabile offentlige vej fra nationalt overblik til lokal kontekst. Den
+              enkelte kommuneside viser lokale nøgletal, postområder, udvalgte indgange og forklarer tydeligt, når
+              app_v2-data og eksisterende kortflow vises side om side.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
@@ -324,8 +422,8 @@ export default async function CountryPage() {
             <div className="border-b border-white/10 px-5 py-4 sm:px-6">
               <h2 className="text-lg font-semibold text-white">Største kommuner i datalaget</h2>
               <p className="mt-1 text-sm text-gray-400">
-                Sorteret efter antal aktive registreringer. Listen er en indgang til kommunesider, ikke en rangering af
-                sikkerhed, adgang eller beredskab.
+                Sorteret efter antal aktive registreringer. Listen viser hvor der er mest registervolumen og fungerer
+                som indgang til kommunesider, ikke som rangering af sikkerhed, adgang eller beredskab.
               </p>
             </div>
             <ul className="divide-y divide-white/10">
@@ -353,6 +451,28 @@ export default async function CountryPage() {
             </div>
           </section>
         )}
+
+        <section className="mt-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-white">Næste skridt</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-300">
+            Start med kommuneoversigten, hvis du vil fra nationalt overblik til lokal kontekst. Brug data-siden, hvis
+            du vil forstå hvad registreringer, registrerede pladser og udvalgte eksempler betyder.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link
+              href="/kommune"
+              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+            >
+              Gå til kommuner
+            </Link>
+            <Link
+              href="/om-data"
+              className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
+            >
+              Læs om data
+            </Link>
+          </div>
+        </section>
       </div>
     </main>
   );
