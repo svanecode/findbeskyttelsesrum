@@ -44,6 +44,7 @@ type NearbyParityEnv =
 
 type NearbyParityOptions = {
   sample: string;
+  sampleSet: "single" | "broad-mode";
   appV2Shape: "grouped" | "row";
   eligibilityMode: AppV2NearbyEligibilityMode;
   latitude: number;
@@ -80,10 +81,43 @@ const coordinateSamples = {
     latitude: 55.4765,
     longitude: 8.4594,
   },
+  aalborg: {
+    label: "Aalborg",
+    latitude: 57.0488,
+    longitude: 9.9217,
+  },
+} satisfies Record<string, { label: string; latitude: number; longitude: number }>;
+
+const broadCoordinateSamples = {
+  copenhagen: { label: "København", latitude: 55.6761, longitude: 12.5683 },
+  frederiksberg: { label: "Frederiksberg", latitude: 55.6786, longitude: 12.5326 },
+  ballerup: { label: "Ballerup", latitude: 55.7316, longitude: 12.3633 },
+  hvidovre: { label: "Hvidovre", latitude: 55.6425, longitude: 12.4753 },
+  roskilde: { label: "Roskilde", latitude: 55.6419, longitude: 12.0878 },
+  naestved: { label: "Næstved", latitude: 55.2299, longitude: 11.7609 },
+  slagelse: { label: "Slagelse", latitude: 55.4038, longitude: 11.3546 },
+  helsingoer: { label: "Helsingør", latitude: 56.0361, longitude: 12.6136 },
+  odense: { label: "Odense", latitude: 55.4038, longitude: 10.4024 },
+  svendborg: { label: "Svendborg", latitude: 55.0598, longitude: 10.6068 },
+  nyborg: { label: "Nyborg", latitude: 55.3127, longitude: 10.7896 },
+  aarhus: { label: "Aarhus", latitude: 56.1629, longitude: 10.2039 },
+  horsens: { label: "Horsens", latitude: 55.8607, longitude: 9.8503 },
+  vejle: { label: "Vejle", latitude: 55.7113, longitude: 9.5364 },
+  kolding: { label: "Kolding", latitude: 55.4904, longitude: 9.4722 },
+  esbjerg: { label: "Esbjerg", latitude: 55.4765, longitude: 8.4594 },
+  herning: { label: "Herning", latitude: 56.1362, longitude: 8.9766 },
+  holstebro: { label: "Holstebro", latitude: 56.3601, longitude: 8.6161 },
+  lemvig: { label: "Lemvig", latitude: 56.5486, longitude: 8.3102 },
+  aalborg: { label: "Aalborg", latitude: 57.0488, longitude: 9.9217 },
+  hjoerring: { label: "Hjørring", latitude: 57.4642, longitude: 9.9823 },
+  frederikshavn: { label: "Frederikshavn", latitude: 57.4407, longitude: 10.5366 },
+  soenderborg: { label: "Sønderborg", latitude: 54.9138, longitude: 9.7922 },
+  aabenraa: { label: "Aabenraa", latitude: 55.0443, longitude: 9.4174 },
 } satisfies Record<string, { label: string; latitude: number; longitude: number }>;
 
 const defaultOptions = {
   sample: "copenhagen",
+  sampleSet: "single" as const,
   appV2Shape: "grouped" as const,
   eligibilityMode: "legacy_capacity_v1" as const,
   radiusMeters: 50_000,
@@ -94,6 +128,13 @@ const defaultOptions = {
 const sampleLimit = 10;
 
 function getFlagValue(flag: string) {
+  const equalsPrefix = `${flag}=`;
+  const equalsValue = process.argv.find((value) => value.startsWith(equalsPrefix));
+
+  if (equalsValue) {
+    return equalsValue.slice(equalsPrefix.length);
+  }
+
   const flagIndex = process.argv.findIndex((value) => value === flag);
 
   return flagIndex === -1 ? undefined : process.argv[flagIndex + 1];
@@ -134,10 +175,12 @@ function printHelp() {
 
 Usage:
   npm run parity:nearby -- --sample copenhagen
+  npm run parity:nearby -- --sample-set=broad-mode --app-v2-shape grouped --eligibility source-application-code --json
   npm run parity:nearby -- --lat 55.6761 --lng 12.5683 --radius 50000 --limit 10
 
 Options:
   --sample              Named coordinate sample: ${Object.keys(coordinateSamples).join(", ")}.
+  --sample-set          Sample set to run: single or broad-mode. Defaults to single.
   --lat                 Latitude. Overrides --sample latitude when provided.
   --lng                 Longitude. Overrides --sample longitude when provided.
   --radius              Radius in meters. Defaults to ${defaultOptions.radiusMeters}.
@@ -146,13 +189,13 @@ Options:
   --app-v2-shape        app_v2 comparison shape: grouped or row. Defaults to ${defaultOptions.appV2Shape}.
   --eligibility         app_v2 eligibility mode: legacy-capacity, source-application-code, or none. Defaults to legacy-capacity.
   --include-suppressed  Include app_v2 suppressed rows for diagnostics.
+  --json                Print a JSON summary after the human-readable output.
   --help                Print this help text.
 
 The script is read-only. It compares legacy nearby RPC output with app_v2 nearby RPC/helper output when the required Supabase env vars are available.`);
 }
 
-function getSample() {
-  const sampleName = getFlagValue("--sample") ?? defaultOptions.sample;
+function getSample(sampleName = getFlagValue("--sample") ?? defaultOptions.sample) {
   const sample = coordinateSamples[sampleName as keyof typeof coordinateSamples];
 
   if (!sample) {
@@ -166,9 +209,14 @@ function getSample() {
 }
 
 function getOptions(): NearbyParityOptions {
+  const sampleSet = getFlagValue("--sample-set") ?? defaultOptions.sampleSet;
   const sample = getSample();
   const appV2Shape = getFlagValue("--app-v2-shape") ?? defaultOptions.appV2Shape;
   const rawEligibility = getFlagValue("--eligibility") ?? "legacy-capacity";
+
+  if (sampleSet !== "single" && sampleSet !== "broad-mode") {
+    throw new Error('--sample-set must be "single" or "broad-mode".');
+  }
 
   if (appV2Shape !== "grouped" && appV2Shape !== "row") {
     throw new Error('--app-v2-shape must be "grouped" or "row".');
@@ -180,6 +228,7 @@ function getOptions(): NearbyParityOptions {
 
   return {
     sample: sample.name,
+    sampleSet,
     appV2Shape,
     eligibilityMode:
       rawEligibility === "legacy-capacity"
@@ -408,43 +457,7 @@ function summarizeRankOverlap(input: {
   };
 }
 
-async function main() {
-  if (hasFlag("--help")) {
-    printHelp();
-    return;
-  }
-
-  console.log("[parity:nearby] read-only legacy/app_v2 nearby parity check");
-
-  const options = getOptions();
-  const env = getEnv();
-
-  console.log(`[parity:nearby] sample: ${options.sample}`);
-  console.log(
-    `[parity:nearby] input lat=${options.latitude} lng=${options.longitude} radiusMeters=${options.radiusMeters} limit=${options.limit} candidateLimit=${options.candidateLimit}`,
-  );
-  console.log(`[parity:nearby] app_v2 comparison shape: ${options.appV2Shape}`);
-  console.log(`[parity:nearby] app_v2 eligibility: ${options.eligibilityMode}`);
-  console.log(`[parity:nearby] app_v2 import states: ${getAppV2ImportStates(options).join(", ")}`);
-  console.log(
-    `[parity:nearby] note: legacy nearby is grouped by address/location; app_v2 comparison is ${options.appV2Shape}.`,
-  );
-  console.log(
-    "[parity:nearby] note: app_v2 nearby uses the app_v2.get_nearby_shelters database RPC for bounding-box filtering, Haversine distance ordering, and active app_v2 shelter_exclusions.",
-  );
-  console.log(
-    "[parity:nearby] note: legacy public.excluded_shelters address and bygning_id matching is not mirrored yet.",
-  );
-  console.log(
-    "[parity:nearby] note: address-key matching lowercases, trims, collapses whitespace, and treats commas as separators; it does not do fuzzy typo matching.",
-  );
-
-  if (!env.ok) {
-    console.log(`[parity:nearby] skipped: missing env vars: ${env.missing.join(", ")}`);
-    console.log("[parity:nearby] no database reads were attempted.");
-    return;
-  }
-
+async function analyzeParity(options: NearbyParityOptions, env: Extract<NearbyParityEnv, { ok: true }>) {
   const [legacyResult, appV2Result] = await Promise.all([
     readLegacyNearbyShelters(options, env),
     options.appV2Shape === "grouped"
@@ -503,6 +516,49 @@ async function main() {
       ? diagnostics.sourceReturnedRows >= options.candidateLimit
       : diagnostics.candidateRowsRead >= options.candidateLimit;
 
+  return {
+    options,
+    legacyResult,
+    legacyRows,
+    appV2Rows,
+    sharedIds,
+    sharedAddressKeys,
+    legacyOnlyAddressKeys,
+    appV2OnlyAddressKeys,
+    diagnostics,
+    rankOverlap,
+    candidateLimitHit,
+  };
+}
+
+function printParityHeader(options: NearbyParityOptions) {
+  console.log(`[parity:nearby] sample: ${options.sample}`);
+  console.log(
+    `[parity:nearby] input lat=${options.latitude} lng=${options.longitude} radiusMeters=${options.radiusMeters} limit=${options.limit} candidateLimit=${options.candidateLimit}`,
+  );
+  console.log(`[parity:nearby] app_v2 comparison shape: ${options.appV2Shape}`);
+  console.log(`[parity:nearby] app_v2 eligibility: ${options.eligibilityMode}`);
+  console.log(`[parity:nearby] app_v2 import states: ${getAppV2ImportStates(options).join(", ")}`);
+}
+
+function printParityNotes(options: NearbyParityOptions) {
+  console.log(
+    `[parity:nearby] note: legacy nearby is grouped by address/location; app_v2 comparison is ${options.appV2Shape}.`,
+  );
+  console.log(
+    "[parity:nearby] note: app_v2 nearby uses the app_v2.get_nearby_shelters database RPC for bounding-box filtering, Haversine distance ordering, and active app_v2 shelter_exclusions.",
+  );
+  console.log(
+    "[parity:nearby] note: legacy public.excluded_shelters address and bygning_id matching is not mirrored yet.",
+  );
+  console.log(
+    "[parity:nearby] note: address-key matching lowercases, trims, collapses whitespace, and treats commas as separators; it does not do fuzzy typo matching.",
+  );
+}
+
+function printParityResult(result: Awaited<ReturnType<typeof analyzeParity>>, verbose: boolean) {
+  const { options, legacyResult, legacyRows, appV2Rows, sharedIds, sharedAddressKeys, legacyOnlyAddressKeys, appV2OnlyAddressKeys, diagnostics, rankOverlap, candidateLimitHit } = result;
+
   console.log(`[parity:nearby] legacy rpc: ${legacyResult.rpcName}`);
   console.log(`[parity:nearby] legacy result count: ${legacyRows.length}`);
   console.log(`[parity:nearby] app_v2 result count: ${appV2Rows.length}`);
@@ -554,6 +610,15 @@ async function main() {
   );
   console.log("");
 
+  if (legacyRows.length === 0 || appV2Rows.length === 0) {
+    process.exitCode = 1;
+  }
+
+  if (!verbose) {
+    return;
+  }
+
+  console.log("");
   printSamples("legacy top results", legacyRows.map(formatLegacyRow));
   console.log("");
   printSamples(
@@ -579,9 +644,128 @@ async function main() {
   printSamples("legacy-only address keys", legacyOnlyAddressKeys);
   console.log("");
   printSamples("app_v2-only address keys", appV2OnlyAddressKeys);
+}
 
-  if (legacyRows.length === 0 || appV2Rows.length === 0) {
-    process.exitCode = 1;
+function getSelectedSampleOptions(options: NearbyParityOptions) {
+  if (options.sampleSet === "single") {
+    return [options];
+  }
+
+  return Object.entries(broadCoordinateSamples).map(([sampleName, sample]) => ({
+    ...options,
+    sample: sampleName,
+    latitude: sample.latitude,
+    longitude: sample.longitude,
+  }));
+}
+
+function getJsonSummary(results: Array<Awaited<ReturnType<typeof analyzeParity>>>) {
+  const samples = results.map((result) => ({
+    sample: result.options.sample,
+    label:
+      result.options.sampleSet === "broad-mode"
+        ? broadCoordinateSamples[result.options.sample as keyof typeof broadCoordinateSamples]?.label ?? result.options.sample
+        : coordinateSamples[result.options.sample as keyof typeof coordinateSamples]?.label ?? result.options.sample,
+    latitude: result.options.latitude,
+    longitude: result.options.longitude,
+    legacyCount: result.legacyRows.length,
+    appV2Count: result.appV2Rows.length,
+    shared: result.sharedAddressKeys.length,
+    legacyOnly: result.legacyOnlyAddressKeys.length,
+    appV2Only: result.appV2OnlyAddressKeys.length,
+    exactRankMatches: result.rankOverlap.exactRankMatches,
+    averageAbsRankDelta: Number(result.rankOverlap.averageAbsDelta.toFixed(2)),
+    maxAbsRankDelta: result.rankOverlap.maxAbsDelta,
+    legacyOnlyAddressKeys: result.legacyOnlyAddressKeys,
+    appV2OnlyAddressKeys: result.appV2OnlyAddressKeys,
+    sharedRankDeltas: result.rankOverlap.shared,
+    diagnostics: result.diagnostics,
+  }));
+  const aggregate = samples.reduce(
+    (sum, sample) => {
+      sum.shared += sample.shared;
+      sum.legacyOnly += sample.legacyOnly;
+      sum.appV2Only += sample.appV2Only;
+      sum.exactRankMatches += sample.exactRankMatches;
+      sum.maxAbsRankDelta = Math.max(sum.maxAbsRankDelta, sample.maxAbsRankDelta);
+      sum.averageOverlap += sample.shared;
+      return sum;
+    },
+    {
+      samples: samples.length,
+      shared: 0,
+      legacyOnly: 0,
+      appV2Only: 0,
+      exactRankMatches: 0,
+      maxAbsRankDelta: 0,
+      averageOverlap: 0,
+    },
+  );
+
+  aggregate.averageOverlap = samples.length > 0 ? Number((aggregate.averageOverlap / samples.length).toFixed(2)) : 0;
+
+  return {
+    aggregate,
+    bestSamples: samples
+      .slice()
+      .sort((a, b) => b.shared - a.shared || a.legacyOnly + a.appV2Only - (b.legacyOnly + b.appV2Only))
+      .slice(0, 5),
+    worstSamples: samples
+      .slice()
+      .sort((a, b) => a.shared - b.shared || b.legacyOnly + b.appV2Only - (a.legacyOnly + a.appV2Only))
+      .slice(0, 5),
+    samples,
+  };
+}
+
+async function main() {
+  if (hasFlag("--help")) {
+    printHelp();
+    return;
+  }
+
+  console.log("[parity:nearby] read-only legacy/app_v2 nearby parity check");
+
+  const options = getOptions();
+  const env = getEnv();
+
+  console.log(`[parity:nearby] sample-set: ${options.sampleSet}`);
+  printParityNotes(options);
+
+  if (!env.ok) {
+    console.log(`[parity:nearby] skipped: missing env vars: ${env.missing.join(", ")}`);
+    console.log("[parity:nearby] no database reads were attempted.");
+    return;
+  }
+
+  const selectedOptions = getSelectedSampleOptions(options);
+  const results = [];
+
+  for (const sampleOptions of selectedOptions) {
+    console.log("");
+    printParityHeader(sampleOptions);
+    const result = await analyzeParity(sampleOptions, env);
+    results.push(result);
+    printParityResult(result, options.sampleSet === "single");
+  }
+
+  if (options.sampleSet === "broad-mode") {
+    const summary = getJsonSummary(results);
+
+    console.log("");
+    console.log("[parity:nearby] broad aggregate");
+    console.log(`  samples: ${summary.aggregate.samples}`);
+    console.log(`  shared address keys: ${summary.aggregate.shared}`);
+    console.log(`  legacy-only address keys: ${summary.aggregate.legacyOnly}`);
+    console.log(`  app_v2-only address keys: ${summary.aggregate.appV2Only}`);
+    console.log(`  average top-10 overlap: ${summary.aggregate.averageOverlap}/10`);
+    console.log(`  worst sample: ${summary.worstSamples[0]?.label ?? "n/a"} shared=${summary.worstSamples[0]?.shared ?? "n/a"}`);
+    console.log(`  best sample: ${summary.bestSamples[0]?.label ?? "n/a"} shared=${summary.bestSamples[0]?.shared ?? "n/a"}`);
+  }
+
+  if (hasFlag("--json")) {
+    console.log("");
+    console.log(JSON.stringify(getJsonSummary(results), null, 2));
   }
 }
 
