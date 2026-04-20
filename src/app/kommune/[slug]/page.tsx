@@ -204,8 +204,8 @@ export default async function KommunePage({ params }: Props) {
         <div className="mt-4">
           <h2 className="text-sm font-semibold text-gray-900">Brug siden til</h2>
           <ul className="mt-2 space-y-1 text-sm leading-6 text-gray-700">
-            <li>at se hvor mange aktive registreringer kommunen har i app_v2-datalaget</li>
-            <li>at orientere dig i postområder og kort uden at ændre det eksisterende nearby-flow</li>
+            <li>at se hvor mange aktive registreringer kommunen har</li>
+            <li>at orientere dig i postområder og kort uden at ændre den normale søgning</li>
             <li>at åbne få konkrete detail-sider og læse hvordan data er afgrænset</li>
           </ul>
         </div>
@@ -250,7 +250,7 @@ export default async function KommunePage({ params }: Props) {
               Udvalgte lokale indgange
             </h2>
             <p className="mt-1 text-xs leading-5 text-gray-600">
-              Få aktive app_v2-registreringer med høj registreret kapacitet i {kommune.name}. De er konkrete veje ind
+              Få aktive registreringer med høj registreret kapacitet i {kommune.name}. De er konkrete veje ind
               til detail-sider, ikke anbefalinger, beredskabsvurderinger eller en komplet kommuneliste.
             </p>
             <ul className="mt-2 space-y-2">
@@ -263,8 +263,8 @@ export default async function KommunePage({ params }: Props) {
 
         <div className="mt-4 border-l-4 border-gray-300 pl-3">
           <p className="text-xs leading-5 text-gray-600">
-            Kortet nedenfor er stadig det eksisterende registerflow. Lokale nøgletal, postområder og eksempler herover
-            kommer fra app_v2, så siden kan give lokal kontekst uden at ændre den normale nearby-oplevelse.
+            Kortet nedenfor bruger den normale søgning. Lokale nøgletal, postområder og eksempler herover giver lokal
+            kontekst uden at ændre søgeresultaterne.
           </p>
         </div>
 

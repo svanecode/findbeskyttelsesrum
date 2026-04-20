@@ -118,24 +118,6 @@ const nextConfig = {
           },
         ],
       },
-      {
-        source: '/dawa-autocomplete2/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=86400',
-          },
-        ],
-      },
-      {
-        source: '/dawa-autocomplete2.min.js',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
       // SVG files
       {
         source: '/(.*).svg',
@@ -166,9 +148,9 @@ const nextConfig = {
               default-src 'self';
               font-src 'self' https://fonts.gstatic.com data:;
               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com;
-              script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.leafletjs.com https://dawa.aws.dk https://*.aws.dk;
+              script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.leafletjs.com;
               img-src 'self' data: https:;
-              connect-src 'self' https://*.leafletjs.com https://dawa.aws.dk https://api.dataforsyningen.dk https://*.aws.dk https://*.dataforsyningen.dk https:;
+              connect-src 'self' https://*.leafletjs.com https://api.dataforsyningen.dk https://*.dataforsyningen.dk https:;
               frame-ancestors 'none';
               base-uri 'self';
               form-action 'self';

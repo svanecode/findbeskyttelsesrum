@@ -8,7 +8,7 @@ import {
   type AppV2ImportRunSummary,
 } from "@/lib/supabase/app-v2-queries";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 600;
 
 export const metadata: Metadata = {
   title: "Om data",
@@ -126,12 +126,12 @@ export default async function DataPage() {
           <p className="text-sm uppercase tracking-wide text-gray-400">Data</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Om datagrundlaget</h1>
           <p className="text-lg leading-8 text-gray-300">
-            De nye offentlige sider for kommuner og enkelte beskyttelsesrum læser fra app_v2, som er det nye datalag i
-            moderniseringen af Find Beskyttelsesrum.
+            De offentlige sider for kommuner og enkelte beskyttelsesrum bruger registerdata fra databasen bag Find
+            Beskyttelsesrum.
           </p>
           <p className="text-sm leading-6 text-gray-400">
-            Siden beskriver kun de app_v2-baserede surfaces. Søgning, nærliggende resultater, kort og eksisterende
-            kommune-lister kører fortsat på de ældre flows, indtil de er valideret separat.
+            Siden beskriver de offentlige dataflader. Søgning, nærliggende resultater og kort kører fortsat på den
+            normale søgning.
           </p>
         </header>
 
@@ -140,12 +140,12 @@ export default async function DataPage() {
             <StatCard
               label="Kommuner"
               value={overview.municipalityCount.toLocaleString("da-DK")}
-              note="Kommuner med registreringer i app_v2."
+              note="Kommuner med registreringer i datagrundlaget."
             />
             <StatCard
               label="Aktive registreringer"
               value={overview.activeShelterCount.toLocaleString("da-DK")}
-              note="Registreringer der er aktive i det aktuelle app_v2-datalag."
+              note="Registreringer der er aktive i det aktuelle datagrundlag."
             />
             <StatCard
               label="Seneste import"
@@ -157,18 +157,17 @@ export default async function DataPage() {
           <section className="mb-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Live-tal er ikke tilgængelige</h2>
             <p className="mt-2 text-sm leading-6 text-gray-300">
-              Appen kunne ikke hente app_v2-tal lige nu. Derfor viser siden ingen fallback-tal.
+              Appen kunne ikke hente live-tal lige nu. Derfor viser siden ingen fallback-tal.
             </p>
           </section>
         )}
 
         <div className="grid gap-6">
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold text-white">Hvad app_v2 repræsenterer</h2>
+            <h2 className="text-lg font-semibold text-white">Hvad data repræsenterer</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              app_v2 er den nye struktur for importerede shelter- og kommunedata. Den adskiller officielle importerede
-              felter fra senere manuelle rettelser, exclusions og rapporter, så fremtidige cutovers kan ske mere
-              kontrolleret.
+              Data er struktureret, så officielle importerede felter kan holdes adskilt fra senere manuelle rettelser,
+              fravalg og rapporter. Det gør datagrundlaget lettere at forklare og vedligeholde.
             </p>
           </section>
 
@@ -176,7 +175,7 @@ export default async function DataPage() {
             <h2 className="text-lg font-semibold text-white">Hvad data bygger på</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Datalaget er forberedt til importerede registeroplysninger om beskyttelsesrum, kommuner, kildeidentitet og
-              importhistorik. De offentlige sider viser kun felter, der allerede findes i app_v2 og egner sig til enkel
+              importhistorik. De offentlige sider viser kun felter, der findes i databasen og egner sig til enkel
               offentlig visning.
             </p>
           </section>
@@ -216,13 +215,13 @@ export default async function DataPage() {
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Nærliggende resultater</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Den normale adressebaserede søgning og kortvisning bruger fortsat det eksisterende nearby-flow. Det nye
-              app_v2 nearby-lag bliver evalueret separat, fordi nærliggende resultater kræver præcis håndtering af
-              afstand, gruppering, exclusions og kildebaseret typefiltrering.
+              Den normale adressebaserede søgning og kortvisning bruger fortsat den normale søgning. Nærliggende
+              resultater kræver præcis håndtering af
+              afstand, gruppering, fravalg og kildebaseret typefiltrering.
             </p>
             <p className="mt-3 text-sm leading-6 text-gray-400">
-              Det betyder, at de offentlige app_v2-sider kan være længere fremme end den normale nearby-oplevelse. En
-              senere ændring af nearby kræver særskilt validering, før den kan blive bruger-synlig standard.
+              En senere ændring af nærliggende resultater kræver særskilt validering, før den kan blive den
+              brugersynlige standard.
             </p>
           </section>
         </div>

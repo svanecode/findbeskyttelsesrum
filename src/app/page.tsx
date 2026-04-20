@@ -1,42 +1,24 @@
-'use client'
-
-import { useEffect, useState } from 'react'
 import ShelterCounter from '@/components/ShelterCounter'
 import GlobalFooter from '@/components/GlobalFooter'
 import Link from 'next/link'
 import AddressSearchDAWA from '@/components/AddressSearchDAWA'
 import { APP_VERSION } from '@/lib/constants'
+import { getAppV2TotalShelterCapacity } from '@/lib/supabase/app-v2-queries'
 
-export default function Home() {
-  const [shelterCount, setShelterCount] = useState<number | null>(null)
+export const revalidate = 600
 
-  useEffect(() => {
-    // Fetch actual shelter count from database
-    async function fetchShelterCount() {
-      try {
-        const response = await fetch('/api/shelter-count')
-        if (response.ok) {
-          const data = await response.json()
-          // Only use the count if it's a valid positive number
-          const count = typeof data.count === 'number' ? data.count : null
-          if (count !== null && count > 0) {
-            setShelterCount(count)
-          } else {
-            console.warn('Invalid shelter count from API:', data.count)
-            setShelterCount(null)
-          }
-        } else {
-          console.error('Failed to fetch shelter count')
-          setShelterCount(null)
-        }
-      } catch (error) {
-        console.error('Error fetching shelter count:', error)
-        setShelterCount(null)
-      }
-    }
+async function loadTotalCapacity(): Promise<number | null> {
+  try {
+    const capacity = await getAppV2TotalShelterCapacity()
+    return typeof capacity === 'number' && capacity > 0 ? capacity : null
+  } catch (error) {
+    console.error('Could not load total shelter capacity for homepage:', error)
+    return null
+  }
+}
 
-    fetchShelterCount()
-  }, [])
+export default async function Home() {
+  const totalCapacity = await loadTotalCapacity()
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white p-4 sm:p-6 lg:p-8 flex flex-col justify-center items-center relative">
@@ -55,7 +37,7 @@ export default function Home() {
           </p>
           <div className="text-center mt-6 sm:mt-8 lg:mt-10">
             <ShelterCounter 
-              targetNumber={shelterCount} 
+              targetNumber={totalCapacity} 
               version={APP_VERSION} 
             />
           </div>

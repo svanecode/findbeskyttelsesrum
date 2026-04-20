@@ -11,3 +11,6 @@
 - [ ] Fase 7 — Performance, a11y og polish
 - [ ] Fase 8 — Tailwind 4 hvis relevant
 - [ ] Fase 9 — Final cleanup
+
+## Tech debt
+- `public/sw.js` er midlertidigt en self-destruct service worker og kan slettes, når eksisterende brugere rimeligt sikkert har fået den ryddet.

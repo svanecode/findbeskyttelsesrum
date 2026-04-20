@@ -11,7 +11,7 @@ import {
   type AppV2ImportRunSummary,
 } from "@/lib/supabase/app-v2-queries";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 600;
 
 export const metadata: Metadata = {
   title: "Beskyttelsesrum i Danmark",
@@ -229,8 +229,8 @@ export default async function CountryPage() {
           </p>
           <p className="text-sm leading-6 text-gray-400">
             Brug landssiden til at se national struktur, finde vej til kommunesider og åbne få konkrete detail-sider.
-            Den er ikke en komplet national shelter-browser. Adressebaseret nearby-søgning og kort kører fortsat på det
-            eksisterende flow, indtil app_v2 nearby er valideret separat.
+            Den er ikke en komplet national browser for beskyttelsesrum. Adressebaseret søgning og kort kører fortsat
+            på den normale søgning.
           </p>
         </header>
 
@@ -249,14 +249,14 @@ export default async function CountryPage() {
             <StatCard
               label="Registrerede pladser"
               value={overview.totalCapacity.toLocaleString("da-DK")}
-              note="Summen af registreret kapacitet i aktive app_v2-rækker."
+              note="Summen af registreret kapacitet i aktive registreringer."
             />
           </section>
         ) : (
           <section className="mb-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Landstal er ikke tilgængelige</h2>
             <p className="mt-2 text-sm leading-6 text-gray-300">
-              Appen kunne ikke hente app_v2-summarytal lige nu. Derfor viser siden ingen fallback-tal.
+              Appen kunne ikke hente oversigtsdata lige nu. Derfor viser siden ingen fallback-tal.
             </p>
           </section>
         )}
@@ -267,7 +267,7 @@ export default async function CountryPage() {
               <p className="text-sm uppercase tracking-wide text-gray-400">Nationalt overblik</p>
               <h2 className="mt-2 text-xl font-semibold text-white">Hvad landssiden kan bruges til</h2>
               <p className="mt-3 text-sm leading-6 text-gray-300">
-                Landssiden giver et samlet billede af det aktuelle app_v2-datalag og peger videre til de sider, hvor
+                Landssiden giver et samlet billede af datagrundlaget og peger videre til de sider, hvor
                 registreringerne bliver lokale og konkrete. Tallene er registerbaserede og skal læses sammen med
                 dataforklaringen.
               </p>
@@ -276,17 +276,17 @@ export default async function CountryPage() {
               <NationalDepthItem
                 label="Dækning"
                 value={`${overview.activeMunicipalityCount.toLocaleString("da-DK")} kommuner`}
-                note="Kommuner med mindst én aktiv registrering i det aktuelle app_v2-datalag."
+                note="Kommuner med mindst én aktiv registrering i det aktuelle datagrundlag."
               />
               <NationalDepthItem
                 label="Kommuneniveau"
                 value="Lokale sider"
-                note="Kommunesiderne viser lokalt overblik, postområder, udvalgte lokale indgange og eksisterende kortflow."
+                note="Kommunesiderne viser lokalt overblik, postområder, udvalgte lokale indgange og normal kortvisning."
               />
               <NationalDepthItem
                 label="Detailniveau"
                 value="Enkelte registreringer"
-                note="Shelter-detail viser én aktiv app_v2-registrering med adresse, registreret kapacitet og kildekontekst."
+                note="Detail-sider viser én aktiv registrering med adresse, registreret kapacitet og kildekontekst."
               />
             </div>
           </section>
@@ -334,7 +334,7 @@ export default async function CountryPage() {
             <JourneyItem
               label="1"
               title="Hele landet"
-              description="Start her for nationale summarytal og en samlet vej ind i produktet."
+              description="Start her for nationale tal og en samlet vej ind i produktet."
               href="/land"
             />
             <div className="md:px-5">
@@ -349,7 +349,7 @@ export default async function CountryPage() {
               <JourneyItem
                 label="3"
                 title="Enkelte registreringer"
-                description="Find detail-siderne via kommunevisningen, når en registrering findes i app_v2."
+                description="Find detail-siderne via kommunevisningen, når der findes en offentlig registrering."
                 href="/kommune"
               />
             </div>
@@ -381,7 +381,7 @@ export default async function CountryPage() {
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Kommuneoversigten er den mest stabile offentlige vej fra nationalt overblik til lokal kontekst. Den
               enkelte kommuneside viser lokale nøgletal, postområder, udvalgte indgange og forklarer tydeligt, når
-              app_v2-data og eksisterende kortflow vises side om side.
+              lokale data og den normale kortvisning vises side om side.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link

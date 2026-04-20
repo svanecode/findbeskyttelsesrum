@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 
 interface ShelterCounterProps {
@@ -13,6 +13,7 @@ export default function ShelterCounter({ targetNumber, version }: ShelterCounter
   const [isClient, setIsClient] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const { handleError } = useErrorHandler();
+  const hasMountedRef = useRef(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -25,6 +26,13 @@ export default function ShelterCounter({ targetNumber, version }: ShelterCounter
 
     if (targetNumber <= 0) {
       handleError(new Error('Invalid target number'), `Target number must be positive, got: ${targetNumber}`);
+      return;
+    }
+
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      setCount(targetNumber);
+      setIsAnimating(false);
       return;
     }
 

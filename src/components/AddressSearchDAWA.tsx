@@ -1,28 +1,35 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import LoadingSpinner from './LoadingSpinner'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { fetchAddressSuggestions, type DawaSuggestion } from '@/lib/dawa/autocomplete'
 
-declare global {
-  interface Window {
-    dawaAutocomplete: {
-      dawaAutocomplete: (element: HTMLElement, options: any) => void
-    }
-  }
-}
+const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'
 
 export default function AddressSearchDAWA() {
-  const [loading, setLoading] = useState(false)
-  const [selectedAddress, setSelectedAddress] = useState('')
-  const [scriptsLoaded, setScriptsLoaded] = useState(false)
-  const [dawaFailed, setDawaFailed] = useState(false)
-  const [searchLoading, setSearchLoading] = useState(false)
-  const [scriptLoadingProgress, setScriptLoadingProgress] = useState('')
+  const [query, setQuery] = useState('')
+  const [suggestions, setSuggestions] = useState<DawaSuggestion[]>([])
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasFailed, setHasFailed] = useState(false)
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
+  const [gpsLoading, setGpsLoading] = useState(false)
   const router = useRouter()
-  const searchInputRef = useRef<HTMLInputElement>(null)
   const { handleError } = useErrorHandler()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  const selectSuggestion = useCallback((suggestion: DawaSuggestion) => {
+    setSelectedAddress(suggestion.tekst)
+    setIsOpen(false)
+    setActiveIndex(null)
+    setQuery(suggestion.tekst)
+    router.push(`/shelters/nearby?lat=${suggestion.data.y}&lng=${suggestion.data.x}`)
+  }, [router])
 
   const handleLocationClick = async () => {
     if (!navigator.geolocation) {
@@ -30,158 +37,99 @@ export default function AddressSearchDAWA() {
       return
     }
 
-    setLoading(true)
-    
+    setGpsLoading(true)
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 10000,
-          enableHighAccuracy: true
-        })
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true })
       })
-      
       router.push(`/shelters/nearby?lat=${position.coords.latitude}&lng=${position.coords.longitude}`)
     } catch (error) {
-      const err = error instanceof Error ? error : new Error('Failed to get location')
-      handleError(err, 'Geolocation failed')
+      handleError(error instanceof Error ? error : new Error('Failed to get location'), 'Geolocation failed')
     } finally {
-      setLoading(false)
+      setGpsLoading(false)
     }
   }
 
-  // Simple script loading approach
   useEffect(() => {
-    let isMounted = true
-    let timeoutId: NodeJS.Timeout
-
-    const loadDAWAScripts = () => {
-      try {
-        setScriptLoadingProgress('Indlæser DAWA Autocomplete...')
-        
-        // Check if already loaded
-        if (window.dawaAutocomplete) {
-          setScriptsLoaded(true)
-          setScriptLoadingProgress('')
-          return
-        }
-
-        // Load the DAWA script directly with deployment-based cache busting
-        const deploymentId = window.location.search.includes('dpl=') ? 
-          window.location.search.match(/dpl=([^&]+)/)?.[1] || Date.now() : 
-          Date.now();
-        const script = document.createElement('script')
-        script.src = `/dawa-autocomplete2.min.js?v=${deploymentId}&t=${Date.now()}`
-        script.async = true
-        script.onload = () => {
-          if (isMounted) {
-            console.log('DAWA script loaded successfully')
-            setScriptsLoaded(true)
-            setScriptLoadingProgress('')
-          }
-        }
-        script.onerror = (error) => {
-          console.error('DAWA script failed to load:', error)
-          if (isMounted) {
-            handleError(new Error('DAWA script failed to load'), 'DAWA Autocomplete script failed to load')
-            setDawaFailed(true)
-            setScriptLoadingProgress('')
-          }
-        }
-
-        document.head.appendChild(script)
-
-        // Timeout after 10 seconds
-        timeoutId = setTimeout(() => {
-          if (isMounted && !window.dawaAutocomplete) {
-            console.error('DAWA script load timeout')
-            handleError(new Error('DAWA script load timeout'), 'DAWA Autocomplete took too long to load')
-            setDawaFailed(true)
-            setScriptLoadingProgress('')
-          }
-        }, 10000)
-
-      } catch (error) {
-        if (isMounted) {
-          const err = error instanceof Error ? error : new Error('Script loading failed')
-          handleError(err, 'Failed to load DAWA script')
-          setDawaFailed(true)
-          setScriptLoadingProgress('')
-        }
-      }
+    abortControllerRef.current?.abort()
+    if (query.trim().length < 2) {
+      setSuggestions([])
+      setIsOpen(false)
+      setActiveIndex(null)
+      setIsLoading(false)
+      return
     }
 
-    loadDAWAScripts()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+    const timeoutId = setTimeout(async () => {
+      setIsLoading(true)
+      try {
+        const results = await fetchAddressSuggestions(query, { signal: controller.signal, limit: 5 })
+        setSuggestions(results)
+        setIsOpen(results.length > 0)
+        setActiveIndex(null)
+        setHasFailed(false)
+      } catch (error) {
+        if (!isAbortError(error)) {
+          setHasFailed(true)
+          handleError(error instanceof Error ? error : new Error('DAWA autocomplete failed'), 'DAWA Autocomplete failed')
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false)
+        }
+      }
+    }, 250)
 
     return () => {
-      isMounted = false
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-      }
+      clearTimeout(timeoutId)
+      controller.abort()
     }
-  }, [handleError])
+  }, [query, handleError])
 
-  // Initialize DAWA Autocomplete when scripts are loaded
   useEffect(() => {
-    if (scriptsLoaded && searchInputRef.current && window.dawaAutocomplete) {
-      try {
-        console.log('Initializing DAWA Autocomplete...')
-        
-        window.dawaAutocomplete.dawaAutocomplete(searchInputRef.current, {
-          select: function(selected: any) {
-            console.log('Address selected:', selected)
-            setSelectedAddress(selected.tekst)
-            
-            // Extract coordinates from the selected address
-            if (selected.data && selected.data.x && selected.data.y) {
-              const lng = selected.data.x
-              const lat = selected.data.y
-              console.log('Navigating to coordinates:', lat, lng)
-              router.push(`/shelters/nearby?lat=${lat}&lng=${lng}`)
-            } else {
-              console.error('Invalid address data:', selected)
-              handleError(new Error('Invalid address data'), 'Selected address missing coordinates')
-            }
-          },
-          onError: function(error: any) {
-            console.error('DAWA autocomplete error:', error)
-            handleError(new Error('DAWA autocomplete error'), error.message || 'Unknown DAWA error')
-            setDawaFailed(true)
-          }
-        })
-        
-        console.log('DAWA Autocomplete initialized successfully')
-      } catch (error) {
-        console.error('Failed to initialize DAWA:', error)
-        const err = error instanceof Error ? error : new Error('Failed to initialize DAWA')
-        handleError(err, 'DAWA Autocomplete initialization failed')
-        setDawaFailed(true)
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false)
+        setActiveIndex(null)
       }
-    } else if (scriptsLoaded && !window.dawaAutocomplete) {
-      console.error('Script loaded but window.dawaAutocomplete is not available')
-      const error = new Error('DAWA Autocomplete not available')
-      handleError(error, 'Script loaded but window.dawaAutocomplete is not available')
-      setDawaFailed(true)
     }
-  }, [scriptsLoaded, router, handleError])
+
+    document.addEventListener('mousedown', closeOnOutsideClick)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick)
+      abortControllerRef.current?.abort()
+    }
+  }, [])
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      setIsOpen(false)
+      setActiveIndex(null)
+      return
+    }
+    if (!isOpen || suggestions.length === 0) {
+      return
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveIndex((index) => Math.min(index === null ? 0 : index + 1, suggestions.length - 1))
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveIndex((index) => Math.max(index === null ? 0 : index - 1, 0))
+    } else if (event.key === 'Enter' && activeIndex !== null && suggestions[activeIndex]) {
+      event.preventDefault()
+      selectSuggestion(suggestions[activeIndex])
+    }
+  }
 
   return (
     <div className="space-y-3 sm:space-y-6">
-
-      <button
-        onClick={handleLocationClick}
-        className="btn-primary w-full py-4 px-6 rounded-full flex items-center justify-center gap-3 hover:bg-[#EA580C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target focus-visible btn-interactive"
-        disabled={loading}
-        aria-label="Brug min nuværende position til at finde beskyttelsesrum"
-        role="button"
-        tabIndex={0}
-      >
-        {loading ? (
-          <LoadingSpinner size="sm" text="Henter din position..." />
-        ) : (
+      <button onClick={handleLocationClick} className="btn-primary w-full py-4 px-6 rounded-full flex items-center justify-center gap-3 hover:bg-[#EA580C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target focus-visible btn-interactive" disabled={gpsLoading} aria-label="Brug min nuværende position til at finde beskyttelsesrum" role="button" tabIndex={0}>
+        {gpsLoading ? <LoadingSpinner size="sm" text="Henter din position..." /> : (
           <>
-            <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="currentColor"/>
-            </svg>
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="currentColor"/></svg>
             <span className="text-sm sm:text-base font-medium">Brug min nuværende position</span>
           </>
         )}
@@ -189,143 +137,47 @@ export default function AddressSearchDAWA() {
 
       <div className="text-center text-gray-400 text-sm sm:text-base font-medium">eller</div>
 
-      <div className="relative w-full">
-        {/* Script loading progress */}
-        {scriptLoadingProgress && !dawaFailed && (
-          <div className="mb-2 p-3 bg-blue-900/20 border border-blue-600/30 rounded-lg text-blue-200 text-sm" role="status">
+      <div ref={containerRef} className="relative w-full">
+        {hasFailed && (
+          <div id="dawa-error" className="mb-2 p-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg text-yellow-200 text-sm" role="alert">
             <div className="flex items-center gap-2">
-              <LoadingSpinner size="sm" />
-              <p>{scriptLoadingProgress}</p>
-            </div>
-          </div>
-        )}
-
-        {dawaFailed && (
-          <div className="mb-2 p-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg text-yellow-200 text-sm" role="alert">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
+              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
               <div className="flex-1">
                 <p className="font-medium">DAWA Autocomplete er ikke tilgængelig</p>
                 <p className="text-xs mt-1 opacity-80">Prøv at genindlæse siden eller brug GPS-funktionen ovenfor</p>
               </div>
-              <button
-                onClick={() => window.location.reload()}
-                className="ml-2 px-2 py-1 bg-yellow-600/20 hover:bg-yellow-600/30 rounded text-xs transition-colors"
-                aria-label="Genindlæs siden"
-              >
-                Genindlæs
-              </button>
+              <button onClick={() => window.location.reload()} className="ml-2 px-2 py-1 bg-yellow-600/20 hover:bg-yellow-600/30 rounded text-xs transition-colors" aria-label="Genindlæs siden">Genindlæs</button>
             </div>
           </div>
         )}
-        
+
         <div className="autocomplete-container w-full relative">
-          <svg
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-10 pointer-events-none"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          
-          {searchLoading && (
-            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10">
-              <LoadingSpinner size="sm" />
+          <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-10 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          {isLoading && <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10"><LoadingSpinner size="sm" /></div>}
+          <input ref={inputRef} type="text" id="adresse" placeholder="Søg efter en adresse i Danmark" className="w-full bg-[#1a1a1a] text-white py-3 sm:py-4 px-12 sm:px-14 rounded-full border border-[#E97B4D] focus:outline-none focus:border-[#E97B4D] focus:bg-[#141414] transition-all placeholder-gray-400 disabled:opacity-50 text-sm sm:text-base touch-target focus-visible input-interactive" disabled={hasFailed} aria-label="Søg efter en adresse i Danmark" aria-describedby={hasFailed ? "dawa-error" : undefined} role="searchbox" autoComplete="off" minLength={2} value={query} onChange={(event) => setQuery(event.target.value)} onFocus={() => setIsOpen(suggestions.length > 0)} onKeyDown={handleKeyDown} />
+          {isOpen && suggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-[9999] bg-[#1a1a1a] border-2 border-white/30 rounded-md overflow-y-auto shadow-[0_8px_16px_rgba(0,0,0,0.6),0_0_15px_rgba(255,255,255,0.1)]" role="listbox">
+              {suggestions.map((suggestion, index) => (
+                <div key={`${suggestion.tekst}-${suggestion.data.x}-${suggestion.data.y}`} role="option" aria-selected={activeIndex === index} className={`px-2.5 py-1.5 cursor-pointer text-white border-b border-white/10 last:border-b-0 ${activeIndex === index ? 'bg-[#2a2a2a]' : 'hover:bg-[#2a2a2a]'}`} onMouseEnter={() => setActiveIndex(index)} onMouseDown={(event) => {
+                  event.preventDefault()
+                  selectSuggestion(suggestion)
+                }}>
+                  {suggestion.tekst}
+                </div>
+              ))}
             </div>
           )}
-          
-          <input
-            ref={searchInputRef}
-            type="text"
-            id="adresse"
-            placeholder="Søg efter en adresse i Danmark"
-            className="w-full bg-[#1a1a1a] text-white py-3 sm:py-4 px-12 sm:px-14 rounded-full border border-[#E97B4D] focus:outline-none focus:border-[#E97B4D] focus:bg-[#141414] transition-all placeholder-gray-400 disabled:opacity-50 text-sm sm:text-base touch-target focus-visible input-interactive"
-            disabled={searchLoading || dawaFailed}
-            aria-label="Søg efter en adresse i Danmark"
-            aria-describedby={dawaFailed ? "dawa-error" : undefined}
-            role="searchbox"
-            autoComplete="off"
-            minLength={2}
-          />
         </div>
-        
+
         {selectedAddress && (
           <div className="mt-3 p-3 bg-success-bg border border-success/30 rounded-lg" role="status" aria-live="polite">
             <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-success success-animation" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <p className="text-sm sm:text-base text-success font-medium">
-                Valgt adresse: <span className="text-white">{selectedAddress}</span>
-              </p>
+              <svg className="w-4 h-4 text-success success-animation" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+              <p className="text-sm sm:text-base text-success font-medium">Valgt adresse: <span className="text-white">{selectedAddress}</span></p>
             </div>
           </div>
         )}
       </div>
-
-      <style jsx global>{`
-        .autocomplete-container {
-          position: relative;
-          width: 100%;
-        }
-
-        .autocomplete-container input {
-          width: 100%;
-          box-sizing: border-box;
-        }
-
-        .dawa-autocomplete-suggestions {
-          margin: 0.3em 0 0 0;
-          padding: 0;
-          text-align: left;
-          border-radius: 0.3125em;
-          background: #1a1a1a;
-          box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 255, 255, 0.1);
-          position: absolute;
-          left: 0;
-          right: 0;
-          z-index: 9999;
-          overflow-y: auto;
-          box-sizing: border-box;
-          border: 2px solid rgba(255, 255, 255, 0.3);
-        }
-
-        .dawa-autocomplete-suggestions .dawa-autocomplete-suggestion {
-          margin: 0;
-          list-style: none;
-          cursor: pointer;
-          padding: 0.4em 0.6em;
-          color: #ffffff;
-          border: 0.0625em solid rgba(255, 255, 255, 0.1);
-          border-bottom-width: 0;
-          background: #1a1a1a;
-        }
-
-        .dawa-autocomplete-suggestions .dawa-autocomplete-suggestion:first-child {
-          border-top-left-radius: inherit;
-          border-top-right-radius: inherit;
-        }
-
-        .dawa-autocomplete-suggestions .dawa-autocomplete-suggestion:last-child {
-          border-bottom-left-radius: inherit;
-          border-bottom-right-radius: inherit;
-          border-bottom-width: 0.0625em;
-        }
-
-        .dawa-autocomplete-suggestions .dawa-autocomplete-suggestion.dawa-selected,
-        .dawa-autocomplete-suggestions .dawa-autocomplete-suggestion:hover {
-          background: #2a2a2a;
-        }
-
-        /* Limit suggestions to top 5 results */
-        .dawa-autocomplete-suggestions .dawa-autocomplete-suggestion:nth-child(n+6) {
-          display: none !important;
-        }
-      `}</style>
     </div>
   )
-} 
+}

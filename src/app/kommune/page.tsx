@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 import { getAppV2MunicipalitySummaries } from "@/lib/supabase/app-v2-queries";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 86400;
 
 export const metadata: Metadata = {
   title: "Kommuner med beskyttelsesrum",
@@ -70,7 +70,7 @@ export default async function MunicipalityOverviewPage() {
           </h1>
           <p className="text-lg leading-8 text-gray-300">
             Brug kommunerne som lokal indgang til registreringer, kort og videre datakontekst. Oversigten bygger på
-            app_v2-summarydata og linker videre til den enkelte kommuneside.
+            oversigtsdata og linker videre til den enkelte kommuneside.
           </p>
           <p className="text-sm leading-6 text-gray-400">
             Oversigten viser kun kommuneoplysninger og overordnede tal. Kort, shelter-lister og nærliggende resultater
@@ -87,7 +87,7 @@ export default async function MunicipalityOverviewPage() {
             <p className="text-sm text-gray-400">Aktive registreringer</p>
             <p className="mt-2 text-2xl font-semibold text-white">{activeShelterCount.toLocaleString("da-DK")}</p>
             <p className="mt-2 text-sm leading-6 text-gray-400">
-              Registreringer der er aktive i det aktuelle app_v2-datalag.
+              Registreringer der er aktive i det aktuelle datagrundlag.
             </p>
           </div>
         </section>
@@ -95,8 +95,8 @@ export default async function MunicipalityOverviewPage() {
         <section className="mb-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-white">Fra hele landet til den enkelte kommune</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
-            Landssiden samler de nationale summarytal. Kommuneoversigten gør det muligt at gå fra det samlede billede
-            til lokale kommunesider med nøgletal, postområder, udvalgte lokale indgange og eksisterende kortflow.
+            Landssiden samler de nationale tal. Kommuneoversigten gør det muligt at gå fra det samlede billede
+            til lokale kommunesider med nøgletal, postområder, udvalgte lokale indgange og kortvisning.
           </p>
           <Link
             href="/land"
@@ -142,7 +142,7 @@ export default async function MunicipalityOverviewPage() {
         <section className="mt-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-white">Om tallene</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
-            Tallene kommer fra app_v2-laget og tæller registreringer, der er aktive i det aktuelle datalag. De er ikke
+            Tallene kommer fra databasen og tæller registreringer, der er aktive i det aktuelle datagrundlag. De er ikke
             en garanti for adgang, fysisk stand, klargøring eller myndighedsgodkendelse af et konkret rum.
           </p>
           <Link
