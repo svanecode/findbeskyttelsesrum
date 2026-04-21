@@ -1208,6 +1208,183 @@ export async function getAppV2MunicipalityShelterStats(
   };
 }
 
+// ─── Municipality shelter list + grouping (Sprint 5) ────────────────────────
+
+export type AppV2MunicipalityShelter = {
+  id: string;
+  slug: string;
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  latitude: number | null;
+  longitude: number | null;
+  capacity: number;
+  status: AppV2ShelterStatus;
+  sourceApplicationCode: string | null;
+  applicationCodeLabel: string | null;
+};
+
+export type AppV2MunicipalityShelterGroup = {
+  groupKey: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  latitude: number | null;
+  longitude: number | null;
+  shelterCount: number;
+  totalCapacity: number;
+  slugs: string[];
+  primarySlug: string;
+  applicationCodeLabel: string | null;
+};
+
+type MunicipalityShelterRow = {
+  id: string;
+  slug: string;
+  name: string;
+  address_line1: string;
+  postal_code: string;
+  city: string;
+  latitude: number | null;
+  longitude: number | null;
+  capacity: number;
+  status: AppV2ShelterStatus;
+  source_application_code: string | null;
+};
+
+export async function getAppV2MunicipalityShelters(
+  municipalityId: string,
+): Promise<AppV2MunicipalityShelter[]> {
+  const supabase = createAppV2ReadClient();
+  const pageSize = 1000;
+  const allRows: MunicipalityShelterRow[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + pageSize - 1;
+    const { data, error } = await supabase
+      .from("shelters")
+      .select(
+        "id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, status, source_application_code",
+      )
+      .eq("municipality_id", municipalityId)
+      .eq("import_state", "active")
+      .order("address_line1", { ascending: true })
+      .order("postal_code", { ascending: true })
+      .order("capacity", { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(
+        `Could not load app_v2 municipality shelters for "${municipalityId}": ${error.message}`,
+      );
+    }
+
+    const rows = (data ?? []) as MunicipalityShelterRow[];
+    allRows.push(...rows);
+
+    if (rows.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  // Batch-fetch application code labels
+  const uniqueCodes = Array.from(
+    new Set(allRows.map((r) => r.source_application_code).filter((c): c is string => c !== null)),
+  );
+  const labelByCode = new Map<string, string>();
+
+  if (uniqueCodes.length > 0) {
+    const labelClient = createAppV2ReadClient();
+    const { data: labelRows } = await labelClient
+      .from("application_code_eligibility")
+      .select("application_code, label")
+      .eq("source_name", "datafordeler-bbr-dar")
+      .in("application_code", uniqueCodes);
+
+    for (const row of (labelRows ?? []) as Array<{ application_code: string; label: string | null }>) {
+      if (row.label) labelByCode.set(row.application_code, row.label);
+    }
+  }
+
+  return allRows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    addressLine1: row.address_line1,
+    postalCode: row.postal_code,
+    city: row.city,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    capacity: row.capacity,
+    status: row.status,
+    sourceApplicationCode: row.source_application_code,
+    applicationCodeLabel: row.source_application_code
+      ? (labelByCode.get(row.source_application_code) ?? null)
+      : null,
+  }));
+}
+
+export function groupMunicipalityShelters(
+  shelters: AppV2MunicipalityShelter[],
+): AppV2MunicipalityShelterGroup[] {
+  const groups = new Map<string, AppV2MunicipalityShelter[]>();
+
+  for (const shelter of shelters) {
+    const key =
+      shelter.addressLine1.toLowerCase().trim() + "|" + shelter.postalCode.trim();
+    groups.set(key, [...(groups.get(key) ?? []), shelter]);
+  }
+
+  return Array.from(groups.entries())
+    .map(([groupKey, groupShelters]) => {
+      // Primary shelter = highest capacity (already sorted desc from query)
+      const primary = [...groupShelters].sort((a, b) => b.capacity - a.capacity)[0]!;
+
+      // Most frequent applicationCodeLabel
+      const labelCounts = new Map<string, number>();
+      for (const s of groupShelters) {
+        if (s.applicationCodeLabel) {
+          labelCounts.set(
+            s.applicationCodeLabel,
+            (labelCounts.get(s.applicationCodeLabel) ?? 0) + 1,
+          );
+        }
+      }
+      let dominantLabel: string | null = null;
+      let maxCount = 0;
+      Array.from(labelCounts.entries()).forEach(([label, count]) => {
+        if (count > maxCount) {
+          dominantLabel = label;
+          maxCount = count;
+        }
+      });
+
+      return {
+        groupKey,
+        addressLine1: primary.addressLine1,
+        postalCode: primary.postalCode,
+        city: primary.city,
+        latitude: primary.latitude,
+        longitude: primary.longitude,
+        shelterCount: groupShelters.length,
+        totalCapacity: groupShelters.reduce((sum, s) => sum + s.capacity, 0),
+        slugs: groupShelters.map((s) => s.slug),
+        primarySlug: primary.slug,
+        applicationCodeLabel: dominantLabel,
+      };
+    })
+    .sort((a, b) =>
+      a.addressLine1.localeCompare(b.addressLine1, "da-DK") ||
+      a.postalCode.localeCompare(b.postalCode),
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function getAppV2ShelterBySlug(slug: string) {
   const supabase = createAppV2ReadClient();
   const { data: shelterData, error: shelterError } = await supabase

@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `Beskyttelsesrum i ${kommuneName}`,
-    description: `Se den lokale kommuneside for registrerede beskyttelsesrum i ${kommuneName} kommune med nøgletal, postområder, kort, udvalgte lokale indgange og datagrundlag.`,
+    description: `Se registrerede beskyttelsesrum i ${kommuneName} kommune — adresser, pladser, kort og nøgletal.`,
     keywords: [
       `beskyttelsesrum ${kommuneName}`,
       `beskyttelsesrum ${kommuneName} kommune`,
@@ -36,7 +36,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ],
     openGraph: {
       title: `Beskyttelsesrum i ${kommuneName}`,
-      description: `Se lokale nøgletal, kort og udvalgte indgange til beskyttelsesrum i ${kommuneName} kommune.`,
+      description: `Find beskyttelsesrum i ${kommuneName} — adresser, kapacitet og kort.`,
       type: 'website',
       locale: 'da_DK',
       siteName: 'Find Beskyttelsesrum',
