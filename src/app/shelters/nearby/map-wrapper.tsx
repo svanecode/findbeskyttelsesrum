@@ -30,6 +30,7 @@ interface MapWrapperProps {
   appV2NearbyExperiment?: boolean
   appV2NearbyPublicExperiment?: boolean
   appV2NearbyEligibility?: string
+  source?: string | null
 }
 
 export default function MapWrapper({
@@ -38,6 +39,7 @@ export default function MapWrapper({
   appV2NearbyExperiment = false,
   appV2NearbyPublicExperiment = false,
   appV2NearbyEligibility = 'source-application-code',
+  source = null,
 }: MapWrapperProps) {
   // Add validation for coordinates
   const latNum = parseFloat(lat)
@@ -70,6 +72,7 @@ export default function MapWrapper({
         appV2NearbyExperiment={appV2NearbyExperiment}
         appV2NearbyPublicExperiment={appV2NearbyPublicExperiment}
         appV2NearbyEligibility={appV2NearbyEligibility}
+        source={source}
       />
     </MapErrorBoundary>
   )

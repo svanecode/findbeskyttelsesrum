@@ -43,6 +43,7 @@ const hoveredShelterIcon = createDivIcon(
   36
 )
 import { Shelter } from '@/types/shelter'
+import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
 import Link from 'next/link'
@@ -56,7 +57,7 @@ const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLaye
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 
 // Component to auto-fit map bounds to markers
-function FitBounds({ userLocation, shelters }: { userLocation: [number, number], shelters: ShelterWithDistance[] }) {
+function FitBounds({ userLocation, shelters }: { userLocation: [number, number], shelters: NearbyResultShelter[] }) {
   // This will be loaded client-side only
   const [MapHook, setMapHook] = useState<any>(null)
 
@@ -73,7 +74,7 @@ function FitBounds({ userLocation, shelters }: { userLocation: [number, number],
 
 function FitBoundsInner({ userLocation, shelters, useMapHook }: {
   userLocation: [number, number],
-  shelters: ShelterWithDistance[],
+  shelters: NearbyResultShelter[],
   useMapHook: any
 }) {
   const map = useMapHook()
@@ -116,6 +117,7 @@ function FitBoundsInner({ userLocation, shelters, useMapHook }: {
   return null
 }
 
+// Legacy shape — used only inside getNearbyShelters before normalization
 interface ShelterWithDistance extends Shelter {
   distance: number
 }
@@ -330,10 +332,11 @@ async function getNearbyShelters(lat: number, lng: number) {
       console.log(`Successfully fetched shelters (v${useV3 ? '3' : '2'}):`, response.data.length)
     }
 
-    const nearbyShelters = response.data
+    const nearbyShelters: NearbyResultShelter[] = response.data
       .map((shelter: ShelterWithDistance) => ({
         ...shelter,
-        distance: (shelter.distance || 0) / 1000
+        distance: (shelter.distance || 0) / 1000,
+        source: 'legacy' as const,
       }))
 
     return nearbyShelters
@@ -343,6 +346,25 @@ async function getNearbyShelters(lat: number, lng: number) {
     }
     return []
   }
+}
+
+async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<NearbyResultShelter[]> {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lng: String(lng),
+    limit: '10',
+    eligibility: 'source-application-code',
+  })
+  const response = await fetch(`/api/app-v2/nearby/grouped?${params.toString()}`, {
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error(`app_v2 grouped nearby failed with status ${response.status}`)
+  }
+
+  const json = await response.json()
+  return adaptAppV2Grouped(json.results ?? [])
 }
 
 async function getAppV2NearbyShadowComparison(
@@ -376,6 +398,7 @@ interface Props {
   appV2NearbyExperiment?: boolean
   appV2NearbyPublicExperiment?: boolean
   appV2NearbyEligibility?: string
+  source?: string | null
 }
 
 export default function ShelterMapClient({
@@ -384,8 +407,9 @@ export default function ShelterMapClient({
   appV2NearbyExperiment = false,
   appV2NearbyPublicExperiment = false,
   appV2NearbyEligibility = 'source-application-code',
+  source = null,
 }: Props) {
-  const [shelters, setShelters] = useState<(Shelter & { distance: number })[]>([])
+  const [shelters, setShelters] = useState<NearbyResultShelter[]>([])
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
   const [appV2ShadowComparison, setAppV2ShadowComparison] = useState<NearbyShadowComparison | null>(null)
@@ -422,11 +446,14 @@ export default function ShelterMapClient({
           console.log('Starting data load with coordinates:', { lat, lng })
         }
 
-        const [sheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
-          getNearbyShelters(lat, lng),
+        const [rawSheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
+          source === 'legacy'
+            ? getNearbyShelters(lat, lng)
+            : fetchAppV2GroupedShelters(lat, lng),
           getAnvendelseskoder(),
           getKommunekoder()
         ])
+        const sheltersData: NearbyResultShelter[] = rawSheltersData
         let shadowComparison: NearbyShadowComparison | null = null
         let shadowError: string | null = null
 
@@ -480,7 +507,7 @@ export default function ShelterMapClient({
     return () => {
       isMounted = false
     }
-  }, [lat, lng, shouldLoadAppV2Shadow, appV2NearbyExperiment, appV2NearbyPublicExperiment, reviewEligibility])
+  }, [lat, lng, source, shouldLoadAppV2Shadow, appV2NearbyExperiment, appV2NearbyPublicExperiment, reviewEligibility])
 
   if (isNaN(lat) || isNaN(lng)) {
     return (
@@ -535,6 +562,12 @@ export default function ShelterMapClient({
   return (
     <main className="min-h-screen bg-[#1a1a1a] text-white">
       <div className="max-w-7xl mx-auto p-4">
+        {source === 'legacy' && (
+          <div className="mb-4 rounded-md border border-yellow-600/30 bg-yellow-900/20 px-3 py-2 text-sm text-yellow-200">
+            Legacy-version: bruger gammelt datalag. Gå tilbage til <a href={`/shelters/nearby?lat=${latString}&lng=${lngString}`} className="underline">normal søgning</a>.
+          </div>
+        )}
+
         <div className="flex items-center mb-6">
           <Link
             href="/"
