@@ -10,6 +10,7 @@ export default function NearbyWrapper() {
   const appV2NearbyExperiment = searchParams.get('appV2NearbyExperiment') === 'grouped'
   const appV2NearbyPublicExperiment = searchParams.get('appV2NearbyExperiment') === 'public-preview'
   const appV2NearbyEligibility = searchParams.get('appV2NearbyEligibility') || 'source-application-code'
+  const source = searchParams.get('source')
 
   // Only validate if both parameters are present
   if (lat && lng) {
@@ -38,6 +39,7 @@ export default function NearbyWrapper() {
       appV2NearbyExperiment={appV2NearbyExperiment}
       appV2NearbyPublicExperiment={appV2NearbyPublicExperiment}
       appV2NearbyEligibility={appV2NearbyEligibility}
+      source={source}
     />
   )
 } 

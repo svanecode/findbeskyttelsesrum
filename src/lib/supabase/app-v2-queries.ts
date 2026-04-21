@@ -144,6 +144,7 @@ export type AppV2GroupedNearbyShelter = {
   municipality: AppV2MunicipalitySummary;
   statuses: AppV2ShelterStatus[];
   importStates: AppV2ImportState[];
+  applicationCodeLabel: string | null;
 };
 
 export type AppV2NearbyDiagnostics = {
@@ -725,7 +726,11 @@ function uniqueValues<TValue extends string>(values: TValue[]) {
   return Array.from(new Set(values)).sort();
 }
 
-function groupNearbyRows(rows: AppV2NearbyShelter[], limit: number): AppV2GroupedNearbyShelter[] {
+function groupNearbyRows(
+  rows: AppV2NearbyShelter[],
+  limit: number,
+  labelByCode: Map<string, string>,
+): AppV2GroupedNearbyShelter[] {
   const groups = new Map<string, AppV2NearbyShelter[]>();
 
   for (const row of rows) {
@@ -742,6 +747,8 @@ function groupNearbyRows(rows: AppV2NearbyShelter[], limit: number): AppV2Groupe
         throw new Error("app_v2 nearby grouping received an empty group.");
       }
 
+      const dominantCode = representativeShelter.sourceApplicationCode;
+
       return {
         groupKey,
         addressLine1: representativeShelter.addressLine1,
@@ -757,6 +764,7 @@ function groupNearbyRows(rows: AppV2NearbyShelter[], limit: number): AppV2Groupe
         municipality: representativeShelter.municipality,
         statuses: uniqueValues(sortedRows.map((row) => row.status)),
         importStates: uniqueValues(sortedRows.map((row) => row.importState)),
+        applicationCodeLabel: dominantCode ? (labelByCode.get(dominantCode) ?? null) : null,
       };
     })
     .sort((a, b) => a.distanceMeters - b.distanceMeters || a.groupKey.localeCompare(b.groupKey))
@@ -1014,7 +1022,25 @@ export async function getAppV2GroupedNearbySheltersWithDiagnostics(
     limit: rowFetchLimit,
     candidateLimit: rowFetchLimit,
   });
-  const groupedRows = groupNearbyRows(rowResult.rows, groupLimit);
+
+  // Fetch labels for all unique application codes in one DB round-trip
+  const uniqueCodes = Array.from(
+    new Set(rowResult.rows.map((r) => r.sourceApplicationCode).filter((c): c is string => c !== null)),
+  );
+  const labelByCode = new Map<string, string>();
+  if (uniqueCodes.length > 0) {
+    const labelClient = createAppV2ReadClient();
+    const { data: labelRows } = await labelClient
+      .from("application_code_eligibility")
+      .select("application_code, label")
+      .eq("source_name", "datafordeler-bbr-dar")
+      .in("application_code", uniqueCodes);
+    for (const row of (labelRows ?? []) as Array<{ application_code: string; label: string | null }>) {
+      if (row.label) labelByCode.set(row.application_code, row.label);
+    }
+  }
+
+  const groupedRows = groupNearbyRows(rowResult.rows, groupLimit, labelByCode);
 
   return {
     rows: groupedRows,

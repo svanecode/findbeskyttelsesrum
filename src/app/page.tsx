@@ -99,10 +99,6 @@ export default async function Home() {
                 </svg>
               </Link>
             </div>
-            <p className="mx-auto mt-5 max-w-xl text-center text-body-sm leading-6 text-[#D1D5DB]">
-              Adressebaseret søgning bruger fortsat den etablerede nearby-oplevelse. Land, kommuner og data-siden giver
-              den offentlige indgang til det nye app_v2-datalag.
-            </p>
           </div>
         </div>
       </div>

@@ -200,6 +200,7 @@ function toApiGroup(row: AppV2GroupedNearbyShelter) {
     distanceMeters: row.distanceMeters,
     shelterCount: row.shelterCount,
     totalCapacity: row.totalCapacity,
+    applicationCodeLabel: row.applicationCodeLabel,
     statuses: row.statuses,
     importStates: row.importStates,
     municipality: {
