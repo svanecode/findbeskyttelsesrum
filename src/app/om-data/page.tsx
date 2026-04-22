@@ -13,13 +13,14 @@ export const revalidate = 600;
 export const metadata: Metadata = {
   title: "Om data",
   description:
-    "Kort forklaring af datagrundlaget bag offentlige kommune-, land- og beskyttelsesrumssider.",
+    "Forklaring af datagrundlaget bag land-, kommune- og detail-siderne — aktive registreringer, registrerede pladser og grænsen til den almindelige søgning.",
   alternates: {
     canonical: "/om-data",
   },
   openGraph: {
     title: "Om data",
-    description: "Læs hvordan offentlige kommune-, land- og beskyttelsesrumssider bruger registerdata.",
+    description:
+      "Hvordan land-, kommune- og detail-sider bruger registerdata, og hvad der ikke følger med i tallene.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -126,12 +127,11 @@ export default async function DataPage() {
           <p className="text-sm uppercase tracking-wide text-gray-400">Data</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Om datagrundlaget</h1>
           <p className="text-lg leading-8 text-gray-300">
-            De offentlige sider for kommuner og enkelte beskyttelsesrum bruger registerdata fra databasen bag Find
-            Beskyttelsesrum.
+            Land-, kommune- og detail-siderne bruger registerdata fra det aktuelle datalag bag Find Beskyttelsesrum.
           </p>
           <p className="text-sm leading-6 text-gray-400">
-            Siden beskriver de offentlige dataflader. Søgning, nærliggende resultater og kort kører fortsat på den
-            normale søgning.
+            Siden beskriver de offentlige destinationssider. Adressebaseret søgning, nærliggende resultater og kort i
+            det almindelige søgningsforløb kører fortsat uden for denne forklaring.
           </p>
         </header>
 
@@ -140,7 +140,7 @@ export default async function DataPage() {
             <StatCard
               label="Kommuner"
               value={overview.municipalityCount.toLocaleString("da-DK")}
-              note="Kommuner med registreringer i datagrundlaget."
+              note="Kommuner der findes i det aktuelle kommuneregister i datalaget."
             />
             <StatCard
               label="Aktive registreringer"
@@ -184,8 +184,8 @@ export default async function DataPage() {
             <h2 className="text-lg font-semibold text-white">Sådan hænger siderne sammen</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Landssiden giver nationalt overblik og regional struktur. Kommuneoversigten leder videre til lokale
-              kommunesider med nøgletal, postområder og få udvalgte indgange. Detail-sider viser én aktiv registrering
-              med kilde- og opdateringskontekst.
+              kommunesider med nøgletal, postområder, liste og kort samt veje til detail-sider. Detail-sider viser én
+              aktiv registrering med kilde- og opdateringskontekst.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link
@@ -207,8 +207,8 @@ export default async function DataPage() {
             <h2 className="text-lg font-semibold text-white">Hvad siden ikke lover</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Registreringer og registreret kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse
-              eller aktuel fysisk stand. Eksempelregistreringer på land- og kommunesider er indgange til detail-sider,
-              ikke anbefalinger eller komplette lister.
+              eller aktuel fysisk stand.               Udvalgte eksempelregistreringer på land- og kommunesider er indgange til detail-sider, ikke anbefalinger
+              eller komplette lister.
             </p>
           </section>
 
@@ -223,6 +223,34 @@ export default async function DataPage() {
               En senere ændring af nærliggende resultater kræver særskilt validering, før den kan blive den
               brugersynlige standard.
             </p>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold text-white">Næste skridt</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Vend tilbage til forsiden for adressesøgning, eller fortsæt i destinationssporet land → kommuner →
+              lokalt overblik.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href="/"
+                className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+              >
+                Til forsiden
+              </Link>
+              <Link
+                href="/land"
+                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
+              >
+                Hele landet
+              </Link>
+              <Link
+                href="/kommune"
+                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
+              >
+                Kommuner
+              </Link>
+            </div>
           </section>
         </div>
       </div>

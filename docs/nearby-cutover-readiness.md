@@ -354,7 +354,7 @@ Focused ranking diagnostics now compare shared normalized address keys by rank. 
 
 The first shadow compare route now exists at `/api/app-v2/nearby/shadow`. It is opt-in only and requires `shadow=1`. It reads the legacy nearby RPC and grouped app_v2 nearby in the same route handler and returns comparison JSON. It does not feed the visible `/shelters/nearby` UI and does not write telemetry or database state.
 
-A gated internal trial mode is also available on `/shelters/nearby` with `appV2NearbyExperiment=grouped`. Without that explicit query flag, the page remains legacy-only and does not fetch the shadow route. With the flag, a grouped app_v2 review panel is shown above the normal legacy list; the map and the normal result cards still use legacy data. The panel defaults to strict `source_application_code_v1` eligibility and now exposes a more complete internal trial surface: overlap, legacy-only cases, app_v2-only cases, shared rank deltas, source-code coverage diagnostics, filtered rows, grouped top results, edge-case review cues, reviewer checklist, quick links for representative trial cases, links to data-context pages, and a note that the map remains legacy.
+A gated internal trial mode is also available on `/shelters/nearby` with `appV2NearbyExperiment=grouped`. Without `grouped` or `public-preview`, the page does not fetch the shadow compare route; the active list and map still follow the URL source contract (app_v2 by default, legacy with `source=legacy`). With `grouped`, a comparison panel is shown above the primary result list while the list and map continue to follow that same source contract. The panel defaults to strict `source_application_code_v1` eligibility and exposes: overlap, legacy-only cases, app_v2-only cases, shared rank deltas, source-code coverage diagnostics, filtered rows, grouped top results, edge-case review cues, reviewer checklist, quick links for representative trial cases, links to data-context pages, and a note that the shadow route does not drive the visible map source.
 
 Activation examples:
 
@@ -431,7 +431,7 @@ Mixing legacy and app_v2 in one nearby result also has risk. For example, using 
 
 ## 7. Recommended next nearby-related task
 
-The first app_v2 nearby read contract now exists as `getAppV2NearbyShelters()` in `src/lib/supabase/app-v2-queries.ts`, and the first server-side API boundary exists at `/api/app-v2/nearby`. Neither is connected to `/shelters/nearby`.
+The first app_v2 nearby read contract lives in `getAppV2NearbyShelters()` and grouped helpers in `src/lib/supabase/app-v2-queries.ts`. `/shelters/nearby` uses `/api/app-v2/nearby/grouped` for the primary list when the page-level source resolver is app_v2; the row-level `/api/app-v2/nearby` contract remains a separate evaluation surface.
 
 Recommended next PR:
 
@@ -452,7 +452,7 @@ Recommended next PR:
    - The debug API route is `/api/app-v2/nearby/shadow?shadow=1&lat=...&lng=...`.
    - The internal review URL is `/shelters/nearby?lat=...&lng=...&appV2NearbyExperiment=grouped`.
    - The tiny public preview URL is `/shelters/nearby?lat=...&lng=...&appV2NearbyExperiment=public-preview`.
-   - The goal is to inspect app_v2-only, legacy-only, and rank-delta cases in nearby context while keeping the normal legacy UI response unchanged.
+   - The goal is to inspect app_v2-only, legacy-only, and rank-delta cases in nearby context while keeping the active list and map on the URL source contract (the preview flags do not silently switch source).
 3. Keep `anvendelseskoder.skal_med` explicit as modeled by source-backed application-code eligibility, while still documenting that app_v2 does not expose full legacy anvendelse/type display semantics.
    - `capacity >= 40` is now represented by `legacy_capacity_v1`.
    - legacy `anvendelseskoder.skal_med` still should not be faked through status, summary, or source text.

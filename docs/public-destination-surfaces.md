@@ -2,28 +2,27 @@
 
 ## Current status
 
-The country, municipality, municipality detail, shelter detail, and data pages now form a coherent public destination track:
+The country, municipality, municipality detail, shelter detail, and data pages form a **coherent public destination track** after a final cross-surface copy, hierarchy, and next-step pass:
 
-- `/land` gives national context, summary counts, active-municipality coverage, regional structure, municipality entry points, and a small set of selected example registrations.
-- `/kommune` gives the municipality index and explains active registration counts.
-- `/kommune/[slug]` gives local context, municipality-level app_v2 stats, postal-area summaries, selected local entry points, and the existing map surface.
-- `/beskyttelsesrum/[slug]` gives a single active app_v2 registration with source and update context.
-- `/om-data` explains what the displayed data means and what it does not prove.
+- `/` frames address search as the normal entry and points clearly to land, kommune index, and Om data as the register destination track.
+- `/land` gives national context, summary counts, active-municipality coverage, regional structure, municipality entry points, and **udvalgte eksempelregistreringer** with consistent register language.
+- `/kommune` is the municipality index with **aktive registreringer** labelling, aligned metadata, and explicit next steps back to land, forsiden, and Om data.
+- `/kommune/[slug]` gives local context with stat labels aligned to **aktive registreringer** / **registrerede pladser**, a short **map expectation** callout (liste/kort vs full app_v2 cutover), top links to land and Om data, and the existing map surface.
+- `/beskyttelsesrum/[slug]` gives a single active app_v2 registration with aligned **registrerede pladser** copy in body and metadata, navigation order consistent with other surfaces (forside → land → kommuner → Om data), and a single cross-link block for next steps.
+- `/om-data` explains the public data contract, uses the same vocabulary for examples, and ends with a **Næste skridt** block back into forsiden, land, and kommuner.
 
-These surfaces are part of the revamp build where app_v2 is the main public data track. Nearby now has an explicit
-revamp source contract: app_v2 is the default in this codebase, while legacy remains available through `source=legacy`
-as compare/fallback and as the Supabase rollback net.
+These surfaces are part of the revamp build where app_v2 is the main public data track. Nearby retains its explicit revamp source contract: app_v2 is the default in this codebase, while legacy remains available through `source=legacy` as compare/fallback and as the Supabase rollback net.
 
 ## Final public-surface readiness snapshot
 
-The central public hierarchy is now coherent enough to support a next-phase experiment:
+The central public hierarchy reads as one product path:
 
-1. `/` remains the address-search entry point and clearly distinguishes normal nearby search from the app_v2 destination pages.
-2. `/land` is the national destination page with summary counts, active municipality coverage, regional structure, municipality handoff, selected example registrations, and data-context links.
+1. `/` remains the address-search entry point and distinguishes the normal nearby flow from the app_v2 destination pages.
+2. `/land` is the national destination page with summary counts, active municipality coverage, regional structure, municipality handoff, **udvalgte eksempelregistreringer**, and data-context links.
 3. `/kommune` is the municipality index and the stable route from national overview to local municipality pages.
-4. `/kommune/[slug]` is the local destination page with app_v2 local stats, postal-area summaries, selected local detail links, and map context.
-5. `/beskyttelsesrum/[slug]` is the single-registration detail surface for active app_v2 rows.
-6. `/om-data` explains the public data contract and the boundary between app_v2 destination pages and the normal legacy nearby flow.
+4. `/kommune/[slug]` is the local destination page with aligned stats copy, expectation text for liste/kort, and metadata that describes liste and kort without implying a preparedness ranking.
+5. `/beskyttelsesrum/[slug]` is the single-registration detail surface for active app_v2 rows, with metadata and UI copy aligned to **registrerede pladser**.
+6. `/om-data` explains the public data contract and the boundary between app_v2 destination pages and the normal legacy nearby flow, with explicit handoff links back into the destination track.
 
 ## Public wording rules
 
@@ -60,7 +59,7 @@ Representative public checks should include:
 - `/om-data`
 - `/sitemap.xml`
 
-For municipality detail checks, confirm that local overview stats, postal-area summaries, and selected local entry points render when data exists and that the page still clearly says the map is not an app_v2 cutover.
+For municipality detail checks, confirm that local overview stats, the expectation callout above liste/kort, and footer/top links to land and Om data render as expected.
 
 For country-page checks, confirm that national overview, regional structure, municipality entry points, and selected examples render when data exists and that `/land` still does not present itself as a complete national shelter browser.
 
@@ -80,14 +79,15 @@ For final public-flow checks, include:
 The destination track is stronger, but not complete:
 
 - There is no full national app_v2 shelter browser; `/land` is a national destination and entry page, not a filterable register.
+- **Sitemap:** `src/app/sitemap.ts` now emits all **active** `app_v2` shelter detail URLs (`/beskyttelsesrum/[slug]`) with `lastModified` from `last_imported_at` / `last_seen_at` (see `getAppV2SitemapShelters()`). Kommune routes unchanged; shelter block fails soft (empty) if the query errors so the rest of the sitemap still returns.
 - Nearby still needs final app_v2 Type-display work before the legacy compare/fallback path can be retired.
 - The known nearby formatting edge case is now handled in shadow/preview comparison; remaining nearby differences should be treated as concrete review cases rather than assumed city/bydel noise.
-- Municipality detail now has stronger local depth, but its selected local entry points are still a bounded capacity-sorted set, not a complete local browser.
+- Municipality detail still combines local depth with the existing map surface; the on-page callout states that kort is not proof of full app_v2 cutover.
 - Shelter detail pages only exist for active app_v2 registrations with valid slugs.
 
 ## Recommendation
 
-Country and municipality detail now form a stronger land -> kommune -> shelter destination hierarchy. The next product gap is a final cross-surface polish pass against representative production-like data, while nearby should keep its app_v2 default, legacy fallback, and shadow comparison labels consistent.
+Treat public surfaces as **release-coherent**: one vocabulary (aktive registreringer, registrerede pladser, eksempelregistreringer), one hierarchy (forside → land → kommune → detail → Om data), and explicit expectation lines where liste/kort still carry legacy cartography.
 
 The tiny public-facing nearby preview should:
 

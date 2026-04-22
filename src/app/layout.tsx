@@ -62,21 +62,12 @@ export const metadata: Metadata = {
     siteName: 'Find Beskyttelsesrum',
     locale: 'da_DK',
     type: 'website',
-    images: [
-      {
-        url: '/og-image.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'Find Beskyttelsesrum - Oversigt over alle beskyttelsesrum i Danmark',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: "Find Beskyttelsesrum | Oversigt over alle beskyttelsesrum i Danmark",
     description: "Find beskyttelsesrum i dit område. Komplet oversigt over alle offentlige beskyttelsesrum i Danmark.",
     creator: '@beskyttelsesrum',
-    images: ['/og-image.jpg'],
   },
   robots: {
     index: true,

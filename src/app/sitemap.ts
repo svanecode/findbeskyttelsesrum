@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next'
-import { getAppV2MunicipalitySlugs } from '@/lib/supabase/app-v2-queries'
+import { getAppV2MunicipalitySlugs, getAppV2SitemapShelters } from '@/lib/supabase/app-v2-queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,22 +30,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/om-data`,
       lastModified: new Date(),
       changeFrequency: 'monthly' as const,
-      priority: 0.7,
+      priority: 0.75,
     },
     {
       url: `${baseUrl}/land`,
       lastModified: new Date(),
       changeFrequency: 'weekly' as const,
-      priority: 0.85,
+      priority: 0.88,
     },
     {
       url: `${baseUrl}/kommune`,
       lastModified: new Date(),
       changeFrequency: 'weekly' as const,
-      priority: 0.8,
+      priority: 0.82,
     },
-    // Add dynamic kommune routes
     ...(await getKommuneRoutes(baseUrl)),
+    ...(await getShelterRoutes(baseUrl)),
   ]
 
   return routes
@@ -66,4 +66,20 @@ async function getKommuneRoutes(baseUrl: string) {
     console.error('Error generating kommune routes:', error)
     return []
   }
-} 
+}
+
+async function getShelterRoutes(baseUrl: string) {
+  try {
+    const shelters = await getAppV2SitemapShelters()
+
+    return shelters.map((row) => ({
+      url: `${baseUrl}/beskyttelsesrum/${row.slug}`,
+      lastModified: row.lastModified,
+      changeFrequency: 'weekly' as const,
+      priority: 0.72,
+    }))
+  } catch (error) {
+    console.error('Error generating shelter routes:', error)
+    return []
+  }
+}

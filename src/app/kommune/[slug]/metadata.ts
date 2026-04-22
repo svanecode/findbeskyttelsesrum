@@ -9,7 +9,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const kommune = await getAppV2MunicipalityBySlug(slug)
 
-  if (!kommune?.code) {
+  if (!kommune) {
     return {
       title: 'Kommune ikke fundet',
     }
@@ -19,24 +19,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `Beskyttelsesrum i ${kommuneName}`,
-    description: `Se registrerede beskyttelsesrum i ${kommuneName} kommune — adresser, pladser, kort og nøgletal.`,
+    description: `Lokalt overblik over aktive registreringer og registrerede pladser i ${kommuneName} — adresser, liste, kort og detail-sider for enkelte registreringer.`,
     keywords: [
       `beskyttelsesrum ${kommuneName}`,
       `beskyttelsesrum ${kommuneName} kommune`,
-      `find beskyttelsesrum ${kommuneName}`,
       `beskyttelsesrum i ${kommuneName}`,
       `beskyttelsesrum ${kommuneName.toLowerCase()}`,
       'beskyttelsesrum',
       'civilforsvar',
-      'sikkerhed',
-      'nødsituation',
       'kommune',
       'lokation',
-      'nærmeste beskyttelsesrum'
     ],
     openGraph: {
       title: `Beskyttelsesrum i ${kommuneName}`,
-      description: `Find beskyttelsesrum i ${kommuneName} — adresser, kapacitet og kort.`,
+      description: `Aktive registreringer og registrerede pladser i ${kommuneName} — lokalt overblik, liste og kort.`,
       type: 'website',
       locale: 'da_DK',
       siteName: 'Find Beskyttelsesrum',

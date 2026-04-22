@@ -16,14 +16,14 @@ export const revalidate = 600;
 export const metadata: Metadata = {
   title: "Beskyttelsesrum i Danmark",
   description:
-    "National destinationsside for registrerede beskyttelsesrum i Danmark med landstal, regional struktur, kommuner, udvalgte indgange og datagrundlag.",
+    "National destinationsside for registrerede beskyttelsesrum i Danmark med landstal, regional struktur, kommuner, udvalgte eksempelregistreringer og datagrundlag.",
   alternates: {
     canonical: "/land",
   },
   openGraph: {
     title: "Beskyttelsesrum i Danmark",
     description:
-      "National indgang til landstal, regional struktur, kommuner, udvalgte registreringer og datagrundlag.",
+      "National indgang til landstal, regional struktur, kommuner, udvalgte eksempelregistreringer og datagrundlag.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -179,7 +179,7 @@ function ShelterExampleCard({ shelter }: { shelter: AppV2ShelterPreview }) {
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
         <span>{shelter.municipality.name}</span>
         <span>{shelter.capacity.toLocaleString("da-DK")} registrerede pladser</span>
-        <span>Åbn detail-side</span>
+        <span>Åbn detailregistrering</span>
       </div>
     </Link>
   );
@@ -281,7 +281,7 @@ export default async function CountryPage() {
               <NationalDepthItem
                 label="Kommuneniveau"
                 value="Lokale sider"
-                note="Kommunesiderne viser lokalt overblik, postområder, udvalgte lokale indgange og normal kortvisning."
+                note="Kommunesiderne viser lokalt overblik, postområder, adresseliste med veje til detail-sider og normal kortvisning."
               />
               <NationalDepthItem
                 label="Detailniveau"
@@ -349,7 +349,7 @@ export default async function CountryPage() {
               <JourneyItem
                 label="3"
                 title="Enkelte registreringer"
-                description="Find detail-siderne via kommunevisningen, når der findes en offentlig registrering."
+                description="Åbn detail-sider via kommunevisningen eller udvalgte eksempler — når der findes en offentlig aktiv registrering."
                 href="/kommune"
               />
             </div>
@@ -380,8 +380,8 @@ export default async function CountryPage() {
             <h2 className="text-lg font-semibold text-white">Start med en kommune</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Kommuneoversigten er den mest stabile offentlige vej fra nationalt overblik til lokal kontekst. Den
-              enkelte kommuneside viser lokale nøgletal, postområder, udvalgte indgange og forklarer tydeligt, når
-              lokale data og den normale kortvisning vises side om side.
+              enkelte kommuneside viser lokale nøgletal, postområder, adresseliste med veje til detail-sider og forklarer
+              tydeligt, når lokale data og den normale kortvisning vises side om side.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
@@ -455,8 +455,12 @@ export default async function CountryPage() {
         <section className="mt-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-white">Næste skridt</h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-300">
-            Start med kommuneoversigten, hvis du vil fra nationalt overblik til lokal kontekst. Brug data-siden, hvis
-            du vil forstå hvad registreringer, registrerede pladser og udvalgte eksempler betyder.
+            Start med kommuneoversigten for at gå fra nationalt overblik til lokal kontekst. Brug{" "}
+            <Link href="/om-data" className="text-white underline-offset-2 hover:underline">
+              Om data
+            </Link>
+            , hvis du vil forstå forskellen på aktive registreringer, registrerede pladser og udvalgte
+            eksempelregistreringer.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
@@ -469,7 +473,7 @@ export default async function CountryPage() {
               href="/om-data"
               className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
             >
-              Læs om data
+              Om data
             </Link>
           </div>
         </section>

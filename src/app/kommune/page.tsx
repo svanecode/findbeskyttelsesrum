@@ -6,15 +6,16 @@ import { getAppV2MunicipalitySummaries } from "@/lib/supabase/app-v2-queries";
 export const revalidate = 86400;
 
 export const metadata: Metadata = {
-  title: "Kommuner med beskyttelsesrum",
+  title: "Kommuner med aktive registreringer",
   description:
-    "Se kommuner med aktive registreringer af beskyttelsesrum og gå videre til lokale kommunesider med kort og datakontekst.",
+    "Alfabetisk oversigt over kommuner i datalaget med aktive registreringer — med vej videre til lokale sider, kort og forklaring af tallene.",
   alternates: {
     canonical: "/kommune",
   },
   openGraph: {
-    title: "Kommuner med beskyttelsesrum",
-    description: "Oversigt over kommuner med aktive registreringer og lokale kommunesider for beskyttelsesrum.",
+    title: "Kommuner med aktive registreringer",
+    description:
+      "Oversigt over kommuner i datalaget og lokale sider med aktive registreringer, registrerede pladser og kortkontekst.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -50,27 +51,27 @@ export default async function MunicipalityOverviewPage() {
             Tilbage til forsiden
           </Link>
           <Link
-            href="/om-data"
-            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            Om data
-          </Link>
-          <Link
             href="/land"
             className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
           >
             Hele landet
+          </Link>
+          <Link
+            href="/om-data"
+            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
+          >
+            Om data
           </Link>
         </nav>
 
         <header className="mb-10 max-w-3xl space-y-5">
           <p className="text-sm uppercase tracking-wide text-gray-400">Kommuner</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
-            Kommuner med registrerede beskyttelsesrum
+            Kommuner med aktive registreringer
           </h1>
           <p className="text-lg leading-8 text-gray-300">
-            Brug kommunerne som lokal indgang til registreringer, kort og videre datakontekst. Oversigten bygger på
-            oversigtsdata og linker videre til den enkelte kommuneside.
+            Brug oversigten som stabil indgang fra landssiden til lokale kommunesider med liste, kort og
+            registerbaserede nøgletal.
           </p>
           <p className="text-sm leading-6 text-gray-400">
             Oversigten viser kun kommuneoplysninger og overordnede tal. Kort, shelter-lister og nærliggende resultater
@@ -96,7 +97,7 @@ export default async function MunicipalityOverviewPage() {
           <h2 className="text-lg font-semibold text-white">Fra hele landet til den enkelte kommune</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
             Landssiden samler de nationale tal. Kommuneoversigten gør det muligt at gå fra det samlede billede
-            til lokale kommunesider med nøgletal, postområder, udvalgte lokale indgange og kortvisning.
+            til lokale kommunesider med nøgletal, postområder, adresseliste med veje til detail-sider og kortvisning.
           </p>
           <Link
             href="/land"
@@ -149,8 +150,33 @@ export default async function MunicipalityOverviewPage() {
             href="/om-data"
             className="mt-4 inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
           >
-            Læs om data
+            Om data
           </Link>
+        </section>
+
+        <section className="mt-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-white">Næste skridt</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
+            Gå tilbage til landssiden for national kontekst, eller åbn{" "}
+            <Link href="/om-data" className="text-white underline-offset-2 hover:underline">
+              Om data
+            </Link>{" "}
+            før du fortolker registrerede pladser og aktive registreringer.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/land"
+              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+            >
+              Hele landet
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
+            >
+              Til forsiden
+            </Link>
+          </div>
         </section>
       </div>
     </main>

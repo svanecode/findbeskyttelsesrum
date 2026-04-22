@@ -95,13 +95,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `${shelter.name} | Beskyttelsesrum i ${shelter.municipality.name}`,
-    description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} pladser. Registreret i kildedata.`,
+    description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} registrerede pladser. Registerfelter fra kildedata.`,
     alternates: {
       canonical: getShelterCanonicalPath(shelter.slug),
     },
     openGraph: {
       title: `${shelter.name} | Beskyttelsesrum i ${shelter.municipality.name}`,
-      description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} pladser.`,
+      description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} registrerede pladser.`,
       type: "article",
       locale: "da_DK",
       siteName: "Find Beskyttelsesrum",
@@ -145,22 +145,22 @@ export default async function ShelterDetailPage({ params }: Props) {
             Tilbage til forsiden
           </Link>
           <Link
+            href="/land"
+            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
+          >
+            Hele landet
+          </Link>
+          <Link
             href="/kommune"
             className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
           >
-            Alle kommuner
+            Kommuner
           </Link>
           <Link
             href="/om-data"
             className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
           >
             Om data
-          </Link>
-          <Link
-            href="/land"
-            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            Hele landet
           </Link>
         </nav>
 
@@ -183,7 +183,7 @@ export default async function ShelterDetailPage({ params }: Props) {
               <DetailRow label="Kommune" value={shelter.municipality.name} />
               <DetailRow
                 label="Registreret kapacitet"
-                value={`${shelter.capacity.toLocaleString("da-DK")} pladser`}
+                value={`${shelter.capacity.toLocaleString("da-DK")} registrerede pladser`}
               />
               <DetailRow label="Status" value={statusLabels[shelter.status]} />
               <DetailRow label="Datalagets tilstand" value={importStateLabels[shelter.importState]} />
@@ -206,8 +206,8 @@ export default async function ShelterDetailPage({ params }: Props) {
             <p className="text-sm uppercase tracking-wide text-gray-400">Placering i overblikket</p>
             <h2 className="mt-2 text-lg font-semibold text-white">Fra registrering til kommune og land</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Denne side viser en enkelt offentlig registrering. Brug kommunesiden til den lokale kortkontekst og
-              landssiden til at forstå hvordan registreringen indgår i det samlede overblik.
+              Denne side viser én aktiv offentlig registrering. Brug kommunesiden til lokalt liste- og kortoverblik,
+              kommuneoversigten til at vælge andre kommuner, og landssiden til national kontekst.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link
@@ -217,10 +217,16 @@ export default async function ShelterDetailPage({ params }: Props) {
                 Se {shelter.municipality.name}
               </Link>
               <Link
+                href="/kommune"
+                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
+              >
+                Kommuner
+              </Link>
+              <Link
                 href="/land"
                 className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
               >
-                Se hele landet
+                Hele landet
               </Link>
               <Link
                 href="/om-data"
@@ -262,26 +268,9 @@ export default async function ShelterDetailPage({ params }: Props) {
               href="/om-data"
               className="mt-4 inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
             >
-              Læs om datagrundlaget
+              Om data
             </Link>
           </section>
-
-          <div>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href={`/kommune/${shelter.municipality.slug}`}
-                className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
-              >
-                Se {shelter.municipality.name}
-              </Link>
-              <Link
-                href="/land"
-                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
-              >
-                Se hele landet
-              </Link>
-            </div>
-          </div>
         </article>
       </div>
     </main>

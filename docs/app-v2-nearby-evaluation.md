@@ -429,13 +429,13 @@ Current real-environment observations:
   - It requires `shadow=1`, otherwise it returns `404 shadow_not_enabled`.
   - It reads legacy nearby and grouped app_v2 nearby in the same route handler.
   - It returns overlap counts, legacy-only/app_v2-only address keys, rank deltas, legacy top results, and grouped app_v2 top results.
-  - It reports `userVisibleSource=legacy` and keeps `anvendelseskoder.skal_med` as an explicit unresolved semantic gap.
+  - Its `meta.userVisibleSource` is `controlled_by_page_source` because `/shelters/nearby` resolves `source` on the page; `knownSemanticGaps` documents how strict mode relates to legacy `anvendelseskoder.skal_med`.
   - It is read-only and does not write telemetry or database state.
 - The first internal visible review mode now exists behind `appV2NearbyExperiment=grouped` on `/shelters/nearby`.
-  - Normal `/shelters/nearby?lat=...&lng=...` remains legacy-only.
-  - Review mode renders a separate grouped app_v2 comparison panel above the legacy list.
-  - It shows overlap, legacy-only results, app_v2-only results, shared rank deltas, grouped top results, and a map-context note.
-  - The map and legacy result cards are not replaced.
+  - Without `grouped` or `public-preview`, the page still loads the primary nearby list from the URL source contract (app_v2 by default; `source=legacy` for legacy) and does not call the shadow route.
+  - Review mode additionally fetches `/api/app-v2/nearby/shadow` and renders a comparison panel above the primary result list.
+  - The panel shows overlap, legacy-only results, app_v2-only results, shared rank deltas, grouped top results, and a map-context note.
+  - The comparison panel does not replace the map or the primary result cards.
   - Review mode now defaults to strict source-backed eligibility.
   - Activate it with:
     - `/shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=grouped`
@@ -467,7 +467,7 @@ Current real-environment observations:
   - Odense: `10/10` shared, max rank delta `3`
   - Esbjerg: `10/10` shared, max rank delta `2`, with `1` unknown source-code row in candidates but no top-10 membership mismatch
   - Aalborg: `10/10` shared, max rank delta `2`
-- The API/read stack remains isolated from `/shelters/nearby`.
+- The grouped app_v2 API and shadow compare route are consumed by `/shelters/nearby` when the page source is app_v2 or when experiment flags request shadow data; the row-level `/api/app-v2/nearby` contract is still primarily a tooling/evaluation surface.
 
 ## 8. Decision Status
 

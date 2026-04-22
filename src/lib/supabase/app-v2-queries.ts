@@ -1103,6 +1103,60 @@ export async function getAppV2MunicipalitySlugs() {
   return rows.map((row) => normalizeMunicipality(row, 0).slug);
 }
 
+const sitemapShelterPageSize = 1000;
+
+export type AppV2SitemapShelterRow = {
+  slug: string;
+  lastModified: Date;
+};
+
+/**
+ * All active app_v2 shelter slugs for sitemap generation (paginated server-side reads).
+ */
+export async function getAppV2SitemapShelters(): Promise<AppV2SitemapShelterRow[]> {
+  const supabase = createAppV2ReadClient();
+  const out: AppV2SitemapShelterRow[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + sitemapShelterPageSize - 1;
+    const { data, error } = await supabase
+      .from("shelters")
+      .select("slug, last_imported_at, last_seen_at")
+      .eq("import_state", "active")
+      .not("slug", "is", null)
+      .neq("slug", "")
+      .order("slug", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(`Could not load app_v2 shelters for sitemap: ${error.message}`);
+    }
+
+    const rows = (data ?? []) as Array<{
+      slug: string;
+      last_imported_at: string | null;
+      last_seen_at: string | null;
+    }>;
+
+    for (const row of rows) {
+      const raw = row.last_imported_at ?? row.last_seen_at;
+      out.push({
+        slug: row.slug,
+        lastModified: raw ? new Date(raw) : new Date(),
+      });
+    }
+
+    if (rows.length < sitemapShelterPageSize) {
+      break;
+    }
+
+    from += sitemapShelterPageSize;
+  }
+
+  return out;
+}
+
 export async function getAppV2MunicipalityBySlug(slug: string) {
   const supabase = createAppV2ReadClient();
   const slugCandidates = getMunicipalitySlugCandidates(slug);
