@@ -44,6 +44,7 @@ const hoveredShelterIcon = createDivIcon(
 )
 import { Shelter } from '@/types/shelter'
 import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
+import { defaultNearbySource, type NearbySource } from '@/lib/nearby/source'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
 import Link from 'next/link'
@@ -133,6 +134,7 @@ type NearbyShadowComparison = {
     sharedAddressKeys: string[]
     legacyOnlyAddressKeys: string[]
     appV2OnlyAddressKeys: string[]
+    addressKeyStrategy?: string
     rankOverlap: {
       shared: Array<{
         key: string
@@ -398,7 +400,7 @@ interface Props {
   appV2NearbyExperiment?: boolean
   appV2NearbyPublicExperiment?: boolean
   appV2NearbyEligibility?: string
-  source?: string | null
+  source?: NearbySource
 }
 
 export default function ShelterMapClient({
@@ -407,7 +409,7 @@ export default function ShelterMapClient({
   appV2NearbyExperiment = false,
   appV2NearbyPublicExperiment = false,
   appV2NearbyEligibility = 'source-application-code',
-  source = null,
+  source = defaultNearbySource,
 }: Props) {
   const [shelters, setShelters] = useState<NearbyResultShelter[]>([])
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
@@ -426,6 +428,7 @@ export default function ShelterMapClient({
     ? 'source-application-code'
     : normalizeReviewEligibility(appV2NearbyEligibility)
   const shouldLoadAppV2Shadow = appV2NearbyExperiment || appV2NearbyPublicExperiment
+  const isLegacySource = source === 'legacy'
 
   useEffect(() => {
     setIsClient(true)
@@ -447,7 +450,7 @@ export default function ShelterMapClient({
         }
 
         const [rawSheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
-          source === 'legacy'
+          isLegacySource
             ? getNearbyShelters(lat, lng)
             : fetchAppV2GroupedShelters(lat, lng),
           getAnvendelseskoder(),
@@ -507,7 +510,7 @@ export default function ShelterMapClient({
     return () => {
       isMounted = false
     }
-  }, [lat, lng, source, shouldLoadAppV2Shadow, appV2NearbyExperiment, appV2NearbyPublicExperiment, reviewEligibility])
+  }, [lat, lng, isLegacySource, shouldLoadAppV2Shadow, appV2NearbyExperiment, appV2NearbyPublicExperiment, reviewEligibility])
 
   if (isNaN(lat) || isNaN(lng)) {
     return (
@@ -542,10 +545,13 @@ export default function ShelterMapClient({
     appV2ShadowComparison?.comparison.eligibilityMode === 'source_application_code_v1' ||
     appV2Eligibility?.mode === 'source_application_code_v1'
   const hasReviewMismatches = legacyOnlyResults.length > 0 || appV2OnlyResults.length > 0
+  const usesHardenedAddressComparison =
+    appV2ShadowComparison?.comparison.addressKeyStrategy?.startsWith('street-house-postal-v1') ?? false
   const likelyAddressNormalizationEdge =
     isStrictSourceBackedReview &&
-    legacyOnlyResults.length > 0 &&
-    legacyOnlyResults.length === appV2OnlyResults.length
+    hasReviewMismatches &&
+    legacyOnlyResults.length === appV2OnlyResults.length &&
+    !usesHardenedAddressComparison
   const reviewModeLinks = [
     {
       key: 'source-application-code',
@@ -562,9 +568,13 @@ export default function ShelterMapClient({
   return (
     <main className="min-h-screen bg-[#1a1a1a] text-white">
       <div className="max-w-7xl mx-auto p-4">
-        {source === 'legacy' && (
+        {isLegacySource ? (
           <div className="mb-4 rounded-md border border-yellow-600/30 bg-yellow-900/20 px-3 py-2 text-sm text-yellow-200">
-            Legacy-version: bruger gammelt datalag. Gå tilbage til <a href={`/shelters/nearby?lat=${latString}&lng=${lngString}`} className="underline">normal søgning</a>.
+            Legacy compare/fallback: bruger det gamle nearby-spor. Gå tilbage til <a href={`/shelters/nearby?lat=${latString}&lng=${lngString}`} className="underline">app_v2-revamp</a>.
+          </div>
+        ) : (
+          <div className="mb-4 rounded-md border border-green-600/30 bg-green-900/20 px-3 py-2 text-sm text-green-100">
+            Revamp-version: bruger app_v2 nearby. Sammenlign med <a href={`/shelters/nearby?lat=${latString}&lng=${lngString}&source=legacy`} className="underline">legacy-sporet</a>.
           </div>
         )}
 
@@ -593,18 +603,18 @@ export default function ShelterMapClient({
                 </h2>
               </div>
               <div className="text-sm text-gray-400">
-                Legacy-listen og kortet er stadig standard
+                Aktiv kilde: {isLegacySource ? 'legacy compare/fallback' : 'app_v2 revamp'}
               </div>
             </div>
             <p className="text-sm leading-6 text-gray-300">
-              Denne lille preview vises kun, fordi siden er åbnet med et eksplicit eksperiment-flag. Den sammenligner
-              den normale legacy-visning med grouped app_v2 nearby i strict source-backed mode. Den erstatter ikke
-              resultatlisten eller kortet.
+              Denne lille preview vises kun med et eksplicit eksperiment-flag. Den sammenligner den normale legacy-reference
+              med grouped app_v2 nearby i strict source-backed mode. Små by-/adresseformater normaliseres deterministisk,
+              så previewen viser reelle top-10 forskelle mere roligt. Resultatlisten og kortet følger den aktive kilde.
             </p>
 
             {appV2ShadowError ? (
               <div className="mt-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-200">
-                app_v2-preview kunne ikke indlæses lige nu. Den normale legacy-visning nedenfor er uændret.
+                app_v2-preview kunne ikke indlæses lige nu. Resultatlisten nedenfor følger stadig den aktive kilde.
               </div>
             ) : appV2ShadowComparison ? (
               <div className="mt-4 space-y-4">
@@ -650,7 +660,9 @@ export default function ShelterMapClient({
 
                 <div className="rounded-lg bg-sky-500/10 p-3 text-sm leading-6 text-sky-100">
                   Previewen bruger <span className="font-mono">source_application_code_v1</span> og grouped app_v2.
-                  Den normale liste og alle kortmarkører nedenfor kommer stadig fra legacy-flowet.
+                  Adresse-sammenligningen bruger vej, husnummer og postnummer som stabil nøgle. Resultatlisten og alle
+                  kortmarkører nedenfor følger den aktive kilde:
+                  <span className="font-mono"> {isLegacySource ? 'legacy' : 'app_v2'}</span>.
                   <Link href="/om-data" className="ml-1 font-semibold underline underline-offset-4">
                     Læs om datagrundlaget.
                   </Link>
@@ -676,13 +688,14 @@ export default function ShelterMapClient({
                 </h2>
               </div>
               <div className="text-sm text-gray-400">
-                Legacy er stadig standardvisningen
+                Aktiv kilde: {isLegacySource ? 'legacy compare/fallback' : 'app_v2 revamp'}
               </div>
             </div>
             <p className="mb-4 text-sm text-gray-300">
               Denne blok vises kun med <span className="font-mono text-orange-300">appV2NearbyExperiment=grouped</span>.
-              Kortet og de normale resultatkort bruger stadig legacy-flowet. app_v2-reviewet er grouped og bruger som
-              standard <span className="font-mono text-orange-300">source_application_code_v1</span>.
+              Review-blokken sammenligner legacy og grouped app_v2. Kortet og resultatkortene følger den aktive
+              URL-kilde. app_v2-reviewet er grouped og bruger som standard
+              <span className="font-mono text-orange-300"> source_application_code_v1</span>.
             </p>
             <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
               <div className="rounded-lg border border-white/10 bg-[#252525] p-3">
@@ -804,7 +817,7 @@ export default function ShelterMapClient({
                       <div className="mb-1 font-medium text-white">3. Semantik</div>
                       <div>
                         {isStrictSourceBackedReview
-                          ? 'Strict source-backed eligibility er aktiv. Fokuser på edge cases, ikke capacity-only støj.'
+                          ? 'Strict source-backed eligibility er aktiv, og adresse-sammenligningen bruger vej, husnummer og postnummer som stabil nøgle.'
                           : 'Denne fallback-mode er diagnostisk. Brug strict source-backed til primær trial-vurdering.'}
                       </div>
                     </div>
@@ -817,8 +830,8 @@ export default function ShelterMapClient({
                       <h3 className="text-sm font-semibold text-yellow-100">Edge-case review</h3>
                       <p className="text-sm text-yellow-100/80">
                         {likelyAddressNormalizationEdge
-                          ? 'Legacy-only og app_v2-only har samme antal i strict mode. Det kan være address-normalization eller city/postal formatting, men skal vurderes konkret.'
-                          : 'Der er membership-forskelle i top 10. Vurder om de ligner coverage, grouping, ranking eller eligibility-semantik.'}
+                          ? 'Legacy-only og app_v2-only har samme antal i strict mode. Det kan stadig være address-normalization, men den primære vej/husnummer/postnummer-normalisering er allerede anvendt.'
+                          : 'Der er membership-forskelle i top 10 efter deterministic address-normalization. Vurder om de ligner coverage, grouping, ranking eller eligibility-semantik.'}
                       </p>
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -833,7 +846,7 @@ export default function ShelterMapClient({
                                 <span className="font-medium">#{result.rank}</span> {result.addressKey}
                                 {likelyAddressNormalizationEdge && (
                                   <span className="mt-1 block text-xs text-yellow-100/70">
-                                    Sammenlign med app_v2-only key. Ligner ofte city/address-normalisering, hvis adresse og postnummer matcher.
+                                    Sammenlign med app_v2-only key. Hvis kun ekstra lokalitetsnavn adskiller dem, bør casen vurderes som formatting før data-gap.
                                   </span>
                                 )}
                               </li>
@@ -852,7 +865,7 @@ export default function ShelterMapClient({
                                 <span className="font-medium">#{result.rank}</span> {result.addressKey}
                                 {likelyAddressNormalizationEdge && (
                                   <span className="mt-1 block text-xs text-yellow-100/70">
-                                    Hvis denne kun adskiller sig ved bydel/ekstra bynavn, bør casen vurderes som normalization før data-gap.
+                                    Hvis denne kun adskiller sig ved bydel/ekstra bynavn, bør casen vurderes som formatting før data-gap.
                                   </span>
                                 )}
                               </li>
@@ -952,17 +965,17 @@ export default function ShelterMapClient({
                 </div>
 
                 <div className="rounded-lg bg-orange-500/10 p-3 text-sm text-orange-100">
-                  Kortet viser stadig legacy-markører. Strict source-backed mode modellerer legacy
-                  <span className="font-mono"> skal_med</span> via source application codes, men fuld legacy anvendelse/typevisning
-                  er stadig ikke en del af app_v2-outputtet. Resterende forskelle bør især vurderes som address-normalization,
-                  coverage, grouping eller ranking.
+                  Kortet og resultatlisten følger den aktive source-kontrakt. Strict source-backed mode modellerer legacy
+                  <span className="font-mono"> skal_med</span> via source application codes, og sammenligningen bruger en
+                  stabil vej/husnummer/postnummer-nøgle. Fuld legacy anvendelse/typevisning er stadig ikke en del af
+                  app_v2-outputtet.
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)]">
                   <div className="rounded-lg bg-[#252525] p-3 text-sm text-gray-300">
                     <h3 className="mb-2 text-sm font-semibold text-white">Reviewer checklist</h3>
                     <ul className="list-disc space-y-1 pl-5">
-                      <li>Normal liste og kort er stadig legacy og skal bruges som reference.</li>
+                      <li>Normal liste og kort følger den aktive URL-kilde; brug source=legacy som fallback/reference.</li>
                       <li>Strict source-backed er den primære app_v2 trial-variant; capacity-only er kun fallback-diagnostik.</li>
                       <li>Undersøg altid legacy-only og app_v2-only cases før en koordinat vurderes god nok.</li>
                       <li>Små rank-deltas er acceptable i intern trial, men systematiske membership-forskelle skal klassificeres.</li>
@@ -986,7 +999,7 @@ export default function ShelterMapClient({
                       </Link>
                     </div>
                     <p className="mt-3 text-xs leading-5 text-gray-400">
-                      Brug de offentlige app_v2-sider til datakontekst. Nearby-trialen er stadig intern og ændrer ikke normal søgning.
+                      Brug de offentlige app_v2-sider til datakontekst. Review-blokken ændrer ikke den aktive nearby-kilde.
                     </p>
                   </div>
                 </div>
@@ -1093,7 +1106,7 @@ export default function ShelterMapClient({
                       <div className="text-sm text-gray-400 mb-1">Total kapacitet</div>
                       <div className="text-white font-medium text-base sm:text-lg">{shelter.total_capacity} personer</div>
                     </div>
-                    {shelter.anvendelse && (
+                    {shelter.source === 'legacy' && shelter.anvendelse && (
                       <div className="bg-[#252525] p-3 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
                         <div className="text-sm text-gray-400 mb-1">Type</div>
                         <div className="text-white font-medium text-sm line-clamp-2">{getAnvendelseskodeBeskrivelse(shelter.anvendelse, anvendelseskoder)}</div>

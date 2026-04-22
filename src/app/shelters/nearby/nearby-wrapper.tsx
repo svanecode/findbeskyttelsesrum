@@ -2,6 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import MapWrapper from './map-wrapper'
+import { resolveNearbySource } from '@/lib/nearby/source'
 
 export default function NearbyWrapper() {
   const searchParams = useSearchParams()
@@ -10,7 +11,7 @@ export default function NearbyWrapper() {
   const appV2NearbyExperiment = searchParams.get('appV2NearbyExperiment') === 'grouped'
   const appV2NearbyPublicExperiment = searchParams.get('appV2NearbyExperiment') === 'public-preview'
   const appV2NearbyEligibility = searchParams.get('appV2NearbyEligibility') || 'source-application-code'
-  const source = searchParams.get('source')
+  const source = resolveNearbySource(searchParams.get('source'))
 
   // Only validate if both parameters are present
   if (lat && lng) {

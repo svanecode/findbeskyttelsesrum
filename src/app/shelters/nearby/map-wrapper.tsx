@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { MapErrorBoundary } from '@/components/MapErrorBoundary'
+import { defaultNearbySource, type NearbySource } from '@/lib/nearby/source'
 
 const ShelterMapClient = dynamic(
   () => import('./client'),
@@ -30,7 +31,7 @@ interface MapWrapperProps {
   appV2NearbyExperiment?: boolean
   appV2NearbyPublicExperiment?: boolean
   appV2NearbyEligibility?: string
-  source?: string | null
+  source?: NearbySource
 }
 
 export default function MapWrapper({
@@ -39,7 +40,7 @@ export default function MapWrapper({
   appV2NearbyExperiment = false,
   appV2NearbyPublicExperiment = false,
   appV2NearbyEligibility = 'source-application-code',
-  source = null,
+  source = defaultNearbySource,
 }: MapWrapperProps) {
   // Add validation for coordinates
   const latNum = parseFloat(lat)

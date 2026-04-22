@@ -7,6 +7,11 @@ import {
   type AppV2NearbyEligibilityMode,
   type AppV2GroupedNearbyShelter,
 } from "@/lib/supabase/app-v2-queries";
+import {
+  getAppV2NearbyAddressKey,
+  getLegacyNearbyAddressKey,
+  normalizeNearbyAddressText,
+} from "@/lib/nearby/address-normalization";
 
 type CoordinateSample = {
   label: string;
@@ -210,28 +215,20 @@ function getEnv(): Env {
   return { ok: true, url, anonKey };
 }
 
-function normalizeText(value: string | null | undefined) {
-  return (value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/,/g, " ")
-    .replace(/\s+/g, " ");
-}
-
 function getLegacyAddressKey(row: LegacyNearbyShelter | LegacyShelterRow) {
-  return normalizeText(row.address || [row.vejnavn, row.husnummer, row.postnummer].filter(Boolean).join(" "));
+  return getLegacyNearbyAddressKey(row);
 }
 
 function getAppV2AddressKey(row: AppV2GroupedNearbyShelter) {
-  return normalizeText([row.addressLine1, row.postalCode, row.city].filter(Boolean).join(" "));
+  return getAppV2NearbyAddressKey(row);
 }
 
 function getLegacyLookupKey(row: LegacyShelterRow) {
-  return normalizeText(row.address || [row.vejnavn, row.husnummer, row.postnummer].filter(Boolean).join(" "));
+  return getLegacyNearbyAddressKey(row);
 }
 
 function getAppV2LookupKey(row: AppV2GroupedNearbyShelter) {
-  return normalizeText([row.addressLine1, row.postalCode, row.city].filter(Boolean).join(" "));
+  return normalizeNearbyAddressText([row.addressLine1, row.postalCode].filter(Boolean).join(" "));
 }
 
 function describeAnvendelse(row: LegacyShelterRow, anvendelseskoder: Map<string, AnvendelseskodeRow>) {

@@ -8,6 +8,11 @@ import {
   type AppV2NearbyEligibilityMode,
   type AppV2GroupedNearbyShelter,
 } from "@/lib/supabase/app-v2-queries";
+import {
+  getAppV2NearbyAddressKey,
+  getLegacyNearbyAddressKey,
+  nearbyAddressKeyStrategy,
+} from "@/lib/nearby/address-normalization";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -58,7 +63,7 @@ const apiSource = "legacy_plus_app_v2";
 const activeImportStates = ["active"] as const;
 const limitations = [
   "Shadow compare is opt-in only and requires shadow=1.",
-  "Legacy remains the user-visible nearby source.",
+  "The page-level nearby source resolver decides whether app_v2 or legacy is user-visible.",
   "app_v2 comparison uses grouped app_v2 output, not a full legacy-compatible shape.",
   "app_v2 shadow mode defaults to strict source-backed application-code eligibility.",
   "Capacity-only and none modes are available only as explicit review diagnostics.",
@@ -161,28 +166,12 @@ function validateNearbyRequest(searchParams: URLSearchParams): ValidationResult 
   };
 }
 
-function normalizeText(value: string | null | undefined) {
-  return (value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-}
-
-function normalizeAddressKey(value: string | null | undefined) {
-  return normalizeText(value)
-    .replace(/,/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function getLegacyAddressKey(row: LegacyNearbyShelter) {
-  return normalizeAddressKey(
-    row.address || [row.vejnavn, row.husnummer, row.postnummer].filter(Boolean).join(" "),
-  );
+  return getLegacyNearbyAddressKey(row);
 }
 
 function getAppV2AddressKey(row: AppV2GroupedNearbyShelter) {
-  return normalizeAddressKey([row.addressLine1, row.postalCode, row.city].filter(Boolean).join(" "));
+  return getAppV2NearbyAddressKey(row);
 }
 
 function summarizeRankOverlap(legacyRows: LegacyNearbyShelter[], appV2Rows: AppV2GroupedNearbyShelter[]) {
@@ -407,7 +396,7 @@ export async function GET(request: NextRequest) {
         contract: apiContract,
         source: apiSource,
         mode: "shadow_compare",
-        userVisibleSource: "legacy",
+        userVisibleSource: "controlled_by_page_source",
         appV2Source: "grouped_app_v2",
         query: validation.value,
         legacy: {
@@ -429,6 +418,7 @@ export async function GET(request: NextRequest) {
         sharedAddressKeys,
         legacyOnlyAddressKeys,
         appV2OnlyAddressKeys,
+        addressKeyStrategy: nearbyAddressKeyStrategy,
         rankOverlap,
         knownSemanticGaps: {
           legacyAnvendelseSkalMed:

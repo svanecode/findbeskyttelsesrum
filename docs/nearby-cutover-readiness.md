@@ -2,7 +2,12 @@
 
 ## 1. Overview
 
-The current `/shelters/nearby` flow is not ready for a direct runtime cutover from legacy `public` data to `app_v2`.
+The deployed live site may still run an older snapshot, but the current revamp codebase now treats app_v2 as the
+default nearby source. This is not a Supabase rollback-net removal: legacy `public` nearby tables/functions remain
+available through explicit `source=legacy` compare/fallback mode.
+
+The current `/shelters/nearby` flow is still not ready for an irreversible production cutover from legacy `public` data
+to app_v2. It is, however, consistent as a revamp build where app_v2 is the primary path and legacy is the fallback.
 
 Small, low-risk reads have already moved to `app_v2`:
 
@@ -15,7 +20,7 @@ The nearby flow is a different class of cutover. It is the primary result flow a
 
 The first app_v2 database-side nearby foundation now exists as `app_v2.get_nearby_shelters(...)`. It improves the app_v2 read path by moving bounding-box filtering, Haversine distance ordering, and the currently supported app_v2 exclusion checks into the database. It is still not a legacy-compatible nearby model.
 
-## 2. Current legacy nearby flow
+## 2. Current nearby flow
 
 The active route chain is:
 
@@ -23,7 +28,8 @@ The active route chain is:
   - client component
   - wraps the flow in `MapErrorBoundary` and `Suspense`
 - `src/app/shelters/nearby/nearby-wrapper.tsx`
-  - reads `lat` and `lng` from `useSearchParams()`
+  - reads `lat`, `lng`, and `source` from `useSearchParams()`
+  - resolves source through the nearby source contract
   - validates coordinate ranges
   - passes string coordinates to `MapWrapper`
 - `src/app/shelters/nearby/map-wrapper.tsx`
@@ -31,9 +37,27 @@ The active route chain is:
   - handles missing/invalid coordinates
   - dynamically imports `client.tsx` with `ssr: false`
 - `src/app/shelters/nearby/client.tsx`
-  - owns the actual data load, map state, result cards, marker hover/selection, and route-back UX
+  - owns the actual data load, map state, result cards, marker hover/selection, source badge, and route-back UX
 
-The data load in `client.tsx` is client-side and runs these reads in parallel:
+## 2.1 Revamp source contract
+
+The current revamp source resolver is intentionally simple:
+
+- no `source` parameter: app_v2 grouped nearby is the default result and map source
+- `source=app_v2`: explicit app_v2 grouped nearby, same as default
+- `source=legacy`: legacy nearby RPC result and map source for compare/fallback
+- unknown `source` values: fall back to app_v2
+
+The app_v2 path calls `/api/app-v2/nearby/grouped` with strict `source_application_code_v1` eligibility and adapts the
+grouped response into the legacy-shaped card/map contract. The legacy path calls the existing Supabase RPC and is kept
+as a compare/fallback mode. The public preview and internal grouped review are shadow comparison blocks; they do not
+override the active source.
+
+The preview/review comparison key now prefers `vejnavn + husnummer + postnummer` on legacy and `address_line1 +
+postal_code` on app_v2. This keeps city/bydel suffixes such as `Østergade 65, Nørlem` from being presented as
+membership mismatches when the stable address and postal code agree.
+
+The data load in `client.tsx` is client-side. In legacy mode it runs these reads in parallel:
 
 - `getNearbyShelters(lat, lng)`
   - calls Supabase RPC `get_nearby_shelters_v3`
@@ -44,6 +68,10 @@ The data load in `client.tsx` is client-side and runs these reads in parallel:
 - `getKommunekoder()`
   - reads `public.kommunekoder`
   - used to display municipality names from `kommunekode`
+
+In app_v2 mode it calls `/api/app-v2/nearby/grouped`, adapts the result into the nearby UI shape, and still reads
+`kommunekoder` for municipality display. The legacy Type card is hidden for app_v2 rows because the app_v2 grouped
+contract does not expose a legacy `anvendelse` code for `getAnvendelseskodeBeskrivelse()`.
 
 `get_nearby_shelters_v3` is defined in `supabase/migrations/003_create_get_nearby_shelters_v3.sql`.
 
@@ -163,15 +191,15 @@ What app_v2 can already express:
 - basic address display through `address_line1`, `postal_code`, and `city`
 - municipality relation through `municipality_id`
 
-What app_v2 does not currently expose:
+What app_v2 still does not expose:
 
-- a shape-compatible nearby helper for the active `/shelters/nearby` UI
+- a native shape-compatible nearby helper for the active `/shelters/nearby` UI without the adapter
 - PostGIS-backed nearest-neighbor/radius ordering
 - full grouping equivalent to the legacy RPC
 - legacy-compatible `location: { type, coordinates }`
 - `vejnavn` / `husnummer` split fields
 - `kommunekode` on the shelter row
-- `anvendelse` / application-code display semantics
+- legacy `anvendelse` / Type display semantics for the existing UI lookup
 - full `public.excluded_shelters` address/building-id equivalent
 - app_v2 exclusion matching by legacy `bygning_id` or legacy split-address fields
 - known indexes optimized for nearest-neighbor/radius queries over app_v2 coordinates
@@ -226,7 +254,8 @@ app_v2 uses:
 - `status`
 - `import_state`
 
-A cutover therefore needs an adapter/read model, not a direct table read.
+A cutover therefore needs an adapter/read model, not a direct table read. The revamp build now has this adapter for the
+nearby UI, but it deliberately does not fake the legacy Type field for app_v2 rows.
 
 ### Grouping logic
 
@@ -237,14 +266,14 @@ Legacy nearby groups multiple shelter rows at the same address/location and retu
 - summed `total_capacity`
 - a representative `anvendelse`
 
-app_v2 now has a first grouped read shape. It groups app_v2 rows by deterministic normalized `address_line1 + postal_code + city`, chooses the nearest row as representative, returns `shelterCount`, and sums `totalCapacity`.
+app_v2 now has a first grouped read shape. It groups app_v2 rows by deterministic normalized `address_line1 + postal_code + city`, chooses the nearest row as representative, returns `shelterCount`, and sums `totalCapacity`. Shadow comparison intentionally uses the narrower `street + house number + postal code` key, because legacy sometimes carries city/bydel suffixes in the display address that should not count as separate top-10 membership.
 
 This is closer to the product's real shape needs, but it is still not a drop-in replacement for `get_nearby_shelters_v3` because:
 
 - the grouping key does not include exact legacy geometry
 - app_v2 still does not carry full legacy `anvendelse` display semantics
 - strict `source_application_code_v1` eligibility models the most important sampled `anvendelseskoder.skal_med` inclusion signal, but it is still source-backed app_v2 semantics rather than full legacy type parity
-- sampled top-10 membership is now strong in strict source-backed mode, with the remaining known mismatch looking like address/city normalization
+- sampled top-10 membership is now strong in strict source-backed mode; the known Lemvig address/city formatting mismatch is handled by the hardened shadow/parity comparison key
 
 `getAppV2NearbyShelters()` remains the row-level contract foundation. `getAppV2GroupedNearbySheltersWithDiagnostics()` is the first grouped app_v2 shape for evaluation and future cutover planning.
 
@@ -343,7 +372,7 @@ Diagnostic fallback modes remain explicit:
 
 Semantic mismatch analysis first showed that capacity-only app_v2 was dominated by unresolved legacy application-code inclusion semantics: all `15/15` sampled app_v2-only grouped cases had exact normalized legacy address matches and looked likely filtered by legacy `anvendelseskoder.skal_med` / eligibility semantics.
 
-After the source-backed model was populated, strict `source_application_code_v1` analysis improved the same six-case sample to `59` shared grouped addresses, `1` app_v2-only grouped address, and `1` legacy-only grouped address. The remaining sampled strict-mode mismatch is the Lemvig `Østergade 65, Nørlem` vs `Østergade 65` address/city normalization edge case. The detailed analysis lives in `docs/app-v2-nearby-semantic-gap-analysis.md`.
+After the source-backed model was populated, strict `source_application_code_v1` analysis improved the same six-case sample to `59` shared grouped addresses, `1` app_v2-only grouped address, and `1` legacy-only grouped address under the older raw-address comparison key. The remaining sampled strict-mode mismatch was the Lemvig `Østergade 65, Nørlem` vs `Østergade 65` address/city formatting edge case. After the comparison key was hardened to prefer street, house number, and postal code, the same six representative samples are `60/60` shared grouped addresses. The detailed analysis lives in `docs/app-v2-nearby-semantic-gap-analysis.md`.
 
 The first source-backed app_v2 application-code model now exists and has been populated for the target app_v2 data:
 
@@ -366,8 +395,8 @@ Strict source-code grouped parity now materially improves the standard samples:
 
 - Copenhagen: `10/10` shared grouped addresses
 - Aarhus: `10/10` shared grouped addresses
-- Lemvig: `9/10` shared grouped addresses, with the remaining mismatch appearing to be `Østergade 65, Nørlem` vs `Østergade 65` address/city normalization
-- Broader internal trial probes also show Odense and Esbjerg at `10/10` shared grouped addresses in strict source-backed mode. Esbjerg still reports one unknown source-code candidate row, but it does not affect sampled top-10 membership.
+- Lemvig: `10/10` shared grouped addresses after the street/house/postal comparison hardening
+- Broader internal trial probes also show Odense, Esbjerg, and Aalborg at `10/10` shared grouped addresses in strict source-backed mode. Esbjerg still reports one unknown source-code candidate row, but it does not affect sampled top-10 membership.
 
 Read-only API probe:
 
@@ -407,8 +436,7 @@ The first app_v2 nearby read contract now exists as `getAppV2NearbyShelters()` i
 Recommended next PR:
 
 1. Prepare a tiny public-facing nearby experiment behind explicit gating.
-   - Keep legacy as the normal user-visible nearby source.
-   - Keep the map and default result list on legacy nearby.
+   - Keep the active result list and map on the explicit revamp source contract.
    - Show grouped app_v2 nearby as a clearly labelled comparison or preview only after explicit opt-in with `appV2NearbyExperiment=public-preview`.
    - Use `source_application_code_v1` as the app_v2 comparison mode.
    - Keep capacity-only mode available for internal diagnostics, not as the public experiment default.
@@ -417,8 +445,8 @@ Recommended next PR:
 2. Keep the gated internal mode for grouped app_v2 nearby available, with no default cutover.
    - Copenhagen currently has `10/10` grouped normalized address overlap in strict source-code mode.
    - Aarhus currently has `10/10`.
-   - Lemvig currently has `9/10`.
-   - Odense and Esbjerg currently have `10/10` in the broader trial probe set.
+   - Lemvig currently has `10/10` after address-key hardening.
+   - Odense, Esbjerg, and Aalborg currently have `10/10` in the broader trial probe set.
    - Include-suppressed mode did not change those three top-level grouped overlaps.
    - Shared-address rank deltas are small, and larger `candidateLimit` did not change sampled top-10 output.
    - The debug API route is `/api/app-v2/nearby/shadow?shadow=1&lat=...&lng=...`.

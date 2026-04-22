@@ -11,6 +11,11 @@ import {
   type AppV2NearbyShelter,
   type AppV2NearbyDiagnostics,
 } from "@/lib/supabase/app-v2-queries";
+import {
+  getAppV2NearbyAddressKey,
+  getLegacyNearbyAddressKey,
+  nearbyAddressKeyStrategy,
+} from "@/lib/nearby/address-normalization";
 
 type LegacyNearbyShelter = {
   id: string;
@@ -333,32 +338,16 @@ async function readLegacyNearbyShelters(input: NearbyParityOptions, env: Extract
   };
 }
 
-function normalizeText(value: string | null | undefined) {
-  return (value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-}
-
-function normalizeAddressKey(value: string | null | undefined) {
-  return normalizeText(value)
-    .replace(/,/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function getLegacyAddressKey(row: LegacyNearbyShelter) {
-  return normalizeAddressKey(
-    row.address || [row.vejnavn, row.husnummer, row.postnummer].filter(Boolean).join(" "),
-  );
+  return getLegacyNearbyAddressKey(row);
 }
 
 function getAppV2AddressKey(row: AppV2NearbyShelter) {
-  return normalizeAddressKey([row.addressLine1, row.postalCode, row.city].filter(Boolean).join(" "));
+  return getAppV2NearbyAddressKey(row);
 }
 
 function getAppV2GroupedAddressKey(row: AppV2GroupedNearbyShelter) {
-  return normalizeAddressKey([row.addressLine1, row.postalCode, row.city].filter(Boolean).join(" "));
+  return getAppV2NearbyAddressKey(row);
 }
 
 function formatLegacyRow(row: LegacyNearbyShelter) {
@@ -552,7 +541,7 @@ function printParityNotes(options: NearbyParityOptions) {
     "[parity:nearby] note: legacy public.excluded_shelters address and bygning_id matching is not mirrored yet.",
   );
   console.log(
-    "[parity:nearby] note: address-key matching lowercases, trims, collapses whitespace, and treats commas as separators; it does not do fuzzy typo matching.",
+    `[parity:nearby] note: address-key matching uses ${nearbyAddressKeyStrategy}; it does not do fuzzy typo matching.`,
   );
 }
 

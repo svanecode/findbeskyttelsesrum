@@ -33,9 +33,9 @@ export type NearbyResultShelter = {
 }
 
 /**
- * Translates the grouped app_v2 nearby API response into the shape expected by the
- * legacy nearby UI. `anvendelse` is mapped from `applicationCodeLabel` when available;
- * null when the group has no source application code or no matching label.
+ * Translates grouped app_v2 nearby API results into the legacy-shaped UI contract.
+ * app_v2 does not expose a legacy `anvendelse` code here, so the legacy Type card
+ * stays hidden until a dedicated app_v2 type-display contract is added.
  */
 export function adaptAppV2Grouped(rows: ApiGroupedResult[]): NearbyResultShelter[] {
   return rows.map((row) => {
@@ -56,7 +56,7 @@ export function adaptAppV2Grouped(rows: ApiGroupedResult[]): NearbyResultShelter
       husnummer,
       postnummer: row.address.postalCode,
       kommunekode: row.municipality?.code ?? null,
-      anvendelse: row.applicationCodeLabel ?? null,
+      anvendelse: null,
       shelter_count: row.shelterCount,
       total_capacity: row.totalCapacity,
       distance: row.distanceMeters / 1000,

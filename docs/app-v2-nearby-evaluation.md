@@ -13,7 +13,10 @@ This document captures the current read-only evaluation status for the new app_v
 - app_v2 nearby eligibility mode `source_application_code_v1`
 - municipality, nearby, and exclusions parity scripts
 
-No runtime cutover has happened. The live `/shelters/nearby` UI still uses the legacy `public` nearby flow.
+The deployed live site may still run an older snapshot, but the current revamp codebase now has an explicit nearby
+source contract: app_v2 is the revamp default, `source=app_v2` is the explicit app_v2 mode, `source=legacy` is the
+legacy compare/fallback mode, and unknown source values fall back to app_v2. The legacy Supabase tables/functions remain
+the rollback net and are not mutated by this contract.
 
 ## 2. What Was Actually Tested
 
@@ -80,7 +83,8 @@ The following still could not be fully evaluated:
 - legacy exclusion migration behavior at scale, because only the one concrete legacy row was mapped
 - full UI readiness, because grouped app_v2 output is closer to legacy but still lacks legacy `anvendelse` semantics and has not had a dedicated ordering/spatial evaluation after eligibility
 
-The current evaluation gives real app_v2 nearby/API observations, but it still cannot honestly justify a `/shelters/nearby` UI cutover.
+The current evaluation gives real app_v2 nearby/API observations. It supports the revamp app_v2 default with legacy
+fallback, but it still does not by itself justify retiring the legacy rollback net.
 
 ## 3.1 Target Environment Reconciliation Status
 
@@ -141,7 +145,15 @@ The nearby parity output now reports the app_v2 read model diagnostics when a re
 - candidates within radius
 - returned rows
 
-The nearby parity address-key comparison now lowercases, trims, collapses whitespace, and treats commas as separators before comparing legacy single-string addresses with app_v2 field-joined addresses. It does not do fuzzy typo matching.
+The nearby parity address-key comparison now uses the same deterministic normalization as the shadow preview:
+
+- prefer legacy split fields `vejnavn + husnummer + postnummer`
+- compare app_v2 as `address_line1 + postal_code`
+- ignore city/bydel suffixes for the comparison key
+- lowercase, trim, collapse whitespace, and treat commas as separators
+
+It does not do fuzzy typo matching. This specifically prevents formatting cases such as `Østergade 65, Nørlem` versus
+`Østergade 65` from looking like a larger data mismatch when street, house number, and postal code agree.
 
 The nearby parity script now also supports grouped app_v2 evaluation:
 
@@ -186,15 +198,45 @@ npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --sample aarh
 npm run read:app-v2-nearby-api -- --base-url http://localhost:3000 --sample lemvig --shape shadow
 ```
 
-The shadow route is `/api/app-v2/nearby/shadow` and requires `shadow=1`. It reads legacy nearby and grouped app_v2 nearby side by side, returns compare JSON, and does not write telemetry or database state. The user-visible nearby source remains legacy.
+The shadow route is `/api/app-v2/nearby/shadow` and requires `shadow=1`. It reads legacy nearby and grouped app_v2 nearby side by side, returns compare JSON, and does not write telemetry or database state. The user-visible nearby source is decided by the page-level source resolver, not by the shadow route.
 
-The first visible experiment is explicitly gated on the existing nearby page:
+## 4.1 Revamp nearby source contract
+
+The current revamp build resolves nearby source as follows:
+
+- no `source` parameter: app_v2 grouped nearby is the default result and map source
+- `source=app_v2`: explicit app_v2 grouped nearby, same as default
+- `source=legacy`: legacy nearby RPC result and map source, used for compare/fallback
+- unknown `source` values: normalized back to app_v2
+
+The app_v2 path uses `/api/app-v2/nearby/grouped` with strict `source_application_code_v1` eligibility. The legacy path
+continues to call `get_nearby_shelters_v3` with the existing v2 fallback. app_v2 result cards deliberately hide the
+legacy "Type" field because the grouped app_v2 response does not expose a legacy `anvendelse` code for the existing
+display lookup. Legacy result cards still show Type through `public.anvendelseskoder`.
+
+The internal grouped review remains explicitly gated on the existing nearby page:
 
 ```text
 /shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=grouped
 ```
 
-Without `appV2NearbyExperiment=grouped`, the page keeps the same legacy-only UI and does not fetch the shadow route. With the flag, the page shows an internal "Grouped app_v2 nearby review" block above the normal legacy results. The map markers and the normal result list still use legacy data.
+Without `appV2NearbyExperiment=grouped`, the page does not fetch the shadow route. With the flag, the page shows an
+internal "Grouped app_v2 nearby review" block above the active result list. The result list and map markers still follow
+the source contract (`app_v2` by default, `legacy` only with `source=legacy`).
+
+The tiny public preview remains explicitly gated:
+
+```text
+/shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=public-preview
+```
+
+It shows a small shadow comparison block. It does not change the active source; the active source still follows the
+same resolver.
+
+The preview intentionally stays small. It shows overlap counts, the first app_v2 results, the active source label, and a
+plain data-context link. It now uses the hardened address comparison key (`street + house number + postal code`) so
+known city/bydel formatting differences are not presented as top-10 membership failures. Remaining differences after
+that normalization should be treated as real review cases, not as formatting noise.
 
 Internal reviewers should look at:
 
@@ -404,8 +446,9 @@ Current real-environment observations:
 - Semantic mismatch analysis now runs through `npm run read:nearby-semantic-cases`.
   - Earlier capacity-only analysis across Copenhagen, Aarhus, Lemvig, Aalborg, Odense, and Esbjerg found `45` shared grouped addresses, `15` legacy-only grouped addresses, and `15` app_v2-only grouped addresses.
   - All `15/15` capacity-only app_v2-only cases had exact normalized legacy address matches and were classified as likely filtered by legacy `anvendelseskoder.skal_med` / eligibility semantics.
-  - After `source_application_code_v1` population, strict source-backed analysis improved the same six-case set to `59` shared grouped addresses, `1` legacy-only grouped address, and `1` app_v2-only grouped address.
-  - The remaining sampled strict-mode mismatch is the Lemvig `Østergade 65, Nørlem` vs `Østergade 65` address/city normalization edge case.
+  - After `source_application_code_v1` population, strict source-backed analysis improved the same six-case set to `59` shared grouped addresses, `1` legacy-only grouped address, and `1` app_v2-only grouped address under the older raw-address comparison key.
+  - The remaining sampled strict-mode mismatch was the Lemvig `Østergade 65, Nørlem` vs `Østergade 65` address/city formatting edge case.
+  - After hardening the comparison key to prefer street, house number, and postal code, that six-case sample is `60/60` shared grouped addresses.
   - The detailed decision document is `docs/app-v2-nearby-semantic-gap-analysis.md`.
 - A narrow source-backed application-code eligibility model now exists, and the target app_v2 data has now been populated with source codes.
   - `app_v2.shelters.source_application_code` stores the intended source code, currently Datafordeler BBR `byg021BygningensAnvendelse`.
@@ -420,9 +463,10 @@ Current real-environment observations:
 - Broader Work Package U runtime probes through the shadow route now show:
   - Copenhagen: `10/10` shared, max rank delta `1`
   - Aarhus: `10/10` shared, max rank delta `2`
-  - Lemvig: `9/10` shared, remaining `Østergade 65, Nørlem` vs `Østergade 65`
+  - Lemvig: `10/10` shared, max rank delta `0` after address-key hardening
   - Odense: `10/10` shared, max rank delta `3`
   - Esbjerg: `10/10` shared, max rank delta `2`, with `1` unknown source-code row in candidates but no top-10 membership mismatch
+  - Aalborg: `10/10` shared, max rank delta `2`
 - The API/read stack remains isolated from `/shelters/nearby`.
 
 ## 8. Decision Status
@@ -443,9 +487,9 @@ The strongest current signal is:
 - the gated visible review mode now makes strict source-backed grouped app_v2 inspectable in the actual nearby page context, while preserving legacy as the default and visible primary source
 - semantic mismatch analysis shows the sampled app_v2-only results are dominated by legacy `skal_med=false` application-code cases, especially code `140` and related residential/college categories
 - the source-backed model is now populated and materially improves grouped nearby overlap
-- the remaining sampled strict-mode mismatch looks like address/city normalization rather than application-code inclusion
+- the remaining sampled strict-mode mismatch was address/city formatting, and the hardened comparison key now classifies it correctly
 - the strict source-backed internal review mode is now mature enough for a broader internal trial pass because it exposes membership, ranking, eligibility diagnostics, edge-case cues, and map-context limitations in the real nearby page context
-- the broader internal trial cases now show `10/10` membership in Copenhagen, Aarhus, Odense, and Esbjerg, and `9/10` in Lemvig
+- the broader internal trial cases now show `10/10` membership in Copenhagen, Aarhus, Lemvig, Odense, Esbjerg, and Aalborg
 - suppression does not materially affect the three sampled outputs
 - the one known legacy exclusion is now represented in app_v2 and the RPC can filter it
 
@@ -469,7 +513,7 @@ Internal reviewers should inspect:
 - legacy-only and app_v2-only keys before judging a coordinate
 - source-code coverage, eligible-by-code rows, unknown code rows, and filtered rows
 - grouped app_v2 top results, especially grouped count and total capacity
-- whether remaining differences look like address normalization, coverage, grouping, or ranking
+- whether remaining differences look like coverage, grouping, ranking, or a formatting case not covered by the deterministic key
 
 Use the built-in trial-case links in the review panel for a consistent first pass:
 
@@ -482,7 +526,7 @@ Use the built-in trial-case links in the review panel for a consistent first pas
 For any mismatch:
 
 1. Check whether legacy-only and app_v2-only counts are symmetric.
-2. Compare normalized address keys, especially postal code and city/bydel fragments.
+2. Compare normalized address keys. The built-in comparison already uses street, house number, and postal code; remaining differences should not be dismissed as city/bydel formatting without concrete evidence.
 3. Re-run the same coordinate with `appV2NearbyEligibility=legacy-capacity` only if you need to isolate source-code eligibility from grouping/ranking.
 4. Treat the legacy list and map as the visible reference until a separate public experiment is approved.
 5. Use `/om-data` for public data-context language; do not present internal trial output as public truth.
@@ -490,7 +534,7 @@ For any mismatch:
 Acceptable internal-trial findings:
 
 - small rank deltas on shared addresses
-- isolated address/city normalization cases that are easy to explain
+- isolated formatting cases that are easy to explain and do not survive the street/house/postal comparison key
 - no default-user-visible behavior change
 
 Findings that should block a broader visible experiment:
@@ -502,18 +546,19 @@ Findings that should block a broader visible experiment:
 
 ## 9. Recommendation
 
-Primary recommendation: prepare a tiny public-facing nearby experiment behind explicit gating, while keeping legacy as the normal user-visible source.
+Primary recommendation: keep the tiny public-facing nearby preview standing as a sober opt-in confidence check, and shift project focus away from nearby unless new concrete edge cases appear.
 
-Secondary recommendation: keep the internal strict source-backed trial mode available unchanged for continued reviewer checks and fallback diagnostics.
+Secondary recommendation: keep the internal strict source-backed trial mode available for maintenance checks, but do not expand it into a larger debug surface.
 
 The tiny public experiment should be deliberately narrower than a cutover:
 
 - require an explicit opt-in flag
 - activate with `appV2NearbyExperiment=public-preview`
-- keep the normal result list and map on legacy nearby
+- keep the result list and map on the active nearby source contract
 - show grouped app_v2 nearby as a labelled comparison or preview
 - use `source_application_code_v1` eligibility
 - expose overlap and known-gap language in plain public copy
+- compare addresses with the hardened street/house/postal key so formatting-only differences do not look like data failures
 - link to `/om-data` for data-context explanation
 - avoid changing DAWA/search, markers, routing, or default result ordering
 

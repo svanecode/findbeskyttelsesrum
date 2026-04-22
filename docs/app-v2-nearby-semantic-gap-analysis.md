@@ -221,9 +221,9 @@ Strict source-code mode now has measurable coverage:
 
 - Copenhagen: `10/10` shared grouped addresses, `0` app_v2-only, `0` legacy-only
 - Aarhus: `10/10` shared grouped addresses, `0` app_v2-only, `0` legacy-only
-- Lemvig: `9/10` shared grouped addresses, `1` app_v2-only, `1` legacy-only
-- Six-case semantic analysis: `59` shared grouped addresses, `1` app_v2-only, `1` legacy-only
-- Remaining sampled mismatch: Lemvig `Østergade 65, Nørlem` in legacy vs `Østergade 65` in app_v2
+- Lemvig: `10/10` shared grouped addresses after the street/house/postal comparison hardening
+- Six-case semantic analysis: `60/60` shared grouped addresses after the same hardening
+- The previous remaining mismatch, Lemvig `Østergade 65, Nørlem` in legacy vs `Østergade 65` in app_v2, was a city/bydel formatting case rather than a data mismatch.
 
 ```bash
 npm run parity:nearby -- --sample copenhagen --app-v2-shape grouped --eligibility source-application-code
@@ -234,15 +234,15 @@ The model does not guess eligibility from address, name, capacity, or legacy res
 
 ## 8. Recommendation for the Next Work Package
 
-Primary recommendation: use the broadened internal trial mode with `source_application_code_v1` eligibility across a wider set of real coordinates before approving any public-facing nearby experiment.
+Primary recommendation: keep the tiny public-facing preview as a small opt-in confidence check and move project focus away from nearby unless new concrete edge cases appear.
 
 That package should answer:
 
-- whether strict source-backed app_v2 results remain convincing in more runtime-near review cases
-- whether the remaining address-normalization edge cases are acceptable or should be fixed before a public/default experiment
+- whether strict source-backed app_v2 results remain convincing in occasional maintenance checks
+- whether any new edge cases survive the deterministic street/house/postal comparison key
 - whether any source-code eligibility rules need product review before broader exposure
 
-Secondary recommendation: keep capacity-only mode as a diagnostic fallback, not as the main candidate for broader app_v2 nearby evaluation, and do a focused address-normalization cleanup if the broader internal trial finds repeated `city/bydel` mismatches.
+Secondary recommendation: keep capacity-only mode as a diagnostic fallback, not as the main candidate for app_v2 nearby evaluation.
 
 ## 9. Risks and Limitations
 
