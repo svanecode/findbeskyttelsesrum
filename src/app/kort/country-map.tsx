@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { AppV2CountryShelter } from "@/lib/supabase/app-v2-queries";
 
@@ -22,7 +21,7 @@ interface Props {
   shelters: AppV2CountryShelter[];
 }
 
-function makeShelterIcon() {
+function makeShelterIcon(L: typeof import("leaflet")) {
   const size = 26;
   const border = 3;
   const color = "#F97316";
@@ -36,24 +35,52 @@ function makeShelterIcon() {
   });
 }
 
+function MapLoadingSkeleton() {
+  return (
+    <div className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500/30 border-t-orange-500" />
+          <p className="text-sm text-gray-400">Indlæser kort...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const denmarkMaxBounds: [[number, number], [number, number]] = [
   [54, 8],
   [58, 15],
 ];
 
-const shelterMarkerIcon = makeShelterIcon();
-
 export default function CountryMap({ shelters }: Props) {
+  const leafletRef = useRef<typeof import("leaflet") | null>(null);
+  const [shelterMarkerIcon, setShelterMarkerIcon] = useState<import("leaflet").DivIcon | null>(null);
+
   useEffect(() => {
-    delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
-    L.Icon.Default.mergeOptions({
-      iconUrl: "/leaflet/marker-icon.png",
-      iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-      shadowUrl: "/leaflet/marker-shadow.png",
+    let cancelled = false;
+    import("leaflet").then((leaflet) => {
+      if (cancelled) return;
+      const L = leaflet.default;
+      delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconUrl: "/leaflet/marker-icon.png",
+        iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+        shadowUrl: "/leaflet/marker-shadow.png",
+      });
+      leafletRef.current = L;
+      setShelterMarkerIcon(makeShelterIcon(L));
     });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const center: [number, number] = [56.26, 9.5];
+
+  if (!shelterMarkerIcon) {
+    return <MapLoadingSkeleton />;
+  }
 
   return (
     <div className="h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]">
@@ -82,6 +109,7 @@ export default function CountryMap({ shelters }: Props) {
           showCoverageOnHover={false}
           zoomToBoundsOnClick
           iconCreateFunction={(cluster: { getChildCount: () => number }) => {
+            const L = leafletRef.current!;
             const count = cluster.getChildCount();
             const cls =
               count < 10 ? "marker-cluster-small" : count < 50 ? "marker-cluster-medium" : "marker-cluster-large";
