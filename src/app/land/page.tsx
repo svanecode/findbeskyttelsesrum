@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import GlobalFooter from "@/components/GlobalFooter";
+import SiteHeader from "@/components/SiteHeader";
 import {
   getAppV2FeaturedShelters,
   getAppV2MunicipalitySummaries,
@@ -50,6 +52,12 @@ type CountryOverview =
         slug: string;
         activeShelterCount: number;
       }>;
+      /** Top 20 by activeShelterCount — used for JSON-LD ItemList only */
+      topMunicipalitiesForJsonLd: Array<{
+        name: string;
+        slug: string;
+        activeShelterCount: number;
+      }>;
     }
   | {
       ok: false;
@@ -82,6 +90,10 @@ async function getCountryOverview(): Promise<CountryOverview> {
       getLatestAppV2ImportRun(),
       getAppV2FeaturedShelters({ limit: 4 }),
     ]);
+    const sortedMunicipalities = municipalities
+      .slice()
+      .sort((a, b) => b.activeShelterCount - a.activeShelterCount || a.name.localeCompare(b.name, "da-DK"));
+
     const regionSummaries = Array.from(
       municipalities
         .reduce((regions, municipality) => {
@@ -110,15 +122,16 @@ async function getCountryOverview(): Promise<CountryOverview> {
       latestImportRun,
       featuredShelters,
       regionSummaries,
-      topMunicipalities: municipalities
-        .slice()
-        .sort((a, b) => b.activeShelterCount - a.activeShelterCount || a.name.localeCompare(b.name, "da-DK"))
-        .slice(0, 8)
-        .map((municipality) => ({
-          name: municipality.name,
-          slug: municipality.slug,
-          activeShelterCount: municipality.activeShelterCount,
-        })),
+      topMunicipalities: sortedMunicipalities.slice(0, 8).map((municipality) => ({
+        name: municipality.name,
+        slug: municipality.slug,
+        activeShelterCount: municipality.activeShelterCount,
+      })),
+      topMunicipalitiesForJsonLd: sortedMunicipalities.slice(0, 20).map((municipality) => ({
+        name: municipality.name,
+        slug: municipality.slug,
+        activeShelterCount: municipality.activeShelterCount,
+      })),
     };
   } catch (error) {
     console.error("Could not load app_v2 country overview:", error);
@@ -144,6 +157,43 @@ function NationalDepthItem({ label, value, note }: { label: string; value: strin
       <p className="mt-2 text-sm leading-6 text-gray-400">{note}</p>
     </div>
   );
+}
+
+function buildLandJsonLd(
+  topMunicipalities: Array<{ name: string; slug: string; activeShelterCount: number }>,
+) {
+  const webPage = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "Beskyttelsesrum i Danmark",
+    description:
+      "National oversigt over registrerede beskyttelsesrum i Danmark med landstal, regional struktur og kommuner.",
+    url: "https://findbeskyttelsesrum.dk/land",
+    inLanguage: "da-DK",
+    isPartOf: {
+      "@type": "WebSite",
+      name: "Find Beskyttelsesrum",
+      url: "https://findbeskyttelsesrum.dk",
+    },
+  };
+
+  const itemList = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Kommuner med registrerede beskyttelsesrum",
+    numberOfItems: topMunicipalities.length,
+    itemListElement: topMunicipalities.map((municipality, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      item: {
+        "@type": "AdministrativeArea",
+        name: municipality.name,
+        url: `https://findbeskyttelsesrum.dk/kommune/${municipality.slug}`,
+      },
+    })),
+  };
+
+  return [webPage, itemList];
 }
 
 function JourneyItem({
@@ -189,36 +239,24 @@ export default async function CountryPage() {
   const overview = await getCountryOverview();
   const latestImportCompletedAt = overview.ok ? formatDate(overview.latestImportRun?.finishedAt ?? null) : null;
 
+  const landJsonLd = buildLandJsonLd(overview.ok ? overview.topMunicipalitiesForJsonLd : []);
+
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(landJsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-[#0a0a0a]" />
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
 
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-8 sm:px-6 lg:px-8">
-        <nav className="mb-8 flex flex-wrap gap-2">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            <span aria-hidden="true">←</span>
-            Tilbage til forsiden
-          </Link>
-          <Link
-            href="/kommune"
-            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            Kommuner
-          </Link>
-          <Link
-            href="/om-data"
-            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            Om data
-          </Link>
-        </nav>
+      <SiteHeader />
 
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         <header className="mb-10 max-w-3xl space-y-5">
           <p className="text-sm uppercase tracking-wide text-gray-400">Hele landet</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
@@ -478,6 +516,8 @@ export default async function CountryPage() {
           </div>
         </section>
       </div>
+
+      <GlobalFooter />
     </main>
   );
 }

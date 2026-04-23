@@ -780,7 +780,10 @@ async function getActiveShelterCountByMunicipalityId(municipalityId: string) {
     .eq("import_state", "active");
 
   if (error) {
-    throw new Error(`Could not count active app_v2 shelters for municipality "${municipalityId}".`);
+    console.warn(
+      `Could not count active app_v2 shelters for municipality "${municipalityId}": ${error.message}`,
+    );
+    return 0;
   }
 
   return count ?? 0;
@@ -793,7 +796,8 @@ export async function getAppV2ShelterCount(options: ShelterCountOptions = {}) {
   const { count, error } = await scopedQuery;
 
   if (error) {
-    throw new Error("Could not count app_v2 shelters.");
+    console.warn(`Could not count app_v2 shelters: ${error.message}`);
+    return 0;
   }
 
   return count ?? 0;
@@ -1104,6 +1108,103 @@ export async function getAppV2MunicipalitySlugs() {
 }
 
 const sitemapShelterPageSize = 1000;
+
+export type AppV2CountryShelter = {
+  id: string;
+  slug: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  capacity: number;
+  municipalityId: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+};
+
+type CountryShelterRow = {
+  id: string;
+  slug: string;
+  name: string;
+  latitude: number | string | null;
+  longitude: number | string | null;
+  capacity: number | string | null;
+  municipality_id: string;
+  address_line1: string | null;
+  postal_code: string | null;
+  city: string | null;
+};
+
+function normalizeCountryShelter(row: CountryShelterRow): AppV2CountryShelter | null {
+  const latitude = row.latitude === null || row.latitude === undefined ? Number.NaN : Number(row.latitude);
+  const longitude = row.longitude === null || row.longitude === undefined ? Number.NaN : Number(row.longitude);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  const capacityValue =
+    row.capacity === null || row.capacity === undefined ? Number.NaN : Number(row.capacity);
+  const capacity = Number.isFinite(capacityValue) ? Math.trunc(capacityValue) : 0;
+
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    latitude,
+    longitude,
+    capacity,
+    municipalityId: row.municipality_id,
+    addressLine1: (row.address_line1 ?? "").trim(),
+    postalCode: (row.postal_code ?? "").trim(),
+    city: (row.city ?? "").trim(),
+  };
+}
+
+/**
+ * Paginated read of all active app_v2 shelters with coordinates (national map).
+ */
+export async function getAppV2CountryShelters(): Promise<AppV2CountryShelter[]> {
+  const supabase = createAppV2ReadClient();
+  const out: AppV2CountryShelter[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + sitemapShelterPageSize - 1;
+    const { data, error } = await supabase
+      .from("shelters")
+      .select(
+        "id, slug, name, latitude, longitude, capacity, municipality_id, address_line1, postal_code, city",
+      )
+      .eq("import_state", "active")
+      .not("latitude", "is", null)
+      .not("longitude", "is", null)
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(`Could not load app_v2 country shelters: ${error.message}`);
+    }
+
+    const rows = (data ?? []) as CountryShelterRow[];
+
+    for (const row of rows) {
+      const normalized = normalizeCountryShelter(row);
+
+      if (normalized) {
+        out.push(normalized);
+      }
+    }
+
+    if (rows.length < sitemapShelterPageSize) {
+      break;
+    }
+
+    from += sitemapShelterPageSize;
+  }
+
+  return out;
+}
 
 export type AppV2SitemapShelterRow = {
   slug: string;

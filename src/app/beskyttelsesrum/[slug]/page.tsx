@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
+import GlobalFooter from "@/components/GlobalFooter";
+import SiteHeader from "@/components/SiteHeader";
 import { getAppV2ShelterBySlug, type AppV2ShelterDetail } from "@/lib/supabase/app-v2-queries";
 
 type Props = {
@@ -135,35 +137,9 @@ export default async function ShelterDetailPage({ params }: Props) {
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
 
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-8 sm:px-6 lg:px-8">
-        <nav className="mb-8 flex flex-wrap gap-2">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            <span aria-hidden="true">←</span>
-            Tilbage til forsiden
-          </Link>
-          <Link
-            href="/land"
-            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            Hele landet
-          </Link>
-          <Link
-            href="/kommune"
-            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            Kommuner
-          </Link>
-          <Link
-            href="/om-data"
-            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            Om data
-          </Link>
-        </nav>
+      <SiteHeader />
 
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         <article className="space-y-8">
           <header className="space-y-4">
             <p className="text-sm uppercase tracking-wide text-gray-400">Beskyttelsesrum</p>
@@ -273,6 +249,8 @@ export default async function ShelterDetailPage({ params }: Props) {
           </section>
         </article>
       </div>
+
+      <GlobalFooter />
     </main>
   );
 }

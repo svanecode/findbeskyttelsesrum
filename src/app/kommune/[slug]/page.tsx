@@ -1,10 +1,14 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+
+import GlobalFooter from '@/components/GlobalFooter'
+import SiteHeader from '@/components/SiteHeader'
 import {
   getAppV2MunicipalityBySlug,
   getAppV2MunicipalityShelters,
   getAppV2MunicipalityShelterStats,
   groupMunicipalityShelters,
+  type AppV2MunicipalityShelter,
 } from '@/lib/supabase/app-v2-queries'
 import KommuneExperience from './kommune-experience'
 export { generateMetadata } from './metadata'
@@ -13,6 +17,75 @@ export const revalidate = 3600
 
 interface Props {
   params: Promise<{ slug: string }>
+}
+
+function hasShelterAddressForJsonLd(shelter: AppV2MunicipalityShelter): boolean {
+  return (
+    shelter.addressLine1.trim().length > 0 &&
+    shelter.postalCode.trim().length > 0 &&
+    shelter.city.trim().length > 0
+  )
+}
+
+function buildKommunePageJsonLd(
+  municipality: { name: string; slug: string },
+  shelters: AppV2MunicipalityShelter[],
+) {
+  const kommuneNavn = municipality.name
+
+  const webPage = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: `Beskyttelsesrum i ${kommuneNavn}`,
+    description: `Kommuneoversigt over registrerede beskyttelsesrum i ${kommuneNavn}: aktive registreringer, kapacitet, adresser og vej til detail-sider.`,
+    url: `https://findbeskyttelsesrum.dk/kommune/${municipality.slug}`,
+    inLanguage: 'da-DK',
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'Find Beskyttelsesrum',
+      url: 'https://findbeskyttelsesrum.dk',
+    },
+  }
+
+  const administrativeArea = {
+    '@context': 'https://schema.org',
+    '@type': 'AdministrativeArea',
+    name: `${kommuneNavn} Kommune`,
+    containedInPlace: {
+      '@type': 'Country',
+      name: 'Danmark',
+    },
+  }
+
+  const topShelters = shelters
+    .filter(hasShelterAddressForJsonLd)
+    .sort((a, b) => b.capacity - a.capacity)
+    .slice(0, 10)
+
+  const itemList = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: `Beskyttelsesrum i ${kommuneNavn}`,
+    numberOfItems: topShelters.length,
+    itemListElement: topShelters.map((shelter, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      item: {
+        '@type': 'EmergencyService',
+        name: shelter.name,
+        url: `https://findbeskyttelsesrum.dk/beskyttelsesrum/${shelter.slug}`,
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: shelter.addressLine1,
+          postalCode: shelter.postalCode,
+          addressLocality: shelter.city,
+          addressCountry: 'DK',
+        },
+      },
+    })),
+  }
+
+  return [webPage, administrativeArea, itemList]
 }
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
@@ -38,39 +111,35 @@ export default async function KommunePage({ params }: Props) {
   ])
 
   const groups = groupMunicipalityShelters(shelters)
+  const kommuneJsonLd = buildKommunePageJsonLd(municipality, shelters)
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(kommuneJsonLd).replace(/</g, '\\u003c'),
+        }}
+      />
       {/* Background grid */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-[#0a0a0a]" />
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
 
-      {/* Nav */}
-      <nav className="border-b border-white/10 bg-black/30 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center gap-1">
-            <Link href="/" className="text-gray-400 transition-colors hover:text-white">
-              Forside
-            </Link>
-            <span className="mx-1.5 text-gray-600">›</span>
-            <Link href="/kommune" className="text-gray-400 transition-colors hover:text-white">
-              Kommuner
-            </Link>
-            <span className="mx-1.5 text-gray-600">›</span>
-            <span className="font-medium text-white">{municipality.name}</span>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/land" className="text-gray-400 transition-colors hover:text-white">
-              Hele landet
-            </Link>
-            <Link href="/om-data" className="text-gray-400 transition-colors hover:text-white">
-              Om data
-            </Link>
-          </div>
+      <SiteHeader />
+
+      <div className="border-b border-white/10 bg-black/30 backdrop-blur-sm">
+        <div className="mx-auto max-w-7xl px-4 py-3 text-sm text-gray-400 sm:px-6 lg:px-8">
+          <Link href="/kommune" className="transition-colors hover:text-white">
+            Kommuneoversigt
+          </Link>
+          <span className="mx-2 text-gray-600" aria-hidden>
+            ›
+          </span>
+          <span className="font-medium text-white">{municipality.name}</span>
         </div>
-      </nav>
+      </div>
 
       {/* Header */}
       <header className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
@@ -116,20 +185,7 @@ export default async function KommunePage({ params }: Props) {
         />
       </section>
 
-      {/* Footer links */}
-      <div className="border-t border-white/10 bg-black/20">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-6 text-sm sm:px-6 lg:px-8">
-          <Link href="/land" className="text-gray-400 hover:text-white transition-colors">
-            Hele landet
-          </Link>
-          <Link href="/kommune" className="text-gray-400 hover:text-white transition-colors">
-            Kommuner
-          </Link>
-          <Link href="/om-data" className="text-gray-400 hover:text-white transition-colors">
-            Om data
-          </Link>
-        </div>
-      </div>
+      <GlobalFooter />
     </main>
   )
 }

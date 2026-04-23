@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import GlobalFooter from "@/components/GlobalFooter";
+import SiteHeader from "@/components/SiteHeader";
 import { getAppV2MunicipalitySummaries } from "@/lib/supabase/app-v2-queries";
 
 export const revalidate = 86400;
@@ -41,29 +43,9 @@ export default async function MunicipalityOverviewPage() {
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
 
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-8 sm:px-6 lg:px-8">
-        <nav className="mb-8 flex flex-wrap gap-2">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            <span aria-hidden="true">←</span>
-            Tilbage til forsiden
-          </Link>
-          <Link
-            href="/land"
-            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            Hele landet
-          </Link>
-          <Link
-            href="/om-data"
-            className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            Om data
-          </Link>
-        </nav>
+      <SiteHeader />
 
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         <header className="mb-10 max-w-3xl space-y-5">
           <p className="text-sm uppercase tracking-wide text-gray-400">Kommuner</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
@@ -179,6 +161,8 @@ export default async function MunicipalityOverviewPage() {
           </div>
         </section>
       </div>
+
+      <GlobalFooter />
     </main>
   );
 }

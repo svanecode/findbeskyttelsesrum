@@ -1,13 +1,18 @@
 import Link from 'next/link'
 
+import GlobalFooter from '@/components/GlobalFooter'
+import SiteHeader from '@/components/SiteHeader'
+
 export default function TellMeMore() {
   return (
-    <main className="min-h-screen text-white p-4 sm:p-6 lg:p-8 relative">
+    <main className="relative min-h-screen text-white">
       {/* Background gradient overlay */}
       <div className="fixed inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#0f0f0f] to-[#0a0a0a] -z-10" />
       <div className="fixed inset-0 bg-[url('/grid.svg')] opacity-10 -z-10" />
-      
-      <div className="max-w-3xl mx-auto">
+
+      <SiteHeader />
+
+      <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
         <div
           className="tell-me-more-enter relative glass-effect p-6 sm:p-10 rounded-2xl overflow-hidden card-interactive"
         >
@@ -228,6 +233,8 @@ export default function TellMeMore() {
           animation: tell-me-more-enter 500ms ease-out both;
         }
       `}</style>
+
+      <GlobalFooter />
     </main>
   )
-} 
+}

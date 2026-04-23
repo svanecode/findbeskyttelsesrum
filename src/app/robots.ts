@@ -13,5 +13,6 @@ export default function robots(): MetadataRoute.Robots {
       ],
     },
     sitemap: 'https://findbeskyttelsesrum.dk/sitemap.xml',
+    host: 'https://findbeskyttelsesrum.dk',
   }
 } 
