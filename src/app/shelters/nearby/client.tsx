@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import { supabase, retryRPC } from '@/lib/supabase'
 
 // Fix Leaflet default markers
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -42,9 +41,7 @@ const hoveredShelterIcon = createDivIcon(
   '<div style="width: 28px; height: 28px; background: #FB923C; border: 4px solid white; border-radius: 50%; box-shadow: 0 3px 10px rgba(0,0,0,0.6);"></div>',
   36
 )
-import { Shelter } from '@/types/shelter'
 import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
-import { defaultNearbySource, type NearbySource } from '@/lib/nearby/source'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { getKommunekoder, getKommunenavn } from '@/lib/kommunekoder'
 import Link from 'next/link'
@@ -118,244 +115,26 @@ function FitBoundsInner({ userLocation, shelters, useMapHook }: {
   return null
 }
 
-// Legacy shape — used only inside getNearbyShelters before normalization
-interface ShelterWithDistance extends Shelter {
-  distance: number
-}
+type AppV2NearbyEligibilityParam = 'source-application-code' | 'legacy-capacity' | 'none'
 
-type AppV2NearbyReviewEligibility = 'source-application-code' | 'legacy-capacity' | 'none'
-
-type NearbyShadowComparison = {
-  comparison: {
-    eligibilityMode: string
-    sharedAddressCount: number
-    legacyOnlyAddressCount: number
-    appV2OnlyAddressCount: number
-    sharedAddressKeys: string[]
-    legacyOnlyAddressKeys: string[]
-    appV2OnlyAddressKeys: string[]
-    addressKeyStrategy?: string
-    rankOverlap: {
-      shared: Array<{
-        key: string
-        legacyRank: number
-        appV2Rank: number
-        delta: number
-      }>
-      exactRankMatches: number
-      averageAbsRankDelta: number
-      maxAbsRankDelta: number
-    }
-    knownSemanticGaps: {
-      legacyAnvendelseSkalMed: string
-      note: string
-    }
-  }
-  meta: {
-    userVisibleSource: string
-    appV2: {
-      resultCount: number
-      eligibility: {
-        mode: string
-        minimumCapacity: number | null
-        sourceApplicationCodeRequired?: boolean
-        sourceApplicationCodeSemantics?: string
-        legacyAnvendelseSemantics?: string
-        note?: string
-      }
-      diagnostics?: {
-        sourceApplicationCodeRows?: number
-        sourceApplicationCodeEligibleRows?: number
-        sourceApplicationCodeUnknownRows?: number
-        filteredByEligibility?: number
-        eligibleRows?: number
-      }
-    }
-  }
-  legacyResults: Array<{
-    rank: number
-    addressKey: string
-    address: string | null
-    postalCode: string | null
-    municipalityCode: string | null
-    distanceMeters: number | null
-    shelterCount: number | null
-    totalCapacity: number | null
-    anvendelse: string | null
-  }>
-  appV2Results: Array<{
-    rank: number
-    addressKey: string
-    address: {
-      line1: string
-      postalCode: string
-      city: string
-    }
-    distanceMeters: number
-    shelterCount: number
-    totalCapacity: number
-    municipality: {
-      name: string
-      code: string | null
-    }
-  }>
-}
-
-function formatShadowDistance(distanceMeters: number | null | undefined) {
-  return typeof distanceMeters === 'number' ? `${(distanceMeters / 1000).toFixed(1)} km` : 'ukendt afstand'
-}
-
-function formatRankDelta(delta: number) {
-  if (delta === 0) {
-    return 'samme placering'
-  }
-
-  return delta > 0 ? `app_v2 +${delta}` : `app_v2 ${delta}`
-}
-
-function normalizeReviewEligibility(value: string): AppV2NearbyReviewEligibility {
-  if (value === 'legacy-capacity' || value === 'none') {
+function normalizeEligibilityParam(value: string): AppV2NearbyEligibilityParam {
+  if (value === 'legacy-capacity' || value === 'none' || value === 'source-application-code') {
     return value
   }
 
   return 'source-application-code'
 }
 
-function getReviewEligibilityLabel(mode: string) {
-  if (mode === 'source_application_code_v1' || mode === 'source-application-code') {
-    return 'Strict source-backed'
-  }
-
-  if (mode === 'legacy_capacity_v1' || mode === 'legacy-capacity') {
-    return 'Capacity-only'
-  }
-
-  if (mode === 'none') {
-    return 'Ingen ekstra eligibility'
-  }
-
-  return mode
-}
-
-const reviewSampleLinks = [
-  {
-    label: 'København',
-    href: '/shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=grouped',
-  },
-  {
-    label: 'Aarhus',
-    href: '/shelters/nearby?lat=56.1629&lng=10.2039&appV2NearbyExperiment=grouped',
-  },
-  {
-    label: 'Lemvig',
-    href: '/shelters/nearby?lat=56.5486&lng=8.3102&appV2NearbyExperiment=grouped',
-  },
-  {
-    label: 'Odense',
-    href: '/shelters/nearby?lat=55.4038&lng=10.4024&appV2NearbyExperiment=grouped',
-  },
-  {
-    label: 'Esbjerg',
-    href: '/shelters/nearby?lat=55.4765&lng=8.4594&appV2NearbyExperiment=grouped',
-  },
-] as const
-
-async function getNearbyShelters(lat: number, lng: number) {
-  // Try v3 first (optimized with ST_DWithin and exclusions), fallback to v2
-  let useV3 = process.env.NEXT_PUBLIC_USE_SHELTERS_V3 !== 'false' // Default to true unless explicitly disabled
-  
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`Calling get_nearby_shelters_v${useV3 ? '3' : '2'} with:`, { p_lat: lat, p_lng: lng })
-  }
-
-  try {
-    let response: { data: ShelterWithDistance[] | null; error: any } | null = null
-
-    if (useV3) {
-      // Try v3 first with 50km radius (50000 meters)
-      response = await retryRPC<ShelterWithDistance[]>(async () => {
-        const result = await supabase.rpc('get_nearby_shelters_v3', {
-          p_lat: lat,
-          p_lng: lng,
-          p_radius_meters: 50000 // 50km default radius
-        })
-        return result
-      })
-
-      // If v3 function doesn't exist (error code 42883 = function does not exist), fallback to v2
-      if (response && response.error && response.error.code === '42883') {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('get_nearby_shelters_v3 not found, falling back to v2')
-        }
-        useV3 = false // Fallback flag
-        response = null // Reset to use v2
-      } else if (response && response.error) {
-        // Some other error with v3 - try v2 as fallback
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('get_nearby_shelters_v3 had an error, falling back to v2:', response.error.message)
-        }
-        useV3 = false
-        response = null
-      }
-    }
-
-    // Use v2 if v3 not available, disabled, or failed
-    if (!useV3 || !response) {
-      response = await retryRPC<ShelterWithDistance[]>(async () => {
-        const result = await supabase.rpc('get_nearby_shelters_v2', {
-          p_lat: lat,
-          p_lng: lng
-        })
-        return result
-      })
-    }
-
-    if (response.error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Supabase RPC error:', {
-          message: response.error.message,
-          details: response.error.details,
-          hint: response.error.hint,
-          code: response.error.code,
-          stack: response.error.stack
-        })
-      }
-      throw response.error
-    }
-
-    if (!response.data) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`No data returned from get_nearby_shelters_v${useV3 ? '3' : '2'}`)
-      }
-      return []
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`Successfully fetched shelters (v${useV3 ? '3' : '2'}):`, response.data.length)
-    }
-
-    const nearbyShelters: NearbyResultShelter[] = response.data
-      .map((shelter: ShelterWithDistance) => ({
-        ...shelter,
-        distance: (shelter.distance || 0) / 1000,
-        source: 'legacy' as const,
-      }))
-
-    return nearbyShelters
-  } catch (error) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Error in getNearbyShelters:', error)
-    }
-    return []
-  }
-}
-
-async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<NearbyResultShelter[]> {
+async function fetchAppV2GroupedShelters(
+  lat: number,
+  lng: number,
+  eligibility: AppV2NearbyEligibilityParam,
+): Promise<NearbyResultShelter[]> {
   const params = new URLSearchParams({
     lat: String(lat),
     lng: String(lng),
     limit: '10',
-    eligibility: 'source-application-code',
+    eligibility,
   })
   const response = await fetch(`/api/app-v2/nearby/grouped?${params.toString()}`, {
     cache: 'no-store',
@@ -369,53 +148,22 @@ async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<Near
   return adaptAppV2Grouped(json.results ?? [])
 }
 
-async function getAppV2NearbyShadowComparison(
-  lat: number,
-  lng: number,
-  eligibility: AppV2NearbyReviewEligibility,
-): Promise<NearbyShadowComparison | null> {
-  const params = new URLSearchParams({
-    lat: String(lat),
-    lng: String(lng),
-    radius: '50000',
-    limit: '10',
-    candidateLimit: '500',
-    shadow: '1',
-    eligibility,
-  })
-  const response = await fetch(`/api/app-v2/nearby/shadow?${params.toString()}`, {
-    cache: 'no-store'
-  })
-
-  if (!response.ok) {
-    throw new Error(`app_v2 nearby experiment failed with status ${response.status}`)
-  }
-
-  return response.json()
-}
-
 interface Props {
   lat: string
   lng: string
   appV2NearbyExperiment?: boolean
   appV2NearbyPublicExperiment?: boolean
   appV2NearbyEligibility?: string
-  source?: NearbySource
 }
 
 export default function ShelterMapClient({
   lat: latString,
   lng: lngString,
-  appV2NearbyExperiment = false,
-  appV2NearbyPublicExperiment = false,
   appV2NearbyEligibility = 'source-application-code',
-  source = defaultNearbySource,
 }: Props) {
   const [shelters, setShelters] = useState<NearbyResultShelter[]>([])
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
-  const [appV2ShadowComparison, setAppV2ShadowComparison] = useState<NearbyShadowComparison | null>(null)
-  const [appV2ShadowError, setAppV2ShadowError] = useState<string | null>(null)
   const [selectedShelter, setSelectedShelter] = useState<string | null>(null)
   const [hoveredShelter, setHoveredShelter] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -424,11 +172,7 @@ export default function ShelterMapClient({
   const mapRef = useRef<any>(null)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
-  const reviewEligibility = appV2NearbyPublicExperiment
-    ? 'source-application-code'
-    : normalizeReviewEligibility(appV2NearbyEligibility)
-  const shouldLoadAppV2Shadow = appV2NearbyExperiment || appV2NearbyPublicExperiment
-  const isLegacySource = source === 'legacy'
+  const eligibility = normalizeEligibilityParam(appV2NearbyEligibility)
 
   useEffect(() => {
     setIsClient(true)
@@ -450,33 +194,18 @@ export default function ShelterMapClient({
         }
 
         const [rawSheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
-          isLegacySource
-            ? getNearbyShelters(lat, lng)
-            : fetchAppV2GroupedShelters(lat, lng),
+          fetchAppV2GroupedShelters(lat, lng, eligibility),
           getAnvendelseskoder(),
           getKommunekoder()
         ])
         const sheltersData: NearbyResultShelter[] = rawSheltersData
-        let shadowComparison: NearbyShadowComparison | null = null
-        let shadowError: string | null = null
-
-        if (shouldLoadAppV2Shadow) {
-          try {
-            shadowComparison = await getAppV2NearbyShadowComparison(lat, lng, reviewEligibility)
-          } catch (error) {
-            shadowError = error instanceof Error ? error.message : 'app_v2 nearby experiment kunne ikke indlæses.'
-          }
-        }
 
         if (process.env.NODE_ENV === 'development') {
           console.log('Data loaded:', {
             sheltersCount: sheltersData.length,
             anvendelseskoderCount: anvendelseskoderData.length,
             kommunekoderCount: kommunekoderData.length,
-            appV2NearbyExperiment,
-            appV2NearbyPublicExperiment,
-            reviewEligibility,
-            appV2ShadowResultCount: shadowComparison?.meta.appV2.resultCount ?? 0
+            eligibility,
           })
         }
 
@@ -484,8 +213,6 @@ export default function ShelterMapClient({
           setShelters(sheltersData)
           setAnvendelseskoder(anvendelseskoderData)
           setKommunekoder(kommunekoderData)
-          setAppV2ShadowComparison(shadowComparison)
-          setAppV2ShadowError(shadowError)
         }
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
@@ -495,8 +222,6 @@ export default function ShelterMapClient({
           setShelters([])
           setAnvendelseskoder([])
           setKommunekoder([])
-          setAppV2ShadowComparison(null)
-          setAppV2ShadowError(null)
         }
       } finally {
         if (isMounted) {
@@ -510,7 +235,7 @@ export default function ShelterMapClient({
     return () => {
       isMounted = false
     }
-  }, [lat, lng, isLegacySource, shouldLoadAppV2Shadow, appV2NearbyExperiment, appV2NearbyPublicExperiment, reviewEligibility])
+  }, [lat, lng, eligibility])
 
   if (isNaN(lat) || isNaN(lng)) {
     return (
@@ -528,56 +253,11 @@ export default function ShelterMapClient({
     )
   }
 
-  const legacyOnlyResults = appV2ShadowComparison
-    ? appV2ShadowComparison.legacyResults.filter((result) =>
-        appV2ShadowComparison.comparison.legacyOnlyAddressKeys.includes(result.addressKey),
-      )
-    : []
-  const appV2OnlyResults = appV2ShadowComparison
-    ? appV2ShadowComparison.appV2Results.filter((result) =>
-        appV2ShadowComparison.comparison.appV2OnlyAddressKeys.includes(result.addressKey),
-      )
-    : []
-  const sharedRankDifferences = appV2ShadowComparison?.comparison.rankOverlap.shared ?? []
-  const appV2Diagnostics = appV2ShadowComparison?.meta.appV2.diagnostics
-  const appV2Eligibility = appV2ShadowComparison?.meta.appV2.eligibility
-  const isStrictSourceBackedReview =
-    appV2ShadowComparison?.comparison.eligibilityMode === 'source_application_code_v1' ||
-    appV2Eligibility?.mode === 'source_application_code_v1'
-  const hasReviewMismatches = legacyOnlyResults.length > 0 || appV2OnlyResults.length > 0
-  const usesHardenedAddressComparison =
-    appV2ShadowComparison?.comparison.addressKeyStrategy?.startsWith('street-house-postal-v1') ?? false
-  const likelyAddressNormalizationEdge =
-    isStrictSourceBackedReview &&
-    hasReviewMismatches &&
-    legacyOnlyResults.length === appV2OnlyResults.length &&
-    !usesHardenedAddressComparison
-  const reviewModeLinks = [
-    {
-      key: 'source-application-code',
-      label: 'Strict source-backed',
-      href: `/shelters/nearby?lat=${encodeURIComponent(latString)}&lng=${encodeURIComponent(lngString)}&appV2NearbyExperiment=grouped&appV2NearbyEligibility=source-application-code`,
-    },
-    {
-      key: 'legacy-capacity',
-      label: 'Capacity-only',
-      href: `/shelters/nearby?lat=${encodeURIComponent(latString)}&lng=${encodeURIComponent(lngString)}&appV2NearbyExperiment=grouped&appV2NearbyEligibility=legacy-capacity`,
-    },
-  ]
+  // Legacy nearby compare path removed (Sprint 4d).
 
   return (
     <main className="min-h-screen bg-[#1a1a1a] text-white">
       <div className="max-w-7xl mx-auto p-4">
-        {isLegacySource ? (
-          <div className="mb-4 rounded-md border border-yellow-600/30 bg-yellow-900/20 px-3 py-2 text-sm text-yellow-200">
-            Legacy compare/fallback: bruger det gamle nearby-spor. Gå tilbage til <a href={`/shelters/nearby?lat=${latString}&lng=${lngString}`} className="underline">app_v2-revamp</a>.
-          </div>
-        ) : (
-          <div className="mb-4 rounded-md border border-green-600/30 bg-green-900/20 px-3 py-2 text-sm text-green-100">
-            Revamp-version: bruger app_v2 nearby. Sammenlign med <a href={`/shelters/nearby?lat=${latString}&lng=${lngString}&source=legacy`} className="underline">legacy-sporet</a>.
-          </div>
-        )}
-
         <div className="flex items-center mb-6">
           <Link
             href="/"
@@ -590,427 +270,10 @@ export default function ShelterMapClient({
           </Link>
           <h1 className="text-xl sm:text-2xl font-bold">Dine 10 nærmeste beskyttelsesrum</h1>
         </div>
-
-        {appV2NearbyPublicExperiment && (
-          <section className="mb-6 rounded-lg border border-sky-500/30 bg-[#1f1f1f] p-4 sm:p-5">
-            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-sky-300">
-                  Eksperimentel preview
-                </p>
-                <h2 className="text-lg font-semibold text-white">
-                  Ny app_v2 nearby-sammenligning
-                </h2>
-              </div>
-              <div className="text-sm text-gray-400">
-                Aktiv kilde: {isLegacySource ? 'legacy compare/fallback' : 'app_v2 revamp'}
-              </div>
-            </div>
-            <p className="text-sm leading-6 text-gray-300">
-              Denne lille preview vises kun med et eksplicit eksperiment-flag. Den sammenligner den normale legacy-reference
-              med grouped app_v2 nearby i strict source-backed mode. Små by-/adresseformater normaliseres deterministisk,
-              så previewen viser reelle top-10 forskelle mere roligt. Resultatlisten og kortet følger den aktive kilde.
-            </p>
-
-            {appV2ShadowError ? (
-              <div className="mt-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-200">
-                app_v2-preview kunne ikke indlæses lige nu. Resultatlisten nedenfor følger stadig den aktive kilde.
-              </div>
-            ) : appV2ShadowComparison ? (
-              <div className="mt-4 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Fælles adresser</div>
-                    <div className="mt-1 text-lg font-semibold text-white">
-                      {appV2ShadowComparison.comparison.sharedAddressCount}/10
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Kun normal visning</div>
-                    <div className="mt-1 text-lg font-semibold text-white">
-                      {appV2ShadowComparison.comparison.legacyOnlyAddressCount}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Kun app_v2-preview</div>
-                    <div className="mt-1 text-lg font-semibold text-white">
-                      {appV2ShadowComparison.comparison.appV2OnlyAddressCount}
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-semibold text-white">app_v2-preview, første resultater</h3>
-                  <div className="mt-2 grid gap-2 md:grid-cols-3">
-                    {appV2ShadowComparison.appV2Results.slice(0, 3).map((result) => (
-                      <div key={`${result.rank}-${result.addressKey}`} className="rounded-lg border border-white/10 bg-[#252525] p-3">
-                        <div className="text-sm font-medium text-white">
-                          {result.rank}. {result.address.line1}
-                        </div>
-                        <div className="mt-1 text-xs leading-5 text-gray-400">
-                          {result.address.postalCode} {result.address.city} · {formatShadowDistance(result.distanceMeters)}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-500">
-                          {result.totalCapacity.toLocaleString('da-DK')} registrerede pladser · {result.shelterCount} gruppe-rækker
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-lg bg-sky-500/10 p-3 text-sm leading-6 text-sky-100">
-                  Previewen bruger <span className="font-mono">source_application_code_v1</span> og grouped app_v2.
-                  Adresse-sammenligningen bruger vej, husnummer og postnummer som stabil nøgle. Resultatlisten og alle
-                  kortmarkører nedenfor følger den aktive kilde:
-                  <span className="font-mono"> {isLegacySource ? 'legacy' : 'app_v2'}</span>.
-                  <Link href="/om-data" className="ml-1 font-semibold underline underline-offset-4">
-                    Læs om datagrundlaget.
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4 rounded-lg bg-[#252525] p-3 text-sm text-gray-300">
-                Indlæser app_v2-preview...
-              </div>
-            )}
-          </section>
-        )}
-
-        {appV2NearbyExperiment && (
-          <section className="mb-6 rounded-lg border border-orange-500/30 bg-[#1f1f1f] p-4 sm:p-5">
-            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-orange-400">
-                  Intern review mode
-                </p>
-                <h2 className="text-lg font-semibold text-white">
-                  Grouped app_v2 nearby review
-                </h2>
-              </div>
-              <div className="text-sm text-gray-400">
-                Aktiv kilde: {isLegacySource ? 'legacy compare/fallback' : 'app_v2 revamp'}
-              </div>
-            </div>
-            <p className="mb-4 text-sm text-gray-300">
-              Denne blok vises kun med <span className="font-mono text-orange-300">appV2NearbyExperiment=grouped</span>.
-              Review-blokken sammenligner legacy og grouped app_v2. Kortet og resultatkortene følger den aktive
-              URL-kilde. app_v2-reviewet er grouped og bruger som standard
-              <span className="font-mono text-orange-300"> source_application_code_v1</span>.
-            </p>
-            <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-              <div className="rounded-lg border border-white/10 bg-[#252525] p-3">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Mode</div>
-                <div className="flex flex-wrap gap-2">
-                  {reviewModeLinks.map((link) => (
-                    <a
-                      key={link.key}
-                      href={link.href}
-                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
-                        reviewEligibility === link.key
-                          ? 'border-orange-400 bg-orange-500/20 text-orange-100'
-                          : 'border-white/10 bg-[#1f1f1f] text-gray-300 hover:border-orange-400/60 hover:text-white'
-                      }`}
-                    >
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-[#252525] p-3">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Trial cases</div>
-                <div className="flex flex-wrap gap-2">
-                  {reviewSampleLinks.map((link) => (
-                    <a
-                      key={link.label}
-                      href={link.href}
-                      className="rounded-lg border border-white/10 bg-[#1f1f1f] px-3 py-2 text-xs font-medium text-gray-300 transition-colors hover:border-orange-400/60 hover:text-white"
-                    >
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </div>
-            {appV2ShadowError ? (
-              <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-200">
-                {appV2ShadowError}
-              </div>
-            ) : appV2ShadowComparison ? (
-              <div className="space-y-5">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Overlap</div>
-                    <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.sharedAddressCount}/10</div>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Kun legacy</div>
-                    <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.legacyOnlyAddressCount}</div>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Kun app_v2</div>
-                    <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.appV2OnlyAddressCount}</div>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Max rank-delta</div>
-                    <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.rankOverlap.maxAbsRankDelta}</div>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Exact rank</div>
-                    <div className="text-lg font-semibold text-white">{appV2ShadowComparison.comparison.rankOverlap.exactRankMatches}</div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Eligibility</div>
-                    <div className="text-sm font-semibold text-white">
-                      {getReviewEligibilityLabel(appV2Eligibility?.mode ?? appV2ShadowComparison.comparison.eligibilityMode)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Source-code rows</div>
-                    <div className="text-sm font-semibold text-white">{appV2Diagnostics?.sourceApplicationCodeRows ?? 'n/a'}</div>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Eligible by code</div>
-                    <div className="text-sm font-semibold text-white">{appV2Diagnostics?.sourceApplicationCodeEligibleRows ?? 'n/a'}</div>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Unknown code rows</div>
-                    <div className="text-sm font-semibold text-white">{appV2Diagnostics?.sourceApplicationCodeUnknownRows ?? 'n/a'}</div>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <div className="text-xs text-gray-400">Filtered rows</div>
-                    <div className="text-sm font-semibold text-white">{appV2Diagnostics?.filteredByEligibility ?? 'n/a'}</div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-white/10 bg-[#252525] p-3">
-                  <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold text-white">Trial vurdering</h3>
-                      <p className="text-xs text-gray-400">
-                        Brug denne blok til intern vurdering af grouped app_v2 i samme koordinatkontekst som legacy-listen.
-                      </p>
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {hasReviewMismatches ? 'Mismatch kræver review' : 'Ingen membership-mismatch i top 10'}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 text-sm text-gray-300 md:grid-cols-3">
-                    <div className="rounded-lg bg-[#1f1f1f] p-3">
-                      <div className="mb-1 font-medium text-white">1. Membership</div>
-                      <div>
-                        Shared {appV2ShadowComparison.comparison.sharedAddressCount}/10,
-                        legacy-only {appV2ShadowComparison.comparison.legacyOnlyAddressCount},
-                        app_v2-only {appV2ShadowComparison.comparison.appV2OnlyAddressCount}.
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-[#1f1f1f] p-3">
-                      <div className="mb-1 font-medium text-white">2. Ranking</div>
-                      <div>
-                        Max rank-delta {appV2ShadowComparison.comparison.rankOverlap.maxAbsRankDelta};
-                        exact rank {appV2ShadowComparison.comparison.rankOverlap.exactRankMatches}.
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-[#1f1f1f] p-3">
-                      <div className="mb-1 font-medium text-white">3. Semantik</div>
-                      <div>
-                        {isStrictSourceBackedReview
-                          ? 'Strict source-backed eligibility er aktiv, og adresse-sammenligningen bruger vej, husnummer og postnummer som stabil nøgle.'
-                          : 'Denne fallback-mode er diagnostisk. Brug strict source-backed til primær trial-vurdering.'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {hasReviewMismatches && (
-                  <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
-                    <div className="mb-3">
-                      <h3 className="text-sm font-semibold text-yellow-100">Edge-case review</h3>
-                      <p className="text-sm text-yellow-100/80">
-                        {likelyAddressNormalizationEdge
-                          ? 'Legacy-only og app_v2-only har samme antal i strict mode. Det kan stadig være address-normalization, men den primære vej/husnummer/postnummer-normalisering er allerede anvendt.'
-                          : 'Der er membership-forskelle i top 10 efter deterministic address-normalization. Vurder om de ligner coverage, grouping, ranking eller eligibility-semantik.'}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div className="rounded-lg bg-[#1f1f1f] p-3">
-                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-yellow-200">Legacy-only keys</div>
-                        {legacyOnlyResults.length === 0 ? (
-                          <p className="text-sm text-gray-400">Ingen.</p>
-                        ) : (
-                          <ul className="space-y-2 text-sm text-gray-200">
-                            {legacyOnlyResults.map((result) => (
-                              <li key={`${result.rank}-${result.addressKey}`} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
-                                <span className="font-medium">#{result.rank}</span> {result.addressKey}
-                                {likelyAddressNormalizationEdge && (
-                                  <span className="mt-1 block text-xs text-yellow-100/70">
-                                    Sammenlign med app_v2-only key. Hvis kun ekstra lokalitetsnavn adskiller dem, bør casen vurderes som formatting før data-gap.
-                                  </span>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                      <div className="rounded-lg bg-[#1f1f1f] p-3">
-                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-yellow-200">app_v2-only keys</div>
-                        {appV2OnlyResults.length === 0 ? (
-                          <p className="text-sm text-gray-400">Ingen.</p>
-                        ) : (
-                          <ul className="space-y-2 text-sm text-gray-200">
-                            {appV2OnlyResults.map((result) => (
-                              <li key={`${result.rank}-${result.addressKey}`} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
-                                <span className="font-medium">#{result.rank}</span> {result.addressKey}
-                                {likelyAddressNormalizationEdge && (
-                                  <span className="mt-1 block text-xs text-yellow-100/70">
-                                    Hvis denne kun adskiller sig ved bydel/ekstra bynavn, bør casen vurderes som formatting før data-gap.
-                                  </span>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {!hasReviewMismatches && isStrictSourceBackedReview && (
-                  <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-100">
-                    Strict source-backed app_v2 matcher legacy top-10 membership for denne koordinat. Brug stadig rank-delta og grouped capacity til at vurdere kvaliteten.
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <h3 className="mb-2 text-sm font-semibold text-white">Kun legacy</h3>
-                    <div className="space-y-2">
-                      {legacyOnlyResults.length === 0 ? (
-                        <p className="text-sm text-gray-400">Ingen legacy-only resultater.</p>
-                      ) : (
-                        legacyOnlyResults.map((result) => (
-                          <div key={`${result.rank}-${result.addressKey}`} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
-                            <div className="text-sm font-medium text-white">
-                              {result.rank}. {result.address ?? result.addressKey}
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {formatShadowDistance(result.distanceMeters)} · {result.totalCapacity ?? 'ukendt'} pers. · anvendelse {result.anvendelse ?? 'ukendt'}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <h3 className="mb-2 text-sm font-semibold text-white">Kun app_v2</h3>
-                    <div className="space-y-2">
-                      {appV2OnlyResults.length === 0 ? (
-                        <p className="text-sm text-gray-400">Ingen app_v2-only resultater.</p>
-                      ) : (
-                        appV2OnlyResults.map((result) => (
-                          <div key={`${result.rank}-${result.addressKey}`} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
-                            <div className="text-sm font-medium text-white">
-                              {result.rank}. {result.address.line1}
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {formatShadowDistance(result.distanceMeters)} · {result.totalCapacity} pers. · {result.shelterCount} gruppe-rækker
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg bg-[#252525] p-3">
-                    <h3 className="mb-2 text-sm font-semibold text-white">Delte resultater med rank-delta</h3>
-                    <div className="space-y-2">
-                      {sharedRankDifferences.slice(0, 6).map((entry) => (
-                        <div key={entry.key} className="border-t border-white/5 pt-2 first:border-t-0 first:pt-0">
-                          <div className="text-sm font-medium text-white">{entry.key}</div>
-                          <div className="text-xs text-gray-400">
-                            legacy #{entry.legacyRank} · app_v2 #{entry.appV2Rank} · {formatRankDelta(entry.delta)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg bg-[#252525] p-3">
-                  <h3 className="mb-2 text-sm font-semibold text-white">Grouped app_v2 top 5</h3>
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    {appV2ShadowComparison.appV2Results.slice(0, 5).map((result) => (
-                      <div key={`${result.rank}-${result.addressKey}`} className="rounded-lg border border-white/5 bg-[#1f1f1f] p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-medium text-white">
-                              {result.rank}. {result.address.line1}
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {result.address.postalCode} {result.address.city} · {result.municipality.name}
-                            </div>
-                          </div>
-                          <div className="text-right text-xs text-gray-300">
-                            <div>{formatShadowDistance(result.distanceMeters)}</div>
-                            <div>{result.totalCapacity} pers.</div>
-                            <div>{result.shelterCount} gruppe-rækker</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-lg bg-orange-500/10 p-3 text-sm text-orange-100">
-                  Kortet og resultatlisten følger den aktive source-kontrakt. Strict source-backed mode modellerer legacy
-                  <span className="font-mono"> skal_med</span> via source application codes, og sammenligningen bruger en
-                  stabil vej/husnummer/postnummer-nøgle. Fuld legacy anvendelse/typevisning er stadig ikke en del af
-                  app_v2-outputtet.
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)]">
-                  <div className="rounded-lg bg-[#252525] p-3 text-sm text-gray-300">
-                    <h3 className="mb-2 text-sm font-semibold text-white">Reviewer checklist</h3>
-                    <ul className="list-disc space-y-1 pl-5">
-                      <li>Normal liste og kort følger den aktive URL-kilde; brug source=legacy som fallback/reference.</li>
-                      <li>Strict source-backed er den primære app_v2 trial-variant; capacity-only er kun fallback-diagnostik.</li>
-                      <li>Undersøg altid legacy-only og app_v2-only cases før en koordinat vurderes god nok.</li>
-                      <li>Små rank-deltas er acceptable i intern trial, men systematiske membership-forskelle skal klassificeres.</li>
-                      <li>Gentag samme koordinat med fallback-mode, hvis en forskel skal isoleres til source-code eligibility.</li>
-                    </ul>
-                  </div>
-                  <div className="rounded-lg bg-[#252525] p-3 text-sm text-gray-300">
-                    <h3 className="mb-2 text-sm font-semibold text-white">Mere kontekst</h3>
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        href="/om-data"
-                        className="rounded-lg border border-white/10 bg-[#1f1f1f] px-3 py-2 text-xs font-medium text-gray-300 transition-colors hover:border-orange-400/60 hover:text-white"
-                      >
-                        Om data
-                      </Link>
-                      <Link
-                        href="/kommune"
-                        className="rounded-lg border border-white/10 bg-[#1f1f1f] px-3 py-2 text-xs font-medium text-gray-300 transition-colors hover:border-orange-400/60 hover:text-white"
-                      >
-                        Kommuner
-                      </Link>
-                    </div>
-                    <p className="mt-3 text-xs leading-5 text-gray-400">
-                      Brug de offentlige app_v2-sider til datakontekst. Review-blokken ændrer ikke den aktive nearby-kilde.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-lg bg-[#252525] p-3 text-sm text-gray-300">
-                Indlæser app_v2 preview...
-              </div>
-            )}
-          </section>
-        )}
+        <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
+          Tip: Tilføj <span className="font-mono">appV2NearbyEligibility</span> til URL’en for at teste alternative filtre, fx{" "}
+          <span className="font-mono">appV2NearbyEligibility=none</span>.
+        </div>
 
         {/* Back to top button */}
         <button
@@ -1106,10 +369,14 @@ export default function ShelterMapClient({
                       <div className="text-sm text-gray-400 mb-1">Total kapacitet</div>
                       <div className="text-white font-medium text-base sm:text-lg">{shelter.total_capacity} personer</div>
                     </div>
-                    {shelter.source === 'legacy' && shelter.anvendelse && (
+                    {(shelter.typeLabel || (shelter.source === 'legacy' && shelter.anvendelse)) && (
                       <div className="bg-[#252525] p-3 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
                         <div className="text-sm text-gray-400 mb-1">Type</div>
-                        <div className="text-white font-medium text-sm line-clamp-2">{getAnvendelseskodeBeskrivelse(shelter.anvendelse, anvendelseskoder)}</div>
+                        <div className="text-white font-medium text-sm line-clamp-2">
+                          {shelter.typeLabel
+                            ? shelter.typeLabel
+                            : getAnvendelseskodeBeskrivelse(shelter.anvendelse!, anvendelseskoder)}
+                        </div>
                       </div>
                     )}
                   </div>

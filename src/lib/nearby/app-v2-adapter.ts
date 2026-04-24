@@ -18,6 +18,7 @@ export type NearbyResultShelter = {
   postnummer: string | null
   kommunekode: string | null
   anvendelse: string | null
+  typeLabel?: string | null
   shelter_count?: number
   total_capacity?: number
   distance: number
@@ -57,6 +58,7 @@ export function adaptAppV2Grouped(rows: ApiGroupedResult[]): NearbyResultShelter
       postnummer: row.address.postalCode,
       kommunekode: row.municipality?.code ?? null,
       anvendelse: null,
+      typeLabel: row.applicationCodeLabel,
       shelter_count: row.shelterCount,
       total_capacity: row.totalCapacity,
       distance: row.distanceMeters / 1000,
