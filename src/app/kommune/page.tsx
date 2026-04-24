@@ -8,16 +8,16 @@ import { getAppV2MunicipalitySummaries } from "@/lib/supabase/app-v2-queries";
 export const revalidate = 86400;
 
 export const metadata: Metadata = {
-  title: "Kommuner med aktive registreringer",
+  title: "Kommuneoversigt",
   description:
-    "Alfabetisk oversigt over kommuner med registrerede beskyttelsesrum — med vej videre til lokale sider, kort og forklaring af tallene.",
+    "Oversigt over kommuner med registrerede beskyttelsesrum. Brug søgning på forsiden for at finde nærmeste beskyttelsesrum.",
   alternates: {
     canonical: "/kommune",
   },
   openGraph: {
-    title: "Kommuner med aktive registreringer",
+    title: "Kommuneoversigt",
     description:
-      "Oversigt over kommuner og lokale sider med registreringer, kapacitet og kortkontekst.",
+      "Oversigt over kommuner med registrerede beskyttelsesrum. Brug søgning på forsiden for at finde nærmeste beskyttelsesrum.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -49,16 +49,20 @@ export default async function MunicipalityOverviewPage() {
         <header className="mb-10 max-w-3xl space-y-5">
           <p className="text-sm uppercase tracking-wide text-gray-400">Kommuner</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
-            Kommuner med aktive registreringer
+            Kommuneoversigt
           </h1>
           <p className="text-lg leading-8 text-gray-300">
-            Brug oversigten som stabil indgang fra landssiden til lokale kommunesider med liste, kort og
-            registerbaserede nøgletal.
+            Brug søgning på forsiden, hvis du hurtigt skal finde nærmeste beskyttelsesrum. Kommuneoversigten er en
+            sekundær indgang til lokalt overblik.
           </p>
-          <p className="text-sm leading-6 text-gray-400">
-            Oversigten viser kun kommuneoplysninger og overordnede tal. Kort, shelter-lister og nærliggende resultater
-            er holdt ude af denne side.
-          </p>
+          <div className="pt-1">
+            <Link
+              href="/"
+              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+            >
+              Find nærmeste beskyttelsesrum
+            </Link>
+          </div>
         </header>
 
         <section className="mb-8 grid gap-4 sm:grid-cols-2">
@@ -132,7 +136,7 @@ export default async function MunicipalityOverviewPage() {
             href="/om-data"
             className="mt-4 inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
           >
-            Om data
+            Datagrundlag
           </Link>
         </section>
 
@@ -141,7 +145,7 @@ export default async function MunicipalityOverviewPage() {
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
             Gå tilbage til landssiden for national kontekst, eller åbn{" "}
             <Link href="/om-data" className="text-white underline-offset-2 hover:underline">
-              Om data
+              Datagrundlag
             </Link>{" "}
             før du fortolker registrerede pladser og aktive registreringer.
           </p>

@@ -11,6 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "verify-assets": "node scripts/verify-hashed-assets.js",
     "test-caching": "node scripts/test-caching-headers.js",
     "parity:municipalities": "tsx scripts/parity/municipalities.ts",

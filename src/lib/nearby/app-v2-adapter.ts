@@ -8,6 +8,10 @@ type ApiGroupedResult = {
   totalCapacity: number
   applicationCodeLabel: string | null
   municipality: { code: string | null; name: string; slug: string; id: string }
+  statuses?: Array<"active" | "temporarily_closed" | "under_review">
+  importStates?: Array<"active" | "missing_from_source" | "suppressed">
+  representativeShelter?: { slug: string; status?: "active" | "temporarily_closed" | "under_review" }
+  shelterSlugs?: string[]
 }
 
 export type NearbyResultShelter = {
@@ -16,6 +20,7 @@ export type NearbyResultShelter = {
   vejnavn: string | null
   husnummer: string | null
   postnummer: string | null
+  city: string | null
   kommunekode: string | null
   anvendelse: string | null
   typeLabel?: string | null
@@ -24,6 +29,8 @@ export type NearbyResultShelter = {
   distance: number
   address: string | null
   source: 'legacy' | 'app_v2'
+  statuses?: Array<"active" | "temporarily_closed" | "under_review">
+  representativeSlug?: string | null
   // Legacy-only fields — absent for app_v2 results
   created_at?: string
   bygning_id?: string | null
@@ -56,6 +63,7 @@ export function adaptAppV2Grouped(rows: ApiGroupedResult[]): NearbyResultShelter
       vejnavn,
       husnummer,
       postnummer: row.address.postalCode,
+      city: row.address.city,
       kommunekode: row.municipality?.code ?? null,
       anvendelse: null,
       typeLabel: row.applicationCodeLabel,
@@ -64,6 +72,8 @@ export function adaptAppV2Grouped(rows: ApiGroupedResult[]): NearbyResultShelter
       distance: row.distanceMeters / 1000,
       address: `${row.address.line1}, ${row.address.postalCode} ${row.address.city}`,
       source: 'app_v2',
+      statuses: row.statuses ?? [],
+      representativeSlug: row.representativeShelter?.slug ?? row.shelterSlugs?.[0] ?? null,
     }
   })
 }

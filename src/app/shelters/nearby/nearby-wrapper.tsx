@@ -23,7 +23,7 @@ export default function NearbyWrapper() {
           <div className="max-w-7xl mx-auto p-4">
             <h1 className="text-3xl font-bold mb-8">Ugyldig position</h1>
             <p className="text-gray-400">
-              De angivne koordinater er ugyldige. Prøv at søge efter en adresse eller bruge din nuværende position.
+              De angivne koordinater er ugyldige. Prøv at søge efter en adresse eller brug din placering.
             </p>
           </div>
         </main>

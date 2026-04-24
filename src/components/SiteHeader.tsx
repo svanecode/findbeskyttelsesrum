@@ -7,15 +7,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 type NavItem = { href: string; label: string; active: (p: string) => boolean }
 
 const NAV: NavItem[] = [
-  { href: '/', label: 'Forside', active: (p) => p === '/' },
-  { href: '/land', label: 'Hele landet', active: (p) => p === '/land' },
+  { href: '/', label: 'Søg', active: (p) => p === '/' || p.startsWith('/shelters/nearby') },
   {
     href: '/kommune',
-    label: 'Kommuner',
+    label: 'Kommuneoversigt',
     active: (p) => p === '/kommune' || p.startsWith('/kommune/'),
   },
-  { href: '/kort', label: 'Landskort', active: (p) => p === '/kort' || p.startsWith('/kort/') },
-  { href: '/om-data', label: 'Om data', active: (p) => p === '/om-data' },
+  { href: '/om-data', label: 'Datagrundlag', active: (p) => p === '/om-data' },
 ]
 
 function desktopNavClass(active: boolean) {
@@ -68,7 +66,7 @@ export default function SiteHeader() {
           href="/"
           className="font-space-grotesk text-base font-semibold tracking-tight text-gray-200 transition-colors hover:text-white sm:text-lg"
         >
-          Find Beskyttelsesrum
+          Findbeskyttelsesrum
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex" aria-label="Hovednavigation">

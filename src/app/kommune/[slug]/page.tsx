@@ -176,7 +176,7 @@ export default async function KommunePage({ params }: Props) {
           <p className="mt-2 text-gray-400">
             Brug{" "}
             <Link href="/om-data" className="text-white underline-offset-2 hover:underline">
-              Om data
+              Datagrundlag
             </Link>{" "}
             for metode, kilder og forbehold.
           </p>

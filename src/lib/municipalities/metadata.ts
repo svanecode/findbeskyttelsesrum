@@ -156,7 +156,7 @@ export function normalizeMunicipalityDisplay(input: {
     return {
       id: input.id,
       slug: input.slug ?? "unknown",
-      name: input.name ?? "Unknown municipality",
+      name: input.name ?? "Ukendt kommune",
     };
   }
 
@@ -166,7 +166,7 @@ export function normalizeMunicipalityDisplay(input: {
     return {
       id: input.id,
       slug: input.slug ?? `kommune-${code}`,
-      name: input.name ?? `Municipality ${code}`,
+      name: input.name ?? `Kommune ${code}`,
     };
   }
 

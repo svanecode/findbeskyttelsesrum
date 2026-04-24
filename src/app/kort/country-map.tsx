@@ -55,7 +55,7 @@ function buildPopupHtml(shelter: CountryMapShelterMarker) {
     <p style="margin:0;font-weight:600;color:#111827;">${escapeHtml(shelter.name)}</p>
     ${addressBlock}
     <p style="margin:8px 0 0;font-size:0.875rem;font-weight:500;color:#ea580c;">${escapeHtml(cap)} pladser</p>
-    <a href="/beskyttelsesrum/${slugSeg}" style="margin-top:8px;display:block;font-size:0.75rem;color:#2563eb;text-decoration:underline;">Se detaljer →</a>
+    <a href="/beskyttelsesrum/${slugSeg}" style="margin-top:8px;display:block;font-size:0.75rem;color:#2563eb;text-decoration:underline;">Åbn</a>
   </div>`;
 }
 

@@ -1,25 +1,9 @@
-import ShelterCounter from '@/components/ShelterCounter'
 import GlobalFooter from '@/components/GlobalFooter'
-import Link from 'next/link'
 import AddressSearchDAWA from '@/components/AddressSearchDAWA'
-import { APP_VERSION } from '@/lib/constants'
-import { getAppV2TotalShelterCapacity } from '@/lib/supabase/app-v2-queries'
 
 export const revalidate = 600
 
-async function loadTotalCapacity(): Promise<number | null> {
-  try {
-    const capacity = await getAppV2TotalShelterCapacity()
-    return typeof capacity === 'number' && capacity > 0 ? capacity : null
-  } catch (error) {
-    console.error('Could not load total shelter capacity for homepage:', error)
-    return null
-  }
-}
-
 export default async function Home() {
-  const totalCapacity = await loadTotalCapacity()
-
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white p-4 sm:p-6 lg:p-8 flex flex-col justify-center items-center relative">
       <div className="fixed inset-0 -z-10 overflow-hidden">
@@ -30,18 +14,11 @@ export default async function Home() {
       <div className="max-w-2xl mx-auto flex-1 w-full px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col justify-center">
         <div className="text-center mb-8 sm:mb-12 lg:mb-16">
           <h1 className="text-heading-lg sm:text-heading-xl mb-4 sm:mb-6 lg:mb-8 text-white">
-            Find Beskyttelsesrum
+            Find nærmeste beskyttelsesrum
           </h1>
           <p className="text-body-lg sm:text-xl text-[#E5E7EB] mb-8 sm:mb-10 lg:mb-12 max-w-lg mx-auto">
-            Søg efter nærliggende beskyttelsesrum med en adresse, eller gå til land-, kommune- og detail-siderne for
-            registerbaseret overblik og datagrundlag.
+            Søg på din adresse eller brug din placering. Vælg et resultat for at få rutevejledning.
           </p>
-          <div className="text-center mt-6 sm:mt-8 lg:mt-10">
-            <ShelterCounter 
-              targetNumber={totalCapacity} 
-              version={APP_VERSION} 
-            />
-          </div>
         </div>
         
         <div className="glass-effect p-6 sm:p-8 lg:p-10 rounded-2xl shadow-2xl backdrop-blur-md bg-white/10 border border-white/10 relative overflow-visible card-interactive">
@@ -49,57 +26,11 @@ export default async function Home() {
             <div suppressHydrationWarning className="relative z-20">
               <AddressSearchDAWA key="dawa-v2" />
             </div>
+
+            <p className="text-center text-xs sm:text-sm text-gray-300/90">
+              Bygger på offentlige BBR- og DAR-data. Følg altid myndighedernes anvisninger.
+            </p>
             
-            <div className="text-center mt-12 sm:mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link
-                href="/land"
-                className="inline-flex items-center rounded-lg px-4 py-3 text-body-sm font-medium bg-white text-black hover:bg-gray-200 transition-all duration-200 group touch-target focus-visible btn-interactive sm:px-6 sm:text-body-md"
-                aria-label="Se samlet indgang til beskyttelsesrum i Danmark"
-              >
-                <span>Hele landet</span>
-                <svg
-                  className="w-4 h-4 sm:w-5 sm:h-5 ml-2 transform group-hover:translate-x-1 transition-transform duration-200"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-              <Link
-                href="/kommune"
-                className="inline-flex items-center rounded-lg px-4 py-3 text-body-sm font-medium bg-white/5 hover:bg-white/10 text-white transition-all duration-200 group touch-target focus-visible btn-interactive sm:px-6 sm:text-body-md"
-                aria-label="Se oversigt over kommuner med aktive registreringer i oversigten"
-              >
-                <span>Se kommuner</span>
-                <svg
-                  className="w-4 h-4 sm:w-5 sm:h-5 ml-2 transform group-hover:translate-x-1 transition-transform duration-200"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-              <Link
-                href="/om-data"
-                className="inline-flex items-center rounded-lg px-4 py-3 text-body-sm font-medium bg-white/5 hover:bg-white/10 text-white transition-all duration-200 group touch-target focus-visible btn-interactive sm:px-6 sm:text-body-md"
-                aria-label="Læs mere om data og kilder til beskyttelsesrum"
-              >
-                <span>Om data</span>
-                <svg
-                  className="w-4 h-4 sm:w-5 sm:h-5 ml-2 transform group-hover:translate-x-1 transition-transform duration-200"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-            </div>
           </div>
         </div>
       </div>

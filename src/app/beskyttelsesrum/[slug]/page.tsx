@@ -14,9 +14,9 @@ type Props = {
 };
 
 const statusLabels: Record<AppV2ShelterDetail["status"], string> = {
-  active: "Aktivt",
+  active: "Aktiv",
   temporarily_closed: "Midlertidigt lukket",
-  under_review: "Under gennemgang",
+  under_review: "Under vurdering",
 };
 
 const importStateLabels: Record<AppV2ShelterDetail["importState"], string> = {
@@ -43,6 +43,11 @@ function getShelterAddress(shelter: AppV2ShelterDetail) {
 
 function getShelterCanonicalPath(slug: string) {
   return `/beskyttelsesrum/${slug}`;
+}
+
+function getGoogleMapsRouteHref(shelter: AppV2ShelterDetail) {
+  if (shelter.latitude === null || shelter.longitude === null) return null;
+  return `https://www.google.com/maps/dir/?api=1&destination=${shelter.latitude},${shelter.longitude}`;
 }
 
 function getJsonLd(shelter: AppV2ShelterDetail) {
@@ -124,6 +129,10 @@ export default async function ShelterDetailPage({ params }: Props) {
   const lastSeenAt = formatDate(shelter.lastSeenAt);
   const lastImportedAt = formatDate(shelter.lastImportedAt);
   const jsonLd = getJsonLd(shelter);
+  const navigationHref = getGoogleMapsRouteHref(shelter);
+  const statusLabel = statusLabels[shelter.status] ?? "Status mangler";
+  const sourceLabel = shelter.canonicalSourceName ?? null;
+  const dataDateLabel = lastImportedAt ?? lastSeenAt ?? null;
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
@@ -142,42 +151,61 @@ export default async function ShelterDetailPage({ params }: Props) {
       <SiteHeader />
 
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-8 sm:px-6 lg:px-8">
-        <article className="space-y-8">
+        <article className={`space-y-8 ${navigationHref ? "pb-20 sm:pb-8" : ""}`}>
           <header className="space-y-4">
             <p className="text-sm uppercase tracking-wide text-gray-400">Beskyttelsesrum</p>
             <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">{shelter.name}</h1>
             <p className="text-lg text-gray-300">
               {shelter.addressLine1}, {shelter.postalCode} {shelter.city}
             </p>
-            <p className="max-w-2xl text-sm leading-6 text-gray-400">
-              Oplysningerne bygger på de felter, der aktuelt er registreret og egner sig til offentlig visning.
-            </p>
           </header>
 
+          {/* Above-the-fold decision block */}
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold text-white">Nøgleoplysninger</h2>
-            <dl className="mt-3">
-              <DetailRow label="Adresse" value={getShelterAddress(shelter)} />
-              <DetailRow label="Kommune" value={shelter.municipality.name} />
-              <DetailRow
-                label="Registreret kapacitet"
-                value={`${shelter.capacity.toLocaleString("da-DK")} registrerede pladser`}
-              />
-              <DetailRow label="Status" value={statusLabels[shelter.status]} />
-              <DetailRow label="Datalagets tilstand" value={importStateLabels[shelter.importState]} />
-              <DetailRow
-                label="Koordinater"
-                value={
-                  shelter.latitude !== null && shelter.longitude !== null
-                    ? `${shelter.latitude.toFixed(6)}, ${shelter.longitude.toFixed(6)}`
-                    : null
-                }
-              />
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-white">Overblik</h2>
+                <p className="mt-2 text-gray-300">
+                  {shelter.addressLine1}
+                  <span className="text-gray-400"> · </span>
+                  {shelter.postalCode} {shelter.city}
+                </p>
+              </div>
+
+              {navigationHref ? (
+                <a
+                  href={navigationHref}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+                >
+                  Navigér hertil
+                </a>
+              ) : null}
+            </div>
+
+            <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
+                <dt className="text-sm text-gray-400">Kapacitet</dt>
+                <dd className="mt-1 text-base font-medium text-white">
+                  {shelter.capacity.toLocaleString("da-DK")} pladser
+                </dd>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
+                <dt className="text-sm text-gray-400">Status</dt>
+                <dd className="mt-1 text-base font-medium text-white">{statusLabel}</dd>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
+                <dt className="text-sm text-gray-400">Kilde</dt>
+                <dd className="mt-1 text-base text-white">{sourceLabel ?? "Kilde eller dato mangler"}</dd>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
+                <dt className="text-sm text-gray-400">Data senest hentet</dt>
+                <dd className="mt-1 text-base text-white">{dataDateLabel ?? "Kilde eller dato mangler"}</dd>
+              </div>
             </dl>
-            <p className="mt-4 text-sm leading-6 text-gray-400">
-              Registreret kapacitet og status er registerfelter. De siger ikke i sig selv, om rummet er klargjort,
-              fysisk tilgængeligt eller kan bruges i en konkret situation.
-            </p>
+
+            <p className="mt-4 text-sm text-gray-300/90">Følg altid myndighedernes anvisninger.</p>
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
@@ -210,7 +238,7 @@ export default async function ShelterDetailPage({ params }: Props) {
                 href="/om-data"
                 className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
               >
-                Om data
+              Datagrundlag
               </Link>
             </div>
           </section>
@@ -237,20 +265,32 @@ export default async function ShelterDetailPage({ params }: Props) {
             <h2 className="text-lg font-semibold text-white">Kilde og opdatering</h2>
             {shelter.sourceSummary && <p className="mt-2 text-sm leading-6 text-gray-300">{shelter.sourceSummary}</p>}
             <dl className="mt-3">
-              <DetailRow label="Datakilde" value={shelter.canonicalSourceName} />
-              <DetailRow label="Kildereference" value={shelter.canonicalSourceReference} />
-              <DetailRow label="Senest set i kilden" value={lastSeenAt} />
-              <DetailRow label="Senest importeret" value={lastImportedAt} />
+              <DetailRow label="Kilde" value={shelter.canonicalSourceName} />
+              <DetailRow label="Data senest hentet" value={lastImportedAt ?? lastSeenAt} />
+              <DetailRow label="Status for registreringen" value={importStateLabels[shelter.importState]} />
             </dl>
             <Link
               href="/om-data"
               className="mt-4 inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
             >
-              Om data
+              Datagrundlag
             </Link>
           </section>
         </article>
       </div>
+
+      {navigationHref ? (
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0a0a0a]/95 px-4 py-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] backdrop-blur md:hidden">
+          <a
+            href={navigationHref}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex w-full items-center justify-center rounded-lg bg-white px-4 py-3 text-base font-semibold text-black transition hover:bg-gray-200"
+          >
+            Navigér hertil
+          </a>
+        </div>
+      ) : null}
 
       <GlobalFooter />
     </main>

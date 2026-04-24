@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     template: "%s | Find Beskyttelsesrum"
   },
   description:
-    "Find registrerede beskyttelsesrum i dit område. Søg på adresse eller brug din placering, og se kommune- og detaljesider med adresse, kapacitet og placering. Data bygger på offentlige registerdata og kan have begrænsninger.",
+    "Find nærmeste beskyttelsesrum i Danmark. Bygger på offentlige registerdata. Følg altid myndighedernes anvisninger.",
   keywords: ["find beskyttelsesrum", "beskyttelsesrum", "find nærmeste beskyttelsesrum", "nødstilfælde", "sikkerhed", "Danmark", "shelter", "emergency", "BBR", "DAR", "sikringspladser", "civilforsvar", "nødsituation", "beskyttelse", "sikkerhedsrum"],
   authors: [{ name: siteName }],
   creator: siteName,
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Find Beskyttelsesrum | Find nærmeste registrerede beskyttelsesrum",
     description:
-      "Søg på adresse eller brug din placering for at finde registrerede beskyttelsesrum i dit område. Se adresse, kapacitet og placering.",
+      "Find nærmeste beskyttelsesrum i Danmark. Bygger på offentlige registerdata. Følg altid myndighedernes anvisninger.",
     url: siteUrl,
     siteName,
     locale: siteLocale,
@@ -71,7 +71,8 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: "Find Beskyttelsesrum | Find nærmeste registrerede beskyttelsesrum",
-    description: "Søg på adresse eller brug din placering for at finde registrerede beskyttelsesrum i dit område.",
+    description:
+      "Find nærmeste beskyttelsesrum i Danmark. Bygger på offentlige registerdata. Følg altid myndighedernes anvisninger.",
     creator: '@beskyttelsesrum',
   },
   robots: {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import LoadingSpinner from './LoadingSpinner'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -30,6 +30,41 @@ export default function AddressSearchDAWA() {
     setQuery(suggestion.tekst)
     router.push(`/shelters/nearby?lat=${suggestion.data.y}&lng=${suggestion.data.x}`)
   }, [router])
+
+  const canSubmit = useMemo(() => query.trim().length >= 2 && !hasFailed, [query, hasFailed])
+
+  const handleSubmit = useCallback(async (event: FormEvent) => {
+    event.preventDefault()
+
+    if (!canSubmit) {
+      inputRef.current?.focus()
+      return
+    }
+
+    // Prefer an active suggestion, else fall back to the first suggestion, else fetch once.
+    const active =
+      activeIndex !== null && suggestions[activeIndex] ? suggestions[activeIndex] : suggestions[0]
+
+    if (active) {
+      selectSuggestion(active)
+      return
+    }
+
+    try {
+      setIsLoading(true)
+      const results = await fetchAddressSuggestions(query, { limit: 5 })
+      if (results.length > 0) {
+        selectSuggestion(results[0])
+        return
+      }
+      setIsOpen(false)
+      setActiveIndex(null)
+    } catch (error) {
+      handleError(error instanceof Error ? error : new Error('DAWA autocomplete failed'), 'DAWA Autocomplete failed')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [activeIndex, canSubmit, handleError, query, selectSuggestion, suggestions])
 
   const handleLocationClick = async () => {
     if (!navigator.geolocation) {
@@ -126,11 +161,11 @@ export default function AddressSearchDAWA() {
 
   return (
     <div className="space-y-3 sm:space-y-6">
-      <button onClick={handleLocationClick} className="btn-primary w-full py-4 px-6 rounded-full flex items-center justify-center gap-3 hover:bg-[#EA580C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target focus-visible btn-interactive" disabled={gpsLoading} aria-label="Brug min nuværende position til at finde beskyttelsesrum" role="button" tabIndex={0}>
+      <button onClick={handleLocationClick} className="btn-primary w-full py-4 px-6 rounded-full flex items-center justify-center gap-3 hover:bg-[#EA580C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target focus-visible btn-interactive" disabled={gpsLoading} aria-label="Brug min placering til at finde beskyttelsesrum" role="button" tabIndex={0}>
         {gpsLoading ? <LoadingSpinner size="sm" text="Henter din position..." /> : (
           <>
             <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="currentColor"/></svg>
-            <span className="text-sm sm:text-base font-medium">Brug min nuværende position</span>
+            <span className="text-sm sm:text-base font-medium">Brug min placering</span>
           </>
         )}
       </button>
@@ -151,10 +186,24 @@ export default function AddressSearchDAWA() {
           </div>
         )}
 
-        <div className="autocomplete-container w-full relative">
+        <form onSubmit={handleSubmit} className="autocomplete-container w-full relative">
+          <label htmlFor="adresse" className="sr-only">
+            Adresse
+          </label>
+
           <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-10 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          {isLoading && <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10"><LoadingSpinner size="sm" /></div>}
-          <input ref={inputRef} type="text" id="adresse" placeholder="Søg efter en adresse i Danmark" className="w-full bg-[#1a1a1a] text-white py-3 sm:py-4 px-12 sm:px-14 rounded-full border border-[#E97B4D] focus:outline-none focus:border-[#E97B4D] focus:bg-[#141414] transition-all placeholder-gray-400 disabled:opacity-50 text-sm sm:text-base touch-target focus-visible input-interactive" disabled={hasFailed} aria-label="Søg efter en adresse i Danmark" aria-describedby={hasFailed ? "dawa-error" : undefined} role="searchbox" autoComplete="off" minLength={2} value={query} onChange={(event) => setQuery(event.target.value)} onFocus={() => setIsOpen(suggestions.length > 0)} onKeyDown={handleKeyDown} />
+          {isLoading && <div className="absolute right-28 top-1/2 transform -translate-y-1/2 z-10"><LoadingSpinner size="sm" /></div>}
+
+          <input ref={inputRef} type="text" id="adresse" placeholder="Indtast adresse, by eller postnummer" className="w-full bg-[#1a1a1a] text-white py-3 sm:py-4 pl-12 pr-24 sm:pl-14 sm:pr-28 rounded-full border border-[#E97B4D] focus:outline-none focus:border-[#E97B4D] focus:bg-[#141414] transition-all placeholder-gray-400 disabled:opacity-50 text-sm sm:text-base touch-target focus-visible input-interactive" disabled={hasFailed} aria-describedby={hasFailed ? "dawa-error" : undefined} role="searchbox" autoComplete="off" minLength={2} value={query} onChange={(event) => setQuery(event.target.value)} onFocus={() => setIsOpen(suggestions.length > 0)} onKeyDown={handleKeyDown} />
+
+          <button
+            type="submit"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white text-black px-4 py-2 text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target focus-visible btn-interactive"
+            disabled={!canSubmit || gpsLoading}
+          >
+            Søg
+          </button>
+
           {isOpen && suggestions.length > 0 && (
             <div className="absolute left-0 right-0 top-full mt-1 z-[9999] bg-[#1a1a1a] border-2 border-white/30 rounded-md overflow-y-auto shadow-[0_8px_16px_rgba(0,0,0,0.6),0_0_15px_rgba(255,255,255,0.1)]" role="listbox">
               {suggestions.map((suggestion, index) => (
@@ -167,7 +216,7 @@ export default function AddressSearchDAWA() {
               ))}
             </div>
           )}
-        </div>
+        </form>
 
         {selectedAddress && (
           <div className="mt-3 p-3 bg-success-bg border border-success/30 rounded-lg" role="status" aria-live="polite">

@@ -125,6 +125,39 @@ function normalizeEligibilityParam(value: string): AppV2NearbyEligibilityParam {
   return 'source-application-code'
 }
 
+function formatDistanceKm(distanceKm: number) {
+  if (!Number.isFinite(distanceKm)) return ''
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)} m`
+  }
+  return `${distanceKm.toFixed(1).replace('.', ',')} km`
+}
+
+function formatStatus(statuses: NearbyResultShelter['statuses']) {
+  const unique = Array.from(new Set((statuses ?? []).filter(Boolean)))
+  type StatusLabel = 'Aktiv' | 'Midlertidigt lukket' | 'Under vurdering'
+  const label = (status: string) => {
+    if (status === 'active') return 'Aktiv'
+    if (status === 'temporarily_closed') return 'Midlertidigt lukket'
+    if (status === 'under_review') return 'Under vurdering'
+    return null
+  }
+
+  const labels = unique.map(label).filter((s): s is StatusLabel => s !== null)
+
+  if (labels.length === 0) return null
+  if (labels.length === 1) return labels[0]
+  return labels.join(' · ')
+}
+
+function getGoogleMapsRouteHref(location: NearbyResultShelter['location']) {
+  if (!location) return null
+  const lat = location.coordinates[1]
+  const lng = location.coordinates[0]
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+}
+
 async function fetchAppV2GroupedShelters(
   lat: number,
   lng: number,
@@ -271,7 +304,7 @@ export default function ShelterMapClient({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </Link>
-          <h1 className="text-xl sm:text-2xl font-bold">Dine 10 nærmeste beskyttelsesrum</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Nærmeste beskyttelsesrum</h1>
         </div>
 
         {/* Back to top button */}
@@ -286,11 +319,25 @@ export default function ShelterMapClient({
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="order-2 lg:order-1 space-y-4">
+          <div className="order-1 lg:order-1 space-y-4">
             {loadError ? (
               <div className="bg-[#2a2a2a] rounded-lg p-4" role="alert">
                 <p className="text-gray-200">{loadError}</p>
                 <p className="mt-2 text-sm text-gray-400">Du kan også prøve at genindlæse siden.</p>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <Link
+                    href="/"
+                    className="inline-flex items-center justify-center rounded-lg bg-white/10 px-4 py-3 text-sm font-medium text-white hover:bg-white/15 transition-colors"
+                  >
+                    Søg igen
+                  </Link>
+                  <Link
+                    href="/kommune"
+                    className="inline-flex items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors"
+                  >
+                    Se kommuneoversigt
+                  </Link>
+                </div>
               </div>
             ) : isLoading ? (
               <div className="bg-[#2a2a2a] rounded-lg p-4" role="status" aria-live="polite">
@@ -298,9 +345,24 @@ export default function ShelterMapClient({
               </div>
             ) : shelters.length === 0 ? (
               <div className="bg-[#2a2a2a] rounded-lg p-4" role="status" aria-live="polite">
-                <p className="text-gray-300">
-                  Der blev ikke fundet registrerede beskyttelsesrum tæt på den valgte placering.
+                <h2 className="text-lg font-semibold text-white">Vi fandt ikke et beskyttelsesrum</h2>
+                <p className="mt-2 text-gray-300">
+                  Prøv en mere præcis adresse, brug din placering, eller søg i kommuneoversigten. Følg altid myndighedernes anvisninger.
                 </p>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <Link
+                    href="/"
+                    className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-medium text-black hover:bg-gray-200 transition-colors"
+                  >
+                    Søg igen
+                  </Link>
+                  <Link
+                    href="/kommune"
+                    className="inline-flex items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors"
+                  >
+                    Se kommuneoversigt
+                  </Link>
+                </div>
               </div>
             ) : (
               shelters.map((shelter) => (
@@ -319,91 +381,69 @@ export default function ShelterMapClient({
                     }
                   }}
                 >
-                  <div className="flex justify-between items-start mb-4 sm:mb-5">
-                    <div>
-                      <h2 className="text-lg sm:text-xl font-semibold text-white group-hover:text-orange-400/90 transition-colors">
-                        {shelter.vejnavn} {shelter.husnummer}
-                        <span className="block sm:inline mt-1 sm:mt-0 sm:ml-2 text-sm bg-orange-500/20 text-orange-400/90 px-2 py-0.5 rounded">
-                          {shelter.shelter_count} beskyttelsesrum
-                        </span>
-                      </h2>
-                      <p className="text-sm text-gray-400 mt-1">
-                        {shelter.postnummer} {getKommunenavn(shelter.kommunekode, kommunekoder)}
-                      </p>
-                      <div className="flex items-center mt-2">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center bg-[#2a2a2a] text-orange-400/90 px-2 py-0.5 rounded-md text-sm font-medium border border-orange-500/10">
-                          {shelter.distance.toFixed(1)} km
+                          {formatDistanceKm(shelter.distance)}
                         </span>
+                        {typeof shelter.shelter_count === 'number' ? (
+                          <span className="text-xs sm:text-sm bg-white/5 text-gray-200 px-2 py-0.5 rounded border border-white/10">
+                            {shelter.shelter_count} beskyttelsesrum
+                          </span>
+                        ) : null}
                       </div>
+
+                      <h2 className="mt-2 text-lg sm:text-xl font-semibold text-white group-hover:text-orange-400/90 transition-colors truncate">
+                        {shelter.vejnavn} {shelter.husnummer}
+                      </h2>
+
+                      <p className="text-sm text-gray-300 mt-1">
+                        {shelter.postnummer} {shelter.city ?? getKommunenavn(shelter.kommunekode, kommunekoder)}
+                      </p>
                     </div>
-                    {shelter.location && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                          const lat = shelter.location!.coordinates[1];
-                          const lng = shelter.location!.coordinates[0];
-
-                          if (isMobile) {
-                            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-                            const isAndroid = /Android/i.test(navigator.userAgent);
-
-                            if (isIOS) {
-                              window.open(`maps://maps.apple.com/?q=${lat},${lng}`, '_blank');
-                            } else if (isAndroid) {
-                              window.open(`geo:${lat},${lng}?q=${lat},${lng}`, '_blank');
-                            }
-                          } else {
-                            window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15`, '_blank');
-                          }
-                        }}
-                        className="bg-orange-500/10 hover:bg-orange-500/20 text-orange-400/90 p-2 sm:p-3 rounded-lg transition-colors border border-orange-500/20"
-                        title="Åbn i kort"
-                        aria-label={`Åbn kort for ${shelter.vejnavn} ${shelter.husnummer}, ${shelter.postnummer} ${getKommunenavn(shelter.kommunekode, kommunekoder)}`}
-                      >
-                        <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </button>
-                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-5">
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4">
                     <div className="bg-[#252525] p-3 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                      <div className="text-sm text-gray-400 mb-1">Total kapacitet</div>
-                      <div className="text-white font-medium text-base sm:text-lg">{shelter.total_capacity} personer</div>
-                    </div>
-                    {(shelter.typeLabel || (shelter.source === 'legacy' && shelter.anvendelse)) && (
-                      <div className="bg-[#252525] p-3 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                        <div className="text-sm text-gray-400 mb-1">Type</div>
-                        <div className="text-white font-medium text-sm line-clamp-2">
-                          {shelter.typeLabel
-                            ? shelter.typeLabel
-                            : getAnvendelseskodeBeskrivelse(shelter.anvendelse!, anvendelseskoder)}
-                        </div>
+                      <div className="text-sm text-gray-400 mb-1">Kapacitet</div>
+                      <div className="text-white font-medium text-base sm:text-lg">
+                        {typeof shelter.total_capacity === 'number' ? `${shelter.total_capacity} personer` : '—'}
                       </div>
-                    )}
+                    </div>
+                    <div className="bg-[#252525] p-3 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
+                      <div className="text-sm text-gray-400 mb-1">Status</div>
+                      <div className="text-white font-medium text-sm sm:text-base line-clamp-2">
+                        {formatStatus(shelter.statuses) ?? '—'}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="border-t border-white/5 pt-4 sm:pt-5">
-                    <div className="text-sm text-gray-400 mb-2 sm:mb-3">Anslået rejsetid</div>
-                    <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                      <div className="bg-[#252525] p-2.5 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                        <div className="text-gray-400 text-sm mb-0.5 sm:mb-1">Bil</div>
-                        <div className="text-white font-medium text-base sm:text-lg">{Math.ceil(shelter.distance * 3)} min</div>
-                      </div>
-                      <div className="bg-[#252525] p-2.5 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                        <div className="text-gray-400 text-sm mb-0.5 sm:mb-1">Cykel</div>
-                        <div className="text-white font-medium text-base sm:text-lg">{Math.ceil(shelter.distance * 5)} min</div>
-                      </div>
-                      <div className="bg-[#252525] p-2.5 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                        <div className="text-gray-400 text-sm mb-0.5 sm:mb-1">Gående</div>
-                        <div className="text-white font-medium text-base sm:text-lg">{Math.ceil(shelter.distance * 20)} min</div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-2">
-                      Baseret på gennemsnitlige hastigheder i byområder. Rejsetiden kan variere afhængigt af trafik og forhold.
+                  <div className="mt-4 border-t border-white/5 pt-4 sm:pt-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      {shelter.representativeSlug ? (
+                        <Link
+                          href={`/beskyttelsesrum/${shelter.representativeSlug}`}
+                          onClick={(event) => event.stopPropagation()}
+                          className="inline-flex items-center justify-center rounded-lg bg-white text-black px-4 py-3 text-sm font-medium hover:bg-gray-200 transition-colors"
+                        >
+                          Åbn
+                        </Link>
+                      ) : (
+                        <span className="text-sm text-gray-400">Detaljeside er ikke tilgængelig</span>
+                      )}
+
+                      {getGoogleMapsRouteHref(shelter.location) ? (
+                        <a
+                          href={getGoogleMapsRouteHref(shelter.location)!}
+                          target="_blank"
+                          rel="noopener"
+                          onClick={(event) => event.stopPropagation()}
+                          className="inline-flex items-center justify-center rounded-lg bg-white/5 text-white px-4 py-3 text-sm font-medium hover:bg-white/10 transition-colors"
+                        >
+                          Rute
+                        </a>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -411,7 +451,7 @@ export default function ShelterMapClient({
             )}
           </div>
 
-          <div className="order-1 lg:order-2 h-[400px] min-h-[400px] lg:h-[600px] lg:min-h-[600px] relative lg:sticky lg:top-4">
+          <div className="order-2 lg:order-2 h-[400px] min-h-[400px] lg:h-[600px] lg:min-h-[600px] relative lg:sticky lg:top-4">
             <div
               className="absolute inset-0 rounded-lg overflow-hidden"
               aria-label="Kort med din placering og nærliggende beskyttelsesrum"

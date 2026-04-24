@@ -17,16 +17,16 @@ import {
 export const revalidate = 600;
 
 export const metadata: Metadata = {
-  title: "Beskyttelsesrum i Danmark",
+  title: "Hele landet",
   description:
-    "National indgang til registrerede beskyttelsesrum i Danmark med landstal, regional struktur, kommuner og udvalgte eksempelregistreringer.",
+    "Sekundær oversigt over registrerede beskyttelsesrum i Danmark. Brug søgning på forsiden for at finde nærmeste beskyttelsesrum.",
   alternates: {
     canonical: "/land",
   },
   openGraph: {
-    title: "Beskyttelsesrum i Danmark",
+    title: "Hele landet",
     description:
-      "National indgang til landstal, regional struktur, kommuner og udvalgte eksempelregistreringer.",
+      "Sekundær oversigt over registrerede beskyttelsesrum i Danmark. Brug søgning på forsiden for at finde nærmeste beskyttelsesrum.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -206,7 +206,7 @@ function JourneyItem({
   label: string;
   title: string;
   description: string;
-  href: "/land" | "/kommune";
+  href: "/land" | "/kommune" | "/" | "/om-data";
 }) {
   return (
     <Link href={href} className="group block py-4">
@@ -262,16 +262,19 @@ export default async function CountryPage() {
         <header className="mb-10 max-w-3xl space-y-5">
           <p className="text-sm uppercase tracking-wide text-gray-400">Hele landet</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
-            Beskyttelsesrum i Danmark
+            Hele landet
           </h1>
           <p className="text-lg leading-8 text-gray-300">
-            Den nationale indgang til registrerede beskyttelsesrum, kommuner og datagrundlag.
+            Brug søgning på forsiden for at finde nærmeste beskyttelsesrum. Landssiden er en sekundær oversigt.
           </p>
-          <p className="text-sm leading-6 text-gray-400">
-            Brug landssiden til at se national struktur, finde vej til kommunesider og åbne få konkrete detail-sider.
-            Den er ikke en komplet national browser for beskyttelsesrum. Adressebaseret søgning og kort kører fortsat
-            på den normale søgning.
-          </p>
+          <div className="pt-1">
+            <Link
+              href="/"
+              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+            >
+              Find nærmeste beskyttelsesrum
+            </Link>
+          </div>
         </header>
 
         {overview.ok ? (
@@ -363,34 +366,34 @@ export default async function CountryPage() {
 
         <section className="mb-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
           <div className="max-w-3xl">
-            <p className="text-sm uppercase tracking-wide text-gray-400">Produktets hierarki</p>
-            <h2 className="mt-2 text-xl font-semibold text-white">Fra nationalt overblik til enkelt registrering</h2>
+            <p className="text-sm uppercase tracking-wide text-gray-400">Sekundær vej</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">Fra oversigt til kommune</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Landssiden er den brede indgang. Kommune- og shelter-siderne gør overblikket konkret, mens data-siden
-              forklarer hvilke kilder og begrænsninger der ligger bag.
+              Landssiden kan bruges til at finde vej til kommunesider og forstå overordnede tal. Hvis du skal handle
+              hurtigt, brug søgning på forsiden.
             </p>
           </div>
           <div className="mt-5 divide-y divide-white/10 md:grid md:grid-cols-3 md:divide-x md:divide-y-0">
             <JourneyItem
               label="1"
-              title="Hele landet"
-              description="Start her for nationale tal og en samlet vej ind i produktet."
-              href="/land"
+              title="Søg"
+              description="Find nærmeste beskyttelsesrum via adresse eller placering."
+              href="/"
             />
             <div className="md:px-5">
               <JourneyItem
                 label="2"
-                title="Kommuner"
-                description="Vælg en kommune for lokalt kort, registervisning og kommune-kontekst."
+                title="Kommuneoversigt"
+                description="Vælg en kommune for lokalt overblik."
                 href="/kommune"
               />
             </div>
             <div className="md:pl-5">
               <JourneyItem
                 label="3"
-                title="Enkelte registreringer"
-                description="Åbn detail-sider via kommunevisningen eller udvalgte eksempler — når der findes en offentlig aktiv registrering."
-                href="/kommune"
+                title="Datagrundlag"
+                description="Læs om kilder og forbehold."
+                href="/om-data"
               />
             </div>
           </div>
@@ -497,7 +500,7 @@ export default async function CountryPage() {
           <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-300">
             Start med kommuneoversigten for at gå fra nationalt overblik til lokal kontekst. Brug{" "}
             <Link href="/om-data" className="text-white underline-offset-2 hover:underline">
-              Om data
+              Datagrundlag
             </Link>
             , hvis du vil forstå forskellen på aktive registreringer, registrerede pladser og udvalgte
             eksempelregistreringer.
@@ -513,7 +516,7 @@ export default async function CountryPage() {
               href="/om-data"
               className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
             >
-              Om data
+              Datagrundlag
             </Link>
           </div>
         </section>

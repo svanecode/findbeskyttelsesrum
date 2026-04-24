@@ -18,7 +18,7 @@ const ShelterMapClient = dynamic(
           </div>
           <div className="mb-4 h-12 w-full rounded-md border border-white/5 bg-white/5" />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="order-1 lg:order-2">
+            <div className="order-2 lg:order-2">
               <div className="flex h-[400px] min-h-[400px] items-center justify-center rounded-lg border border-white/5 bg-[#252525] lg:h-[600px] lg:min-h-[600px]">
                 <div className="flex animate-pulse flex-col items-center space-y-4">
                   <div className="h-12 w-12 rounded-full bg-orange-500/20" />
@@ -27,7 +27,7 @@ const ShelterMapClient = dynamic(
                 </div>
               </div>
             </div>
-            <div className="order-2 min-h-[320px] rounded-lg border border-white/5 bg-[#252525] lg:order-1" />
+            <div className="order-1 min-h-[320px] rounded-lg border border-white/5 bg-[#252525] lg:order-1" />
           </div>
         </div>
       </main>

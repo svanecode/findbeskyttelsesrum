@@ -13,16 +13,16 @@ import {
 export const revalidate = 600;
 
 export const metadata: Metadata = {
-  title: "Om data",
+  title: "Datagrundlag",
   description:
-    "Forklaring af datagrundlaget bag land-, kommune- og detaljesiderne — registreringer, kapacitet og begrænsninger i det offentlige overblik.",
+    "Findbeskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Læs om datagrundlag, opdatering og hvad du kan gøre, hvis noget er forkert.",
   alternates: {
     canonical: "/om-data",
   },
   openGraph: {
-    title: "Om data",
+    title: "Datagrundlag",
     description:
-      "Hvordan destinationssiderne bruger registerdata, og hvad der ikke følger med i tallene.",
+      "Findbeskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Læs om datagrundlag, opdatering og forbehold.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -107,14 +107,20 @@ export default async function DataPage() {
       <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         <header className="mb-10 max-w-3xl space-y-5">
           <p className="text-sm uppercase tracking-wide text-gray-400">Data</p>
-          <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Om datagrundlaget</h1>
+          <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Datagrundlag</h1>
           <p className="text-lg leading-8 text-gray-300">
-            Land-, kommune- og detail-siderne bruger registerdata fra datagrundlaget bag Find Beskyttelsesrum.
+            Findbeskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Siden er uafhængig og ikke tilknyttet
+            den danske stat.
           </p>
-          <p className="text-sm leading-6 text-gray-400">
-            Siden beskriver de offentlige destinationssider. Adressebaseret søgning, nærliggende resultater og kort i
-            det almindelige søgningsforløb kører fortsat uden for denne forklaring.
-          </p>
+          <p className="text-sm leading-6 text-gray-400">Følg altid myndighedernes anvisninger i en akut situation.</p>
+          <div className="pt-1">
+            <Link
+              href="/"
+              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+            >
+              Find nærmeste beskyttelsesrum
+            </Link>
+          </div>
         </header>
 
         {overview.ok ? (
@@ -122,17 +128,17 @@ export default async function DataPage() {
             <StatCard
               label="Kommuner"
               value={overview.municipalityCount.toLocaleString("da-DK")}
-              note="Kommuner der findes i det aktuelle kommuneregister i datagrundlaget."
+              note="Kommuner i oversigten."
             />
             <StatCard
               label="Aktive registreringer"
               value={overview.activeShelterCount.toLocaleString("da-DK")}
-              note="Registreringer der er aktive i det aktuelle datagrundlag."
+              note="Aktive registreringer i oversigten."
             />
             <StatCard
-              label="Seneste import"
+              label="Senest opdateret"
               value={latestImportCompletedAt ?? "Ikke registreret"}
-              note="Vises kun hvis afsluttet importmetadata findes."
+              note="Vises kun hvis der findes opdateringsdato."
             />
           </section>
         ) : (
@@ -146,41 +152,39 @@ export default async function DataPage() {
 
         <div className="grid gap-6">
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold text-white">Hvad data repræsenterer</h2>
+            <h2 className="text-lg font-semibold text-white">Hvor kommer data fra?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Data er struktureret, så officielle importerede felter kan holdes adskilt fra senere manuelle rettelser,
-              fravalg og rapporter. Det gør datagrundlaget lettere at forklare og vedligeholde.
+              Oversigten bygger på offentlige registerdata fra BBR (Bygnings- og Boligregistret) og DAR (Danmarks
+              Adresseregister). Siderne viser registrerede oplysninger og kan have begrænsninger.
             </p>
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold text-white">Hvad data bygger på</h2>
+            <h2 className="text-lg font-semibold text-white">Hvor ofte opdateres data?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Datalaget er forberedt til importerede registeroplysninger om beskyttelsesrum, kommuner, kildeidentitet og
-              importhistorik. De offentlige sider viser kun felter, der findes i databasen og egner sig til enkel
-              offentlig visning.
+              Hvis der findes en opdateringsdato, vises den øverst på siden. Mangler datoen, kan siden stadig vise
+              registreringer, men uden en tydelig “senest opdateret”.
             </p>
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold text-white">Sådan hænger siderne sammen</h2>
+            <h2 className="text-lg font-semibold text-white">Hvad hvis noget er forkert?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Landssiden giver nationalt overblik og regional struktur. Kommuneoversigten leder videre til lokale
-              kommunesider med nøgletal, postområder, liste og kort samt veje til detail-sider. Detail-sider viser én
-              aktiv registrering med kilde- og opdateringskontekst.
+              Hvis en adresse, kapacitet eller status virker forkert, kan det skyldes fejl eller forsinkelser i
+              registerdata. Brug “Rapportér en fejl” på den enkelte detaljeside, hvis funktionen findes dér.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link
-                href="/land"
+                href="/"
                 className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
               >
-                Se hele landet
+                Find nærmeste beskyttelsesrum
               </Link>
               <Link
                 href="/kommune"
                 className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
               >
-                Se kommuner
+                Se kommuneoversigt
               </Link>
             </div>
           </section>
@@ -195,42 +199,22 @@ export default async function DataPage() {
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold text-white">Nærliggende resultater</h2>
-            <p className="mt-3 text-sm leading-6 text-gray-300">
-              Den normale adressebaserede søgning og kortvisning bruger fortsat den normale søgning. Nærliggende
-              resultater kræver præcis håndtering af
-              afstand, gruppering, fravalg og kildebaseret typefiltrering.
-            </p>
-            <p className="mt-3 text-sm leading-6 text-gray-400">
-              En senere ændring af nærliggende resultater kræver særskilt validering, før den kan blive den
-              brugersynlige standard.
-            </p>
-          </section>
-
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Næste skridt</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Vend tilbage til forsiden for adressesøgning, eller fortsæt i destinationssporet land → kommuner →
-              lokalt overblik.
+              Brug søgningen på forsiden, eller gå via kommuneoversigten, hvis du vil orientere dig lokalt.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link
                 href="/"
                 className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
               >
-                Til forsiden
-              </Link>
-              <Link
-                href="/land"
-                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
-              >
-                Hele landet
+                Find nærmeste beskyttelsesrum
               </Link>
               <Link
                 href="/kommune"
                 className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
               >
-                Kommuner
+                Kommuneoversigt
               </Link>
             </div>
           </section>

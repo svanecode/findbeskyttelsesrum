@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
 import SiteHeader from "@/components/SiteHeader";
+import Link from "next/link";
 import {
   getAppV2MunicipalitySummaries,
   getAppV2ShelterCount,
@@ -14,13 +15,14 @@ import CountryMapExperience from "./country-map-experience";
 export const revalidate = 86400;
 
 export const metadata: Metadata = {
-  title: "Kort over beskyttelsesrum i Danmark",
+  title: "Landskort",
   description:
-    "Interaktivt landskort med registrerede beskyttelsesrum i Danmark. Zoom, klik og få et nationalt overblik.",
+    "Sekundær visning: landskort med registrerede beskyttelsesrum i Danmark. Brug søgning på forsiden for at finde nærmeste beskyttelsesrum.",
   alternates: { canonical: "/kort" },
   openGraph: {
-    title: "Kort over beskyttelsesrum i Danmark",
-    description: "Interaktivt landskort med registrerede beskyttelsesrum i Danmark.",
+    title: "Landskort",
+    description:
+      "Sekundær visning: landskort med registrerede beskyttelsesrum i Danmark. Brug søgning på forsiden for at finde nærmeste beskyttelsesrum.",
     type: "website",
     url: "https://findbeskyttelsesrum.dk/kort",
     siteName: "Find Beskyttelsesrum",
@@ -82,8 +84,19 @@ export default async function CountryMapPage() {
         <header className="mb-8 max-w-3xl space-y-4">
           <p className="text-sm uppercase tracking-wide text-gray-400">Hele landet</p>
           <h1 className="font-space-grotesk text-3xl font-bold leading-tight text-white sm:text-4xl">
-            Beskyttelsesrum i Danmark
+            Landskort
           </h1>
+          <p className="text-lg leading-8 text-gray-300">
+            Brug søgning på forsiden for at finde nærmeste beskyttelsesrum. Landskortet er en sekundær visning.
+          </p>
+          <div className="pt-1">
+            <Link
+              href="/"
+              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+            >
+              Find nærmeste beskyttelsesrum
+            </Link>
+          </div>
           <p className="text-lg leading-8 text-gray-300">
             Kort med {totalCount.toLocaleString("da-DK")} registrerede beskyttelsesrum i oversigten, fordelt på{" "}
             {activeMunicipalityCount.toLocaleString("da-DK")} kommuner med samlet{" "}
