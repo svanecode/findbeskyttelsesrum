@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import GlobalFooter from "@/components/GlobalFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { serializeJsonLd } from "@/lib/seo/json-ld";
-import { getAppV2ShelterBySlug, type AppV2ShelterDetail } from "@/lib/supabase/app-v2-queries";
+import { getAppV2PublicShelterBySlug, type AppV2ShelterDetail } from "@/lib/supabase/app-v2-queries";
 
 type Props = {
   params: Promise<{
@@ -86,7 +86,7 @@ function DetailRow({ label, value }: { label: string; value: string | number | n
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const shelter = await getAppV2ShelterBySlug(slug);
+  const shelter = await getAppV2PublicShelterBySlug(slug);
 
   if (!shelter) {
     return {
@@ -115,7 +115,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ShelterDetailPage({ params }: Props) {
   const { slug } = await params;
-  const shelter = await getAppV2ShelterBySlug(slug);
+  const shelter = await getAppV2PublicShelterBySlug(slug);
 
   if (!shelter) {
     notFound();

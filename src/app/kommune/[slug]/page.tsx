@@ -5,8 +5,8 @@ import GlobalFooter from '@/components/GlobalFooter'
 import SiteHeader from '@/components/SiteHeader'
 import {
   getAppV2MunicipalityBySlug,
-  getAppV2MunicipalityShelters,
-  getAppV2MunicipalityShelterStats,
+  getAppV2PublicMunicipalityShelters,
+  getAppV2PublicMunicipalityShelterStats,
   groupMunicipalityShelters,
   type AppV2MunicipalityShelter,
 } from '@/lib/supabase/app-v2-queries'
@@ -107,8 +107,8 @@ export default async function KommunePage({ params }: Props) {
   if (!municipality) notFound()
 
   const [shelters, stats] = await Promise.all([
-    getAppV2MunicipalityShelters(municipality.id),
-    getAppV2MunicipalityShelterStats(municipality.id),
+    getAppV2PublicMunicipalityShelters(municipality.id),
+    getAppV2PublicMunicipalityShelterStats(municipality.id),
   ])
 
   const groups = groupMunicipalityShelters(shelters)
@@ -160,7 +160,7 @@ export default async function KommunePage({ params }: Props) {
         {/* Stats */}
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="Adresser" value={groups.length} />
-          <StatCard label="Aktive registreringer" value={municipality.activeShelterCount} />
+          <StatCard label="Aktive registreringer" value={stats.activeShelterCount} />
           <StatCard label="Registrerede pladser" value={stats.totalCapacity} />
           <StatCard label="Postområder i oversigten" value={stats.postalAreaCount} />
         </div>

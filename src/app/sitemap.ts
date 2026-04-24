@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next'
-import { getAppV2MunicipalitySlugs, getAppV2SitemapShelters } from '@/lib/supabase/app-v2-queries'
+import { getAppV2MunicipalitySlugs, getAppV2PublicSitemapShelters } from '@/lib/supabase/app-v2-queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,7 +76,7 @@ async function getKommuneRoutes(baseUrl: string) {
 
 async function getShelterRoutes(baseUrl: string) {
   try {
-    const shelters = await getAppV2SitemapShelters()
+    const shelters = await getAppV2PublicSitemapShelters()
 
     return shelters.map((row) => ({
       url: `${baseUrl}/beskyttelsesrum/${row.slug}`,
