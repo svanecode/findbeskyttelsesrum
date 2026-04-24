@@ -14,7 +14,7 @@ export const revalidate = 600;
 export const metadata: Metadata = {
   title: "Datagrundlag",
   description:
-    "Findbeskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Læs om datagrundlag, opdatering og hvad du kan gøre, hvis noget er forkert.",
+    "Findbeskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Læs om datagrundlag, opdatering og forbehold.",
   alternates: {
     canonical: "/om-data",
   },
@@ -162,28 +162,6 @@ export default async function DataPage() {
               Hvis der findes en opdateringsdato, vises den øverst på siden. Mangler datoen, kan siden stadig vise
               beskyttelsesrum, men uden en tydelig “senest opdateret”.
             </p>
-          </section>
-
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold text-white">Hvad hvis noget er forkert?</h2>
-            <p className="mt-3 text-sm leading-6 text-gray-300">
-              Hvis en adresse, kapacitet eller status virker forkert, kan det skyldes fejl eller forsinkelser i
-              registerdata. Brug “Rapportér en fejl” på den enkelte detaljeside, hvis funktionen findes dér.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/"
-                className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
-              >
-                Find nærmeste beskyttelsesrum
-              </Link>
-              <Link
-                href="/kommune"
-                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
-              >
-                Se kommuneoversigt
-              </Link>
-            </div>
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
