@@ -16,11 +16,11 @@ export const revalidate = 86400;
 export const metadata: Metadata = {
   title: "Kort over beskyttelsesrum i Danmark",
   description:
-    "Interaktivt landskort med alle registrerede beskyttelsesrum i Danmark. Zoom, klik og find det nærmeste beskyttelsesrum i dit område.",
+    "Interaktivt landskort med registrerede beskyttelsesrum i Danmark. Zoom, klik og få et nationalt overblik.",
   alternates: { canonical: "/kort" },
   openGraph: {
     title: "Kort over beskyttelsesrum i Danmark",
-    description: "Interaktivt landskort med alle registrerede beskyttelsesrum i Danmark.",
+    description: "Interaktivt landskort med registrerede beskyttelsesrum i Danmark.",
     type: "website",
     url: "https://findbeskyttelsesrum.dk/kort",
     siteName: "Find Beskyttelsesrum",

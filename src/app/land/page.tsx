@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
 import SiteHeader from "@/components/SiteHeader";
+import { serializeJsonLd } from "@/lib/seo/json-ld";
 import {
   getAppV2FeaturedShelters,
   getAppV2MunicipalitySummaries,
@@ -18,14 +19,14 @@ export const revalidate = 600;
 export const metadata: Metadata = {
   title: "Beskyttelsesrum i Danmark",
   description:
-    "National destinationsside for registrerede beskyttelsesrum i Danmark med landstal, regional struktur, kommuner, udvalgte eksempelregistreringer og datagrundlag.",
+    "National indgang til registrerede beskyttelsesrum i Danmark med landstal, regional struktur, kommuner og udvalgte eksempelregistreringer.",
   alternates: {
     canonical: "/land",
   },
   openGraph: {
     title: "Beskyttelsesrum i Danmark",
     description:
-      "National indgang til landstal, regional struktur, kommuner, udvalgte eksempelregistreringer og datagrundlag.",
+      "National indgang til landstal, regional struktur, kommuner og udvalgte eksempelregistreringer.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -164,7 +165,7 @@ function buildLandJsonLd(
 ) {
   const webPage = {
     "@context": "https://schema.org",
-    "@type": "WebPage",
+    "@type": "CollectionPage",
     name: "Beskyttelsesrum i Danmark",
     description:
       "National oversigt over registrerede beskyttelsesrum i Danmark med landstal, regional struktur og kommuner.",
@@ -245,8 +246,9 @@ export default async function CountryPage() {
     <main className="min-h-screen bg-[#0a0a0a] text-white">
       <script
         type="application/ld+json"
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(landJsonLd).replace(/</g, "\\u003c"),
+          __html: serializeJsonLd(landJsonLd),
         }}
       />
       <div className="fixed inset-0 -z-10 overflow-hidden">

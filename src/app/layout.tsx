@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import VercelWebMetrics from "@/components/VercelWebMetrics";
+import { getWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
+import { siteLocale, siteName, siteUrl } from "@/lib/seo/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -19,15 +21,16 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: {
-    default: "Find Beskyttelsesrum | Oversigt over alle beskyttelsesrum i Danmark",
+    default: "Find Beskyttelsesrum | Find nærmeste registrerede beskyttelsesrum",
     template: "%s | Find Beskyttelsesrum"
   },
-  description: "Find beskyttelsesrum i dit område. Komplet oversigt over alle offentlige beskyttelsesrum i Danmark. Søg efter beskyttelsesrum i din kommune eller find det nærmeste baseret på din lokation. Data kommer fra BBR og DAR.",
+  description:
+    "Find registrerede beskyttelsesrum i dit område. Søg på adresse eller brug din placering, og se kommune- og detaljesider med adresse, kapacitet og placering. Data bygger på offentlige registerdata og kan have begrænsninger.",
   keywords: ["find beskyttelsesrum", "beskyttelsesrum", "find nærmeste beskyttelsesrum", "nødstilfælde", "sikkerhed", "Danmark", "shelter", "emergency", "BBR", "DAR", "sikringspladser", "civilforsvar", "nødsituation", "beskyttelse", "sikkerhedsrum"],
-  authors: [{ name: "Find Beskyttelsesrum" }],
-  creator: "Find Beskyttelsesrum",
-  publisher: "Find Beskyttelsesrum",
-  applicationName: "Find Beskyttelsesrum",
+  authors: [{ name: siteName }],
+  creator: siteName,
+  publisher: siteName,
+  applicationName: siteName,
   category: "Sikkerhed",
   classification: "Public Service",
   icons: {
@@ -52,22 +55,23 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://findbeskyttelsesrum.dk'),
+  metadataBase: new URL(siteUrl),
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: "Find Beskyttelsesrum | Oversigt over alle beskyttelsesrum i Danmark",
-    description: "Find beskyttelsesrum i dit område. Komplet oversigt over alle offentlige beskyttelsesrum i Danmark. Søg efter beskyttelsesrum i din kommune eller find det nærmeste baseret på din lokation.",
-    url: 'https://findbeskyttelsesrum.dk',
-    siteName: 'Find Beskyttelsesrum',
-    locale: 'da_DK',
+    title: "Find Beskyttelsesrum | Find nærmeste registrerede beskyttelsesrum",
+    description:
+      "Søg på adresse eller brug din placering for at finde registrerede beskyttelsesrum i dit område. Se adresse, kapacitet og placering.",
+    url: siteUrl,
+    siteName,
+    locale: siteLocale,
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Find Beskyttelsesrum | Oversigt over alle beskyttelsesrum i Danmark",
-    description: "Find beskyttelsesrum i dit område. Komplet oversigt over alle offentlige beskyttelsesrum i Danmark.",
+    title: "Find Beskyttelsesrum | Find nærmeste registrerede beskyttelsesrum",
+    description: "Søg på adresse eller brug din placering for at finde registrerede beskyttelsesrum i dit område.",
     creator: '@beskyttelsesrum',
   },
   robots: {
@@ -95,6 +99,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const websiteJsonLd = getWebsiteJsonLd();
+
   return (
     <html lang="da" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <head>
@@ -108,6 +114,11 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Beskyttelsesrum" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="format-detection" content="telephone=no" />
+        <script
+          type="application/ld+json"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd) }}
+        />
       </head>
       <body className={`${inter.className} antialiased`}>
         <ErrorBoundary>

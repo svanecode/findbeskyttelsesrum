@@ -10,14 +10,14 @@ export const revalidate = 86400;
 export const metadata: Metadata = {
   title: "Kommuner med aktive registreringer",
   description:
-    "Alfabetisk oversigt over kommuner i datalaget med aktive registreringer — med vej videre til lokale sider, kort og forklaring af tallene.",
+    "Alfabetisk oversigt over kommuner med registrerede beskyttelsesrum — med vej videre til lokale sider, kort og forklaring af tallene.",
   alternates: {
     canonical: "/kommune",
   },
   openGraph: {
     title: "Kommuner med aktive registreringer",
     description:
-      "Oversigt over kommuner i datalaget og lokale sider med aktive registreringer, registrerede pladser og kortkontekst.",
+      "Oversigt over kommuner og lokale sider med registreringer, kapacitet og kortkontekst.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",

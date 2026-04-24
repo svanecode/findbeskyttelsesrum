@@ -15,14 +15,14 @@ export const revalidate = 600;
 export const metadata: Metadata = {
   title: "Om data",
   description:
-    "Forklaring af datagrundlaget bag land-, kommune- og detail-siderne — aktive registreringer, registrerede pladser og grænsen til den almindelige søgning.",
+    "Forklaring af datagrundlaget bag land-, kommune- og detaljesiderne — registreringer, kapacitet og begrænsninger i det offentlige overblik.",
   alternates: {
     canonical: "/om-data",
   },
   openGraph: {
     title: "Om data",
     description:
-      "Hvordan land-, kommune- og detail-sider bruger registerdata, og hvad der ikke følger med i tallene.",
+      "Hvordan destinationssiderne bruger registerdata, og hvad der ikke følger med i tallene.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",

@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
 import SiteHeader from "@/components/SiteHeader";
+import { serializeJsonLd } from "@/lib/seo/json-ld";
 import { getAppV2ShelterBySlug, type AppV2ShelterDetail } from "@/lib/supabase/app-v2-queries";
 
 type Props = {
@@ -96,14 +97,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const address = getShelterAddress(shelter);
 
   return {
-    title: `${shelter.name} | Beskyttelsesrum i ${shelter.municipality.name}`,
-    description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} registrerede pladser. Registerfelter fra kildedata.`,
+    title: `${shelter.name} | Beskyttelsesrum i ${shelter.city}`,
+    description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} pladser. Se placering og nøgleoplysninger for registreringen.`,
     alternates: {
       canonical: getShelterCanonicalPath(shelter.slug),
     },
     openGraph: {
-      title: `${shelter.name} | Beskyttelsesrum i ${shelter.municipality.name}`,
-      description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} registrerede pladser.`,
+      title: `${shelter.name} | Beskyttelsesrum i ${shelter.city}`,
+      description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} pladser.`,
       type: "article",
       locale: "da_DK",
       siteName: "Find Beskyttelsesrum",
@@ -128,8 +129,9 @@ export default async function ShelterDetailPage({ params }: Props) {
     <main className="min-h-screen bg-[#0a0a0a] text-white">
       <script
         type="application/ld+json"
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+          __html: serializeJsonLd(jsonLd),
         }}
       />
       <div className="fixed inset-0 -z-10 overflow-hidden">

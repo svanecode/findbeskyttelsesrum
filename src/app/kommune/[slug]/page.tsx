@@ -10,6 +10,7 @@ import {
   groupMunicipalityShelters,
   type AppV2MunicipalityShelter,
 } from '@/lib/supabase/app-v2-queries'
+import { serializeJsonLd } from '@/lib/seo/json-ld'
 import KommuneExperience from './kommune-experience'
 export { generateMetadata } from './metadata'
 
@@ -35,7 +36,7 @@ function buildKommunePageJsonLd(
 
   const webPage = {
     '@context': 'https://schema.org',
-    '@type': 'WebPage',
+    '@type': 'CollectionPage',
     name: `Beskyttelsesrum i ${kommuneNavn}`,
     description: `Kommuneoversigt over registrerede beskyttelsesrum i ${kommuneNavn}: aktive registreringer, kapacitet, adresser og vej til detail-sider.`,
     url: `https://findbeskyttelsesrum.dk/kommune/${municipality.slug}`,
@@ -71,7 +72,7 @@ function buildKommunePageJsonLd(
       '@type': 'ListItem',
       position: index + 1,
       item: {
-        '@type': 'EmergencyService',
+        '@type': 'Place',
         name: shelter.name,
         url: `https://findbeskyttelsesrum.dk/beskyttelsesrum/${shelter.slug}`,
         address: {
@@ -118,8 +119,9 @@ export default async function KommunePage({ params }: Props) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(kommuneJsonLd).replace(/</g, '\\u003c'),
+          __html: serializeJsonLd(kommuneJsonLd),
         }}
+        suppressHydrationWarning
       />
       {/* Background grid */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
