@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import dynamic from 'next/dynamic'
 import 'leaflet/dist/leaflet.css'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
@@ -52,6 +52,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const leafletRef = useRef<typeof import('leaflet') | null>(null)
   const fittedRef = useRef(false)
+  const [leafletReady, setLeafletReady] = useState(false)
 
   // Load Leaflet once
   useEffect(() => {
@@ -65,6 +66,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
         shadowUrl: '/leaflet/marker-shadow.png',
       })
       leafletRef.current = L
+      setLeafletReady(true)
     })
   }, [])
 
@@ -104,6 +106,18 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
       ? [withCoords[0]!.latitude as number, withCoords[0]!.longitude as number]
       : [56.2639, 9.5018]
 
+  if (!leafletReady) {
+    return (
+      <div
+        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/5"
+        role="status"
+        aria-live="polite"
+      >
+        <p className="text-sm text-gray-300">Indlæser kort...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full w-full overflow-hidden rounded-xl">
       <MapContainer
@@ -126,14 +140,10 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
           zoomToBoundsOnClick
           disableClusteringAtZoom={16}
           iconCreateFunction={(cluster: any) => {
-            const L = leafletRef.current
+            const L = leafletRef.current!
             const count = cluster.getChildCount()
             const cls =
               count < 10 ? 'marker-cluster-small' : count < 50 ? 'marker-cluster-medium' : 'marker-cluster-large'
-            if (!L) {
-              // Fallback — should never be needed since cluster renders client-side
-              return cluster.getAllChildMarkers()?.[0]?.options?.icon
-            }
             return L.divIcon({
               html: `<div><span>${count}</span></div>`,
               className: `marker-cluster ${cls}`,
