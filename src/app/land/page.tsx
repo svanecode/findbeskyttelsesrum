@@ -279,12 +279,12 @@ export default async function CountryPage() {
             <StatCard
               label="Kommuner"
               value={overview.municipalityCount.toLocaleString("da-DK")}
-              note={`${overview.activeMunicipalityCount.toLocaleString("da-DK")} kommuner har aktive registreringer i datalaget.`}
+              note={`${overview.activeMunicipalityCount.toLocaleString("da-DK")} kommuner har aktive registreringer i oversigten.`}
             />
             <StatCard
               label="Aktive registreringer"
               value={overview.activeShelterCount.toLocaleString("da-DK")}
-              note="Registreringer der er aktive i det aktuelle datalag."
+              note="Registreringer der er aktive i datagrundlaget."
             />
             <StatCard
               label="Registrerede pladser"
@@ -296,7 +296,7 @@ export default async function CountryPage() {
           <section className="mb-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Landstal er ikke tilgængelige</h2>
             <p className="mt-2 text-sm leading-6 text-gray-300">
-              Appen kunne ikke hente oversigtsdata lige nu. Derfor viser siden ingen fallback-tal.
+              Kunne ikke hente oversigten lige nu. Derfor viser siden ingen fallback-tal.
             </p>
           </section>
         )}
@@ -316,7 +316,7 @@ export default async function CountryPage() {
               <NationalDepthItem
                 label="Dækning"
                 value={`${overview.activeMunicipalityCount.toLocaleString("da-DK")} kommuner`}
-                note="Kommuner med mindst én aktiv registrering i det aktuelle datagrundlag."
+                note="Kommuner med mindst én aktiv registrering i datagrundlaget."
               />
               <NationalDepthItem
                 label="Kommuneniveau"
@@ -336,9 +336,9 @@ export default async function CountryPage() {
           <section className="mb-8 rounded-lg border border-white/10 bg-white/5">
             <div className="border-b border-white/10 px-5 py-4 sm:px-6">
               <p className="text-sm uppercase tracking-wide text-gray-400">National struktur</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Regioner i datalaget</h2>
+              <h2 className="mt-2 text-xl font-semibold text-white">Regioner i oversigten</h2>
               <p className="mt-2 text-sm leading-6 text-gray-400">
-                Regional fordeling hjælper med at forstå datalagets nationale bredde. Det er ikke en rangering af
+                Regional fordeling hjælper med at forstå oversigtens nationale bredde. Det er ikke en rangering af
                 sikkerhed, adgang eller beredskab.
               </p>
             </div>
@@ -460,7 +460,7 @@ export default async function CountryPage() {
         {overview.ok && overview.topMunicipalities.length > 0 && (
           <section className="mt-8 rounded-lg border border-white/10 bg-white/5">
             <div className="border-b border-white/10 px-5 py-4 sm:px-6">
-              <h2 className="text-lg font-semibold text-white">Største kommuner i datalaget</h2>
+              <h2 className="text-lg font-semibold text-white">Største kommuner i oversigten</h2>
               <p className="mt-1 text-sm text-gray-400">
                 Sorteret efter antal aktive registreringer. Listen viser hvor der er mest registervolumen og fungerer
                 som indgang til kommunesider, ikke som rangering af sikkerhed, adgang eller beredskab.

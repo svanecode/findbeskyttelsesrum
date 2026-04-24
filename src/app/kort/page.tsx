@@ -85,7 +85,7 @@ export default async function CountryMapPage() {
             Beskyttelsesrum i Danmark
           </h1>
           <p className="text-lg leading-8 text-gray-300">
-            Kort med alle {totalCount.toLocaleString("da-DK")} registrerede beskyttelsesrum i Danmark, fordelt på{" "}
+            Kort med {totalCount.toLocaleString("da-DK")} registrerede beskyttelsesrum i oversigten, fordelt på{" "}
             {activeMunicipalityCount.toLocaleString("da-DK")} kommuner med samlet{" "}
             {totalCapacity.toLocaleString("da-DK")} registrerede pladser.
           </p>
@@ -95,7 +95,7 @@ export default async function CountryMapPage() {
           <StatCard
             label="Aktive registreringer"
             value={totalCount.toLocaleString("da-DK")}
-            note="Alle aktive registreringer i det aktuelle datalag."
+            note="Aktive registreringer med placering i oversigten."
           />
           <StatCard
             label="Registrerede pladser"
@@ -105,12 +105,12 @@ export default async function CountryMapPage() {
           <StatCard
             label="Kommuner med data"
             value={activeMunicipalityCount.toLocaleString("da-DK")}
-            note={`Ud af ${municipalities.length.toLocaleString("da-DK")} kommuner i datalaget.`}
+            note={`Kommuner med registrerede beskyttelsesrum i oversigten (ud af ${municipalities.length.toLocaleString("da-DK")}).`}
           />
           <StatCard
-            label="Seneste import"
+            label="Seneste opdatering"
             value={latestImportCompletedAt ?? "Ikke registreret"}
-            note="Seneste afsluttede importkørsel i app_v2."
+            note="Seneste registrerede opdatering af oversigten."
           />
         </section>
       </div>

@@ -70,7 +70,7 @@ export default async function Home() {
               <Link
                 href="/kommune"
                 className="inline-flex items-center rounded-lg px-4 py-3 text-body-sm font-medium bg-white/5 hover:bg-white/10 text-white transition-all duration-200 group touch-target focus-visible btn-interactive sm:px-6 sm:text-body-md"
-                aria-label="Se oversigt over kommuner med aktive registreringer i datalaget"
+                aria-label="Se oversigt over kommuner med aktive registreringer i oversigten"
               >
                 <span>Se kommuner</span>
                 <svg

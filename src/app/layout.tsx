@@ -87,7 +87,7 @@ export const metadata: Metadata = {
   },
   other: {
     'disclaimer': 'Denne tjeneste er uafhængig og er ikke tilknyttet, drevet eller godkendt af den danske stat eller nogen offentlige myndigheder.',
-    'data-source': 'Data kommer fra BBR og DAR. Private hjem og steder med færre end 40 pladser er udeladt.',
+    'data-source': 'Oversigten bygger på offentlige registerdata og kan have begrænsninger.',
     'geo.region': 'DK',
     'geo.placename': 'Danmark',
     'version': '1.0.0',

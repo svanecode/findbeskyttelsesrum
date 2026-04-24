@@ -30,8 +30,8 @@ export default function GlobalFooter() {
         <div>
           <h2 className="text-xs font-medium uppercase tracking-wider text-gray-300">Data og kilder</h2>
           <p className="mt-4 text-sm leading-relaxed text-gray-400">
-            Registerdata på destinationssiderne bygger på det aktuelle datalag bag Find Beskyttelsesrum og trækker på
-            kilder som BBR og DAR. Læs metode, begrænsninger og grænsen til den almindelige adressesøgning på{' '}
+            Oplysningerne på destinationssiderne bygger på registrerede data og kan have begrænsninger. Læs metode,
+            kilder og forbehold på{' '}
             <Link href="/om-data" className="text-gray-300 underline-offset-2 hover:text-white hover:underline">
               Om data
             </Link>

@@ -162,7 +162,7 @@ export default async function KommunePage({ params }: Props) {
           <StatCard label="Adresser" value={groups.length} />
           <StatCard label="Aktive registreringer" value={municipality.activeShelterCount} />
           <StatCard label="Registrerede pladser" value={stats.totalCapacity} />
-          <StatCard label="Postområder i datalaget" value={stats.postalAreaCount} />
+          <StatCard label="Postområder i oversigten" value={stats.postalAreaCount} />
         </div>
       </header>
 
@@ -170,15 +170,15 @@ export default async function KommunePage({ params }: Props) {
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
         <div className="mb-6 max-w-3xl rounded-lg border border-white/10 bg-white/5 p-4 text-sm leading-6 text-gray-300 sm:p-5">
           <p>
-            Liste og kort viser aktive registreringer i det aktuelle datalag. Kortet giver lokalt overblik med den
-            normale kortoplevelse og er ikke i sig selv et bevis på fuld app_v2-cutover af hele kortfladen.
+            Liste og kort viser de aktuelle registreringer i oversigten. Kortet giver lokalt overblik og kan indeholde
+            ufuldstændige eller forældede oplysninger.
           </p>
           <p className="mt-2 text-gray-400">
             Brug{" "}
             <Link href="/om-data" className="text-white underline-offset-2 hover:underline">
               Om data
             </Link>{" "}
-            for grænsen mellem registerfelter og den almindelige adressesøgning.
+            for metode, kilder og forbehold.
           </p>
         </div>
         <KommuneExperience

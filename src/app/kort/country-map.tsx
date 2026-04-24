@@ -61,7 +61,12 @@ function buildPopupHtml(shelter: CountryMapShelterMarker) {
 
 function MapLoadingSkeleton() {
   return (
-    <div className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]">
+    <div
+      className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
+      role="status"
+      aria-live="polite"
+      aria-label="Indlæser kort over beskyttelsesrum"
+    >
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500/30 border-t-orange-500" />
@@ -224,7 +229,10 @@ export default function CountryMap() {
 
   if (markerState.status === "error") {
     return (
-      <div className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]">
+      <div
+        className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
+        role="alert"
+      >
         <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
           <p className="text-sm text-gray-300">Kortdata kunne ikke indlæses. Prøv igen om lidt.</p>
         </div>
@@ -233,7 +241,10 @@ export default function CountryMap() {
   }
 
   return (
-    <div className="h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]">
+    <div
+      className="h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
+      aria-label="Kort over registrerede beskyttelsesrum i Danmark"
+    >
       <MapContainer
         center={center}
         zoom={7}

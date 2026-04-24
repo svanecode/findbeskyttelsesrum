@@ -4,7 +4,12 @@ import dynamic from "next/dynamic";
 
 function MapLoadingSkeleton() {
   return (
-    <div className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]">
+    <div
+      className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
+      role="status"
+      aria-live="polite"
+      aria-label="Indlæser kort over beskyttelsesrum"
+    >
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500/30 border-t-orange-500" />

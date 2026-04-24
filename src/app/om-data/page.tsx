@@ -109,7 +109,7 @@ export default async function DataPage() {
           <p className="text-sm uppercase tracking-wide text-gray-400">Data</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Om datagrundlaget</h1>
           <p className="text-lg leading-8 text-gray-300">
-            Land-, kommune- og detail-siderne bruger registerdata fra det aktuelle datalag bag Find Beskyttelsesrum.
+            Land-, kommune- og detail-siderne bruger registerdata fra datagrundlaget bag Find Beskyttelsesrum.
           </p>
           <p className="text-sm leading-6 text-gray-400">
             Siden beskriver de offentlige destinationssider. Adressebaseret søgning, nærliggende resultater og kort i
@@ -122,7 +122,7 @@ export default async function DataPage() {
             <StatCard
               label="Kommuner"
               value={overview.municipalityCount.toLocaleString("da-DK")}
-              note="Kommuner der findes i det aktuelle kommuneregister i datalaget."
+              note="Kommuner der findes i det aktuelle kommuneregister i datagrundlaget."
             />
             <StatCard
               label="Aktive registreringer"

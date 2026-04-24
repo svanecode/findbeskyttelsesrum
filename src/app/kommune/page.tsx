@@ -70,7 +70,7 @@ export default async function MunicipalityOverviewPage() {
             <p className="text-sm text-gray-400">Aktive registreringer</p>
             <p className="mt-2 text-2xl font-semibold text-white">{activeShelterCount.toLocaleString("da-DK")}</p>
             <p className="mt-2 text-sm leading-6 text-gray-400">
-              Registreringer der er aktive i det aktuelle datagrundlag.
+              Registreringer der er aktive i datagrundlaget.
             </p>
           </div>
         </section>
@@ -96,7 +96,7 @@ export default async function MunicipalityOverviewPage() {
           </div>
 
           {municipalities.length === 0 ? (
-            <p className="px-5 py-6 text-gray-300 sm:px-6">Der er ikke registreret kommuner i datalaget endnu.</p>
+            <p className="px-5 py-6 text-gray-300 sm:px-6">Der er ikke registreret kommuner i oversigten endnu.</p>
           ) : (
             <ul className="divide-y divide-white/10">
               {municipalities.map((municipality) => (

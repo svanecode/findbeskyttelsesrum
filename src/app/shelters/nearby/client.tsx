@@ -167,6 +167,7 @@ export default function ShelterMapClient({
   const [selectedShelter, setSelectedShelter] = useState<string | null>(null)
   const [hoveredShelter, setHoveredShelter] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
   const shelterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const mapRef = useRef<any>(null)
@@ -189,6 +190,7 @@ export default function ShelterMapClient({
     async function loadData() {
       try {
         setIsLoading(true)
+        setLoadError(null)
         if (process.env.NODE_ENV === 'development') {
           console.log('Starting data load with coordinates:', { lat, lng })
         }
@@ -222,6 +224,7 @@ export default function ShelterMapClient({
           setShelters([])
           setAnvendelseskoder([])
           setKommunekoder([])
+          setLoadError('Kunne ikke hente nærliggende registreringer lige nu. Prøv igen om lidt.')
         }
       } finally {
         if (isMounted) {
@@ -270,10 +273,6 @@ export default function ShelterMapClient({
           </Link>
           <h1 className="text-xl sm:text-2xl font-bold">Dine 10 nærmeste beskyttelsesrum</h1>
         </div>
-        <div className="mb-6 rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
-          Tip: Tilføj <span className="font-mono">appV2NearbyEligibility</span> til URL’en for at teste alternative filtre, fx{" "}
-          <span className="font-mono">appV2NearbyEligibility=none</span>.
-        </div>
 
         {/* Back to top button */}
         <button
@@ -288,14 +287,19 @@ export default function ShelterMapClient({
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="order-2 lg:order-1 space-y-4">
-            {isLoading ? (
-              <div className="bg-[#2a2a2a] rounded-lg p-4">
-                <p className="text-gray-300">Indlæser beskyttelsesrum...</p>
+            {loadError ? (
+              <div className="bg-[#2a2a2a] rounded-lg p-4" role="alert">
+                <p className="text-gray-200">{loadError}</p>
+                <p className="mt-2 text-sm text-gray-400">Du kan også prøve at genindlæse siden.</p>
+              </div>
+            ) : isLoading ? (
+              <div className="bg-[#2a2a2a] rounded-lg p-4" role="status" aria-live="polite">
+                <p className="text-gray-300">Indlæser nærliggende beskyttelsesrum...</p>
               </div>
             ) : shelters.length === 0 ? (
-              <div className="bg-[#2a2a2a] rounded-lg p-4">
+              <div className="bg-[#2a2a2a] rounded-lg p-4" role="status" aria-live="polite">
                 <p className="text-gray-300">
-                  Ingen beskyttelsesrum fundet inden for 5 km af den valgte position.
+                  Der blev ikke fundet registrerede beskyttelsesrum tæt på den valgte placering.
                 </p>
               </div>
             ) : (
@@ -355,6 +359,7 @@ export default function ShelterMapClient({
                         }}
                         className="bg-orange-500/10 hover:bg-orange-500/20 text-orange-400/90 p-2 sm:p-3 rounded-lg transition-colors border border-orange-500/20"
                         title="Åbn i kort"
+                        aria-label={`Åbn kort for ${shelter.vejnavn} ${shelter.husnummer}, ${shelter.postnummer} ${getKommunenavn(shelter.kommunekode, kommunekoder)}`}
                       >
                         <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -407,7 +412,10 @@ export default function ShelterMapClient({
           </div>
 
           <div className="order-1 lg:order-2 h-[400px] min-h-[400px] lg:h-[600px] lg:min-h-[600px] relative lg:sticky lg:top-4">
-            <div className="absolute inset-0 rounded-lg overflow-hidden">
+            <div
+              className="absolute inset-0 rounded-lg overflow-hidden"
+              aria-label="Kort med din placering og nærliggende beskyttelsesrum"
+            >
               {isClient && (
                 <MapContainer
                   center={[lat, lng]}
