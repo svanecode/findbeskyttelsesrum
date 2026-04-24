@@ -1,5 +1,9 @@
 # Nearby Cutover Readiness
 
+> **Historical analysis note (Sprint 9a):** This document predates Sprint 4d.
+> The current runtime state changed after Sprint 4d: nearby search now uses grouped app_v2 and legacy nearby source switching has been removed.
+> Keep this document as background only. Do not use it as an operator cutover checklist.
+
 ## 1. Overview
 
 The deployed live site may still run an older snapshot, but the current revamp codebase now treats app_v2 as the

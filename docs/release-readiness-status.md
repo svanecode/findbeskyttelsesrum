@@ -1,22 +1,32 @@
 # Release Readiness Status
 
-Praktisk snapshot efter **Work Package AD** (cutover-prep implementation). Opdater efter faktisk target-QA eller cutover.
+Praktisk status for cutover-arbejde. Opdater efter target-QA og efter en eventuel senere cutover.
 
 ## Kort konklusion
 
-De fire tidligere **operative** blockers er nu **lukket i repoet**: runbook, logbar QA-skabelon, OG-hul lukket via **genereret** root Open Graph-billede, og **fuld** sitemap-dækning af aktive `/beskyttelsesrum/[slug]`. **Næste reelle skridt** er at **udføre og arkivere** manuel QA på **target-miljøet** (preview/prod) med `docs/manual-qa-checklist.md` — det kan ikke automatiseres herfra.
+Repoet er klar til en kontrolleret cutover-forberedelse, men **cutover er ikke udført**. Sprint 9a leverer en operator-venlig readiness package (runbook + sanity checks + opdaterede checklister). Næste reelle skridt er at køre checks mod preview/target-miljø og tage en go/no-go beslutning (Sprint 9b).
 
-Destinationsspor og nearby-kontrakt er uændret i denne pakke (ingen default-nearby-ændring).
+Bemærk: Den live public site kører stadig et gammelt Vercel snapshot med legacy dataflow (`public.sheltersv2`). Det legacy setup er rollback-nettet og må ikke røres som del af readiness.
 
-## Lukket i denne pakke (AD)
+## Leverancer i repoet (Sprints 4d, 6, 7, 8)
 
 | Leverance | Hvor |
 |-----------|------|
-| Cutover + rollback + smoke + stop-signaler | `docs/cutover-outline.md` |
-| Manuel QA-checkliste + log-skabelon | `docs/manual-qa-checklist.md`, `docs/manual-qa-log-template.md` |
-| OG: ingen død `/og-image.jpg`-reference | `src/app/opengraph-image.tsx` + fjernet statiske `images` fra `src/app/layout.tsx` (Next tilføjer genereret OG-URL) |
+| Nearby: legacy path fjernet (Sprint 4d) | `/shelters/nearby` bruger grouped app_v2 |
+| `/kort`: marker payload flyttet ud af RSC (Sprint 6) | `/api/country-shelters` + `/kort` |
+| SEO + JSON-LD hardening (Sprint 7) | `src/lib/seo/*` + page metadata |
+| Public UI copy + a11y polish (Sprint 8) | diverse `src/app/*` + components |
 | Sitemap: alle aktive shelter-detaljer | `getAppV2SitemapShelters()` i `src/lib/supabase/app-v2-queries.ts`, kald fra `src/app/sitemap.ts` |
-| Public doc alignet med sitemap | `docs/public-destination-surfaces.md` (sitemap-bullet) |
+
+## Sprint 9a: Cutover readiness package (ikke cutover)
+
+| Leverance | Status |
+|-----------|--------|
+| Operator runbook | `docs/cutover-runbook.md` |
+| Read-only sanity script | `npm run read:app-v2-sanity` |
+| First-load audit usage | `scripts/first-load-audit.mjs` + docs |
+| Manual QA checklist opdateret | `docs/manual-qa-checklist.md` |
+| Legacy cutover-outline markeret som superseded | `docs/cutover-outline.md` |
 
 ## Stadig før “vi cutter trafik” (mennesker + miljø)
 
@@ -25,16 +35,19 @@ Destinationsspor og nearby-kontrakt er uændret i denne pakke (ingen default-nea
 | **Udført QA på target** | Skal køres og logges — checklisten ligger klar. |
 | **Cutover-vindue** | Planlægning, roller, og “forrige gode deployment” udfyldes i runbook ved dagen. |
 | **Prod Supabase vs. build** | Bekræft stadig migration/paritet på **den** database der peges på fra prod (operativt punkt i runbook §1). |
-| **Fælles nav/footer** | Uændret: ikke del af AD; stadig nice-to-have for visuel ensartethed. |
-| **`/kort`** | Findes ikke; separat produktbeslutning. |
+| **`/kort`** | Findes og loader markerdata separat via `/api/country-shelters` (Sprint 6). |
 
-## Teknisk baseline (sidste verifikation i AD)
+## Teknisk baseline (kør før cutover)
 
 - `npx tsc --noEmit`, `npm run lint`, `npm run build` — kør efter hver meningsfuld ændring; se rapport i AD-slutnote.
 - **Sitemap:** kræver runtime-adgang til Supabase som i dag (`force-dynamic`); på build uden DB verificeres struktur via kode + lokal/preview med `.env`.
 - **OG:** verificér på kørende app at `og:image` i HTML peger på genereret route (ikke `/og-image.jpg`).
 
-## Nice-to-have (ikke AD)
+## Næste skridt
+
+- Sprint 9b: kør readiness checks mod preview/prod-like env, udfør cutover efter go/no-go, og hold observation window med legacy rollback-net intakt.
+
+## Nice-to-have (ikke readiness)
 
 - JSON-LD på land/kommune, fælles layout-shell, udvidet E2E.
 - Oprydning af forældede formuleringer i `docs/nearby-cutover-readiness.md` (default nearby = app_v2 i kode).
@@ -42,8 +55,8 @@ Destinationsspor og nearby-kontrakt er uændret i denne pakke (ingen default-nea
 ## Relaterede dokumenter
 
 - `docs/cursor-master-brief.md`
-- `docs/cutover-outline.md` — **cutover runbook**
+- `docs/cutover-runbook.md` — **cutover runbook**
+- `docs/cutover-outline.md` — historisk (superseded)
 - `docs/manual-qa-checklist.md` — **udførbar QA**
 - `docs/manual-qa-log-template.md`
-- `docs/public-destination-surfaces.md`
 - `docs/app-v2-nearby-evaluation.md`

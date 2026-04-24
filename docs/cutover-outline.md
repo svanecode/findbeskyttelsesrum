@@ -1,4 +1,8 @@
-# Cutover runbook
+# Cutover runbook (historical)
+
+> **Superseded:** Use `docs/cutover-runbook.md` for current cutover operations and go/no-go.
+>
+> This document is kept for historical context and may contain stale assumptions (e.g. legacy nearby compare paths).
 
 Brug dette dokument på cutover-dagen. Udfyld placeholders i starten af vinduet. Målgruppe: den der deployer og den der godkender go/no-go.
 
@@ -71,7 +75,6 @@ Udfør mod **produktion** (eller det miljø I lige har cuttet til). Brug desktop
 | S5 | `GET /beskyttelsesrum/<slug>` (aktiv slug fra land eller kommune) | 200, ikke 404 |
 | S6 | `GET /om-data` | 200 |
 | S7 | `GET /shelters/nearby?lat=55.6761&lng=12.5683` | 200, kort + resultater (app_v2 default uændret) |
-| S8 | `GET /shelters/nearby?lat=55.6761&lng=12.5683&source=legacy` | 200, legacy-spor tilgængeligt |
 | S9 | `GET /sitemap.xml` | 200, XML indeholder `/land`, mindst én `/beskyttelsesrum/` |
 | S10 | `GET /robots.txt` | 200, peger på sitemap |
 | S11 | `GET /opengraph-image` (eller platformens genererede OG-URL fra forsiden meta) | 200 billede / forventet adfærd fra Next |
@@ -79,7 +82,7 @@ Udfør mod **produktion** (eller det miljø I lige har cuttet til). Brug desktop
 ### 4.2 Hvad der tæller som “go” fra smoke
 
 - Ingen 5xx på S1–S11 der blokerer kerneflow.
-- Nearby default uændret: uden `source` i URL vises **app_v2** som aktiv kilde (jf. sidecopy / badge — ikke ændret i denne release-pakke).
+- Nearby: uden ekstra parametre loader siden og viser kort + resultatliste.
 
 ### 4.3 Efter smoke samme dag
 

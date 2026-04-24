@@ -43,7 +43,7 @@
 
 Udfør alle tre hvis data findes for dem på target:
 
-| Route | D1 200 + lokalt indhold | D2 forventnings-callout om liste/kort (ikke fuld app_v2-kort-cutover) | D3 kort/liste sektion loader uden crash |
+| Route | D1 200 + lokalt indhold | D2 note om at liste/kort viser registrerede oplysninger | D3 kort/liste sektion loader uden crash |
 |--------|-------------------------|----------------------------------------------------------------------|----------------------------------------|
 | `/kommune/kobenhavn` | [ ] | [ ] | [ ] |
 | `/kommune/aarhus` | [ ] | [ ] | [ ] |
@@ -71,23 +71,11 @@ Udfør alle tre hvis data findes for dem på target:
 
 **Koordinater til test:** `lat=55.6761`, `lng=12.5683` (København — justér hvis I bruger andet fælles referencerum).
 
-- [ ] **G1** `BASE/shelters/nearby?lat=55.6761&lng=12.5683` — 200, kort + resultatliste, **aktiv kilde = app_v2 revamp** (badge/copy som i build).
-- [ ] **G2** `...&source=legacy` — 200, **legacy compare/fallback** vises som forventet.
-- [ ] **G3** Mobil: kort og liste brugbare (scroll, ikke alt dækket af tastatur uden scroll).
-
----
-
-## H. Tiny public nearby preview (opt-in)
-
-- [ ] **H1** `BASE/shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=public-preview` — 200, lille **preview**/sammenligningsblok vises, aktiv kilde følger stadig normal kontrakt (app_v2 med mindre `source=legacy`).
-- [ ] **H2** Preview nævner/adresserer sammenligning med vej/husnummer/postnummer (copy sanity).
-
----
-
-## I. Intern grouped review (opt-in)
-
-- [ ] **I1** `BASE/shelters/nearby?lat=55.6761&lng=12.5683&appV2NearbyExperiment=grouped` — 200, intern review-panel vises over listen, kort følger aktiv kilde.
-- [ ] **I2** Ingen console errors der blokerer interaktion (notér vigtige warnings i log).
+- [ ] **G1** `BASE/shelters/nearby?lat=55.6761&lng=12.5683` — 200, kort + resultatliste.
+- [ ] **G2** Gentag for yderligere to lokationer:
+  - Aarhus (`lat=56.1629&lng=10.2039`)
+  - Aalborg (`lat=57.0488&lng=9.9217`) eller Odense (`lat=55.4038&lng=10.4024`)
+- [ ] **G3** Mobil: kort og liste brugbare (scroll, ingen kritisk layoutfejl).
 
 ---
 
@@ -104,3 +92,15 @@ Udfør alle tre hvis data findes for dem på target:
 
 - [ ] **K1** Alle fejl og afvigelser er skrevet i log (se template).
 - [ ] **K2** Go/no-go anbefaling noteret: **Klar til cutover** / **Ikke klar** + årsag.
+
+---
+
+## L. `/kort` first-load guard (skal køres mod preview)
+
+- [ ] **L1** Kør `scripts/first-load-audit.mjs` mod preview og gem output i QA-loggen:
+
+```bash
+AUDIT_BASE_URL=https://<preview-url> node scripts/first-load-audit.mjs
+```
+
+- [ ] **L2** Verificér at output siger at marker payload **ikke** er i `/kort` HTML (markers skal komme via `/api/country-shelters`).

@@ -1,5 +1,9 @@
 # app_v2 Nearby Semantic Gap Analysis
 
+> **Historical analysis note (Sprint 9a):** This analysis predates Sprint 4d.
+> The current runtime state changed after Sprint 4d: nearby search now uses grouped app_v2 and legacy nearby source switching has been removed.
+> Keep this as historical background; do not treat statements about the live default nearby data path as current.
+
 ## 1. Overview
 
 This document analyzes the remaining app_v2 nearby mismatch after grouped app_v2 output, capacity eligibility, app_v2 exclusions, and ordering evaluation.
