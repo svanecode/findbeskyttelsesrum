@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import GlobalFooter from "@/components/GlobalFooter";
 import SiteHeader from "@/components/SiteHeader";
 import {
-  getAppV2CountryShelters,
   getAppV2MunicipalitySummaries,
   getAppV2ShelterCount,
   getAppV2TotalShelterCapacity,
@@ -59,8 +58,7 @@ function StatCard({ label, value, note }: { label: string; value: string; note: 
 }
 
 export default async function CountryMapPage() {
-  const [shelters, totalCount, totalCapacity, municipalities, latestImportRun] = await Promise.all([
-    getAppV2CountryShelters(),
+  const [totalCount, totalCapacity, municipalities, latestImportRun] = await Promise.all([
     getAppV2ShelterCount(),
     getAppV2TotalShelterCapacity(),
     getAppV2MunicipalitySummaries(),
@@ -119,7 +117,7 @@ export default async function CountryMapPage() {
 
       <section className="w-full px-4 pb-12 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <CountryMapExperience shelters={shelters} />
+          <CountryMapExperience />
         </div>
       </section>
 

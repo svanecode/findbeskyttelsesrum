@@ -110,3 +110,31 @@ for (const row of rows) {
   }
 }
 
+console.log("");
+
+async function runtimeKortGuard() {
+  const baseUrl = process.env.AUDIT_BASE_URL;
+  if (!baseUrl) {
+    return;
+  }
+
+  const url = new URL("/kort", baseUrl).toString();
+  const res = await fetch(url, { headers: { Accept: "text/html" } });
+  const html = await res.text();
+  const rawBytes = Buffer.byteLength(html, "utf8");
+  const gzipBytes = zlib.gzipSync(Buffer.from(html, "utf8")).length;
+
+  console.log(`Runtime HTML check for /kort at ${url}`);
+  console.log(`  status ${res.status}  raw ${fmtKB(rawBytes)}  gzip ${fmtKB(gzipBytes)}`);
+
+  const markerPayloadNeedle = '"shelters":[{';
+  if (html.includes(markerPayloadNeedle)) {
+    console.log(`  ❌ Found marker payload needle ${JSON.stringify(markerPayloadNeedle)} in /kort HTML`);
+    process.exitCode = 2;
+  } else {
+    console.log("  ✅ Marker payload not present in /kort HTML");
+  }
+}
+
+await runtimeKortGuard();
+

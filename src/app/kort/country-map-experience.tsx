@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { AppV2CountryShelter } from "@/lib/supabase/app-v2-queries";
 
 function MapLoadingSkeleton() {
   return (
@@ -21,10 +20,6 @@ const CountryMap = dynamic(() => import("./country-map"), {
   loading: () => <MapLoadingSkeleton />,
 });
 
-interface Props {
-  shelters: AppV2CountryShelter[];
-}
-
-export default function CountryMapExperience({ shelters }: Props) {
-  return <CountryMap shelters={shelters} />;
+export default function CountryMapExperience() {
+  return <CountryMap />;
 }

@@ -1206,6 +1206,93 @@ export async function getAppV2CountryShelters(): Promise<AppV2CountryShelter[]> 
   return out;
 }
 
+export type AppV2CountryShelterMarker = {
+  slug: string;
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  capacity: number;
+  latitude: number;
+  longitude: number;
+};
+
+type CountryShelterMarkerRow = {
+  slug: string;
+  name: string;
+  address_line1: string | null;
+  postal_code: string | null;
+  city: string | null;
+  latitude: number | string | null;
+  longitude: number | string | null;
+  capacity: number | string | null;
+};
+
+function normalizeCountryShelterMarker(row: CountryShelterMarkerRow): AppV2CountryShelterMarker | null {
+  const latitude = row.latitude === null || row.latitude === undefined ? Number.NaN : Number(row.latitude);
+  const longitude = row.longitude === null || row.longitude === undefined ? Number.NaN : Number(row.longitude);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  const capacityValue =
+    row.capacity === null || row.capacity === undefined ? Number.NaN : Number(row.capacity);
+  const capacity = Number.isFinite(capacityValue) ? Math.trunc(capacityValue) : 0;
+
+  return {
+    slug: row.slug,
+    name: row.name,
+    addressLine1: (row.address_line1 ?? "").trim(),
+    postalCode: (row.postal_code ?? "").trim(),
+    city: (row.city ?? "").trim(),
+    capacity,
+    latitude,
+    longitude,
+  };
+}
+
+/**
+ * Paginated read of all active app_v2 shelters with coordinates (national map marker payload).
+ * Intentionally excludes internal IDs and municipality references.
+ */
+export async function getAppV2CountryShelterMarkers(): Promise<AppV2CountryShelterMarker[]> {
+  const supabase = createAppV2ReadClient();
+  const out: AppV2CountryShelterMarker[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + sitemapShelterPageSize - 1;
+    const { data, error } = await supabase
+      .from("shelters")
+      .select("slug, name, address_line1, postal_code, city, latitude, longitude, capacity")
+      .eq("import_state", "active")
+      .not("latitude", "is", null)
+      .not("longitude", "is", null)
+      .order("slug", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(`Could not load app_v2 country shelter markers: ${error.message}`);
+    }
+
+    const rows = (data ?? []) as CountryShelterMarkerRow[];
+
+    for (const row of rows) {
+      const normalized = normalizeCountryShelterMarker(row);
+      if (normalized) out.push(normalized);
+    }
+
+    if (rows.length < sitemapShelterPageSize) {
+      break;
+    }
+
+    from += sitemapShelterPageSize;
+  }
+
+  return out;
+}
+
 export type AppV2SitemapShelterRow = {
   slug: string;
   lastModified: Date;

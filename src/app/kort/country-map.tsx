@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
-import type { AppV2CountryShelter } from "@/lib/supabase/app-v2-queries";
+import type { CountryMapShelterMarker, CountryShelterMarkersResponse } from "@/types/country-map";
 
 const MapContainer = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
@@ -14,10 +14,6 @@ const MarkerClusterGroup = dynamic(
   () => import("@/components/MarkerClusterGroup").then((mod) => mod.default),
   { ssr: false },
 );
-
-interface Props {
-  shelters: AppV2CountryShelter[];
-}
 
 function makeShelterIcon(L: typeof import("leaflet")) {
   const size = 26;
@@ -42,7 +38,7 @@ function escapeHtml(text: string) {
     .replace(/'/g, "&#39;");
 }
 
-function buildPopupHtml(shelter: AppV2CountryShelter) {
+function buildPopupHtml(shelter: CountryMapShelterMarker) {
   const postalLine = [shelter.postalCode, shelter.city].filter(Boolean).join(" ").trim();
   const hasAddress = Boolean(shelter.addressLine1) || Boolean(postalLine);
   const cap = shelter.capacity.toLocaleString("da-DK");
@@ -86,10 +82,17 @@ type MarkerClusterLike = {
   addLayers(layers: import("leaflet").Layer[]): void;
 };
 
-export default function CountryMap({ shelters }: Props) {
+type MarkerLoadState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "loaded"; shelters: CountryMapShelterMarker[]; generatedAt: string; count: number };
+
+export default function CountryMap() {
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
   const [shelterMarkerIcon, setShelterMarkerIcon] = useState<import("leaflet").DivIcon | null>(null);
   const clusterRef = useRef<MarkerClusterLike | null>(null);
+  const [clusterReady, setClusterReady] = useState(false);
+  const [markerState, setMarkerState] = useState<MarkerLoadState>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
@@ -115,6 +118,7 @@ export default function CountryMap({ shelters }: Props) {
     const icon = shelterMarkerIcon;
     const cg = clusterRef.current;
     if (!L || !icon || !cg) return;
+    if (markerState.status !== "loaded") return;
 
     const BATCH = 1200;
     let cancelled = false;
@@ -122,6 +126,7 @@ export default function CountryMap({ shelters }: Props) {
 
     cg.clearLayers();
 
+    const shelters = markerState.shelters;
     const pump = (from: number) => {
       if (cancelled) return;
       const slice = shelters.slice(from, from + BATCH);
@@ -130,6 +135,9 @@ export default function CountryMap({ shelters }: Props) {
       for (const s of slice) {
         const marker = L.marker([s.latitude, s.longitude], { icon });
         marker.bindPopup(buildPopupHtml(s), { maxWidth: 320 });
+        marker.on("click", () => {
+          marker.openPopup();
+        });
         layers.push(marker);
       }
       cg.addLayers(layers);
@@ -154,7 +162,47 @@ export default function CountryMap({ shelters }: Props) {
       if (rafId !== null) window.cancelAnimationFrame(rafId);
       cg.clearLayers();
     };
-  }, [shelters, shelterMarkerIcon]);
+  }, [markerState, shelterMarkerIcon, clusterReady]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const loadMarkers = async () => {
+      try {
+        setMarkerState({ status: "loading" });
+        const response = await fetch("/api/country-shelters", {
+          signal: controller.signal,
+          headers: { Accept: "application/json" },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Marker endpoint failed with ${response.status}`);
+        }
+
+        const payload = (await response.json()) as CountryShelterMarkersResponse;
+
+        if (cancelled) return;
+        setMarkerState({
+          status: "loaded",
+          shelters: payload.shelters,
+          generatedAt: payload.generatedAt,
+          count: payload.count,
+        });
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setMarkerState({ status: "error" });
+      }
+    };
+
+    void loadMarkers();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, []);
 
   const clusterIconCreate = useCallback((cluster: { getChildCount: () => number }) => {
     const Leaf = leafletRef.current!;
@@ -170,8 +218,18 @@ export default function CountryMap({ shelters }: Props) {
 
   const center: [number, number] = [56.26, 9.5];
 
-  if (!shelterMarkerIcon) {
+  if (!shelterMarkerIcon || markerState.status === "loading") {
     return <MapLoadingSkeleton />;
+  }
+
+  if (markerState.status === "error") {
+    return (
+      <div className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]">
+        <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+          <p className="text-sm text-gray-300">Kortdata kunne ikke indlæses. Prøv igen om lidt.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -194,6 +252,7 @@ export default function CountryMap({ shelters }: Props) {
         <MarkerClusterGroup
           ref={(instance) => {
             clusterRef.current = instance as MarkerClusterLike | null;
+            setClusterReady(Boolean(instance));
           }}
           chunkedLoading
           chunkInterval={200}
