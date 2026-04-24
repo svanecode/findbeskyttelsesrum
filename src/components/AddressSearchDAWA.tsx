@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import { useRouter } from 'next/navigation'
 import LoadingSpinner from './LoadingSpinner'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { fetchAddressSuggestions, type DawaSuggestion } from '@/lib/dawa/autocomplete'
+import {
+  fetchAddressSuggestions,
+  suggestionHasCoordinates,
+  type DawaSuggestion,
+} from '@/lib/dawa/autocomplete'
 
 const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'
 
@@ -22,49 +26,88 @@ export default function AddressSearchDAWA() {
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const cursorPosRef = useRef(0)
 
-  const selectSuggestion = useCallback((suggestion: DawaSuggestion) => {
-    setSelectedAddress(suggestion.tekst)
-    setIsOpen(false)
-    setActiveIndex(null)
-    setQuery(suggestion.tekst)
-    router.push(`/shelters/nearby?lat=${suggestion.data.y}&lng=${suggestion.data.x}`)
-  }, [router])
+  const syncCaretFromInput = useCallback(() => {
+    const el = inputRef.current
+    if (!el) {
+      return
+    }
+    cursorPosRef.current = el.selectionStart ?? el.value.length
+  }, [])
+
+  const selectSuggestion = useCallback(
+    (suggestion: DawaSuggestion) => {
+      if (suggestionHasCoordinates(suggestion)) {
+        const label = (suggestion.forslagstekst ?? suggestion.tekst).trim()
+        setSelectedAddress(label)
+        setIsOpen(false)
+        setActiveIndex(null)
+        setQuery(suggestion.tekst.trimEnd())
+        router.push(`/shelters/nearby?lat=${suggestion.data.y}&lng=${suggestion.data.x}`)
+        return
+      }
+
+      setSelectedAddress(null)
+      setQuery(suggestion.tekst)
+      const pos = suggestion.caretpos ?? suggestion.tekst.length
+      cursorPosRef.current = pos
+      setIsOpen(false)
+      setActiveIndex(null)
+
+      requestAnimationFrame(() => {
+        const el = inputRef.current
+        if (!el) {
+          return
+        }
+        el.focus()
+        el.setSelectionRange(pos, pos)
+      })
+    },
+    [router],
+  )
 
   const canSubmit = useMemo(() => query.trim().length >= 2 && !hasFailed, [query, hasFailed])
 
-  const handleSubmit = useCallback(async (event: FormEvent) => {
-    event.preventDefault()
+  const handleSubmit = useCallback(
+    async (event: FormEvent) => {
+      event.preventDefault()
 
-    if (!canSubmit) {
-      inputRef.current?.focus()
-      return
-    }
-
-    // Prefer an active suggestion, else fall back to the first suggestion, else fetch once.
-    const active =
-      activeIndex !== null && suggestions[activeIndex] ? suggestions[activeIndex] : suggestions[0]
-
-    if (active) {
-      selectSuggestion(active)
-      return
-    }
-
-    try {
-      setIsLoading(true)
-      const results = await fetchAddressSuggestions(query, { limit: 5 })
-      if (results.length > 0) {
-        selectSuggestion(results[0])
+      if (!canSubmit) {
+        inputRef.current?.focus()
         return
       }
-      setIsOpen(false)
-      setActiveIndex(null)
-    } catch (error) {
-      handleError(error instanceof Error ? error : new Error('DAWA autocomplete failed'), 'DAWA Autocomplete failed')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [activeIndex, canSubmit, handleError, query, selectSuggestion, suggestions])
+
+      syncCaretFromInput()
+
+      const active =
+        activeIndex !== null && suggestions[activeIndex] ? suggestions[activeIndex] : suggestions[0]
+
+      if (active) {
+        selectSuggestion(active)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        const results = await fetchAddressSuggestions(query, {
+          limit: 5,
+          caretpos: cursorPosRef.current,
+        })
+        if (results.length > 0) {
+          selectSuggestion(results[0])
+          return
+        }
+        setIsOpen(false)
+        setActiveIndex(null)
+      } catch (error) {
+        handleError(error instanceof Error ? error : new Error('DAWA autocomplete failed'), 'DAWA Autocomplete failed')
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [activeIndex, canSubmit, handleError, query, selectSuggestion, suggestions, syncCaretFromInput],
+  )
 
   const handleLocationClick = async () => {
     if (!navigator.geolocation) {
@@ -100,7 +143,11 @@ export default function AddressSearchDAWA() {
     const timeoutId = setTimeout(async () => {
       setIsLoading(true)
       try {
-        const results = await fetchAddressSuggestions(query, { signal: controller.signal, limit: 5 })
+        const results = await fetchAddressSuggestions(query, {
+          signal: controller.signal,
+          limit: 5,
+          caretpos: cursorPosRef.current,
+        })
         setSuggestions(results)
         setIsOpen(results.length > 0)
         setActiveIndex(null)
@@ -108,14 +155,17 @@ export default function AddressSearchDAWA() {
       } catch (error) {
         if (!isAbortError(error)) {
           setHasFailed(true)
-          handleError(error instanceof Error ? error : new Error('DAWA autocomplete failed'), 'DAWA Autocomplete failed')
+          handleError(
+            error instanceof Error ? error : new Error('DAWA autocomplete failed'),
+            'DAWA Autocomplete failed',
+          )
         }
       } finally {
         if (!controller.signal.aborted) {
           setIsLoading(false)
         }
       }
-    }, 250)
+    }, 120)
 
     return () => {
       clearTimeout(timeoutId)
@@ -144,6 +194,10 @@ export default function AddressSearchDAWA() {
       setActiveIndex(null)
       return
     }
+    if (event.key === 'Enter') {
+      // Let the form submit handler pick the best suggestion (active/first/fetch).
+      return
+    }
     if (!isOpen || suggestions.length === 0) {
       return
     }
@@ -153,9 +207,6 @@ export default function AddressSearchDAWA() {
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
       setActiveIndex((index) => Math.max(index === null ? 0 : index - 1, 0))
-    } else if (event.key === 'Enter' && activeIndex !== null && suggestions[activeIndex]) {
-      event.preventDefault()
-      selectSuggestion(suggestions[activeIndex])
     }
   }
 
@@ -186,36 +237,69 @@ export default function AddressSearchDAWA() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="autocomplete-container w-full relative">
+        <form onSubmit={handleSubmit} className="autocomplete-container w-full">
           <label htmlFor="adresse" className="sr-only">
             Adresse
           </label>
 
-          <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-10 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          {isLoading && <div className="absolute right-28 top-1/2 transform -translate-y-1/2 z-10"><LoadingSpinner size="sm" /></div>}
+          <div className="relative w-full">
+            <svg className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 transform text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            {isLoading && (
+              <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2 transform">
+                <LoadingSpinner size="sm" />
+              </div>
+            )}
 
-          <input ref={inputRef} type="text" id="adresse" placeholder="Indtast adresse, by eller postnummer" className="w-full bg-[#1a1a1a] text-white py-3 sm:py-4 pl-12 pr-24 sm:pl-14 sm:pr-28 rounded-full border border-[#E97B4D] focus:outline-none focus:border-[#E97B4D] focus:bg-[#141414] transition-all placeholder-gray-400 disabled:opacity-50 text-sm sm:text-base touch-target focus-visible input-interactive" disabled={hasFailed} aria-describedby={hasFailed ? "dawa-error" : undefined} role="searchbox" autoComplete="off" minLength={2} value={query} onChange={(event) => setQuery(event.target.value)} onFocus={() => setIsOpen(suggestions.length > 0)} onKeyDown={handleKeyDown} />
+            <input
+              ref={inputRef}
+              type="text"
+              id="adresse"
+              placeholder="Indtast adresse, by eller postnummer"
+              className="input-interactive touch-target w-full rounded-full border border-[#E97B4D] bg-[#1a1a1a] py-3 pl-12 pr-11 text-sm text-white transition-all placeholder-gray-400 focus:border-[#E97B4D] focus:bg-[#141414] focus:outline-none focus-visible disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12 sm:text-base"
+              disabled={hasFailed}
+              aria-describedby={hasFailed ? 'dawa-error' : undefined}
+              role="searchbox"
+              autoComplete="off"
+              minLength={2}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value)
+                cursorPosRef.current = event.target.selectionStart ?? event.target.value.length
+              }}
+              onSelect={syncCaretFromInput}
+              onClick={syncCaretFromInput}
+              onFocus={() => setIsOpen(suggestions.length > 0)}
+              onKeyDown={handleKeyDown}
+            />
 
-          <button
-            type="submit"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white text-black px-4 py-2 text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target focus-visible btn-interactive"
-            disabled={!canSubmit || gpsLoading}
-          >
-            Søg
-          </button>
+            {isOpen && suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-[9999] mt-1 max-h-[min(18rem,50vh)] overflow-y-auto rounded-md border-2 border-white/30 bg-[#1a1a1a] shadow-[0_8px_16px_rgba(0,0,0,0.6),0_0_15px_rgba(255,255,255,0.1)]" role="listbox">
+                {suggestions.map((suggestion, index) => {
+                  const display = (suggestion.forslagstekst ?? suggestion.tekst).trim()
+                  const key =
+                    typeof suggestion.data.href === 'string'
+                      ? suggestion.data.href
+                      : `${suggestion.dawaType ?? 'item'}-${display}-${index}`
 
-          {isOpen && suggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1 z-[9999] bg-[#1a1a1a] border-2 border-white/30 rounded-md overflow-y-auto shadow-[0_8px_16px_rgba(0,0,0,0.6),0_0_15px_rgba(255,255,255,0.1)]" role="listbox">
-              {suggestions.map((suggestion, index) => (
-                <div key={`${suggestion.tekst}-${suggestion.data.x}-${suggestion.data.y}`} role="option" aria-selected={activeIndex === index} className={`px-2.5 py-1.5 cursor-pointer text-white border-b border-white/10 last:border-b-0 ${activeIndex === index ? 'bg-[#2a2a2a]' : 'hover:bg-[#2a2a2a]'}`} onMouseEnter={() => setActiveIndex(index)} onMouseDown={(event) => {
-                  event.preventDefault()
-                  selectSuggestion(suggestion)
-                }}>
-                  {suggestion.tekst}
-                </div>
-              ))}
-            </div>
-          )}
+                  return (
+                    <div
+                      key={key}
+                      role="option"
+                      aria-selected={activeIndex === index}
+                      className={`cursor-pointer border-b border-white/10 px-2.5 py-1.5 text-white last:border-b-0 ${activeIndex === index ? 'bg-[#2a2a2a]' : 'hover:bg-[#2a2a2a]'}`}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        selectSuggestion(suggestion)
+                      }}
+                    >
+                      {display}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </form>
 
         {selectedAddress && (

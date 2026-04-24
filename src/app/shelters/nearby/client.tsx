@@ -133,21 +133,15 @@ function formatDistanceKm(distanceKm: number) {
   return `${distanceKm.toFixed(1).replace('.', ',')} km`
 }
 
-function formatStatus(statuses: NearbyResultShelter['statuses']) {
-  const unique = Array.from(new Set((statuses ?? []).filter(Boolean)))
-  type StatusLabel = 'Aktiv' | 'Midlertidigt lukket' | 'Under vurdering'
-  const label = (status: string) => {
-    if (status === 'active') return 'Aktiv'
-    if (status === 'temporarily_closed') return 'Midlertidigt lukket'
-    if (status === 'under_review') return 'Under vurdering'
-    return null
+function formatBygningensAnvendelse(shelter: NearbyResultShelter, anvendelseskoder: Anvendelseskode[]) {
+  const fromAppV2 = shelter.typeLabel?.trim()
+  if (fromAppV2) {
+    return fromAppV2
   }
-
-  const labels = unique.map(label).filter((s): s is StatusLabel => s !== null)
-
-  if (labels.length === 0) return null
-  if (labels.length === 1) return labels[0]
-  return labels.join(' · ')
+  if (shelter.anvendelse) {
+    return getAnvendelseskodeBeskrivelse(shelter.anvendelse, anvendelseskoder).trim() || null
+  }
+  return null
 }
 
 function getGoogleMapsRouteHref(location: NearbyResultShelter['location']) {
@@ -257,7 +251,7 @@ export default function ShelterMapClient({
           setShelters([])
           setAnvendelseskoder([])
           setKommunekoder([])
-          setLoadError('Kunne ikke hente nærliggende registreringer lige nu. Prøv igen om lidt.')
+          setLoadError('Kunne ikke hente nærliggende beskyttelsesrum lige nu. Prøv igen om lidt.')
         }
       } finally {
         if (isMounted) {
@@ -412,9 +406,9 @@ export default function ShelterMapClient({
                       </div>
                     </div>
                     <div className="bg-[#252525] p-3 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                      <div className="text-sm text-gray-400 mb-1">Status</div>
-                      <div className="text-white font-medium text-sm sm:text-base line-clamp-2">
-                        {formatStatus(shelter.statuses) ?? '—'}
+                      <div className="mb-1 text-xs leading-snug text-gray-400 sm:text-sm">Bygningens anvendelse</div>
+                      <div className="line-clamp-3 text-sm font-medium text-white sm:text-base">
+                        {formatBygningensAnvendelse(shelter, anvendelseskoder) ?? '—'}
                       </div>
                     </div>
                   </div>
@@ -425,7 +419,7 @@ export default function ShelterMapClient({
                         <Link
                           href={`/beskyttelsesrum/${shelter.representativeSlug}`}
                           onClick={(event) => event.stopPropagation()}
-                          className="inline-flex items-center justify-center rounded-lg bg-white text-black px-4 py-3 text-sm font-medium hover:bg-gray-200 transition-colors"
+                          className="inline-flex items-center justify-center rounded-lg border border-orange-400/25 bg-[#E97B4D] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#EA580C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1f1f1f]"
                         >
                           Åbn
                         </Link>

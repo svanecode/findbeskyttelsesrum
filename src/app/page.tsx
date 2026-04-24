@@ -5,13 +5,13 @@ export const revalidate = 600
 
 export default async function Home() {
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white p-4 sm:p-6 lg:p-8 flex flex-col justify-center items-center relative">
+    <main className="relative flex min-h-screen flex-col bg-[#0a0a0a] text-white">
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-[#0a0a0a]" />
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
-      
-      <div className="max-w-2xl mx-auto flex-1 w-full px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col justify-center">
+
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
         <div className="text-center mb-8 sm:mb-12 lg:mb-16">
           <h1 className="text-heading-lg sm:text-heading-xl mb-4 sm:mb-6 lg:mb-8 text-white">
             Find nærmeste beskyttelsesrum

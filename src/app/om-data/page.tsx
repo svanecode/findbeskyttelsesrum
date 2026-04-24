@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
-import SiteHeader from "@/components/SiteHeader";
 import {
   getAppV2MunicipalitySummaries,
   getAppV2ShelterCount,
@@ -102,8 +101,6 @@ export default async function DataPage() {
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
 
-      <SiteHeader />
-
       <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         <header className="mb-10 max-w-3xl space-y-5">
           <p className="text-sm uppercase tracking-wide text-gray-400">Data</p>
@@ -131,9 +128,9 @@ export default async function DataPage() {
               note="Kommuner i oversigten."
             />
             <StatCard
-              label="Aktive registreringer"
+              label="Beskyttelsesrum i oversigten"
               value={overview.activeShelterCount.toLocaleString("da-DK")}
-              note="Aktive registreringer i oversigten."
+              note="Antal beskyttelsesrum der vises i den samlede oversigt."
             />
             <StatCard
               label="Senest opdateret"
@@ -163,7 +160,7 @@ export default async function DataPage() {
             <h2 className="text-lg font-semibold text-white">Hvor ofte opdateres data?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Hvis der findes en opdateringsdato, vises den øverst på siden. Mangler datoen, kan siden stadig vise
-              registreringer, men uden en tydelig “senest opdateret”.
+              beskyttelsesrum, men uden en tydelig “senest opdateret”.
             </p>
           </section>
 
@@ -192,8 +189,8 @@ export default async function DataPage() {
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Hvad siden ikke lover</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Registreringer og registreret kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse
-              eller aktuel fysisk stand.               Udvalgte eksempelregistreringer på land- og kommunesider er indgange til detail-sider, ikke anbefalinger
+              Beskyttelsesrum og registreret kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse
+              eller aktuel fysisk stand. Udvalgte beskyttelsesrum på land- og kommunesider er indgange til detail-sider, ikke anbefalinger
               eller komplette lister.
             </p>
           </section>

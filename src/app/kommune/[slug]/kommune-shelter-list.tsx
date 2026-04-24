@@ -73,7 +73,7 @@ export default function KommuneShelterList({
                   </span>
                   {group.shelterCount > 1 && (
                     <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-medium text-gray-300">
-                      {group.shelterCount} registreringer
+                      {group.shelterCount} beskyttelsesrum
                     </span>
                   )}
                 </div>

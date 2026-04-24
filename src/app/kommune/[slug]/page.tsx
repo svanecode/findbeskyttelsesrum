@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import GlobalFooter from '@/components/GlobalFooter'
-import SiteHeader from '@/components/SiteHeader'
 import {
   getAppV2MunicipalityBySlug,
   getAppV2PublicMunicipalityShelters,
@@ -38,7 +37,7 @@ function buildKommunePageJsonLd(
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: `Beskyttelsesrum i ${kommuneNavn}`,
-    description: `Kommuneoversigt over registrerede beskyttelsesrum i ${kommuneNavn}: aktive registreringer, kapacitet, adresser og vej til detail-sider.`,
+    description: `Kommuneoversigt over registrerede beskyttelsesrum i ${kommuneNavn}: antal, kapacitet, adresser og vej til detail-sider.`,
     url: `https://findbeskyttelsesrum.dk/kommune/${municipality.slug}`,
     inLanguage: 'da-DK',
     isPartOf: {
@@ -129,8 +128,6 @@ export default async function KommunePage({ params }: Props) {
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
 
-      <SiteHeader />
-
       <div className="border-b border-white/10 bg-black/30 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-4 py-3 text-sm text-gray-400 sm:px-6 lg:px-8">
           <Link href="/kommune" className="transition-colors hover:text-white">
@@ -154,13 +151,13 @@ export default async function KommunePage({ params }: Props) {
         <p className="mt-3 max-w-2xl text-base leading-7 text-gray-300">
           {groups.length.toLocaleString('da-DK')}{' '}
           {groups.length === 1 ? 'adresse' : 'adresser'} med samlet{' '}
-          {stats.totalCapacity.toLocaleString('da-DK')} registrerede pladser (sum af kapacitet i aktive registreringer).
+          {stats.totalCapacity.toLocaleString('da-DK')} registrerede pladser (sum af kapacitet for beskyttelsesrum i oversigten).
         </p>
 
         {/* Stats */}
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="Adresser" value={groups.length} />
-          <StatCard label="Aktive registreringer" value={stats.activeShelterCount} />
+          <StatCard label="Beskyttelsesrum i oversigten" value={stats.activeShelterCount} />
           <StatCard label="Registrerede pladser" value={stats.totalCapacity} />
           <StatCard label="Postområder i oversigten" value={stats.postalAreaCount} />
         </div>
@@ -170,7 +167,7 @@ export default async function KommunePage({ params }: Props) {
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
         <div className="mb-6 max-w-3xl rounded-lg border border-white/10 bg-white/5 p-4 text-sm leading-6 text-gray-300 sm:p-5">
           <p>
-            Liste og kort viser de aktuelle registreringer i oversigten. Kortet giver lokalt overblik og kan indeholde
+            Liste og kort viser beskyttelsesrum i oversigten. Kortet giver lokalt overblik og kan indeholde
             ufuldstændige eller forældede oplysninger.
           </p>
           <p className="mt-2 text-gray-400">

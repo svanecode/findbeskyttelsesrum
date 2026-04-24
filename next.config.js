@@ -151,6 +151,7 @@ const nextConfig = {
               script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.leafletjs.com;
               img-src 'self' data: https:;
               connect-src 'self' https://*.leafletjs.com https://api.dataforsyningen.dk https://*.dataforsyningen.dk https:;
+              frame-src 'self' https://www.openstreetmap.org;
               frame-ancestors 'none';
               base-uri 'self';
               form-action 'self';

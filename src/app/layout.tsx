@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import SiteHeader from "@/components/SiteHeader";
 import VercelWebMetrics from "@/components/VercelWebMetrics";
 import { getWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
 import { siteLocale, siteName, siteUrl } from "@/lib/seo/site";
@@ -123,6 +124,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} antialiased`}>
         <ErrorBoundary>
+          <SiteHeader />
           {children}
           {process.env.NODE_ENV === "production" ? <VercelWebMetrics /> : null}
         </ErrorBoundary>

@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `Beskyttelsesrum i ${kommuneName}`,
-    description: `Lokalt overblik over registrerede beskyttelsesrum i ${kommuneName} — adresser, liste, kort og detaljesider for enkelte registreringer.`,
+    description: `Lokalt overblik over registrerede beskyttelsesrum i ${kommuneName} — adresser, liste, kort og detaljesider for enkelte beskyttelsesrum.`,
     keywords: [
       `beskyttelsesrum ${kommuneName}`,
       `beskyttelsesrum ${kommuneName} kommune`,

@@ -8,6 +8,7 @@ type NavItem = { href: string; label: string; active: (p: string) => boolean }
 
 const NAV: NavItem[] = [
   { href: '/', label: 'Søg', active: (p) => p === '/' || p.startsWith('/shelters/nearby') },
+  { href: '/kort', label: 'Landskort', active: (p) => p === '/kort' },
   {
     href: '/kommune',
     label: 'Kommuneoversigt',
@@ -17,17 +18,19 @@ const NAV: NavItem[] = [
 ]
 
 function desktopNavClass(active: boolean) {
-  const base = 'rounded-md border-b-2 px-3 py-2 text-sm font-medium transition-colors'
+  const base =
+    'rounded-lg px-3 py-2 text-sm font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-orange-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]'
   return active
-    ? `${base} border-orange-500 text-white`
-    : `${base} border-transparent text-gray-300 hover:bg-white/10 hover:text-white`
+    ? `${base} bg-white/[0.09] text-white shadow-[inset_0_0_0_1px_rgba(233,123,77,0.45)]`
+    : `${base} text-gray-400 hover:bg-white/[0.06] hover:text-gray-100`
 }
 
 function mobileNavClass(active: boolean) {
-  const base = 'rounded-md px-3 py-3 text-sm font-medium transition-colors'
+  const base =
+    'mx-0.5 rounded-lg px-3 py-3 text-sm font-medium outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-orange-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]'
   return active
-    ? `${base} border-l-4 border-orange-500 bg-white/5 pl-2 text-white`
-    : `${base} text-gray-300 hover:bg-white/10 hover:text-white`
+    ? `${base} bg-white/[0.09] text-white shadow-[inset_0_0_0_1px_rgba(233,123,77,0.45)]`
+    : `${base} text-gray-400 hover:bg-white/[0.06] hover:text-gray-100`
 }
 
 export default function SiteHeader() {
@@ -69,7 +72,7 @@ export default function SiteHeader() {
           Findbeskyttelsesrum
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Hovednavigation">
+        <nav className="hidden items-center gap-0.5 md:flex" aria-label="Hovednavigation">
           {NAV.map(({ href, label, active }) => {
             const isActive = active(pathname)
             return (

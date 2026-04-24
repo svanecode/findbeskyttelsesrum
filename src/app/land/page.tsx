@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
-import SiteHeader from "@/components/SiteHeader";
 import { serializeJsonLd } from "@/lib/seo/json-ld";
 import {
   getAppV2FeaturedShelters,
@@ -230,7 +229,7 @@ function ShelterExampleCard({ shelter }: { shelter: AppV2ShelterPreview }) {
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
         <span>{shelter.municipality.name}</span>
         <span>{shelter.capacity.toLocaleString("da-DK")} registrerede pladser</span>
-        <span>Åbn detailregistrering</span>
+        <span>Åbn beskyttelsesrum</span>
       </div>
     </Link>
   );
@@ -256,8 +255,6 @@ export default async function CountryPage() {
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
 
-      <SiteHeader />
-
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         <header className="mb-10 max-w-3xl space-y-5">
           <p className="text-sm uppercase tracking-wide text-gray-400">Hele landet</p>
@@ -282,17 +279,17 @@ export default async function CountryPage() {
             <StatCard
               label="Kommuner"
               value={overview.municipalityCount.toLocaleString("da-DK")}
-              note={`${overview.activeMunicipalityCount.toLocaleString("da-DK")} kommuner har aktive registreringer i oversigten.`}
+              note={`${overview.activeMunicipalityCount.toLocaleString("da-DK")} kommuner har beskyttelsesrum i oversigten.`}
             />
             <StatCard
-              label="Aktive registreringer"
+              label="Beskyttelsesrum i oversigten"
               value={overview.activeShelterCount.toLocaleString("da-DK")}
-              note="Registreringer der er aktive i datagrundlaget."
+              note="Beskyttelsesrum der indgår i det aktuelle datagrundlag."
             />
             <StatCard
               label="Registrerede pladser"
               value={overview.totalCapacity.toLocaleString("da-DK")}
-              note="Summen af registreret kapacitet i aktive registreringer."
+              note="Summen af registreret kapacitet for beskyttelsesrum i oversigten."
             />
           </section>
         ) : (
@@ -311,7 +308,7 @@ export default async function CountryPage() {
               <h2 className="mt-2 text-xl font-semibold text-white">Hvad landssiden kan bruges til</h2>
               <p className="mt-3 text-sm leading-6 text-gray-300">
                 Landssiden giver et samlet billede af datagrundlaget og peger videre til de sider, hvor
-                registreringerne bliver lokale og konkrete. Tallene er registerbaserede og skal læses sammen med
+                beskyttelsesrummene bliver lokale og konkrete. Tallene er registerbaserede og skal læses sammen med
                 dataforklaringen.
               </p>
             </div>
@@ -319,7 +316,7 @@ export default async function CountryPage() {
               <NationalDepthItem
                 label="Dækning"
                 value={`${overview.activeMunicipalityCount.toLocaleString("da-DK")} kommuner`}
-                note="Kommuner med mindst én aktiv registrering i datagrundlaget."
+                note="Kommuner med mindst ét beskyttelsesrum i datagrundlaget."
               />
               <NationalDepthItem
                 label="Kommuneniveau"
@@ -328,8 +325,8 @@ export default async function CountryPage() {
               />
               <NationalDepthItem
                 label="Detailniveau"
-                value="Enkelte registreringer"
-                note="Detail-sider viser én aktiv registrering med adresse, registreret kapacitet og kildekontekst."
+                value="Enkelte beskyttelsesrum"
+                note="Detail-sider viser ét beskyttelsesrum med adresse, registreret kapacitet og kildekontekst."
               />
             </div>
           </section>
@@ -356,7 +353,7 @@ export default async function CountryPage() {
                     {region.municipalityCount.toLocaleString("da-DK")} kommuner
                   </span>
                   <span className="text-gray-400">
-                    {region.activeShelterCount.toLocaleString("da-DK")} aktive registreringer
+                    {region.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum i oversigten
                   </span>
                 </li>
               ))}
@@ -403,10 +400,10 @@ export default async function CountryPage() {
           <section className="mb-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <div className="max-w-3xl">
               <p className="text-sm uppercase tracking-wide text-gray-400">Konkrete indgange</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">Udvalgte eksempelregistreringer</h2>
+              <h2 className="mt-2 text-xl font-semibold text-white">Udvalgte beskyttelsesrum</h2>
               <p className="mt-3 text-sm leading-6 text-gray-300">
-                Her vises få aktive registreringer med høj registreret kapacitet på tværs af landet. De giver konkrete
-                veje til detail-siderne og viser hvordan nationale tal kan læses ned på enkeltregistreringer. De er ikke
+                Her vises få beskyttelsesrum med høj registreret kapacitet på tværs af landet. De giver konkrete
+                veje til detail-siderne og viser hvordan nationale tal kan læses ned på enkelte beskyttelsesrum. De er ikke
                 anbefalinger, en komplet national liste eller en vurdering af beredskab.
               </p>
             </div>
@@ -465,7 +462,7 @@ export default async function CountryPage() {
             <div className="border-b border-white/10 px-5 py-4 sm:px-6">
               <h2 className="text-lg font-semibold text-white">Største kommuner i oversigten</h2>
               <p className="mt-1 text-sm text-gray-400">
-                Sorteret efter antal aktive registreringer. Listen viser hvor der er mest registervolumen og fungerer
+                Sorteret efter antal beskyttelsesrum i oversigten. Listen viser hvor der er flest beskyttelsesrum i datagrundlaget og fungerer
                 som indgang til kommunesider, ikke som rangering af sikkerhed, adgang eller beredskab.
               </p>
             </div>
@@ -478,7 +475,7 @@ export default async function CountryPage() {
                   >
                     <span className="font-medium text-white">{municipality.name}</span>
                     <span className="text-sm text-gray-300">
-                      {municipality.activeShelterCount.toLocaleString("da-DK")} aktive registreringer
+                      {municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum i oversigten
                     </span>
                   </Link>
                 </li>
@@ -502,8 +499,8 @@ export default async function CountryPage() {
             <Link href="/om-data" className="text-white underline-offset-2 hover:underline">
               Datagrundlag
             </Link>
-            , hvis du vil forstå forskellen på aktive registreringer, registrerede pladser og udvalgte
-            eksempelregistreringer.
+            , hvis du vil forstå forskellen på antal beskyttelsesrum i oversigten, registrerede pladser og udvalgte
+            eksempler på beskyttelsesrum.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link

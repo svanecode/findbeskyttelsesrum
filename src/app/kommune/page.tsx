@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
-import SiteHeader from "@/components/SiteHeader";
 import { getAppV2MunicipalitySummaries } from "@/lib/supabase/app-v2-queries";
 
 export const revalidate = 86400;
@@ -30,12 +29,6 @@ export default async function MunicipalityOverviewPage() {
     a.name.localeCompare(b.name, "da-DK"),
   );
 
-  const municipalityCount = municipalities.length;
-  const activeShelterCount = municipalities.reduce(
-    (total, municipality) => total + municipality.activeShelterCount,
-    0,
-  );
-
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white">
       <div className="fixed inset-0 -z-10 overflow-hidden">
@@ -43,11 +36,8 @@ export default async function MunicipalityOverviewPage() {
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
 
-      <SiteHeader />
-
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         <header className="mb-10 max-w-3xl space-y-5">
-          <p className="text-sm uppercase tracking-wide text-gray-400">Kommuner</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
             Kommuneoversigt
           </h1>
@@ -64,34 +54,6 @@ export default async function MunicipalityOverviewPage() {
             </Link>
           </div>
         </header>
-
-        <section className="mb-8 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-white/10 bg-white/5 p-5">
-            <p className="text-sm text-gray-400">Kommuner</p>
-            <p className="mt-2 text-2xl font-semibold text-white">{municipalityCount.toLocaleString("da-DK")}</p>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-white/5 p-5">
-            <p className="text-sm text-gray-400">Aktive registreringer</p>
-            <p className="mt-2 text-2xl font-semibold text-white">{activeShelterCount.toLocaleString("da-DK")}</p>
-            <p className="mt-2 text-sm leading-6 text-gray-400">
-              Registreringer der er aktive i datagrundlaget.
-            </p>
-          </div>
-        </section>
-
-        <section className="mb-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-white">Fra hele landet til den enkelte kommune</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
-            Landssiden samler de nationale tal. Kommuneoversigten gør det muligt at gå fra det samlede billede
-            til lokale kommunesider med nøgletal, postområder, adresseliste med veje til detail-sider og kortvisning.
-          </p>
-          <Link
-            href="/land"
-            className="mt-4 inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition hover:bg-white/10 hover:text-white"
-          >
-            Se hele landet
-          </Link>
-        </section>
 
         <section className="rounded-lg border border-white/10 bg-white/5">
           <div className="border-b border-white/10 px-5 py-4 sm:px-6">
@@ -111,12 +73,9 @@ export default async function MunicipalityOverviewPage() {
                   >
                     <span>
                       <span className="block font-medium text-white">{municipality.name}</span>
-                      {municipality.code && (
-                        <span className="mt-1 block text-sm text-gray-400">Kommunekode {municipality.code}</span>
-                      )}
                     </span>
                     <span className="flex flex-col gap-1 text-sm text-gray-300 sm:items-end">
-                      <span>{municipality.activeShelterCount.toLocaleString("da-DK")} aktive registreringer</span>
+                      <span>{municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum i oversigten</span>
                       <span className="font-medium text-white">Se kommune</span>
                     </span>
                   </Link>
@@ -124,45 +83,6 @@ export default async function MunicipalityOverviewPage() {
               ))}
             </ul>
           )}
-        </section>
-
-        <section className="mt-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-white">Om tallene</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
-            Tallene kommer fra databasen og tæller registreringer, der er aktive i det aktuelle datagrundlag. De er ikke
-            en garanti for adgang, fysisk stand, klargøring eller myndighedsgodkendelse af et konkret rum.
-          </p>
-          <Link
-            href="/om-data"
-            className="mt-4 inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
-          >
-            Datagrundlag
-          </Link>
-        </section>
-
-        <section className="mt-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-white">Næste skridt</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
-            Gå tilbage til landssiden for national kontekst, eller åbn{" "}
-            <Link href="/om-data" className="text-white underline-offset-2 hover:underline">
-              Datagrundlag
-            </Link>{" "}
-            før du fortolker registrerede pladser og aktive registreringer.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link
-              href="/land"
-              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
-            >
-              Hele landet
-            </Link>
-            <Link
-              href="/"
-              className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
-            >
-              Til forsiden
-            </Link>
-          </div>
         </section>
       </div>
 
