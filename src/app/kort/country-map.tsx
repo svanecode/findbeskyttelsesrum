@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
 import type { AppV2CountryShelter } from "@/lib/supabase/app-v2-queries";
@@ -10,8 +10,6 @@ const MapContainer = dynamic(
   { ssr: false },
 );
 const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
-const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
-const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false });
 const MarkerClusterGroup = dynamic(
   () => import("@/components/MarkerClusterGroup").then((mod) => mod.default),
   { ssr: false },
@@ -35,6 +33,36 @@ function makeShelterIcon(L: typeof import("leaflet")) {
   });
 }
 
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildPopupHtml(shelter: AppV2CountryShelter) {
+  const postalLine = [shelter.postalCode, shelter.city].filter(Boolean).join(" ").trim();
+  const hasAddress = Boolean(shelter.addressLine1) || Boolean(postalLine);
+  const cap = shelter.capacity.toLocaleString("da-DK");
+  const slugSeg = encodeURIComponent(shelter.slug);
+
+  const addressBlock = hasAddress
+    ? `<div style="margin-top:4px;font-size:0.875rem;color:#4b5563;line-height:1.35;">
+        ${shelter.addressLine1 ? `<p style="margin:0;">${escapeHtml(shelter.addressLine1)}</p>` : ""}
+        ${postalLine ? `<p style="margin:0;">${escapeHtml(postalLine)}</p>` : ""}
+      </div>`
+    : "";
+
+  return `<div style="min-width:220px;padding:4px;font-family:system-ui,-apple-system,sans-serif;">
+    <p style="margin:0;font-weight:600;color:#111827;">${escapeHtml(shelter.name)}</p>
+    ${addressBlock}
+    <p style="margin:8px 0 0;font-size:0.875rem;font-weight:500;color:#ea580c;">${escapeHtml(cap)} pladser</p>
+    <a href="/beskyttelsesrum/${slugSeg}" style="margin-top:8px;display:block;font-size:0.75rem;color:#2563eb;text-decoration:underline;">Se detaljer →</a>
+  </div>`;
+}
+
 function MapLoadingSkeleton() {
   return (
     <div className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]">
@@ -53,9 +81,15 @@ const denmarkMaxBounds: [[number, number], [number, number]] = [
   [58, 15],
 ];
 
+type MarkerClusterLike = {
+  clearLayers(): void;
+  addLayers(layers: import("leaflet").Layer[]): void;
+};
+
 export default function CountryMap({ shelters }: Props) {
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
   const [shelterMarkerIcon, setShelterMarkerIcon] = useState<import("leaflet").DivIcon | null>(null);
+  const clusterRef = useRef<MarkerClusterLike | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +108,64 @@ export default function CountryMap({ shelters }: Props) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const L = leafletRef.current;
+    const icon = shelterMarkerIcon;
+    const cg = clusterRef.current;
+    if (!L || !icon || !cg) return;
+
+    const BATCH = 1200;
+    let cancelled = false;
+    let rafId: number | null = null;
+
+    cg.clearLayers();
+
+    const pump = (from: number) => {
+      if (cancelled) return;
+      const slice = shelters.slice(from, from + BATCH);
+      if (slice.length === 0) return;
+      const layers: import("leaflet").Marker[] = [];
+      for (const s of slice) {
+        const marker = L.marker([s.latitude, s.longitude], { icon });
+        marker.bindPopup(buildPopupHtml(s), { maxWidth: 320 });
+        layers.push(marker);
+      }
+      cg.addLayers(layers);
+      const next = from + BATCH;
+      if (next < shelters.length) {
+        rafId = window.requestAnimationFrame(() => {
+          rafId = null;
+          pump(next);
+        });
+      }
+    };
+
+    if (shelters.length > 0) {
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        pump(0);
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      cg.clearLayers();
+    };
+  }, [shelters, shelterMarkerIcon]);
+
+  const clusterIconCreate = useCallback((cluster: { getChildCount: () => number }) => {
+    const Leaf = leafletRef.current!;
+    const count = cluster.getChildCount();
+    const cls =
+      count < 10 ? "marker-cluster-small" : count < 50 ? "marker-cluster-medium" : "marker-cluster-large";
+    return Leaf.divIcon({
+      html: `<div><span>${count}</span></div>`,
+      className: `marker-cluster ${cls}`,
+      iconSize: Leaf.point(40, 40),
+    });
   }, []);
 
   const center: [number, number] = [56.26, 9.5];
@@ -100,6 +192,9 @@ export default function CountryMap({ shelters }: Props) {
         />
 
         <MarkerClusterGroup
+          ref={(instance) => {
+            clusterRef.current = instance as MarkerClusterLike | null;
+          }}
           chunkedLoading
           chunkInterval={200}
           chunkDelay={50}
@@ -108,47 +203,9 @@ export default function CountryMap({ shelters }: Props) {
           spiderfyOnMaxZoom
           showCoverageOnHover={false}
           zoomToBoundsOnClick
-          iconCreateFunction={(cluster: { getChildCount: () => number }) => {
-            const L = leafletRef.current!;
-            const count = cluster.getChildCount();
-            const cls =
-              count < 10 ? "marker-cluster-small" : count < 50 ? "marker-cluster-medium" : "marker-cluster-large";
-            return L.divIcon({
-              html: `<div><span>${count}</span></div>`,
-              className: `marker-cluster ${cls}`,
-              iconSize: L.point(40, 40),
-            });
-          }}
+          iconCreateFunction={clusterIconCreate}
         >
-          {shelters.map((shelter) => {
-            const postalLine = [shelter.postalCode, shelter.city].filter(Boolean).join(" ").trim();
-            const hasAddress = Boolean(shelter.addressLine1) || Boolean(postalLine);
-
-            return (
-              <Marker key={shelter.id} position={[shelter.latitude, shelter.longitude]} icon={shelterMarkerIcon}>
-                <Popup>
-                  <div className="min-w-[220px] p-1">
-                    <p className="font-semibold text-gray-900">{shelter.name}</p>
-                    {hasAddress ? (
-                      <div className="mt-1 text-sm text-gray-600">
-                        {shelter.addressLine1 ? <p>{shelter.addressLine1}</p> : null}
-                        {postalLine ? <p>{postalLine}</p> : null}
-                      </div>
-                    ) : null}
-                    <p className="mt-2 text-sm font-medium text-orange-600">
-                      {shelter.capacity.toLocaleString("da-DK")} pladser
-                    </p>
-                    <a
-                      href={`/beskyttelsesrum/${shelter.slug}`}
-                      className="mt-2 block text-xs text-blue-600 hover:underline"
-                    >
-                      Se detaljer →
-                    </a>
-                  </div>
-                </Popup>
-              </Marker>
-            );
-          })}
+          {null}
         </MarkerClusterGroup>
       </MapContainer>
     </div>

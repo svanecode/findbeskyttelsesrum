@@ -84,9 +84,7 @@
   --text-tertiary: #9CA3AF;
   --container-bg: rgba(26, 26, 26, 0.8);
   --container-border: rgba(255, 255, 255, 0.1);
-  --font-space-grotesk: 'Space Grotesk', sans-serif;
-  --font-inter: 'Inter', sans-serif;
-  
+
   /* Semantic colors with better contrast */
   --color-success: #10B981;
   --color-success-bg: rgba(16, 185, 129, 0.1);

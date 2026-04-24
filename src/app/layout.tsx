@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import VercelWebMetrics from "@/components/VercelWebMetrics";
 import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
-  display: 'swap',
-  fallback: ['system-ui', 'sans-serif']
+  display: "swap",
+  fallback: ["system-ui", "sans-serif"],
+  variable: "--font-inter",
 });
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  display: 'swap',
-  fallback: ['system-ui', 'sans-serif']
+  display: "swap",
+  fallback: ["system-ui", "sans-serif"],
+  variable: "--font-space-grotesk",
 });
 
 export const metadata: Metadata = {
@@ -95,8 +96,9 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="da">
+    <html lang="da" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <head>
+        <link rel="preload" href="/grid.svg" as="image" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/site.webmanifest" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -107,15 +109,10 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="format-detection" content="telephone=no" />
       </head>
-      <body className={`${inter.className} ${spaceGrotesk.className} antialiased`}>
+      <body className={`${inter.className} antialiased`}>
         <ErrorBoundary>
           {children}
-          {process.env.NODE_ENV === "production" && (
-            <>
-              <Analytics />
-              <SpeedInsights />
-            </>
-          )}
+          {process.env.NODE_ENV === "production" ? <VercelWebMetrics /> : null}
         </ErrorBoundary>
       </body>
     </html>

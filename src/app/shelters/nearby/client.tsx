@@ -1139,7 +1139,7 @@ export default function ShelterMapClient({
             )}
           </div>
 
-          <div className="order-1 lg:order-2 h-[400px] lg:h-[600px] relative lg:sticky lg:top-4">
+          <div className="order-1 lg:order-2 h-[400px] min-h-[400px] lg:h-[600px] lg:min-h-[600px] relative lg:sticky lg:top-4">
             <div className="absolute inset-0 rounded-lg overflow-hidden">
               {isClient && (
                 <MapContainer
