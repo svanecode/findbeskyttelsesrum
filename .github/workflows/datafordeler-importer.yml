@@ -65,13 +65,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ -z "${DATAFORDELER_BBR_GRAPHQL_URL:-}" ]]; then
-            echo "DATAFORDELER_BBR_GRAPHQL_URL=https://graphql.datafordeler.dk/BBR/v1" >> "$GITHUB_ENV"
-          fi
+          export DATAFORDELER_BBR_GRAPHQL_URL="${DATAFORDELER_BBR_GRAPHQL_URL:-https://graphql.datafordeler.dk/BBR/v1}"
+          export DATAFORDELER_DAR_GRAPHQL_URL="${DATAFORDELER_DAR_GRAPHQL_URL:-https://graphql.datafordeler.dk/DAR/v1}"
 
-          if [[ -z "${DATAFORDELER_DAR_GRAPHQL_URL:-}" ]]; then
-            echo "DATAFORDELER_DAR_GRAPHQL_URL=https://graphql.datafordeler.dk/DAR/v1" >> "$GITHUB_ENV"
-          fi
+          echo "DATAFORDELER_BBR_GRAPHQL_URL=$DATAFORDELER_BBR_GRAPHQL_URL" >> "$GITHUB_ENV"
+          echo "DATAFORDELER_DAR_GRAPHQL_URL=$DATAFORDELER_DAR_GRAPHQL_URL" >> "$GITHUB_ENV"
 
           node - <<'NODE'
           function describeUrl(name) {
