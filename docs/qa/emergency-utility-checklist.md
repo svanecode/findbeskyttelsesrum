@@ -47,7 +47,7 @@ For hver side: tjek at den er sekundær og linker tydeligt tilbage til “Find n
 
 - [ ] `/kommune`
 - [ ] `/kommune/[slug]`
-- [ ] `/land` (hvis til stede)
+- [ ] `GET /land` → **301** til `/kommune` (land-side fjernet)
 - [ ] `/om-data`
 - [ ] `/tell-me-more` (redirect til `/om-data`)
 - [ ] `/kort` (hvis til stede)

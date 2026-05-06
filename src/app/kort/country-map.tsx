@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import "leaflet/dist/leaflet.css";
+import "@/styles/leaflet-overrides.css";
 import type { CountryMapShelterMarker, CountryShelterMarkersResponse } from "@/types/country-map";
+import { ensureLeafletPopupStyles } from "@/lib/leaflet/ensure-popup-styles";
+import { getAnvendelseskodeBeskrivelse, getAnvendelseskoder } from "@/lib/anvendelseskoder";
+import type { Anvendelseskode } from "@/types/anvendelseskode";
+import { buildLeafletPopupHtml, normalizeShelterName } from "@/lib/leaflet/popup-html";
 
 const MapContainer = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
@@ -18,7 +24,7 @@ const MarkerClusterGroup = dynamic(
 function makeShelterIcon(L: typeof import("leaflet")) {
   const size = 26;
   const border = 3;
-  const color = "#F97316";
+  const color = "var(--accent)";
   const shadow = "0 3px 8px rgba(0,0,0,0.4)";
   return L.divIcon({
     className: "shelter-marker",
@@ -29,40 +35,23 @@ function makeShelterIcon(L: typeof import("leaflet")) {
   });
 }
 
-function escapeHtml(text: string) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function buildPopupHtml(shelter: CountryMapShelterMarker) {
+function buildPopupHtml(shelter: CountryMapShelterMarker, anvendelse: string) {
   const postalLine = [shelter.postalCode, shelter.city].filter(Boolean).join(" ").trim();
-  const hasAddress = Boolean(shelter.addressLine1) || Boolean(postalLine);
-  const cap = shelter.capacity.toLocaleString("da-DK");
+  const title = shelter.addressLine1?.trim() ? shelter.addressLine1.trim() : normalizeShelterName(shelter.name);
   const slugSeg = encodeURIComponent(shelter.slug);
-
-  const addressBlock = hasAddress
-    ? `<div style="margin-top:4px;font-size:0.875rem;color:#4b5563;line-height:1.35;">
-        ${shelter.addressLine1 ? `<p style="margin:0;">${escapeHtml(shelter.addressLine1)}</p>` : ""}
-        ${postalLine ? `<p style="margin:0;">${escapeHtml(postalLine)}</p>` : ""}
-      </div>`
-    : "";
-
-  return `<div style="min-width:220px;padding:4px;font-family:system-ui,-apple-system,sans-serif;">
-    <p style="margin:0;font-weight:600;color:#111827;">${escapeHtml(shelter.name)}</p>
-    ${addressBlock}
-    <p style="margin:8px 0 0;font-size:0.875rem;font-weight:500;color:#ea580c;">${escapeHtml(cap)} pladser</p>
-    <a href="/beskyttelsesrum/${slugSeg}" style="margin-top:8px;display:block;font-size:0.75rem;color:#2563eb;text-decoration:underline;">Åbn</a>
-  </div>`;
+  return buildLeafletPopupHtml({
+    title,
+    usageLine: anvendelse,
+    postalLine,
+    capacity: shelter.capacity,
+    href: `/beskyttelsesrum/${slugSeg}`,
+  });
 }
 
 function MapLoadingSkeleton() {
   return (
     <div
-      className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
+      className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[var(--surface-elevated)] md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
       role="status"
       aria-live="polite"
       aria-label="Indlæser kort over beskyttelsesrum"
@@ -98,8 +87,10 @@ export default function CountryMap() {
   const clusterRef = useRef<MarkerClusterLike | null>(null);
   const [clusterReady, setClusterReady] = useState(false);
   const [markerState, setMarkerState] = useState<MarkerLoadState>({ status: "loading" });
+  const [anvendelseskoder, setAnvendelseskoderState] = useState<Anvendelseskode[]>([]);
 
   useEffect(() => {
+    ensureLeafletPopupStyles();
     let cancelled = false;
     import("leaflet").then((leaflet) => {
       if (cancelled) return;
@@ -112,6 +103,17 @@ export default function CountryMap() {
       });
       leafletRef.current = L;
       setShelterMarkerIcon(makeShelterIcon(L));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAnvendelseskoder().then((codes) => {
+      if (cancelled) return;
+      setAnvendelseskoderState(codes);
     });
     return () => {
       cancelled = true;
@@ -138,8 +140,9 @@ export default function CountryMap() {
       if (slice.length === 0) return;
       const layers: import("leaflet").Marker[] = [];
       for (const s of slice) {
+        const anvendelse = getAnvendelseskodeBeskrivelse(s.sourceApplicationCode ?? null, anvendelseskoder);
         const marker = L.marker([s.latitude, s.longitude], { icon });
-        marker.bindPopup(buildPopupHtml(s), { maxWidth: 320 });
+        marker.bindPopup(buildPopupHtml(s, anvendelse), { maxWidth: 340, className: "fb-popup" });
         marker.on("click", () => {
           marker.openPopup();
         });
@@ -167,7 +170,7 @@ export default function CountryMap() {
       if (rafId !== null) window.cancelAnimationFrame(rafId);
       cg.clearLayers();
     };
-  }, [markerState, shelterMarkerIcon, clusterReady]);
+  }, [markerState, shelterMarkerIcon, clusterReady, anvendelseskoder]);
 
   useEffect(() => {
     let cancelled = false;
@@ -230,11 +233,31 @@ export default function CountryMap() {
   if (markerState.status === "error") {
     return (
       <div
-        className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
+        className="relative flex min-h-[60vh] w-full flex-col items-center justify-center rounded-lg border border-white/10 bg-[var(--surface-elevated)] px-6 py-10 text-center md:min-h-[70vh]"
         role="alert"
       >
-        <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-          <p className="text-sm text-gray-300">Kortdata kunne ikke indlæses. Prøv igen om lidt.</p>
+        <p className="text-gray-200">Kortdata kunne ikke indlæses lige nu.</p>
+        <p className="mt-2 max-w-md text-sm text-gray-400">Prøv at genindlæse siden, eller gå til forsiden og søg adresse eller placering.</p>
+        <div className="mt-6 flex w-full max-w-sm flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+          >
+            Genindlæs siden
+          </button>
+          <Link
+            href="/"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+          >
+            Til forsiden
+          </Link>
+          <Link
+            href="/kommune"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+          >
+            Kommuneoversigt
+          </Link>
         </div>
       </div>
     );
@@ -243,7 +266,7 @@ export default function CountryMap() {
   return (
     <div
       className="h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
-      aria-label="Kort over registrerede beskyttelsesrum i Danmark"
+      aria-label="Kort over registrerede beskyttelsesrum i Danmark. Zoom og klik på klynger for at se enkeltsteder."
     >
       <MapContainer
         center={center}

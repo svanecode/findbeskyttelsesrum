@@ -66,7 +66,7 @@ Result:
 
 Supplemental preview checks (operator access):
 - Core routes (HTTP 200):
-  - `/`, `/land`, `/kommune`, `/om-data`, `/kort`
+  - `/`, `/kommune`, `/om-data`, `/kort`
   - `/kommune/aabenraa`
   - `/beskyttelsesrum/aabenraa-aabenraavej-13-1034c5dec57b`
   - `/shelters/nearby` for three locations:
@@ -91,7 +91,7 @@ Status: **NOT COMPLETED (needs human browser)**
 
 ## Supplemental local smoke (not a substitute for preview QA)
 Because preview was not accessible, a basic HTTP/content smoke was run against `http://localhost:3000` to confirm:
-- core routes returned 200 (`/`, `/land`, `/kommune`, `/kort`, `/om-data`, `/shelters/nearby`)
+- core routes returned 200 (`/`, `/kommune`, `/kort`, `/om-data`, `/shelters/nearby`)
 - `robots.txt` and `sitemap.xml` returned 200
 - no visible internal jargon tokens were present in the tested HTML responses: `app_v2`, `cutover`, `datalag`, `appV2NearbyEligibility`
 

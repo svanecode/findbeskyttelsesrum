@@ -71,10 +71,10 @@ Run these on preview **before** any cutover, and repeat immediately **after** cu
 - [ ] `/kort` renders and map loads markers
 - [ ] One shelter detail page (`/beskyttelsesrum/[slug]`) renders
 - [ ] One municipality page (`/kommune/[slug]`) renders
-- [ ] `/land` renders
+- [ ] `GET /land` returns **301** to `/kommune` (land page removed)
 - [ ] `/kommune` renders
 - [ ] `/om-data` renders
-- [ ] `/sitemap.xml` returns valid XML and includes `/land`, at least one `/kommune/`, at least one `/beskyttelsesrum/`
+- [ ] `/sitemap.xml` returns valid XML and includes at least one `/kommune/`, at least one `/beskyttelsesrum/`
 - [ ] `/robots.txt` returns and references sitemap
 - [ ] Mobile viewport smoke test: homepage + nearby + `/kort` are usable (no critical layout break)
 

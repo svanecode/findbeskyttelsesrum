@@ -5,7 +5,6 @@ Owner: Agent A
 
 ### In scope
 - Homepage public framing
-- /land
 - /kommune
 - /kommune/[slug]
 - /beskyttelsesrum/[slug]

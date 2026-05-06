@@ -15,19 +15,15 @@
 - [ ] **A1** Side loader uden synlig fejl (200).
 - [ ] **A2** Adresse-/søgefelt er synligt og fokuserbart.
 - [ ] **A3** Flow til nearby: indtast eller vælg kendt adresse → lander på `/shelters/nearby` med forventede koordinater (DAWA/search uændret — kun observe at det virker).
-- [ ] **A4** Links til `/land`, `/kommune`, `/om-data` virker.
+- [ ] **A4** Links til `/kommune`, `/kort`, `/om-data` (via header/footer) virker.
 - [ ] **A5** **Desktop:** layout og typografi ser fornuftige ud.
 - [ ] **A6** **Mobil** (smalt viewport): samme som A5, ingen horisontal overflow der ødelægger læsning.
 
 ---
 
-## B. Land `/land`
+## B. Omdirigering `/land` (side fjernet)
 
-- [ ] **B1** 200, national overskrift og tal vises (eller tydelig tom/fejl-tilstand hvis data mangler — notér i log).
-- [ ] **B2** Regioner / kommuneindgange matcher forventet indhold (ingen åbenbar “0 overalt”-bug hvis prod normalt har data).
-- [ ] **B3** Mindst ét link til `/kommune/[slug]` virker.
-- [ ] **B4** Mindst ét link til `/beskyttelsesrum/[slug]` (eksempelregistrering) virker.
-- [ ] **B5** Link til `/om-data` virker.
+- [ ] **B1** `GET BASE/land` returnerer **301** til `/kommune`.
 
 ---
 
@@ -53,8 +49,8 @@ Udfør alle tre hvis data findes for dem på target:
 
 ## E. Beskyttelsesrum-detalje `/beskyttelsesrum/[slug]`
 
-- [ ] **E1** Åbn **to** forskellige aktive detaljer (hent slug fra `/land` eller `/kommune/...`) — begge 200.
-- [ ] **E2** Navigationslinks (forside, land, kommuner, om data) virker og giver mening.
+- [ ] **E1** Åbn **to** forskellige aktive detaljer (hent slug fra `/kommune/...` eller sitemap) — begge 200.
+- [ ] **E2** Navigationslinks (forside, kommuner, om data) virker og giver mening.
 - [ ] **E3** Kapacitet og adresse vises; copy taler om **registrerede pladser** / register — ingen åbenbar modstrid.
 - [ ] **E4** **Metadata (manuel):** “Vis sidekilde” / devtools: `<title>` og meta description matcher siden; `canonical` peger på samme slug.
 
@@ -63,7 +59,7 @@ Udfør alle tre hvis data findes for dem på target:
 ## F. Om data `/om-data`
 
 - [ ] **F1** 200, indhold loader.
-- [ ] **F2** Links tilbage til `/`, `/land`, `/kommune` virker.
+- [ ] **F2** Links tilbage til `/`, `/kommune` virker.
 
 ---
 
@@ -81,10 +77,10 @@ Udfør alle tre hvis data findes for dem på target:
 
 ## J. SEO / metadata sanity
 
-- [ ] **J1** `GET BASE/sitemap.xml` — 200, XML gyldig; indeholder `BASE/land`, mindst én `BASE/kommune/`, mindst én `BASE/beskyttelsesrum/`.
+- [ ] **J1** `GET BASE/sitemap.xml` — 200, XML gyldig; indeholder mindst én `BASE/kommune/`, mindst én `BASE/beskyttelsesrum/`.
 - [ ] **J2** `GET BASE/robots.txt` — 200, `Sitemap:` peger på korrekt domæne.
 - [ ] **J3** Forside (eller vilkårlig side uden eget OG-billede): i HTML-head findes `og:image` der peger på **genereret** Open Graph (typisk `opengraph-image` under `/_next/...` eller tilsvarende — **ikke** død link til manglende `/og-image.jpg`).
-- [ ] **J4** `/land` og `/kommune`: `canonical` og `og:url` matcher forventede paths (stikprøve i kilde).
+- [ ] **J4** `/kommune`: `canonical` og `og:url` matcher forventede paths (stikprøve i kilde).
 
 ---
 

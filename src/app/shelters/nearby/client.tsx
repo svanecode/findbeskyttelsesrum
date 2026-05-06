@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type KeyboardEvent } from 'react'
 import dynamic from 'next/dynamic'
 import 'leaflet/dist/leaflet.css'
+import '@/styles/leaflet-overrides.css'
 import L from 'leaflet'
+import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
+import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
 
 // Fix Leaflet default markers
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -26,19 +29,19 @@ const createDivIcon = (className: string, html: string, size: number = 40) => {
 
 const userLocationIcon = createDivIcon(
   'user-location-marker',
-  '<div style="width: 24px; height: 24px; background: #3B82F6; border: 4px solid white; border-radius: 50%; box-shadow: 0 3px 8px rgba(0,0,0,0.5);"></div>',
+  '<div class="nearby-map-pin-user" aria-hidden="true"></div>',
   32
 )
 
 const shelterIcon = createDivIcon(
   'shelter-marker',
-  '<div style="width: 24px; height: 24px; background: #EF4444; border: 4px solid white; border-radius: 50%; box-shadow: 0 3px 8px rgba(0,0,0,0.5);"></div>',
+  '<div class="nearby-map-pin-shelter" aria-hidden="true"></div>',
   32
 )
 
 const hoveredShelterIcon = createDivIcon(
   'shelter-marker-hovered',
-  '<div style="width: 28px; height: 28px; background: #FB923C; border: 4px solid white; border-radius: 50%; box-shadow: 0 3px 10px rgba(0,0,0,0.6);"></div>',
+  '<div class="nearby-map-pin-shelter-hover" aria-hidden="true"></div>',
   36
 )
 import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
@@ -48,72 +51,13 @@ import Link from 'next/link'
 import GlobalFooter from '@/components/GlobalFooter'
 import { Kommunekode } from '@/types/kommunekode'
 import { Anvendelseskode } from '@/types/anvendelseskode'
+import { NearbyFitBounds } from './nearby-fit-bounds'
 
 // Dynamic import to avoid SSR issues with Leaflet
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
-
-// Component to auto-fit map bounds to markers
-function FitBounds({ userLocation, shelters }: { userLocation: [number, number], shelters: NearbyResultShelter[] }) {
-  // This will be loaded client-side only
-  const [MapHook, setMapHook] = useState<any>(null)
-
-  useEffect(() => {
-    import('react-leaflet').then(mod => {
-      setMapHook(() => mod.useMap)
-    })
-  }, [])
-
-  if (!MapHook) return null
-
-  return <FitBoundsInner userLocation={userLocation} shelters={shelters} useMapHook={MapHook} />
-}
-
-function FitBoundsInner({ userLocation, shelters, useMapHook }: {
-  userLocation: [number, number],
-  shelters: NearbyResultShelter[],
-  useMapHook: any
-}) {
-  const map = useMapHook()
-
-  useEffect(() => {
-    if (!map || shelters.length === 0) return
-
-    // Create a feature group with all markers
-    const group = L.featureGroup([
-      L.marker(userLocation),
-      ...shelters
-        .filter(s => s.location)
-        .map(s => L.marker([s.location!.coordinates[1], s.location!.coordinates[0]]))
-    ])
-
-    const bounds = group.getBounds()
-
-    if (!bounds.isValid()) {
-      group.clearLayers()
-      return
-    }
-
-    // If only user location (no shelters with location), just center on user
-    if (shelters.filter(s => s.location).length === 0) {
-      map.setView(userLocation, 13, { animate: true })
-    } else {
-      // Fit to all markers with padding
-      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
-      map.fitBounds(bounds, {
-        padding: isMobile ? [30, 30] : [50, 50],
-        maxZoom: 16,
-        animate: true
-      })
-    }
-
-    // Clean up
-    group.clearLayers()
-  }, [map, userLocation, shelters, useMapHook])
-
-  return null
-}
+const Popup = dynamic(() => import('react-leaflet').then((mod) => mod.Popup), { ssr: false })
 
 type AppV2NearbyEligibilityParam = 'source-application-code' | 'legacy-capacity' | 'none'
 
@@ -178,8 +122,6 @@ async function fetchAppV2GroupedShelters(
 interface Props {
   lat: string
   lng: string
-  appV2NearbyExperiment?: boolean
-  appV2NearbyPublicExperiment?: boolean
   appV2NearbyEligibility?: string
 }
 
@@ -196,20 +138,53 @@ export default function ShelterMapClient({
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
-  const shelterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
+  const [srMapSelection, setSrMapSelection] = useState('')
+  const shelterRefs = useRef<{ [key: string]: HTMLElement | null }>({})
   const mapRef = useRef<any>(null)
+  const srMapSelectionClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
   const eligibility = normalizeEligibilityParam(appV2NearbyEligibility)
 
   useEffect(() => {
+    ensureLeafletPopupStyles()
     setIsClient(true)
   }, [])
 
-  // Function to handle back to top
+  useEffect(() => {
+    if (!srMapSelection) return
+    if (srMapSelectionClearRef.current) clearTimeout(srMapSelectionClearRef.current)
+    srMapSelectionClearRef.current = setTimeout(() => {
+      setSrMapSelection('')
+      srMapSelectionClearRef.current = null
+    }, 4000)
+    return () => {
+      if (srMapSelectionClearRef.current) clearTimeout(srMapSelectionClearRef.current)
+    }
+  }, [srMapSelection])
+
   const handleBackToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  const focusShelterOnMap = useCallback(
+    (shelter: NearbyResultShelter) => {
+      setSelectedShelter(shelter.id)
+      if (shelter.location && mapRef.current) {
+        mapRef.current.setView([shelter.location.coordinates[1], shelter.location.coordinates[0]], 16)
+      }
+    },
+    [],
+  )
+
+  const handleShelterCardKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLElement>, shelter: NearbyResultShelter) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      focusShelterOnMap(shelter)
+    },
+    [focusShelterOnMap],
+  )
 
   useEffect(() => {
     let isMounted = true
@@ -218,9 +193,6 @@ export default function ShelterMapClient({
       try {
         setIsLoading(true)
         setLoadError(null)
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Starting data load with coordinates:', { lat, lng })
-        }
 
         const [rawSheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
           fetchAppV2GroupedShelters(lat, lng, eligibility),
@@ -229,29 +201,17 @@ export default function ShelterMapClient({
         ])
         const sheltersData: NearbyResultShelter[] = rawSheltersData
 
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Data loaded:', {
-            sheltersCount: sheltersData.length,
-            anvendelseskoderCount: anvendelseskoderData.length,
-            kommunekoderCount: kommunekoderData.length,
-            eligibility,
-          })
-        }
-
         if (isMounted) {
           setShelters(sheltersData)
           setAnvendelseskoder(anvendelseskoderData)
           setKommunekoder(kommunekoderData)
         }
       } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Error in loadData:', error)
-        }
         if (isMounted) {
           setShelters([])
           setAnvendelseskoder([])
           setKommunekoder([])
-          setLoadError('Kunne ikke hente nærliggende beskyttelsesrum lige nu. Prøv igen om lidt.')
+          setLoadError('Vi kunne ikke hente beskyttelsesrum lige nu. Prøv igen om lidt.')
         }
       } finally {
         if (isMounted) {
@@ -269,14 +229,17 @@ export default function ShelterMapClient({
 
   if (isNaN(lat) || isNaN(lng)) {
     return (
-      <main className="min-h-screen bg-[#1a1a1a] text-white">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">Ugyldig position</h1>
+      <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
+        <div className="mx-auto max-w-7xl p-4">
+          <h1 className="mb-3 text-2xl font-bold sm:text-3xl">Ugyldig position</h1>
+          <p className="mb-6 max-w-xl text-gray-400">
+            Koordinaterne kunne ikke læses. Gå tilbage til forsiden og søg igen, eller brug din placering.
+          </p>
           <Link
             href="/"
-            className="text-blue-400 hover:text-blue-300"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
           >
-            ← Tilbage til forsiden
+            Til forsiden
           </Link>
         </div>
       </main>
@@ -286,25 +249,35 @@ export default function ShelterMapClient({
   // Legacy nearby compare path removed (Sprint 4d).
 
   return (
-    <main className="min-h-screen bg-[#1a1a1a] text-white">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
       <div className="max-w-7xl mx-auto p-4">
-        <div className="flex items-center mb-6">
-          <Link
-            href="/"
-            className="text-gray-400 hover:text-white transition-colors mr-3 sm:mr-4 p-2 -ml-2 rounded-lg hover:bg-gray-800/50 touch-target"
-            aria-label="Tilbage til forsiden"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </Link>
-          <h1 className="text-xl sm:text-2xl font-bold">Nærmeste beskyttelsesrum</h1>
+        <div className="mb-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/"
+              className="-ml-2 touch-target rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-800/50 hover:text-white"
+              aria-label="Tilbage til forsiden"
+            >
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </Link>
+            <h1 className="text-xl font-bold sm:text-2xl">Nærmeste beskyttelsesrum</h1>
+          </div>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-400 sm:text-base">
+            Listen starter med det nærmeste. Vælg et beskyttelsesrum for detaljer eller navigation.
+          </p>
         </div>
 
         {/* Back to top button */}
         <button
+          type="button"
           onClick={handleBackToTop}
-          className="fixed bottom-6 right-6 z-50 p-3 bg-orange-500/90 hover:bg-orange-500 text-white rounded-full shadow-lg transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-orange-500/50 md:hidden"
+          className="fixed z-50 rounded-full bg-orange-500/90 p-3 text-white shadow-lg transition-all duration-300 hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 motion-safe:hover:scale-110 md:hidden"
+          style={{
+            bottom: 'max(5.5rem, calc(env(safe-area-inset-bottom, 0px) + 4.5rem))',
+            right: 'max(1rem, env(safe-area-inset-right, 0px))',
+          }}
           aria-label="Tilbage til toppen"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -312,100 +285,134 @@ export default function ShelterMapClient({
           </svg>
         </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="order-1 lg:order-1 space-y-4">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-6">
+          <section className="order-1 space-y-4 lg:order-1" aria-labelledby="nearby-results-heading">
+            <h2 id="nearby-results-heading" className="sr-only">
+              Resultater sorteret efter afstand
+            </h2>
             {loadError ? (
-              <div className="bg-[#2a2a2a] rounded-lg p-4" role="alert">
+              <div className="rounded-lg bg-[var(--surface-row-hover)] p-4 sm:p-5" role="alert">
                 <p className="text-gray-200">{loadError}</p>
-                <p className="mt-2 text-sm text-gray-400">Du kan også prøve at genindlæse siden.</p>
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <p className="mt-2 text-sm text-gray-400">Du kan prøve igen eller gå til forsiden.</p>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+                  >
+                    Genindlæs siden
+                  </button>
                   <Link
                     href="/"
-                    className="inline-flex items-center justify-center rounded-lg bg-white/10 px-4 py-3 text-sm font-medium text-white hover:bg-white/15 transition-colors"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
                   >
-                    Søg igen
+                    Til forsiden
                   </Link>
                   <Link
                     href="/kommune"
-                    className="inline-flex items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
                   >
-                    Se kommuneoversigt
+                    Kommuneoversigt
                   </Link>
                 </div>
               </div>
             ) : isLoading ? (
-              <div className="bg-[#2a2a2a] rounded-lg p-4" role="status" aria-live="polite">
-                <p className="text-gray-300">Indlæser nærliggende beskyttelsesrum...</p>
+              <div className="space-y-3" role="status" aria-live="polite" aria-busy="true">
+                <p className="text-sm text-gray-400">Henter beskyttelsesrum …</p>
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-36 animate-pulse rounded-lg border border-white/5 bg-white/[0.06] motion-reduce:animate-none sm:h-40"
+                    aria-hidden
+                  />
+                ))}
               </div>
             ) : shelters.length === 0 ? (
-              <div className="bg-[#2a2a2a] rounded-lg p-4" role="status" aria-live="polite">
-                <h2 className="text-lg font-semibold text-white">Vi fandt ikke et beskyttelsesrum</h2>
+              <div className="bg-[var(--surface-row-hover)] rounded-lg p-4" role="status" aria-live="polite">
+                <p className="text-lg font-semibold text-white">Ingen beskyttelsesrum i resultatet</p>
                 <p className="mt-2 text-gray-300">
-                  Prøv en mere præcis adresse, brug din placering, eller søg i kommuneoversigten. Følg altid myndighedernes anvisninger.
+                  Prøv en anden adresse eller din placering igen. Du kan også gennemse pr. kommune. Følg altid myndighedernes
+                  anvisninger.
                 </p>
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   <Link
                     href="/"
-                    className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-medium text-black hover:bg-gray-200 transition-colors"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
                   >
                     Søg igen
                   </Link>
                   <Link
                     href="/kommune"
-                    className="inline-flex items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors"
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
                   >
-                    Se kommuneoversigt
+                    Kommuneoversigt
                   </Link>
                 </div>
               </div>
             ) : (
-              shelters.map((shelter) => (
-                <div
+              <>
+                <p id="nearby-results-tab-hint" className="sr-only">
+                  Hvert resultat kan fokuseres med Tab for at vise stedet på kortet. Inde i hvert resultat findes links til
+                  detaljeside og navigation.
+                </p>
+                <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                  {srMapSelection}
+                </div>
+                {shelters.map((shelter) => (
+                <article
+                  aria-describedby="nearby-results-tab-hint"
                   key={shelter.id}
-                  ref={el => { shelterRefs.current[shelter.id] = el }}
-                  className={`group bg-[#1f1f1f] rounded-lg p-4 sm:p-5 transition-all duration-300 hover:bg-[#252525] ${
-                    selectedShelter === shelter.id ? 'ring-1 ring-orange-500/50 bg-[#252525]' : ''
-                  } ${hoveredShelter === shelter.id ? 'ring-1 ring-orange-400/30' : ''}`}
+                  ref={(el) => {
+                    shelterRefs.current[shelter.id] = el
+                  }}
+                  tabIndex={0}
+                  className={`group cursor-pointer rounded-lg border border-transparent bg-[var(--surface-row)] p-4 transition-colors duration-200 hover:bg-[var(--surface-row-active)] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-page)] sm:p-5 ${
+                    selectedShelter === shelter.id ? 'border-orange-500/40 bg-[var(--surface-row-active)] ring-1 ring-orange-500/40' : ''
+                  } ${hoveredShelter === shelter.id ? 'ring-1 ring-orange-400/25' : ''}`}
                   onMouseEnter={() => setHoveredShelter(shelter.id)}
                   onMouseLeave={() => setHoveredShelter(null)}
-                  onClick={() => {
-                    setSelectedShelter(shelter.id)
-                    if (shelter.location && mapRef.current) {
-                      mapRef.current.setView([shelter.location.coordinates[1], shelter.location.coordinates[0]], 16)
-                    }
-                  }}
+                  onClick={() => focusShelterOnMap(shelter)}
+                  onKeyDown={(e) => handleShelterCardKeyDown(e, shelter)}
+                  aria-current={selectedShelter === shelter.id ? true : undefined}
+                  aria-label={`${shelter.vejnavn} ${shelter.husnummer}, ${formatDistanceKm(shelter.distance)}. Tryk Enter for at vise på kortet.`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center bg-[#2a2a2a] text-orange-400/90 px-2 py-0.5 rounded-md text-sm font-medium border border-orange-500/10">
+                        <span className="inline-flex items-center bg-[var(--surface-row-hover)] text-orange-400/90 px-2 py-0.5 rounded-md text-sm font-medium border border-orange-500/10">
                           {formatDistanceKm(shelter.distance)}
                         </span>
                         {typeof shelter.shelter_count === 'number' ? (
                           <span className="text-xs sm:text-sm bg-white/5 text-gray-200 px-2 py-0.5 rounded border border-white/10">
-                            {shelter.shelter_count} beskyttelsesrum
+                            {shelter.shelter_count === 1
+                              ? '1 beskyttelsesrum på adressen'
+                              : `${shelter.shelter_count} beskyttelsesrum på samme adresse`}
                           </span>
                         ) : null}
                       </div>
 
-                      <h2 className="mt-2 text-lg sm:text-xl font-semibold text-white group-hover:text-orange-400/90 transition-colors truncate">
+                      <h3 className="mt-2 truncate text-lg font-semibold text-white transition-colors group-hover:text-orange-400/90 sm:text-xl">
                         {shelter.vejnavn} {shelter.husnummer}
-                      </h2>
+                      </h3>
 
-                      <p className="text-sm text-gray-300 mt-1">
+                      <p className="mt-1 text-sm text-gray-300">
                         {shelter.postnummer} {shelter.city ?? getKommunenavn(shelter.kommunekode, kommunekoder)}
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4">
-                    <div className="bg-[#252525] p-3 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
-                      <div className="text-sm text-gray-400 mb-1">Kapacitet</div>
+                    <div className="bg-[var(--surface-row-active)] p-3 sm:p-3.5 rounded-lg group-hover:bg-[var(--surface-row-hover)] transition-colors border border-white/5">
+                      <div className="mb-1 text-sm text-gray-400">Registreret kapacitet</div>
                       <div className="text-white font-medium text-base sm:text-lg">
-                        {typeof shelter.total_capacity === 'number' ? `${shelter.total_capacity} personer` : '—'}
+                        {typeof shelter.total_capacity === 'number'
+                          ? shelter.total_capacity === 1
+                            ? '1 registreret plads'
+                            : `${shelter.total_capacity.toLocaleString('da-DK')} registrerede pladser`
+                          : '—'}
                       </div>
                     </div>
-                    <div className="bg-[#252525] p-3 sm:p-3.5 rounded-lg group-hover:bg-[#2a2a2a] transition-colors border border-white/5">
+                    <div className="bg-[var(--surface-row-active)] p-3 sm:p-3.5 rounded-lg group-hover:bg-[var(--surface-row-hover)] transition-colors border border-white/5">
                       <div className="mb-1 text-xs leading-snug text-gray-400 sm:text-sm">Bygningens anvendelse</div>
                       <div className="line-clamp-3 text-sm font-medium text-white sm:text-base">
                         {formatBygningensAnvendelse(shelter, anvendelseskoder) ?? '—'}
@@ -419,9 +426,9 @@ export default function ShelterMapClient({
                         <Link
                           href={`/beskyttelsesrum/${shelter.representativeSlug}`}
                           onClick={(event) => event.stopPropagation()}
-                          className="inline-flex items-center justify-center rounded-lg border border-orange-400/25 bg-[#E97B4D] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#EA580C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-300/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1f1f1f]"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-[color:var(--accent)]/25 bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-row)]"
                         >
-                          Åbn
+                          Se detaljer
                         </Link>
                       ) : (
                         <span className="text-sm text-gray-400">Detaljeside er ikke tilgængelig</span>
@@ -433,23 +440,36 @@ export default function ShelterMapClient({
                           target="_blank"
                           rel="noopener"
                           onClick={(event) => event.stopPropagation()}
-                          className="inline-flex items-center justify-center rounded-lg bg-white/5 text-white px-4 py-3 text-sm font-medium hover:bg-white/10 transition-colors"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
+                          aria-label="Åbn navigation"
                         >
-                          Rute
+                          Naviger
                         </a>
                       ) : null}
                     </div>
                   </div>
-                </div>
-              ))
+                </article>
+                ))}
+              </>
             )}
-          </div>
+          </section>
 
-          <div className="order-2 lg:order-2 h-[400px] min-h-[400px] lg:h-[600px] lg:min-h-[600px] relative lg:sticky lg:top-4">
+          <section
+            className="order-2 lg:order-2"
+            aria-label="Kort med din placering og nærmeste beskyttelsesrum. Markører er bedst med mus eller touch; brug resultatlisten med tastatur."
+          >
+            <p id="nearby-map-keyboard-hint" className="sr-only">
+              Kortmarkører er ikke fuldt understøttet med tastatur. Brug resultatlisten til at vælge sted, åbne detaljer
+              eller navigation.
+            </p>
+            <p className="mb-2 text-center text-xs leading-snug text-gray-500 lg:hidden">
+              Kortet følger med, når du vælger et sted på listen. Knappen nederst til højre ruller tilbage til toppen.
+            </p>
             <div
-              className="absolute inset-0 rounded-lg overflow-hidden"
-              aria-label="Kort med din placering og nærliggende beskyttelsesrum"
+              className="relative h-[400px] min-h-[400px] lg:sticky lg:top-24 lg:z-10 lg:h-[min(600px,calc(100vh-8rem))] lg:min-h-[min(600px,calc(100vh-8rem))]"
+              aria-describedby="nearby-map-keyboard-hint"
             >
+            <div className="absolute inset-0 overflow-hidden rounded-lg border border-white/5 shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
               {isClient && (
                 <MapContainer
                   center={[lat, lng]}
@@ -480,6 +500,9 @@ export default function ShelterMapClient({
                         eventHandlers={{
                           click: () => {
                             setSelectedShelter(shelter.id)
+                            setSrMapSelection(
+                              `${shelter.vejnavn} ${shelter.husnummer} vist på kortet. Listen er scrollet til det valgte sted.`,
+                            )
                             if (shelterRefs.current[shelter.id]) {
                               shelterRefs.current[shelter.id]?.scrollIntoView({
                                 behavior: 'smooth',
@@ -488,18 +511,38 @@ export default function ShelterMapClient({
                             }
                           }
                         }}
-                      />
+                      >
+                        <Popup className="fb-popup">
+                          <div
+                            dangerouslySetInnerHTML={{
+                              __html: buildLeafletPopupHtml({
+                                title: `${shelter.vejnavn} ${shelter.husnummer}`.trim(),
+                                usageLine: formatBygningensAnvendelse(shelter, anvendelseskoder) ?? '',
+                                postalLine: `${shelter.postnummer} ${shelter.city ?? getKommunenavn(shelter.kommunekode, kommunekoder)}`.trim(),
+                                capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
+                                href: shelter.representativeSlug ? `/beskyttelsesrum/${shelter.representativeSlug}` : '#',
+                              }),
+                            }}
+                          />
+                        </Popup>
+                      </Marker>
                     )
                   ))}
 
                   {/* Auto-fit bounds to all markers */}
-                  <FitBounds userLocation={[lat, lng]} shelters={shelters} />
+                  <NearbyFitBounds userLocation={[lat, lng]} shelters={shelters} />
                 </MapContainer>
               )}
             </div>
-          </div>
+            </div>
+          </section>
         </div>
       </div>
+
+      <p className="mx-auto mt-8 max-w-3xl px-4 text-center text-xs text-gray-500 sm:text-sm">
+        Bygger på offentlige registerdata. Følg altid myndighedernes anvisninger.
+      </p>
+
       <GlobalFooter />
     </main>
   )

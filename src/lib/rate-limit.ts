@@ -12,6 +12,7 @@ interface RateLimitState {
 
 const rateLimitStore = new Map<string, RateLimitState>()
 
+/** Best-effort token bucket per client key; not shared across serverless instances. */
 export function rateLimit(
   request: NextRequest,
   config: RateLimitConfig = { maxRequests: 100, windowMs: 60000 }

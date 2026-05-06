@@ -95,7 +95,7 @@ export default async function DataPage() {
   const latestImportCompletedAt = overview.ok ? formatDateTime(overview.latestImportRun?.finishedAt ?? null) : null;
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-[#0a0a0a]" />
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
@@ -113,9 +113,9 @@ export default async function DataPage() {
           <div className="pt-1">
             <Link
               href="/"
-              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
             >
-              Find nærmeste beskyttelsesrum
+              Gå til forsiden
             </Link>
           </div>
         </header>
@@ -130,7 +130,7 @@ export default async function DataPage() {
             <StatCard
               label="Beskyttelsesrum i oversigten"
               value={overview.activeShelterCount.toLocaleString("da-DK")}
-              note="Antal beskyttelsesrum der vises i den samlede oversigt."
+              note="Antal beskyttelsesrum der indgår i den samlede oversigt ud fra registerdata."
             />
             <StatCard
               label="Senest opdateret"
@@ -139,11 +139,32 @@ export default async function DataPage() {
             />
           </section>
         ) : (
-          <section className="mb-8 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold text-white">Live-tal er ikke tilgængelige</h2>
+          <section className="mb-8 rounded-lg border border-orange-500/20 bg-white/5 p-5 sm:p-6" role="alert">
+            <h2 className="text-lg font-semibold text-white">Kunne ikke hente oversigtstal</h2>
             <p className="mt-2 text-sm leading-6 text-gray-300">
-              Appen kunne ikke hente live-tal lige nu. Derfor viser siden ingen fallback-tal.
+              Vi kunne ikke hente de seneste tal fra databasen lige nu. Resten af siden om datagrundlag kan du stadig
+              læse. Prøv at genindlæse, eller gå til forsiden og søg efter beskyttelsesrum som sædvanligt.
             </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <a
+                href="/om-data"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+              >
+                Genindlæs siden
+              </a>
+              <Link
+                href="/"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+              >
+                Til forsiden
+              </Link>
+              <Link
+                href="/kommune"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+              >
+                Kommuneoversigt
+              </Link>
+            </div>
           </section>
         )}
 
@@ -168,26 +189,27 @@ export default async function DataPage() {
             <h2 className="text-lg font-semibold text-white">Hvad siden ikke lover</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Beskyttelsesrum og registreret kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse
-              eller aktuel fysisk stand. Udvalgte beskyttelsesrum på land- og kommunesider er indgange til detail-sider, ikke anbefalinger
-              eller komplette lister.
+              eller aktuel fysisk stand. Udvalgte beskyttelsesrum på kommunesider er indgange til detail-sider, ikke
+              anbefalinger eller komplette lister.
             </p>
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Næste skridt</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Brug søgningen på forsiden, eller gå via kommuneoversigten, hvis du vil orientere dig lokalt.
+              Brug forsiden til adresse- eller placeringssøgning, eller gå via kommuneoversigten, hvis du vil orientere dig
+              lokalt.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <Link
                 href="/"
-                className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
               >
-                Find nærmeste beskyttelsesrum
+                Gå til forsiden
               </Link>
               <Link
                 href="/kommune"
-                className="inline-flex items-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/10 hover:text-white"
               >
                 Kommuneoversigt
               </Link>

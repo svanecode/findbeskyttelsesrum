@@ -1,7 +1,70 @@
+function supabaseOriginForCsp() {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!raw || typeof raw !== 'string') return ''
+  try {
+    return new URL(raw.trim()).origin
+  } catch {
+    return ''
+  }
+}
+
+function contentSecurityPolicyValue() {
+  const supabase = supabaseOriginForCsp()
+  const connectSrc = [
+    "'self'",
+    supabase,
+    'https://*.tile.openstreetmap.org',
+    'https://*.vercel-scripts.com',
+    'https://*.vercel-insights.com',
+    'https://*.vercel.com',
+    'https://va.vercel-scripts.com',
+    'https://consent.cookiebot.com',
+    'https://consentcdn.cookiebot.com',
+    'https://*.leafletjs.com',
+    'https://unpkg.com',
+    'https://a.tile.openstreetmap.org',
+    'https://b.tile.openstreetmap.org',
+    'https://c.tile.openstreetmap.org',
+    'https://tiles.stadiamaps.com',
+    'https://tiles.maptiler.com',
+    'https://api.dataforsyningen.dk',
+    'https://*.dataforsyningen.dk',
+    'https://dawa.aws.dk',
+    'https://nominatim.openstreetmap.org',
+    'https://*.vercel.app',
+    'ws:',
+    'wss:',
+  ].filter(Boolean)
+
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://consent.cookiebot.com https://consentcdn.cookiebot.com https://*.vercel-scripts.com https://*.vercel-insights.com https://unpkg.com https://*.leafletjs.com https://*.vercel.app https://cdnjs.cloudflare.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com https://*.vercel.app https://cdnjs.cloudflare.com",
+    "img-src 'self' data: https://*.tile.openstreetmap.org https://raw.githubusercontent.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://cdnjs.cloudflare.com https://unpkg.com https://*.leafletjs.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.cookiebot.com https://imgsct.cookiebot.com https://tiles.stadiamaps.com https://tiles.maptiler.com https://*.vercel.app",
+    "font-src 'self' https://fonts.gstatic.com data: https://*.vercel.app",
+    `connect-src ${connectSrc.join(' ')}`,
+    "frame-src 'self' https://www.openstreetmap.org https://consent.cookiebot.com https://consentcdn.cookiebot.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    'block-all-mixed-content',
+    'upgrade-insecure-requests',
+    "manifest-src 'self'",
+    "worker-src 'self' blob:",
+  ]
+    .join('; ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
+  async redirects() {
+    return [{ source: "/land", destination: "/kommune", permanent: true }];
+  },
   typescript: {
     ignoreBuildErrors: false,
   },
@@ -144,18 +207,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: `
-              default-src 'self';
-              font-src 'self' https://fonts.gstatic.com data:;
-              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com;
-              script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.leafletjs.com;
-              img-src 'self' data: https:;
-              connect-src 'self' https://*.leafletjs.com https://api.dataforsyningen.dk https://*.dataforsyningen.dk https:;
-              frame-src 'self' https://www.openstreetmap.org;
-              frame-ancestors 'none';
-              base-uri 'self';
-              form-action 'self';
-            `.replace(/\s+/g, ' ').trim(),
+            value: contentSecurityPolicyValue(),
           },
         ],
       },

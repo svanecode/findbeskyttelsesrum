@@ -82,15 +82,13 @@ Current `npm run build` succeeds with Turbopack, so this is not an immediate blo
 
 First upgrade PR should audit whether this webpack block is still needed. Removal should only happen if build and client-heavy flows remain clean.
 
-### `proxy.ts` is already using the Next 16 convention
+### `src/proxy.ts` (Next.js 16 request proxy)
 
-The repo uses `src/proxy.ts` with `export function proxy(request: NextRequest)`, which matches the Next 16 convention replacing `middleware.ts`/`middleware`.
+The repo uses `src/proxy.ts` with `export function proxy(request: NextRequest)` (Next.js 16+ convention; replaces the older `middleware.ts` / `middleware` export).
 
-Risk remains around behavior, not naming:
-
-- It applies rate limiting to matched routes.
-- It sets CSP and security headers.
-- It excludes `api`, `_next/static`, `_next/image`, and `favicon.ico`.
+- It applies best-effort rate limiting to matched routes.
+- It sets security headers (not CSP—CSP is defined only in `next.config.js`).
+- The matcher excludes `api`, `_next/static`, `_next/image`, and `favicon.ico`.
 
 Any framework PR should verify this still executes in the expected runtime and does not unexpectedly affect App Router navigation, static assets, sitemap, robots, or map tile/script connections.
 
@@ -256,7 +254,7 @@ Sensitive surfaces:
 
 Upgrade risk:
 
-- There are overlapping headers/CSP definitions in Next config and proxy.
+- CSP is centralized in `next.config.js` (including env-derived Supabase `connect-src`); the proxy must not add a second `Content-Security-Policy` header.
 - The map/search flows depend on external domains being allowed.
 - Any Next config cleanup should be validated against DAWA, Supabase, OpenStreetMap tiles, and Vercel analytics endpoints.
 

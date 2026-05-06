@@ -9,7 +9,7 @@ const ShelterMapClient = dynamic(
   {
     ssr: false,
     loading: () => (
-      <main className="min-h-screen bg-[#1a1a1a] text-white">
+      <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
         <div className="mx-auto max-w-7xl p-4">
           {/* Approximate client header + source banner + map slot to reduce CLS when chunk hydrates */}
           <div className="mb-6 flex items-center gap-3">
@@ -19,7 +19,7 @@ const ShelterMapClient = dynamic(
           <div className="mb-4 h-12 w-full rounded-md border border-white/5 bg-white/5" />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="order-2 lg:order-2">
-              <div className="flex h-[400px] min-h-[400px] items-center justify-center rounded-lg border border-white/5 bg-[#252525] lg:h-[600px] lg:min-h-[600px]">
+              <div className="flex h-[400px] min-h-[400px] items-center justify-center rounded-lg border border-white/5 bg-[var(--surface-slot)] lg:h-[600px] lg:min-h-[600px]">
                 <div className="flex animate-pulse flex-col items-center space-y-4">
                   <div className="h-12 w-12 rounded-full bg-orange-500/20" />
                   <div className="h-4 w-48 rounded bg-orange-500/20" />
@@ -27,7 +27,7 @@ const ShelterMapClient = dynamic(
                 </div>
               </div>
             </div>
-            <div className="order-1 min-h-[320px] rounded-lg border border-white/5 bg-[#252525] lg:order-1" />
+            <div className="order-1 min-h-[320px] rounded-lg border border-white/5 bg-[var(--surface-slot)] lg:order-1" />
           </div>
         </div>
       </main>
@@ -38,16 +38,12 @@ const ShelterMapClient = dynamic(
 interface MapWrapperProps {
   lat: string
   lng: string
-  appV2NearbyExperiment?: boolean
-  appV2NearbyPublicExperiment?: boolean
   appV2NearbyEligibility?: string
 }
 
 export default function MapWrapper({
   lat,
   lng,
-  appV2NearbyExperiment = false,
-  appV2NearbyPublicExperiment = false,
   appV2NearbyEligibility = 'source-application-code',
 }: MapWrapperProps) {
   // Add validation for coordinates
@@ -56,17 +52,17 @@ export default function MapWrapper({
 
   if (!lat || !lng || isNaN(latNum) || isNaN(lngNum)) {
     return (
-      <main className="min-h-screen bg-[#1a1a1a] text-white">
-        <div className="max-w-7xl mx-auto p-4">
-          <h1 className="text-3xl font-bold mb-8">Manglende position</h1>
-          <p className="text-gray-400 mb-4">
-            Ingen koordinater blev sendt med. Gå tilbage til forsiden og prøv at søge efter en adresse igen.
+      <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
+        <div className="mx-auto max-w-7xl p-4">
+          <h1 className="mb-3 text-2xl font-bold sm:text-3xl">Manglende position</h1>
+          <p className="mb-6 max-w-xl text-gray-400">
+            Der mangler koordinater i linket. Gå til forsiden og søg adresse eller brug din placering.
           </p>
           <Link
             href="/"
-            className="inline-flex items-center px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+            className="inline-flex items-center rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
           >
-            ← Tilbage til forsiden
+            Til forsiden
           </Link>
         </div>
       </main>
@@ -78,8 +74,6 @@ export default function MapWrapper({
       <ShelterMapClient
         lat={lat}
         lng={lng}
-        appV2NearbyExperiment={appV2NearbyExperiment}
-        appV2NearbyPublicExperiment={appV2NearbyPublicExperiment}
         appV2NearbyEligibility={appV2NearbyEligibility}
       />
     </MapErrorBoundary>

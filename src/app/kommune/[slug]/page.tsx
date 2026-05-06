@@ -36,8 +36,8 @@ function buildKommunePageJsonLd(
   const webPage = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: `Beskyttelsesrum i ${kommuneNavn}`,
-    description: `Kommuneoversigt over registrerede beskyttelsesrum i ${kommuneNavn}: antal, kapacitet, adresser og vej til detail-sider.`,
+    name: `Registrerede beskyttelsesrum i ${kommuneNavn}`,
+    description: `Kommuneoversigt over beskyttelsesrum i ${kommuneNavn} ud fra offentlige registerdata — antal, kapacitet, adresser og detaljesider.`,
     url: `https://findbeskyttelsesrum.dk/kommune/${municipality.slug}`,
     inLanguage: 'da-DK',
     isPartOf: {
@@ -65,7 +65,7 @@ function buildKommunePageJsonLd(
   const itemList = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
-    name: `Beskyttelsesrum i ${kommuneNavn}`,
+    name: `Udvalgte beskyttelsesrum i ${kommuneNavn}`,
     numberOfItems: topShelters.length,
     itemListElement: topShelters.map((shelter, index) => ({
       '@type': 'ListItem',
@@ -114,7 +114,7 @@ export default async function KommunePage({ params }: Props) {
   const kommuneJsonLd = buildKommunePageJsonLd(municipality, shelters)
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -146,38 +146,19 @@ export default async function KommunePage({ params }: Props) {
           Kommune
         </p>
         <h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
-          Beskyttelsesrum i {municipality.name}
+          Registrerede beskyttelsesrum i {municipality.name}
         </h1>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-gray-300">
-          {groups.length.toLocaleString('da-DK')}{' '}
-          {groups.length === 1 ? 'adresse' : 'adresser'} med samlet{' '}
-          {stats.totalCapacity.toLocaleString('da-DK')} registrerede pladser (sum af kapacitet for beskyttelsesrum i oversigten).
-        </p>
 
         {/* Stats */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <StatCard label="Adresser" value={groups.length} />
           <StatCard label="Beskyttelsesrum i oversigten" value={stats.activeShelterCount} />
           <StatCard label="Registrerede pladser" value={stats.totalCapacity} />
-          <StatCard label="Postområder i oversigten" value={stats.postalAreaCount} />
         </div>
       </header>
 
       {/* List + map experience */}
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
-        <div className="mb-6 max-w-3xl rounded-lg border border-white/10 bg-white/5 p-4 text-sm leading-6 text-gray-300 sm:p-5">
-          <p>
-            Liste og kort viser beskyttelsesrum i oversigten. Kortet giver lokalt overblik og kan indeholde
-            ufuldstændige eller forældede oplysninger.
-          </p>
-          <p className="mt-2 text-gray-400">
-            Brug{" "}
-            <Link href="/om-data" className="text-white underline-offset-2 hover:underline">
-              Datagrundlag
-            </Link>{" "}
-            for metode, kilder og forbehold.
-          </p>
-        </div>
         <KommuneExperience
           groups={groups}
           municipalityName={municipality.name}

@@ -60,7 +60,7 @@ const limitations = [
   "Does not include legacy anvendelse/type semantics.",
   "Does not mirror legacy public.excluded_shelters bygning_id or split-address matching.",
   "Uses database-side bounding-box filtering and Haversine distance ordering, not a PostGIS spatial index.",
-  "Not wired to the live /shelters/nearby UI.",
+  "The live /shelters/nearby UI uses /api/app-v2/nearby/grouped, not this per-row endpoint.",
 ];
 
 type ValidationResult =

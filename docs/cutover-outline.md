@@ -68,14 +68,14 @@ Udfør mod **produktion** (eller det miljø I lige har cuttet til). Brug desktop
 
 | # | Check | Forventet |
 |---|--------|-------------|
-| S1 | `GET /` | 200, søgning/adressefelt synligt, links til land/kommune/om-data virker |
-| S2 | `GET /land` | 200, tal og navigation giver mening |
+| S1 | `GET /` | 200, søgning/adressefelt synligt, links til kommune/kort/om-data virker |
+| S2 | `GET /land` | **301** til `/kommune` (land-side fjernet) |
 | S3 | `GET /kommune` | 200, liste over kommuner |
 | S4 | `GET /kommune/kobenhavn` (eller kendt slug) | 200, lokalt indhold |
-| S5 | `GET /beskyttelsesrum/<slug>` (aktiv slug fra land eller kommune) | 200, ikke 404 |
+| S5 | `GET /beskyttelsesrum/<slug>` (aktiv slug fra kommune eller sitemap) | 200, ikke 404 |
 | S6 | `GET /om-data` | 200 |
 | S7 | `GET /shelters/nearby?lat=55.6761&lng=12.5683` | 200, kort + resultater (app_v2 default uændret) |
-| S9 | `GET /sitemap.xml` | 200, XML indeholder `/land`, mindst én `/beskyttelsesrum/` |
+| S9 | `GET /sitemap.xml` | 200, XML indeholder mindst én `/kommune/`, mindst én `/beskyttelsesrum/` |
 | S10 | `GET /robots.txt` | 200, peger på sitemap |
 | S11 | `GET /opengraph-image` (eller platformens genererede OG-URL fra forsiden meta) | 200 billede / forventet adfærd fra Next |
 

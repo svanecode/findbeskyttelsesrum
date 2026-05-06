@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
+import BackLinkButton from "@/components/BackLinkButton";
 import ShelterOsmEmbedMap from "@/components/ShelterOsmEmbedMap";
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from "@/lib/anvendelseskoder";
 import { serializeJsonLd } from "@/lib/seo/json-ld";
@@ -93,13 +94,13 @@ export default async function ShelterDetailPage({ params }: Props) {
   }
 
   const jsonLd = getJsonLd(shelter);
-  const navigationHref = getGoogleMapsRouteHref(shelter);
   const anvendelseRaw = getAnvendelseskodeBeskrivelse(shelter.sourceApplicationCode, anvendelseskoder).trim();
   const anvendelseLabel = anvendelseRaw || null;
   const hasCoords = shelter.latitude !== null && shelter.longitude !== null;
+  const navigationHref = hasCoords ? getGoogleMapsRouteHref(shelter) : null;
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
       <script
         type="application/ld+json"
         suppressHydrationWarning
@@ -113,7 +114,15 @@ export default async function ShelterDetailPage({ params }: Props) {
       </div>
 
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-8 sm:px-6 lg:px-8">
-        <article className={`space-y-8 ${navigationHref ? "pb-20 sm:pb-8" : ""}`}>
+        <article className="space-y-8">
+          <nav className="flex items-center gap-2 sm:gap-3" aria-label="Side">
+            <BackLinkButton
+              fallbackHref={`/kommune/${shelter.municipality.slug}`}
+              label={`Tilbage til ${shelter.municipality.name}`}
+              shortLabel="Tilbage"
+            />
+          </nav>
+
           <header className="space-y-4">
             <p className="text-sm uppercase tracking-wide text-gray-400">Beskyttelsesrum</p>
             <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">{shelter.name}</h1>
@@ -132,10 +141,11 @@ export default async function ShelterDetailPage({ params }: Props) {
                 <a
                   href={navigationHref}
                   target="_blank"
-                  rel="noopener"
-                  className="inline-flex shrink-0 items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[var(--accent-hover)] active:bg-[var(--accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f0f0f]"
+                  aria-label="Åbn navigation"
                 >
-                  Navigér hertil
+                  Naviger
                 </a>
               ) : null}
             </div>
@@ -146,7 +156,7 @@ export default async function ShelterDetailPage({ params }: Props) {
                 <dd className="mt-1 text-base font-medium text-white">{anvendelseLabel ?? "—"}</dd>
               </div>
               <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
-                <dt className="text-sm text-gray-400">Pladser</dt>
+                <dt className="text-sm text-gray-400">Registrerede pladser</dt>
                 <dd className="mt-1 text-base font-medium text-white">
                   {shelter.capacity.toLocaleString("da-DK")} pladser
                 </dd>
@@ -170,24 +180,13 @@ export default async function ShelterDetailPage({ params }: Props) {
           ) : (
             <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
               <h2 className="text-lg font-semibold text-white">Kort</h2>
-              <p className="mt-2 text-sm text-gray-300">Der er ikke koordinater til dette beskyttelsesrum i datasættet.</p>
+              <p className="mt-2 text-sm text-gray-300">
+                Der er ingen koordinater til dette beskyttelsesrum i det viste datasæt.
+              </p>
             </section>
           )}
         </article>
       </div>
-
-      {navigationHref ? (
-        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0a0a0a]/95 px-4 py-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] backdrop-blur md:hidden">
-          <a
-            href={navigationHref}
-            target="_blank"
-            rel="noopener"
-            className="inline-flex w-full items-center justify-center rounded-lg bg-white px-4 py-3 text-base font-semibold text-black transition hover:bg-gray-200"
-          >
-            Navigér hertil
-          </a>
-        </div>
-      ) : null}
 
       <GlobalFooter />
     </main>

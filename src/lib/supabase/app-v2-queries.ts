@@ -1443,13 +1443,14 @@ export async function getAppV2PublicCountryShelterMarkers(): Promise<AppV2Countr
 
   return extended
     .filter((row) => !isExcluded(row) && isPublicNearbyEligible(row, eligibleCodes))
-    .map(({ slug, name, addressLine1, postalCode, city, capacity, latitude, longitude }) => ({
+    .map(({ slug, name, addressLine1, postalCode, city, capacity, latitude, longitude, sourceApplicationCode }) => ({
       slug,
       name,
       addressLine1,
       postalCode,
       city,
       capacity,
+      sourceApplicationCode,
       latitude,
       longitude,
     }));

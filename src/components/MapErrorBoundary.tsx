@@ -29,7 +29,7 @@ export class MapErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <main className="min-h-screen bg-[#1a1a1a] text-white">
+        <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
           <div className="max-w-7xl mx-auto p-4">
             <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-6">
               <h1 className="text-2xl font-bold text-red-400 mb-4">Kortet kunne ikke indlæses</h1>

@@ -81,7 +81,7 @@ export default function ShelterCounter({ targetNumber, version }: ShelterCounter
   return (
     <div className="text-center mt-6 sm:mt-8 lg:mt-10" role="status" aria-live="polite">
       <div 
-        className={`text-heading-sm sm:text-heading-md lg:text-heading-lg text-[#F97316] transition-all duration-300 ${
+        className={`text-heading-sm sm:text-heading-md lg:text-heading-lg text-[var(--accent)] transition-all duration-300 ${
           isAnimating ? 'scale-105' : 'scale-100'
         }`}
         aria-label={ariaLabel}

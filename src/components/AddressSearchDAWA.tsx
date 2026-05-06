@@ -12,6 +12,8 @@ import {
 
 const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'
 
+const DAWA_LISTBOX_ID = 'dawa-address-suggestions'
+
 export default function AddressSearchDAWA() {
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState<DawaSuggestion[]>([])
@@ -212,7 +214,13 @@ export default function AddressSearchDAWA() {
 
   return (
     <div className="space-y-3 sm:space-y-6">
-      <button onClick={handleLocationClick} className="btn-primary w-full py-4 px-6 rounded-full flex items-center justify-center gap-3 hover:bg-[#EA580C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target focus-visible btn-interactive" disabled={gpsLoading} aria-label="Brug min placering til at finde beskyttelsesrum" role="button" tabIndex={0}>
+      <button
+        type="button"
+        onClick={handleLocationClick}
+        className="btn-primary btn-interactive focus-visible touch-target flex w-full items-center justify-center gap-3 rounded-full px-6 py-4 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={gpsLoading}
+        aria-label="Brug min placering til at finde nærmeste beskyttelsesrum"
+      >
         {gpsLoading ? <LoadingSpinner size="sm" text="Henter din position..." /> : (
           <>
             <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="currentColor"/></svg>
@@ -232,7 +240,14 @@ export default function AddressSearchDAWA() {
                 <p className="font-medium">DAWA Autocomplete er ikke tilgængelig</p>
                 <p className="text-xs mt-1 opacity-80">Prøv at genindlæse siden eller brug GPS-funktionen ovenfor</p>
               </div>
-              <button onClick={() => window.location.reload()} className="ml-2 px-2 py-1 bg-yellow-600/20 hover:bg-yellow-600/30 rounded text-xs transition-colors" aria-label="Genindlæs siden">Genindlæs</button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="ml-2 inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg bg-yellow-600/25 px-3 py-2 text-xs font-medium text-yellow-100 transition-colors hover:bg-yellow-600/40"
+                aria-label="Genindlæs siden"
+              >
+                Genindlæs
+              </button>
             </div>
           </div>
         )}
@@ -255,10 +270,19 @@ export default function AddressSearchDAWA() {
               type="text"
               id="adresse"
               placeholder="Indtast adresse, by eller postnummer"
-              className="input-interactive touch-target w-full rounded-full border border-[#E97B4D] bg-[#1a1a1a] py-3 pl-12 pr-11 text-sm text-white transition-all placeholder-gray-400 focus:border-[#E97B4D] focus:bg-[#141414] focus:outline-none focus-visible disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12 sm:text-base"
+              className="input-interactive touch-target w-full rounded-full border border-[color:var(--accent)] bg-[var(--surface-input)] py-3 pl-12 pr-11 text-sm text-white transition-all placeholder-gray-400 focus:border-[color:var(--accent)] focus:bg-[var(--surface-input-focus)] focus:outline-none focus-visible disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12 sm:text-base"
               disabled={hasFailed}
               aria-describedby={hasFailed ? 'dawa-error' : undefined}
-              role="searchbox"
+              role="combobox"
+              aria-haspopup="listbox"
+              aria-autocomplete="list"
+              aria-controls={isOpen && suggestions.length > 0 ? DAWA_LISTBOX_ID : undefined}
+              aria-expanded={isOpen && suggestions.length > 0}
+              aria-activedescendant={
+                isOpen && activeIndex !== null && suggestions[activeIndex]
+                  ? `dawa-address-option-${activeIndex}`
+                  : undefined
+              }
               autoComplete="off"
               minLength={2}
               value={query}
@@ -273,7 +297,12 @@ export default function AddressSearchDAWA() {
             />
 
             {isOpen && suggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-[9999] mt-1 max-h-[min(18rem,50vh)] overflow-y-auto rounded-md border-2 border-white/30 bg-[#1a1a1a] shadow-[0_8px_16px_rgba(0,0,0,0.6),0_0_15px_rgba(255,255,255,0.1)]" role="listbox">
+              <div
+                id={DAWA_LISTBOX_ID}
+                className="absolute left-0 right-0 top-full z-[9999] mt-1 max-h-[min(18rem,50vh)] overflow-y-auto rounded-md border-2 border-white/30 bg-[var(--surface-elevated)] shadow-[0_8px_16px_rgba(0,0,0,0.6),0_0_15px_rgba(255,255,255,0.1)]"
+                role="listbox"
+                aria-label="Adresseforslag"
+              >
                 {suggestions.map((suggestion, index) => {
                   const display = (suggestion.forslagstekst ?? suggestion.tekst).trim()
                   const key =
@@ -284,9 +313,10 @@ export default function AddressSearchDAWA() {
                   return (
                     <div
                       key={key}
+                      id={`dawa-address-option-${index}`}
                       role="option"
                       aria-selected={activeIndex === index}
-                      className={`cursor-pointer border-b border-white/10 px-2.5 py-1.5 text-white last:border-b-0 ${activeIndex === index ? 'bg-[#2a2a2a]' : 'hover:bg-[#2a2a2a]'}`}
+                      className={`cursor-pointer border-b border-white/10 px-2.5 py-2.5 text-sm text-white last:border-b-0 sm:py-2 ${activeIndex === index ? 'bg-[var(--surface-row-hover)]' : 'hover:bg-[var(--surface-row-hover)]'}`}
                       onMouseEnter={() => setActiveIndex(index)}
                       onMouseDown={(event) => {
                         event.preventDefault()

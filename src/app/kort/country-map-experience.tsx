@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 function MapLoadingSkeleton() {
   return (
     <div
-      className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1a1a] md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
+      className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[var(--surface-elevated)] md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
       role="status"
       aria-live="polite"
       aria-label="Indlæser kort over beskyttelsesrum"

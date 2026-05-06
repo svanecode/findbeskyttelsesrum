@@ -62,14 +62,14 @@ export default function SiteHeader() {
   return (
     <header
       ref={rootRef}
-      className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0a]/80 backdrop-blur-md"
+      className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0a]/80 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md"
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-[max(1rem,env(safe-area-inset-left,0px))] py-4 pr-[max(1rem,env(safe-area-inset-right,0px))] sm:px-6 lg:px-8">
         <Link
           href="/"
           className="font-space-grotesk text-base font-semibold tracking-tight text-gray-200 transition-colors hover:text-white sm:text-lg"
         >
-          Findbeskyttelsesrum
+          Find Beskyttelsesrum
         </Link>
 
         <nav className="hidden items-center gap-0.5 md:flex" aria-label="Hovednavigation">
@@ -90,7 +90,7 @@ export default function SiteHeader() {
 
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-md p-2 text-gray-300 transition-colors hover:bg-white/10 hover:text-white md:hidden"
+          className="inline-flex h-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-gray-300 transition-colors hover:bg-white/10 hover:text-white md:hidden"
           aria-expanded={open}
           aria-controls="site-header-mobile-nav"
           aria-label={open ? 'Luk menu' : 'Åbn menu'}
@@ -111,7 +111,7 @@ export default function SiteHeader() {
       {open ? (
         <nav
           id="site-header-mobile-nav"
-          className="flex flex-col border-t border-white/10 px-4 pb-4 sm:px-6 md:hidden lg:px-8"
+          className="flex flex-col border-t border-white/10 px-[max(1rem,env(safe-area-inset-left,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] pt-1 sm:px-6 md:hidden lg:px-8"
           aria-label="Hovednavigation"
         >
           {NAV.map(({ href, label, active }) => {

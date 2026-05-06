@@ -31,7 +31,10 @@ export default function ShelterOsmEmbedMap({ latitude, longitude, title }: Props
           rel="noopener noreferrer"
           className="text-gray-200 underline decoration-white/30 underline-offset-2 hover:text-white"
         >
-          OpenStreetMap
+          OpenStreetMap{" "}
+          <span aria-hidden="true" className="inline-block translate-y-[0.5px]">
+            →
+          </span>
         </a>
       </p>
     </div>

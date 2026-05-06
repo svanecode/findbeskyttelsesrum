@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
-import Link from "next/link";
 import { getAppV2ShelterCount, getAppV2TotalShelterCapacity } from "@/lib/supabase/app-v2-queries";
 
 import CountryMapExperience from "./country-map-experience";
@@ -10,13 +9,11 @@ export const revalidate = 86400;
 
 export const metadata: Metadata = {
   title: "Landskort",
-  description:
-    "Sekundær visning: landskort med registrerede beskyttelsesrum i Danmark. Brug søgning på forsiden for at finde nærmeste beskyttelsesrum.",
+  description: "Landskort med beskyttelsesrum i Danmark ud fra offentlige registerdata.",
   alternates: { canonical: "/kort" },
   openGraph: {
     title: "Landskort",
-    description:
-      "Sekundær visning: landskort med registrerede beskyttelsesrum i Danmark. Brug søgning på forsiden for at finde nærmeste beskyttelsesrum.",
+    description: "Landskort med beskyttelsesrum i Danmark ud fra offentlige registerdata.",
     type: "website",
     url: "https://findbeskyttelsesrum.dk/kort",
     siteName: "Find Beskyttelsesrum",
@@ -24,12 +21,11 @@ export const metadata: Metadata = {
   },
 };
 
-function StatCard({ label, value, note }: { label: string; value: string; note: string }) {
+function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-sm">
-      <p className="text-sm text-gray-400">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-gray-400">{note}</p>
+    <div className="rounded-lg border border-white/5 bg-white/[0.03] p-4 shadow-[0_6px_18px_rgb(0,0,0,0.12)] backdrop-blur-sm">
+      <p className="text-xs font-medium tracking-wide text-gray-400">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-gray-100">{value}</p>
     </div>
   );
 }
@@ -41,7 +37,7 @@ export default async function CountryMapPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-[#0a0a0a]" />
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
@@ -53,39 +49,26 @@ export default async function CountryMapPage() {
           <h1 className="font-space-grotesk text-3xl font-bold leading-tight text-white sm:text-4xl">
             Landskort
           </h1>
-          <p className="text-lg leading-8 text-gray-300">
-            Brug søgning på forsiden for at finde nærmeste beskyttelsesrum. Landskortet er en sekundær visning.
-          </p>
-          <div className="pt-1">
-            <Link
-              href="/"
-              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
-            >
-              Find nærmeste beskyttelsesrum
-            </Link>
-          </div>
-          <p className="text-lg leading-8 text-gray-300">
-            Kort med {totalCount.toLocaleString("da-DK")} beskyttelsesrum i oversigten og samlet{" "}
-            {totalCapacity.toLocaleString("da-DK")} registrerede pladser.
-          </p>
         </header>
 
-        <section className="mb-8 grid gap-4 sm:grid-cols-2">
+        <section className="mb-6 grid gap-3 sm:grid-cols-2" aria-label="Nøgletal for kortet">
           <StatCard
-            label="Beskyttelsesrum"
+            label="Beskyttelsesrum på kortet"
             value={totalCount.toLocaleString("da-DK")}
-            note="Beskyttelsesrum med placering i oversigten."
           />
           <StatCard
             label="Registrerede pladser"
             value={totalCapacity.toLocaleString("da-DK")}
-            note="Summen af registreret kapacitet for beskyttelsesrum i oversigten."
           />
         </section>
       </div>
 
-      <section className="w-full px-4 pb-12 sm:px-6 lg:px-8">
+      <section className="w-full px-4 pb-12 sm:px-6 lg:px-8" aria-label="Interaktivt landskort">
         <div className="mx-auto max-w-7xl">
+          <p className="mb-3 max-w-3xl text-xs leading-relaxed text-gray-500 sm:text-sm">
+            Zoom ind og klik på punktgrupper for at se enkelte steder. Kortet er bedst med mus eller touch; for præcis
+            søgning efter nærmeste beskyttelsesrum, brug forsiden.
+          </p>
           <CountryMapExperience />
         </div>
       </section>

@@ -28,8 +28,26 @@ export default function KommuneShelterList({
 
   if (groups.length === 0) {
     return (
-      <div className="flex h-32 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-400">
-        Ingen registrerede beskyttelsesrum fundet i {municipalityName}.
+      <div className="rounded-xl border border-white/10 bg-white/5 p-5 sm:p-6" role="status" aria-live="polite">
+        <p className="font-medium text-white">Ingen beskyttelsesrum i oversigten</p>
+        <p className="mt-2 text-sm text-gray-300">
+          Der er ingen poster for {municipalityName} i det viste register. Prøv forsiden for søgning, eller vælg en anden
+          kommune.
+        </p>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <Link
+            href="/"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+          >
+            Til forsiden
+          </Link>
+          <Link
+            href="/kommune"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
+          >
+            Kommuneoversigt
+          </Link>
+        </div>
       </div>
     )
   }
@@ -48,13 +66,13 @@ export default function KommuneShelterList({
               onClick={() => onSelectGroup(group.groupKey)}
               className={[
                 'w-full rounded-xl border px-4 py-3 text-left transition-all duration-150',
-                'bg-white/5 backdrop-blur-sm',
+                'min-h-[44px] bg-white/5 backdrop-blur-sm',
                 isSelected
                   ? 'border-orange-500/60 ring-1 ring-orange-500/40 bg-orange-500/10'
                   : 'border-white/10 hover:border-white/20 hover:bg-white/10',
               ].join(' ')}
               aria-pressed={isSelected}
-              aria-label={`Vælg ${group.addressLine1}, ${group.postalCode} ${group.city}`}
+              aria-label={`Vælg ${group.addressLine1}, ${group.postalCode} ${group.city} på kortet`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -69,24 +87,26 @@ export default function KommuneShelterList({
 
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   <span className="text-sm font-semibold tabular-nums text-orange-400">
-                    {group.totalCapacity.toLocaleString('da-DK')} pladser
+                    {group.totalCapacity === 1
+                      ? '1 registreret plads'
+                      : `${group.totalCapacity.toLocaleString('da-DK')} registrerede pladser`}
                   </span>
                   {group.shelterCount > 1 && (
                     <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-medium text-gray-300">
-                      {group.shelterCount} beskyttelsesrum
+                      {group.shelterCount} beskyttelsesrum på samme adresse
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="mt-2 flex justify-end">
+              <div className="mt-3 flex justify-end border-t border-white/5 pt-3">
                 <Link
                   href={`/beskyttelsesrum/${group.primarySlug}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="text-xs text-gray-400 hover:text-white transition-colors"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg px-3 text-sm font-medium text-orange-300/95 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
                   aria-label={`Se detaljer for ${group.addressLine1}`}
                 >
-                  Se detaljer →
+                  Se detaljer
                 </Link>
               </div>
             </button>

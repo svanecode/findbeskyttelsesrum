@@ -3,6 +3,8 @@
 > **Historical analysis note (Sprint 9a):** This document predates Sprint 4d.
 > The current runtime state changed after Sprint 4d: nearby search now uses grouped app_v2 and legacy nearby source switching has been removed.
 > Keep this document as background only. Do not use it as an operator cutover checklist.
+>
+> **Update (refinement pass):** `appV2NearbyExperiment=grouped` and `=public-preview` were removed from the live app. `/shelters/nearby` always loads grouped app_v2 results. Mentions of those query flags below are historical only.
 
 ## 1. Overview
 

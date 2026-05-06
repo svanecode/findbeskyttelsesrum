@@ -5,6 +5,7 @@ export type CountryMapShelterMarker = {
   postalCode: string;
   city: string;
   capacity: number;
+  sourceApplicationCode?: string | null;
   latitude: number;
   longitude: number;
 };

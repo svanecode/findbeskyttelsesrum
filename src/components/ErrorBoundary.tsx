@@ -45,8 +45,12 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen bg-[#1a1a1a] text-white flex items-center justify-center p-4">
-          <div className="max-w-md mx-auto text-center">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex min-h-screen items-center justify-center bg-[var(--surface-page)] p-4 text-white"
+        >
+          <div className="mx-auto max-w-md text-center">
             <div className="mb-6">
               <svg 
                 className="w-16 h-16 mx-auto text-red-500 mb-4" 
@@ -98,7 +102,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </details>
             )}
           </div>
-        </div>
+        </main>
       )
     }
 

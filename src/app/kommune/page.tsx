@@ -8,15 +8,13 @@ export const revalidate = 86400;
 
 export const metadata: Metadata = {
   title: "Kommuneoversigt",
-  description:
-    "Oversigt over kommuner med registrerede beskyttelsesrum. Brug søgning på forsiden for at finde nærmeste beskyttelsesrum.",
+  description: "Oversigt over kommuner med beskyttelsesrum i det viste register.",
   alternates: {
     canonical: "/kommune",
   },
   openGraph: {
     title: "Kommuneoversigt",
-    description:
-      "Oversigt over kommuner med registrerede beskyttelsesrum. Brug søgning på forsiden for at finde nærmeste beskyttelsesrum.",
+    description: "Oversigt over kommuner med beskyttelsesrum i det viste register.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -30,7 +28,7 @@ export default async function MunicipalityOverviewPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-[#0a0a0a]" />
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
@@ -41,18 +39,6 @@ export default async function MunicipalityOverviewPage() {
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
             Kommuneoversigt
           </h1>
-          <p className="text-lg leading-8 text-gray-300">
-            Brug søgning på forsiden, hvis du hurtigt skal finde nærmeste beskyttelsesrum. Kommuneoversigten er en
-            sekundær indgang til lokalt overblik.
-          </p>
-          <div className="pt-1">
-            <Link
-              href="/"
-              className="inline-flex items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
-            >
-              Find nærmeste beskyttelsesrum
-            </Link>
-          </div>
         </header>
 
         <section className="rounded-lg border border-white/10 bg-white/5">
@@ -62,20 +48,31 @@ export default async function MunicipalityOverviewPage() {
           </div>
 
           {municipalities.length === 0 ? (
-            <p className="px-5 py-6 text-gray-300 sm:px-6">Der er ikke registreret kommuner i oversigten endnu.</p>
+            <div className="px-5 py-6 sm:px-6" role="status">
+              <p className="text-gray-300">Der er ikke registreret kommuner i oversigten endnu.</p>
+              <Link
+                href="/"
+                className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+              >
+                Til forsiden
+              </Link>
+            </div>
           ) : (
             <ul className="divide-y divide-white/10">
               {municipalities.map((municipality) => (
                 <li key={municipality.id}>
                   <Link
                     href={`/kommune/${municipality.slug}`}
-                    className="flex flex-col gap-2 px-5 py-4 transition hover:bg-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+                    className="flex min-h-[44px] flex-col gap-2 px-5 py-4 transition hover:bg-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+                    aria-label={`${municipality.name}, ${municipality.activeShelterCount.toLocaleString('da-DK')} beskyttelsesrum i oversigten`}
                   >
                     <span>
                       <span className="block font-medium text-white">{municipality.name}</span>
                     </span>
                     <span className="flex flex-col gap-1 text-sm text-gray-300 sm:items-end">
-                      <span>{municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum i oversigten</span>
+                      <span>
+                        {municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum i oversigten
+                      </span>
                       <span className="font-medium text-white">Se kommune</span>
                     </span>
                   </Link>

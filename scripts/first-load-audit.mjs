@@ -59,7 +59,6 @@ const baseFiles = [
 
 const routes = [
   { route: "/", routeKey: "/page", entryHint: "/src/app/page" },
-  { route: "/land", routeKey: "/land/page", entryHint: "/src/app/land/page" },
   { route: "/kommune", routeKey: "/kommune/page", entryHint: "/src/app/kommune/page" },
   { route: "/kommune/[slug]", routeKey: "/kommune/[slug]/page", entryHint: "/src/app/kommune/[slug]/page" },
   { route: "/beskyttelsesrum/[slug]", routeKey: "/beskyttelsesrum/[slug]/page", entryHint: "/src/app/beskyttelsesrum/[slug]/page" },

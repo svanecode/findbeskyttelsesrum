@@ -1,5 +1,7 @@
 # app_v2 Nearby Evaluation
 
+> **Note:** The live `/shelters/nearby` UI no longer reads `appV2NearbyExperiment` query parameters; it always uses grouped app_v2. Documented URLs that append `appV2NearbyExperiment=…` reflect older review builds unless stated otherwise.
+
 ## 1. Overview
 
 This document captures the current read-only evaluation status for the new app_v2 nearby stack:
@@ -562,7 +564,7 @@ The tiny public experiment should be deliberately narrower than a cutover:
 - link to `/om-data` for data-context explanation
 - avoid changing DAWA/search, markers, routing, or default result ordering
 
-The current public destination surfaces are now coherent enough to support that limited experiment: `/land`, `/kommune`, `/kommune/[slug]`, `/beskyttelsesrum/[slug]`, and `/om-data` give users a clearer app_v2 data context before any nearby result becomes public-facing.
+The current public destination surfaces are now coherent enough to support that limited experiment: `/kommune`, `/kommune/[slug]`, `/beskyttelsesrum/[slug]`, `/kort`, and `/om-data` give users a clearer app_v2 data context before any nearby result becomes public-facing.
 
 Example public-preview URL:
 

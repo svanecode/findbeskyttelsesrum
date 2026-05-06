@@ -15,7 +15,6 @@ Formålet med denne release candidate er at sikre, at Findbeskyttelsesrum funger
 - `/beskyttelsesrum/[slug]`
 - `/kommune`
 - `/kommune/[slug]`
-- `/land`
 - `/kort`
 - `/om-data`
 - `/tell-me-more` (redirect)
@@ -32,7 +31,7 @@ Formålet med denne release candidate er at sikre, at Findbeskyttelsesrum funger
   - Above-the-fold beslutningsblok: adresse, kapacitet, status, kilde, data senest hentet.
   - Primær CTA: **“Navigér hertil”** + sticky bund-CTA på mobil/tablet når koordinater findes.
 - **Header/footer og sekundære sider**:
-  - Header: **Søg**, **Kommuneoversigt**, **Datagrundlag**.
+  - Header: **Søg**, **Landskort**, **Kommuneoversigt**, **Datagrundlag**.
   - Footer: rolig copy + forbehold, tydelig uafhængighed.
   - `/tell-me-more` redirecter til `/om-data` (undgår parallel, forvirrende side).
 
@@ -72,7 +71,7 @@ Når preview er deployed, test disse URL’er (erstat `<PREVIEW_BASE_URL>`):
 - `<PREVIEW_BASE_URL>/shelters/nearby?lat=abc&lng=12` (ugyldig position)
 - `<PREVIEW_BASE_URL>/kommune`
 - `<PREVIEW_BASE_URL>/kommune/kobenhavn`
-- `<PREVIEW_BASE_URL>/land`
+- `<PREVIEW_BASE_URL>/land` (**301** til `/kommune`)
 - `<PREVIEW_BASE_URL>/kort`
 - `<PREVIEW_BASE_URL>/om-data`
 - `<PREVIEW_BASE_URL>/tell-me-more` (redirect til `/om-data`)

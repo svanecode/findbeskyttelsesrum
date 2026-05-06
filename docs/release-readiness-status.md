@@ -49,7 +49,7 @@ Bemærk: Den live public site kører stadig et gammelt Vercel snapshot med legac
 
 ## Nice-to-have (ikke readiness)
 
-- JSON-LD på land/kommune, fælles layout-shell, udvidet E2E.
+- JSON-LD på kommune, fælles layout-shell, udvidet E2E.
 - Oprydning af forældede formuleringer i `docs/nearby-cutover-readiness.md` (default nearby = app_v2 i kode).
 
 ## Relaterede dokumenter

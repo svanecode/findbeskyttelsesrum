@@ -22,7 +22,7 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: {
-    default: "Find Beskyttelsesrum | Find nærmeste registrerede beskyttelsesrum",
+    default: "Find Beskyttelsesrum | Find nærmeste beskyttelsesrum",
     template: "%s | Find Beskyttelsesrum"
   },
   description:
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: "Find Beskyttelsesrum | Find nærmeste registrerede beskyttelsesrum",
+    title: "Find Beskyttelsesrum | Find nærmeste beskyttelsesrum",
     description:
       "Find nærmeste beskyttelsesrum i Danmark. Bygger på offentlige registerdata. Følg altid myndighedernes anvisninger.",
     url: siteUrl,
@@ -71,7 +71,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Find Beskyttelsesrum | Find nærmeste registrerede beskyttelsesrum",
+    title: "Find Beskyttelsesrum | Find nærmeste beskyttelsesrum",
     description:
       "Find nærmeste beskyttelsesrum i Danmark. Bygger på offentlige registerdata. Følg altid myndighedernes anvisninger.",
     creator: '@beskyttelsesrum',
@@ -107,10 +107,9 @@ export default function RootLayout({
     <html lang="da" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <head>
         <link rel="preload" href="/grid.svg" as="image" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/site.webmanifest" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#1a1a1a" />
+        <meta name="theme-color" content="#0a0a0a" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Beskyttelsesrum" />
@@ -124,6 +123,12 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} antialiased`}>
         <ErrorBoundary>
+          <a
+            href="#main-content"
+            className="fixed left-[max(1rem,env(safe-area-inset-left,0px))] top-[env(safe-area-inset-top,0px)] z-[100] -translate-y-full rounded-b-lg bg-white px-4 py-3 text-sm font-semibold text-black shadow-md outline-none transition-transform focus:translate-y-0 focus:ring-2 focus:ring-orange-400/60 focus:ring-offset-2 focus:ring-offset-[#0a0a0a]"
+          >
+            Spring til indhold
+          </a>
           <SiteHeader />
           {children}
           {process.env.NODE_ENV === "production" ? <VercelWebMetrics /> : null}

@@ -23,9 +23,9 @@ export default function LoadingSpinner({
     <div className={`flex flex-col items-center justify-center space-y-3 ${className}`}>
       <div className="relative">
         <div className={`${sizeClasses[size]} border-2 border-white/20 rounded-full`}></div>
-        <div className={`${sizeClasses[size]} border-2 border-[#F97316] border-t-transparent rounded-full animate-spin absolute top-0 left-0`}></div>
+        <div className={`${sizeClasses[size]} border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin absolute top-0 left-0`}></div>
         {/* Glow effect */}
-        <div className={`${sizeClasses[size]} border-2 border-[#F97316]/30 border-t-transparent rounded-full animate-spin absolute top-0 left-0 blur-sm`}></div>
+        <div className={`${sizeClasses[size]} border-2 border-[color:var(--accent)]/30 border-t-transparent rounded-full animate-spin absolute top-0 left-0 blur-sm`}></div>
       </div>
       {text && (
         <p className="text-sm text-gray-400 loading-dots">

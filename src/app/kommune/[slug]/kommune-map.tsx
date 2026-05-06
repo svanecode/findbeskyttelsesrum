@@ -3,7 +3,10 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import dynamic from 'next/dynamic'
 import 'leaflet/dist/leaflet.css'
+import '@/styles/leaflet-overrides.css'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
+import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
+import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
 
 const MapContainer = dynamic(
   () => import('react-leaflet').then((mod) => mod.MapContainer),
@@ -35,9 +38,9 @@ interface Props {
 function makeIcon(L: typeof import('leaflet'), selected: boolean) {
   const size = selected ? 36 : 28
   const border = selected ? 4 : 3
-  const color = selected ? '#fb923c' : '#F97316'
+  const color = 'var(--accent)'
   const shadow = selected
-    ? '0 0 0 3px rgba(249,115,22,0.4), 0 4px 12px rgba(0,0,0,0.5)'
+    ? '0 0 0 3px rgb(var(--accent-rgb) / 0.4), 0 4px 12px rgba(0,0,0,0.5)'
     : '0 3px 8px rgba(0,0,0,0.4)'
   return L.divIcon({
     className: 'shelter-marker',
@@ -56,6 +59,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
 
   // Load Leaflet once
   useEffect(() => {
+    ensureLeafletPopupStyles()
     import('leaflet').then((leaflet) => {
       const L = leaflet.default
       // Fix default markers
@@ -123,6 +127,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
       <MapContainer
         center={center}
         zoom={10}
+        maxZoom={18}
         style={{ width: '100%', height: '100%' }}
         className="leaflet-container"
         ref={mapRef}
@@ -131,6 +136,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          maxZoom={18}
         />
 
         <MarkerClusterGroup
@@ -165,32 +171,18 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
                   click: () => onMarkerClick(group.groupKey),
                 }}
               >
-                <Popup>
-                  <div className="min-w-[240px] p-3">
-                    <p className="font-semibold text-gray-900">
-                      {group.addressLine1}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {group.postalCode} {group.city}
-                    </p>
-                    {group.applicationCodeLabel && (
-                      <p className="mt-1 text-xs text-gray-500">{group.applicationCodeLabel}</p>
-                    )}
-                    <div className="mt-2 flex gap-3 text-sm">
-                      {group.shelterCount > 1 && (
-                        <span className="text-gray-700">{group.shelterCount} beskyttelsesrum</span>
-                      )}
-                      <span className="font-medium text-orange-600">
-                        {group.totalCapacity.toLocaleString('da-DK')} pladser
-                      </span>
-                    </div>
-                    <a
-                      href={`/beskyttelsesrum/${group.primarySlug}`}
-                      className="mt-2 block text-xs text-blue-600 hover:underline"
-                    >
-                      Se detaljer →
-                    </a>
-                  </div>
+                <Popup className="fb-popup">
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: buildLeafletPopupHtml({
+                        title: group.addressLine1,
+                        usageLine: group.applicationCodeLabel || '',
+                        postalLine: `${group.postalCode} ${group.city}`.trim(),
+                        capacity: group.totalCapacity,
+                        href: `/beskyttelsesrum/${group.primarySlug}`,
+                      }),
+                    }}
+                  />
                 </Popup>
               </Marker>
             )

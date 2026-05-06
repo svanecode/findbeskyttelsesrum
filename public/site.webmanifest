@@ -4,8 +4,8 @@
   "description": "Find det nærmeste beskyttelsesrum i dit område",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a1a1a",
-  "theme_color": "#1a1a1a",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
   "icons": [
     {
       "src": "/favicons/android-chrome-192x192.png",

@@ -17,12 +17,12 @@ Denne note opsummerer hardening-pass’et og fungerer som release-gate sammen me
   - “Navigér hertil” + sticky mobil CTA når koordinater findes
   - rapportfunktion holdt sekundær
 - **Navigation (header/footer)**:
-  - header: “Søg”, “Kommuneoversigt”, “Datagrundlag”
+  - header: “Søg”, “Landskort”, “Kommuneoversigt”, “Datagrundlag”
   - footer: rolig copy + forbehold, færre links, ingen overclaims
 - **Sekundære sider**:
   - `/om-data` → “Datagrundlag” med plain-language fokus
   - `/tell-me-more` redirect til `/om-data`
-  - `/land`, `/kommune`, `/kort` tydeliggjort som sekundære og linker tilbage til søgning
+  - `/kommune`, `/kort` tydeliggjort som sekundære og linker tilbage til søgning; `/land` er fjernet (**301** til `/kommune`)
 
 ## Ruter berørt
 
@@ -31,7 +31,6 @@ Denne note opsummerer hardening-pass’et og fungerer som release-gate sammen me
 - `/beskyttelsesrum/[slug]`
 - `/kommune`
 - `/kommune/[slug]` (kun label-konsistens)
-- `/land`
 - `/om-data`
 - `/tell-me-more` (redirect)
 - `/kort`
@@ -84,7 +83,7 @@ Søgt efter: `v2`, `Officielle data`, `officielle data`, `Prøv København`, `Ud
 - `/shelters/nearby?lat=56.1629&lng=10.2039`
 - `/shelters/nearby?lat=abc&lng=12` (ugyldig position)
 - `/kommune`
-- `/land`
+- `/land` (**301** til `/kommune`)
 - `/kort`
 - `/om-data`
 - `/tell-me-more` (redirect)
