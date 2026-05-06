@@ -6,6 +6,7 @@ import BackLinkButton from "@/components/BackLinkButton";
 import ShelterOsmEmbedMap from "@/components/ShelterOsmEmbedMap";
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from "@/lib/anvendelseskoder";
 import { serializeJsonLd } from "@/lib/seo/json-ld";
+import { siteUrl } from "@/lib/seo/site";
 import { getAppV2PublicShelterBySlug, type AppV2ShelterDetail } from "@/lib/supabase/app-v2-queries";
 
 type Props = {
@@ -32,7 +33,7 @@ function getJsonLd(shelter: AppV2ShelterDetail) {
     "@context": "https://schema.org",
     "@type": "Place",
     name: shelter.name,
-    url: `https://findbeskyttelsesrum.dk${getShelterCanonicalPath(shelter.slug)}`,
+    url: `${siteUrl}${getShelterCanonicalPath(shelter.slug)}`,
     address: {
       "@type": "PostalAddress",
       streetAddress: shelter.addressLine1,
@@ -77,7 +78,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       type: "article",
       locale: "da_DK",
       siteName: "Find Beskyttelsesrum",
-      url: `https://findbeskyttelsesrum.dk${getShelterCanonicalPath(shelter.slug)}`,
+      url: `${siteUrl}${getShelterCanonicalPath(shelter.slug)}`,
     },
   };
 }

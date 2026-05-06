@@ -1,4 +1,5 @@
 import { getMunicipalitySlugCandidates, normalizeMunicipalityDisplay } from "@/lib/municipalities/metadata";
+import { createAppV2PublicClient } from "@/lib/app-v2-public";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 
 export type AppV2ShelterStatus = "active" | "temporarily_closed" | "under_review";
@@ -35,13 +36,7 @@ type ShelterRow = {
   last_imported_at: string | null;
   canonical_source_name: string | null;
   canonical_source_reference: string | null;
-};
-
-type MunicipalityShelterStatsRow = {
-  postal_code: string;
-  city: string;
-  capacity: number;
-  last_seen_at: string | null;
+  source_application_code: string | null;
 };
 
 type ImportRunRow = {
@@ -210,32 +205,6 @@ type ShelterCountOptions = {
   includeMissing?: boolean;
 };
 
-type FeaturedShelterOptions = {
-  limit?: number;
-  municipalityId?: string;
-};
-
-type ShelterPreviewMunicipality = {
-  id: string;
-  code: string | null;
-  slug: string;
-  name: string;
-  regionName: string | null;
-};
-
-export type AppV2ShelterPreview = {
-  id: string;
-  slug: string;
-  name: string;
-  addressLine1: string;
-  postalCode: string;
-  city: string;
-  capacity: number;
-  status: AppV2ShelterStatus;
-  importState: AppV2ImportState;
-  municipality: ShelterPreviewMunicipality;
-};
-
 export type AppV2NearbySheltersOptions = {
   latitude: number;
   longitude: number;
@@ -243,7 +212,6 @@ export type AppV2NearbySheltersOptions = {
   limit?: number;
   candidateLimit?: number;
   importStates?: AppV2ImportState[];
-  eligibilityMode?: AppV2NearbyEligibilityMode;
 };
 
 export type AppV2NearbyEligibilitySummary = {
@@ -267,136 +235,11 @@ const defaultNearbyRadiusMeters = 50_000;
 const defaultNearbyLimit = 10;
 const defaultNearbyCandidateLimit = 500;
 const defaultNearbyImportStates: AppV2ImportState[] = ["active"];
-const defaultNearbyEligibilityMode: AppV2NearbyEligibilityMode = "legacy_capacity_v1";
+const defaultNearbyEligibilityMode: AppV2NearbyEligibilityMode = "source_application_code_v1";
 const legacyNearbyMinimumCapacity = 40;
 const sourceApplicationCodeRuleSource = "app_v2.application_code_eligibility";
 const sourceApplicationCodeLookupChunkSize = 100;
 const allowedImportStates: AppV2ImportState[] = ["active", "missing_from_source", "suppressed"];
-
-type AppV2ShelterExclusionRow = {
-  shelter_id: string | null;
-  canonical_source_name: string | null;
-  canonical_source_reference: string | null;
-  address_line1: string | null;
-  postal_code: string | null;
-  city: string | null;
-  is_active: boolean;
-};
-
-type AppV2ExclusionMatchCandidate = {
-  id: string;
-  canonicalSourceName: string | null;
-  canonicalSourceReference: string | null;
-  addressLine1: string;
-  postalCode: string;
-  city: string;
-};
-
-type AppV2PublicShelterRow = AppV2ExclusionMatchCandidate & {
-  capacity: number;
-  sourceApplicationCode: string | null;
-};
-
-async function getActiveAppV2ShelterExclusions(): Promise<AppV2ShelterExclusionRow[]> {
-  const supabase = createAppV2ReadClient();
-  const { data, error } = await supabase
-    .from("shelter_exclusions")
-    .select(
-      "shelter_id, canonical_source_name, canonical_source_reference, address_line1, postal_code, city, is_active",
-    )
-    .eq("is_active", true);
-
-  if (error) {
-    throw new Error(`Could not load app_v2 shelter exclusions: ${error.message}`);
-  }
-
-  return (data ?? []) as AppV2ShelterExclusionRow[];
-}
-
-function normalizeExclusionAddressPart(value: string) {
-  return value.trim().toLowerCase().replace(/,/g, " ").replace(/\s+/g, " ");
-}
-
-function createAppV2ExclusionMatcher(exclusions: AppV2ShelterExclusionRow[]) {
-  const excludedShelterIds = new Set(
-    exclusions.map((e) => e.shelter_id).filter((id): id is string => Boolean(id)),
-  );
-  const excludedCanonicalPairs = new Set(
-    exclusions
-      .filter((e) => e.canonical_source_name && e.canonical_source_reference)
-      .map((e) => `${e.canonical_source_name}||${e.canonical_source_reference}`),
-  );
-  const excludedAddresses = new Set(
-    exclusions
-      .filter((e) => e.address_line1 && e.postal_code)
-      .map((e) => `${normalizeExclusionAddressPart(e.address_line1!)}||${(e.postal_code ?? "").trim()}`),
-  );
-  const excludedAddressCities = new Map<string, Set<string>>();
-  for (const e of exclusions) {
-    if (!e.address_line1 || !e.postal_code || !e.city) continue;
-    const addressKey = `${normalizeExclusionAddressPart(e.address_line1)}||${e.postal_code.trim()}`;
-    const set = excludedAddressCities.get(addressKey) ?? new Set<string>();
-    set.add(normalizeExclusionAddressPart(e.city));
-    excludedAddressCities.set(addressKey, set);
-  }
-
-  return (candidate: AppV2ExclusionMatchCandidate) => {
-    if (excludedShelterIds.has(candidate.id)) return true;
-
-    if (candidate.canonicalSourceName && candidate.canonicalSourceReference) {
-      const key = `${candidate.canonicalSourceName}||${candidate.canonicalSourceReference}`;
-      if (excludedCanonicalPairs.has(key)) return true;
-    }
-
-    const addressKey = `${normalizeExclusionAddressPart(candidate.addressLine1)}||${candidate.postalCode.trim()}`;
-    if (excludedAddresses.has(addressKey)) {
-      const cities = excludedAddressCities.get(addressKey);
-      if (!cities) return true; // city is optional in exclusions
-      if (cities.has(normalizeExclusionAddressPart(candidate.city))) return true;
-    }
-
-    return false;
-  };
-}
-
-async function getNearbyEligibleApplicationCodes() {
-  const supabase = createAppV2ReadClient();
-  const { data, error } = await supabase
-    .from("application_code_eligibility")
-    .select("application_code")
-    .eq("source_name", "datafordeler-bbr-dar")
-    .eq("is_nearby_eligible", true);
-
-  if (error) {
-    throw new Error(`Could not load app_v2 application-code eligibility rules: ${error.message}`);
-  }
-
-  return new Set(
-    ((data ?? []) as Array<{ application_code: string | null }>).map((r) => r.application_code).filter((v): v is string => Boolean(v)),
-  );
-}
-
-async function getAppV2PublicVisibilityMatchers() {
-  const [exclusions, eligibleCodes] = await Promise.all([
-    getActiveAppV2ShelterExclusions(),
-    getNearbyEligibleApplicationCodes(),
-  ]);
-
-  return {
-    isExcluded: createAppV2ExclusionMatcher(exclusions),
-    eligibleCodes,
-  };
-}
-
-function isPublicNearbyEligible(row: AppV2PublicShelterRow, eligibleCodes: Set<string>) {
-  if (row.capacity < legacyNearbyMinimumCapacity) return false;
-  if (!row.sourceApplicationCode) return false;
-  return eligibleCodes.has(row.sourceApplicationCode);
-}
-
-function createAppV2ReadClient() {
-  return createAppV2AdminClient();
-}
 
 function normalizeMunicipality(row: MunicipalityRow, activeShelterCount: number): AppV2MunicipalityDetail {
   const display = normalizeMunicipalityDisplay({
@@ -448,7 +291,7 @@ function normalizeShelter(row: ShelterRow, municipality: AppV2MunicipalityDetail
     longitude: row.longitude,
     capacity: row.capacity,
     status: row.status,
-    sourceApplicationCode: (row as any).source_application_code ?? null,
+    sourceApplicationCode: row.source_application_code,
     accessibilityNotes: row.accessibility_notes,
     summary: row.summary,
     sourceSummary: row.source_summary,
@@ -458,37 +301,6 @@ function normalizeShelter(row: ShelterRow, municipality: AppV2MunicipalityDetail
     canonicalSourceName: row.canonical_source_name,
     canonicalSourceReference: row.canonical_source_reference,
     municipality,
-  };
-}
-
-function normalizeShelterPreview(row: ShelterRow, municipality: ShelterPreviewMunicipality): AppV2ShelterPreview {
-  return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    addressLine1: row.address_line1,
-    postalCode: row.postal_code,
-    city: row.city,
-    capacity: row.capacity,
-    status: row.status,
-    importState: row.import_state,
-    municipality,
-  };
-}
-
-function normalizeShelterPreviewMunicipality(row: MunicipalityRow): ShelterPreviewMunicipality {
-  const display = normalizeMunicipalityDisplay({
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-  });
-
-  return {
-    id: row.id,
-    code: row.code,
-    slug: display.slug,
-    name: display.name,
-    regionName: row.region_name,
   };
 }
 
@@ -516,16 +328,6 @@ function getNearbyImportStates(input: AppV2NearbySheltersOptions) {
   }
 
   return importStates;
-}
-
-function getNearbyEligibilityMode(input: AppV2NearbySheltersOptions) {
-  const mode = input.eligibilityMode ?? defaultNearbyEligibilityMode;
-
-  if (mode !== "legacy_capacity_v1" && mode !== "source_application_code_v1" && mode !== "none") {
-    throw new Error(`Nearby app_v2 query received unsupported eligibility mode: ${String(mode)}.`);
-  }
-
-  return mode;
 }
 
 export function getAppV2NearbyEligibilitySummary(
@@ -743,7 +545,7 @@ async function attachSourceApplicationCodeEligibility(rows: AppV2NearbyShelter[]
     return rows;
   }
 
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2AdminClient();
   const ids = rows.map((row) => row.id);
   const shelterRows: Array<{ id: string; source_application_code: string | null }> = [];
 
@@ -793,47 +595,23 @@ async function attachSourceApplicationCodeEligibility(rows: AppV2NearbyShelter[]
   });
 }
 
-function applyNearbyEligibility(rows: AppV2NearbyShelter[], mode: AppV2NearbyEligibilityMode) {
-  if (mode === "none") {
-    return {
-      rows,
-      minimumCapacity: null,
-      filteredByEligibility: 0,
-      sourceApplicationCodeRows: rows.filter((row) => row.sourceApplicationCode).length,
-      sourceApplicationCodeEligibleRows: 0,
-      sourceApplicationCodeUnknownRows: 0,
-      sourceApplicationCodeSemantics: "not_requested" as const,
-    };
-  }
-
+/** Source-application-code eligibility (capacity + eligible code), matching DB view rules. */
+function applySourceApplicationCodeNearbyEligibility(rows: AppV2NearbyShelter[]) {
   const capacityEligibleRows = rows.filter((row) => row.capacity >= legacyNearbyMinimumCapacity);
   const sourceApplicationCodeRows = rows.filter((row) => row.sourceApplicationCode).length;
-
-  if (mode === "source_application_code_v1") {
-    const eligibleRows = capacityEligibleRows.filter((row) => row.sourceApplicationCodeNearbyEligible === true);
-    const sourceApplicationCodeUnknownRows = capacityEligibleRows.filter(
-      (row) => !row.sourceApplicationCode || row.sourceApplicationCodeNearbyEligible === null,
-    ).length;
-
-    return {
-      rows: eligibleRows,
-      minimumCapacity: legacyNearbyMinimumCapacity,
-      filteredByEligibility: rows.length - eligibleRows.length,
-      sourceApplicationCodeRows,
-      sourceApplicationCodeEligibleRows: eligibleRows.length,
-      sourceApplicationCodeUnknownRows,
-      sourceApplicationCodeSemantics: sourceApplicationCodeRows > 0 ? ("available" as const) : ("unpopulated" as const),
-    };
-  }
+  const eligibleRows = capacityEligibleRows.filter((row) => row.sourceApplicationCodeNearbyEligible === true);
+  const sourceApplicationCodeUnknownRows = capacityEligibleRows.filter(
+    (row) => !row.sourceApplicationCode || row.sourceApplicationCodeNearbyEligible === null,
+  ).length;
 
   return {
-    rows: capacityEligibleRows,
+    rows: eligibleRows,
     minimumCapacity: legacyNearbyMinimumCapacity,
-    filteredByEligibility: rows.length - capacityEligibleRows.length,
+    filteredByEligibility: rows.length - eligibleRows.length,
     sourceApplicationCodeRows,
-    sourceApplicationCodeEligibleRows: 0,
-    sourceApplicationCodeUnknownRows: 0,
-    sourceApplicationCodeSemantics: "not_requested" as const,
+    sourceApplicationCodeEligibleRows: eligibleRows.length,
+    sourceApplicationCodeUnknownRows,
+    sourceApplicationCodeSemantics: sourceApplicationCodeRows > 0 ? ("available" as const) : ("unpopulated" as const),
   };
 }
 
@@ -895,7 +673,7 @@ function groupNearbyRows(
 }
 
 async function getActiveShelterCountByMunicipalityId(municipalityId: string) {
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2AdminClient();
   const { count, error } = await supabase
     .from("shelters")
     .select("id", { count: "exact", head: true })
@@ -913,7 +691,7 @@ async function getActiveShelterCountByMunicipalityId(municipalityId: string) {
 }
 
 export async function getAppV2ShelterCount(options: ShelterCountOptions = {}) {
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2AdminClient();
   const query = supabase.from("shelters").select("id", { count: "exact", head: true });
   const scopedQuery = options.includeMissing ? query : query.eq("import_state", "active");
   const { count, error } = await scopedQuery;
@@ -927,7 +705,7 @@ export async function getAppV2ShelterCount(options: ShelterCountOptions = {}) {
 }
 
 export async function getAppV2TotalShelterCapacity() {
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2AdminClient();
   let totalCapacity = 0;
   let from = 0;
 
@@ -959,66 +737,8 @@ export async function getAppV2TotalShelterCapacity() {
   return totalCapacity;
 }
 
-export async function getAppV2FeaturedShelters(options: FeaturedShelterOptions = {}) {
-  const supabase = createAppV2ReadClient();
-  const limit = options.limit ?? 5;
-
-  if (!Number.isInteger(limit) || limit <= 0 || limit > 12) {
-    throw new Error("Featured app_v2 shelters require a limit between 1 and 12.");
-  }
-
-  let query = supabase
-    .from("shelters")
-    .select(
-      "id, municipality_id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, last_seen_at, last_imported_at, canonical_source_name, canonical_source_reference",
-    )
-    .eq("import_state", "active")
-    .order("capacity", { ascending: false })
-    .order("name", { ascending: true })
-    .limit(limit);
-
-  if (options.municipalityId) {
-    query = query.eq("municipality_id", options.municipalityId);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error("Could not load featured app_v2 shelters.");
-  }
-
-  const shelters = (data ?? []) as ShelterRow[];
-  const municipalityIds = Array.from(new Set(shelters.map((shelter) => shelter.municipality_id)));
-
-  if (municipalityIds.length === 0) {
-    return [];
-  }
-
-  const { data: municipalityData, error: municipalityError } = await supabase
-    .from("municipalities")
-    .select("id, code, slug, name, description, region_name")
-    .in("id", municipalityIds);
-
-  if (municipalityError) {
-    throw new Error("Could not load municipalities for featured app_v2 shelters.");
-  }
-
-  const municipalityById = new Map(
-    ((municipalityData ?? []) as MunicipalityRow[]).map((row) => [
-      row.id,
-      normalizeShelterPreviewMunicipality(row),
-    ]),
-  );
-
-  return shelters.flatMap((shelter) => {
-    const municipality = municipalityById.get(shelter.municipality_id);
-
-    return municipality ? [normalizeShelterPreview(shelter, municipality)] : [];
-  });
-}
-
 export async function getLatestAppV2ImportRun(sourceName?: string) {
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2AdminClient();
   let query = supabase
     .from("import_runs")
     .select(
@@ -1040,17 +760,17 @@ export async function getLatestAppV2ImportRun(sourceName?: string) {
   return data ? normalizeImportRun(data as ImportRunRow) : null;
 }
 
-export async function getAppV2NearbySheltersWithDiagnostics(
+async function getAppV2NearbySheltersWithDiagnostics(
   options: AppV2NearbySheltersOptions,
 ): Promise<AppV2NearbySheltersResult> {
   assertValidCoordinate(options);
 
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2AdminClient();
   const radiusMeters = options.radiusMeters ?? defaultNearbyRadiusMeters;
   const limit = options.limit ?? defaultNearbyLimit;
   const candidateLimit = options.candidateLimit ?? defaultNearbyCandidateLimit;
   const importStates = getNearbyImportStates(options);
-  const eligibilityMode = getNearbyEligibilityMode(options);
+  const eligibilityMode = defaultNearbyEligibilityMode;
 
   if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
     throw new Error("Nearby app_v2 query requires a positive radiusMeters value.");
@@ -1068,7 +788,7 @@ export async function getAppV2NearbySheltersWithDiagnostics(
     throw new Error("Nearby app_v2 query requires candidateLimit to be greater than or equal to limit.");
   }
 
-  const rpcLimit = eligibilityMode === "none" ? limit : candidateLimit;
+  const rpcLimit = candidateLimit;
   const { data, error } = await supabase.rpc("get_nearby_shelters", {
     p_lat: options.latitude,
     p_lng: options.longitude,
@@ -1089,11 +809,8 @@ export async function getAppV2NearbySheltersWithDiagnostics(
   }
 
   const sourceRows = parseJsonArray(payload.results, "results").map(normalizeNearbyRpcRow);
-  const sourceRowsWithEligibility =
-    eligibilityMode === "source_application_code_v1"
-      ? await attachSourceApplicationCodeEligibility(sourceRows)
-      : sourceRows;
-  const eligibility = applyNearbyEligibility(sourceRowsWithEligibility, eligibilityMode);
+  const sourceRowsWithEligibility = await attachSourceApplicationCodeEligibility(sourceRows);
+  const eligibility = applySourceApplicationCodeNearbyEligibility(sourceRowsWithEligibility);
   const rows = eligibility.rows.slice(0, limit);
   const baseDiagnostics = normalizeNearbyDiagnostics(payload.diagnostics);
   const eligibilitySummary = getAppV2NearbyEligibilitySummary(eligibilityMode);
@@ -1108,8 +825,7 @@ export async function getAppV2NearbySheltersWithDiagnostics(
       minimumCapacity: eligibility.minimumCapacity ?? undefined,
       legacyAnvendelseSemantics: eligibilitySummary.legacyAnvendelseSemantics,
       sourceApplicationCodeSemantics: eligibility.sourceApplicationCodeSemantics,
-      sourceApplicationCodeRuleSource:
-        eligibilityMode === "source_application_code_v1" ? sourceApplicationCodeRuleSource : undefined,
+      sourceApplicationCodeRuleSource,
       sourceApplicationCodeRows: eligibility.sourceApplicationCodeRows,
       sourceApplicationCodeEligibleRows: eligibility.sourceApplicationCodeEligibleRows,
       sourceApplicationCodeUnknownRows: eligibility.sourceApplicationCodeUnknownRows,
@@ -1118,12 +834,6 @@ export async function getAppV2NearbySheltersWithDiagnostics(
       sourceReturnedRows: sourceRows.length,
     },
   };
-}
-
-export async function getAppV2NearbyShelters(options: AppV2NearbySheltersOptions): Promise<AppV2NearbyShelter[]> {
-  const result = await getAppV2NearbySheltersWithDiagnostics(options);
-
-  return result.rows;
 }
 
 export async function getAppV2GroupedNearbySheltersWithDiagnostics(
@@ -1156,7 +866,7 @@ export async function getAppV2GroupedNearbySheltersWithDiagnostics(
   );
   const labelByCode = new Map<string, string>();
   if (uniqueCodes.length > 0) {
-    const labelClient = createAppV2ReadClient();
+    const labelClient = createAppV2AdminClient();
     const { data: labelRows } = await labelClient
       .from("application_code_eligibility")
       .select("application_code, label")
@@ -1185,16 +895,8 @@ export async function getAppV2GroupedNearbySheltersWithDiagnostics(
   };
 }
 
-export async function getAppV2GroupedNearbyShelters(
-  options: AppV2NearbySheltersOptions,
-): Promise<AppV2GroupedNearbyShelter[]> {
-  const result = await getAppV2GroupedNearbySheltersWithDiagnostics(options);
-
-  return result.rows;
-}
-
 export async function getAppV2MunicipalitySummaries() {
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2AdminClient();
   const { data, error } = await supabase
     .from("municipalities")
     .select("id, code, slug, name, description, region_name")
@@ -1215,7 +917,7 @@ export async function getAppV2MunicipalitySummaries() {
 }
 
 export async function getAppV2MunicipalitySlugs() {
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2AdminClient();
   const { data, error } = await supabase
     .from("municipalities")
     .select("id, code, slug, name, description, region_name")
@@ -1231,103 +933,6 @@ export async function getAppV2MunicipalitySlugs() {
 }
 
 const sitemapShelterPageSize = 1000;
-
-export type AppV2CountryShelter = {
-  id: string;
-  slug: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  capacity: number;
-  municipalityId: string;
-  addressLine1: string;
-  postalCode: string;
-  city: string;
-};
-
-type CountryShelterRow = {
-  id: string;
-  slug: string;
-  name: string;
-  latitude: number | string | null;
-  longitude: number | string | null;
-  capacity: number | string | null;
-  municipality_id: string;
-  address_line1: string | null;
-  postal_code: string | null;
-  city: string | null;
-};
-
-function normalizeCountryShelter(row: CountryShelterRow): AppV2CountryShelter | null {
-  const latitude = row.latitude === null || row.latitude === undefined ? Number.NaN : Number(row.latitude);
-  const longitude = row.longitude === null || row.longitude === undefined ? Number.NaN : Number(row.longitude);
-
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    return null;
-  }
-
-  const capacityValue =
-    row.capacity === null || row.capacity === undefined ? Number.NaN : Number(row.capacity);
-  const capacity = Number.isFinite(capacityValue) ? Math.trunc(capacityValue) : 0;
-
-  return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    latitude,
-    longitude,
-    capacity,
-    municipalityId: row.municipality_id,
-    addressLine1: (row.address_line1 ?? "").trim(),
-    postalCode: (row.postal_code ?? "").trim(),
-    city: (row.city ?? "").trim(),
-  };
-}
-
-/**
- * Paginated read of all active app_v2 shelters with coordinates (national map).
- */
-export async function getAppV2CountryShelters(): Promise<AppV2CountryShelter[]> {
-  const supabase = createAppV2ReadClient();
-  const out: AppV2CountryShelter[] = [];
-  let from = 0;
-
-  while (true) {
-    const to = from + sitemapShelterPageSize - 1;
-    const { data, error } = await supabase
-      .from("shelters")
-      .select(
-        "id, slug, name, latitude, longitude, capacity, municipality_id, address_line1, postal_code, city",
-      )
-      .eq("import_state", "active")
-      .not("latitude", "is", null)
-      .not("longitude", "is", null)
-      .order("id", { ascending: true })
-      .range(from, to);
-
-    if (error) {
-      throw new Error(`Could not load app_v2 country shelters: ${error.message}`);
-    }
-
-    const rows = (data ?? []) as CountryShelterRow[];
-
-    for (const row of rows) {
-      const normalized = normalizeCountryShelter(row);
-
-      if (normalized) {
-        out.push(normalized);
-      }
-    }
-
-    if (rows.length < sitemapShelterPageSize) {
-      break;
-    }
-
-    from += sitemapShelterPageSize;
-  }
-
-  return out;
-}
 
 export type AppV2CountryShelterMarker = {
   slug: string;
@@ -1355,7 +960,7 @@ type CountryShelterMarkerRow = {
   canonical_source_reference: string | null;
 };
 
-function normalizeCountryShelterMarker(row: CountryShelterMarkerRow): (AppV2CountryShelterMarker & AppV2PublicShelterRow) | null {
+function normalizeCountryShelterMarker(row: CountryShelterMarkerRow): AppV2CountryShelterMarker | null {
   const latitude = row.latitude === null || row.latitude === undefined ? Number.NaN : Number(row.latitude);
   const longitude = row.longitude === null || row.longitude === undefined ? Number.NaN : Number(row.longitude);
 
@@ -1372,7 +977,6 @@ function normalizeCountryShelterMarker(row: CountryShelterMarkerRow): (AppV2Coun
   const city = (row.city ?? "").trim();
 
   return {
-    id: row.id,
     slug: row.slug,
     name: row.name,
     addressLine1,
@@ -1381,31 +985,24 @@ function normalizeCountryShelterMarker(row: CountryShelterMarkerRow): (AppV2Coun
     capacity,
     latitude,
     longitude,
-    sourceApplicationCode: row.source_application_code,
-    canonicalSourceName: row.canonical_source_name,
-    canonicalSourceReference: row.canonical_source_reference,
   };
 }
 
 /**
- * Paginated read of all active app_v2 shelters with coordinates (national map marker payload).
- * Intentionally excludes internal IDs and municipality references.
+ * Paginated read of public map markers (national map / sanity), from `country_marker_public`.
  */
 export async function getAppV2CountryShelterMarkers(): Promise<AppV2CountryShelterMarker[]> {
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2PublicClient();
   const out: AppV2CountryShelterMarker[] = [];
   let from = 0;
 
   while (true) {
     const to = from + sitemapShelterPageSize - 1;
     const { data, error } = await supabase
-      .from("shelters")
+      .from("country_marker_public")
       .select(
         "id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, source_application_code, canonical_source_name, canonical_source_reference",
       )
-      .eq("import_state", "active")
-      .not("latitude", "is", null)
-      .not("longitude", "is", null)
       .order("slug", { ascending: true })
       .range(from, to);
 
@@ -1430,30 +1027,9 @@ export async function getAppV2CountryShelterMarkers(): Promise<AppV2CountryShelt
   return out;
 }
 
-/**
- * Public read model for national map markers.
- * Mirrors the nearby filters: active exclusions + capacity >= 40 + source application code must be eligible.
- */
+/** Same as {@link getAppV2CountryShelterMarkers} (`country_marker_public`). */
 export async function getAppV2PublicCountryShelterMarkers(): Promise<AppV2CountryShelterMarker[]> {
-  const { isExcluded, eligibleCodes } = await getAppV2PublicVisibilityMatchers();
-  const rows = await getAppV2CountryShelterMarkers();
-
-  // getAppV2CountryShelterMarkers() is typed to hide public-filter fields, but it returns them at runtime.
-  const extended = rows as unknown as Array<AppV2CountryShelterMarker & AppV2PublicShelterRow>;
-
-  return extended
-    .filter((row) => !isExcluded(row) && isPublicNearbyEligible(row, eligibleCodes))
-    .map(({ slug, name, addressLine1, postalCode, city, capacity, latitude, longitude, sourceApplicationCode }) => ({
-      slug,
-      name,
-      addressLine1,
-      postalCode,
-      city,
-      capacity,
-      sourceApplicationCode,
-      latitude,
-      longitude,
-    }));
+  return getAppV2CountryShelterMarkers();
 }
 
 export type AppV2SitemapShelterRow = {
@@ -1462,72 +1038,18 @@ export type AppV2SitemapShelterRow = {
 };
 
 /**
- * All active app_v2 shelter slugs for sitemap generation (paginated server-side reads).
- */
-export async function getAppV2SitemapShelters(): Promise<AppV2SitemapShelterRow[]> {
-  const supabase = createAppV2ReadClient();
-  const out: AppV2SitemapShelterRow[] = [];
-  let from = 0;
-
-  while (true) {
-    const to = from + sitemapShelterPageSize - 1;
-    const { data, error } = await supabase
-      .from("shelters")
-      .select("slug, last_imported_at, last_seen_at")
-      .eq("import_state", "active")
-      .not("slug", "is", null)
-      .neq("slug", "")
-      .order("slug", { ascending: true })
-      .range(from, to);
-
-    if (error) {
-      throw new Error(`Could not load app_v2 shelters for sitemap: ${error.message}`);
-    }
-
-    const rows = (data ?? []) as Array<{
-      slug: string;
-      last_imported_at: string | null;
-      last_seen_at: string | null;
-    }>;
-
-    for (const row of rows) {
-      const raw = row.last_imported_at ?? row.last_seen_at;
-      out.push({
-        slug: row.slug,
-        lastModified: raw ? new Date(raw) : new Date(),
-      });
-    }
-
-    if (rows.length < sitemapShelterPageSize) {
-      break;
-    }
-
-    from += sitemapShelterPageSize;
-  }
-
-  return out;
-}
-
-/**
- * Public sitemap shelters.
- * Mirrors the nearby filters: active exclusions + capacity >= 40 + source application code must be eligible.
+ * Public sitemap rows from `sitemap_shelter_public` (same rules as map markers / nearby public model).
  */
 export async function getAppV2PublicSitemapShelters(): Promise<AppV2SitemapShelterRow[]> {
-  const supabase = createAppV2ReadClient();
-  const { isExcluded, eligibleCodes } = await getAppV2PublicVisibilityMatchers();
+  const supabase = createAppV2PublicClient();
   const out: AppV2SitemapShelterRow[] = [];
   let from = 0;
 
   while (true) {
     const to = from + sitemapShelterPageSize - 1;
     const { data, error } = await supabase
-      .from("shelters")
-      .select(
-        "id, slug, last_imported_at, last_seen_at, capacity, source_application_code, canonical_source_name, canonical_source_reference, address_line1, postal_code, city",
-      )
-      .eq("import_state", "active")
-      .not("slug", "is", null)
-      .neq("slug", "")
+      .from("sitemap_shelter_public")
+      .select("slug, last_modified")
       .order("slug", { ascending: true })
       .range(from, to);
 
@@ -1535,39 +1057,12 @@ export async function getAppV2PublicSitemapShelters(): Promise<AppV2SitemapShelt
       throw new Error(`Could not load app_v2 shelters for public sitemap: ${error.message}`);
     }
 
-    const rows = (data ?? []) as Array<{
-      id: string;
-      slug: string;
-      last_imported_at: string | null;
-      last_seen_at: string | null;
-      capacity: number | null;
-      source_application_code: string | null;
-      canonical_source_name: string | null;
-      canonical_source_reference: string | null;
-      address_line1: string | null;
-      postal_code: string | null;
-      city: string | null;
-    }>;
+    const rows = (data ?? []) as Array<{ slug: string; last_modified: string | null }>;
 
     for (const row of rows) {
-      const candidate: AppV2PublicShelterRow = {
-        id: row.id,
-        canonicalSourceName: row.canonical_source_name,
-        canonicalSourceReference: row.canonical_source_reference,
-        addressLine1: (row.address_line1 ?? "").trim(),
-        postalCode: (row.postal_code ?? "").trim(),
-        city: (row.city ?? "").trim(),
-        capacity: row.capacity ?? 0,
-        sourceApplicationCode: row.source_application_code,
-      };
-
-      if (isExcluded(candidate)) continue;
-      if (!isPublicNearbyEligible(candidate, eligibleCodes)) continue;
-
-      const raw = row.last_imported_at ?? row.last_seen_at;
       out.push({
         slug: row.slug,
-        lastModified: raw ? new Date(raw) : new Date(),
+        lastModified: row.last_modified ? new Date(row.last_modified) : new Date(),
       });
     }
 
@@ -1579,7 +1074,7 @@ export async function getAppV2PublicSitemapShelters(): Promise<AppV2SitemapShelt
 }
 
 export async function getAppV2MunicipalityBySlug(slug: string) {
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2AdminClient();
   const slugCandidates = getMunicipalitySlugCandidates(slug);
   const { data, error } = await supabase
     .from("municipalities")
@@ -1602,10 +1097,18 @@ export async function getAppV2MunicipalityBySlug(slug: string) {
   return normalizeMunicipality(row, activeShelterCount);
 }
 
-export async function getAppV2MunicipalityShelterStats(
+type MunicipalityShelterStatsRow = {
+  address_line1: string | null;
+  postal_code: string | null;
+  city: string | null;
+  capacity: number | null;
+  last_seen_at: string | null;
+};
+
+export async function getAppV2PublicMunicipalityShelterStats(
   municipalityId: string,
 ): Promise<AppV2MunicipalityShelterStats> {
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2PublicClient();
   const postalAreas = new Map<
     string,
     {
@@ -1624,10 +1127,9 @@ export async function getAppV2MunicipalityShelterStats(
   while (true) {
     const to = from + municipalityStatsPageSize - 1;
     const { data, error } = await supabase
-      .from("shelters")
-      .select("postal_code, city, capacity, last_seen_at")
+      .from("shelter_public")
+      .select("address_line1, postal_code, city, capacity, last_seen_at")
       .eq("municipality_id", municipalityId)
-      .eq("import_state", "active")
       .range(from, to);
 
     if (error) {
@@ -1637,116 +1139,9 @@ export async function getAppV2MunicipalityShelterStats(
     const rows = (data ?? []) as MunicipalityShelterStatsRow[];
 
     for (const row of rows) {
-      activeShelterCount += 1;
-      totalCapacity += row.capacity ?? 0;
-      largestCapacity = largestCapacity === null ? row.capacity : Math.max(largestCapacity, row.capacity);
-
-      if (row.last_seen_at && (!latestSeenAt || row.last_seen_at > latestSeenAt)) {
-        latestSeenAt = row.last_seen_at;
-      }
-
-      const postalKey = `${row.postal_code}|${row.city}`;
-      const postalArea = postalAreas.get(postalKey) ?? {
-        postalCode: row.postal_code,
-        city: row.city,
-        activeShelterCount: 0,
-        totalCapacity: 0,
-      };
-
-      postalArea.activeShelterCount += 1;
-      postalArea.totalCapacity += row.capacity ?? 0;
-      postalAreas.set(postalKey, postalArea);
-    }
-
-    if (rows.length < municipalityStatsPageSize) {
-      break;
-    }
-
-    from += municipalityStatsPageSize;
-  }
-
-  return {
-    activeShelterCount,
-    totalCapacity,
-    postalAreaCount: postalAreas.size,
-    largestCapacity,
-    latestSeenAt,
-    postalAreas: Array.from(postalAreas.values())
-      .sort(
-        (a, b) =>
-          b.activeShelterCount - a.activeShelterCount ||
-          b.totalCapacity - a.totalCapacity ||
-          a.postalCode.localeCompare(b.postalCode, "da-DK") ||
-          a.city.localeCompare(b.city, "da-DK"),
-      )
-      .slice(0, 4),
-  };
-}
-
-type MunicipalityShelterStatsFilterRow = {
-  id: string;
-  address_line1: string | null;
-  postal_code: string | null;
-  city: string | null;
-  capacity: number | null;
-  last_seen_at: string | null;
-  canonical_source_name: string | null;
-  canonical_source_reference: string | null;
-  source_application_code: string | null;
-};
-
-export async function getAppV2PublicMunicipalityShelterStats(
-  municipalityId: string,
-): Promise<AppV2MunicipalityShelterStats> {
-  const supabase = createAppV2ReadClient();
-  const { isExcluded, eligibleCodes } = await getAppV2PublicVisibilityMatchers();
-  const postalAreas = new Map<
-    string,
-    {
-      postalCode: string;
-      city: string;
-      activeShelterCount: number;
-      totalCapacity: number;
-    }
-  >();
-  let activeShelterCount = 0;
-  let totalCapacity = 0;
-  let largestCapacity: number | null = null;
-  let latestSeenAt: string | null = null;
-  let from = 0;
-
-  while (true) {
-    const to = from + municipalityStatsPageSize - 1;
-    const { data, error } = await supabase
-      .from("shelters")
-      .select(
-        "id, address_line1, postal_code, city, capacity, last_seen_at, canonical_source_name, canonical_source_reference, source_application_code",
-      )
-      .eq("municipality_id", municipalityId)
-      .eq("import_state", "active")
-      .range(from, to);
-
-    if (error) {
-      throw new Error(`Could not load app_v2 municipality shelter stats for "${municipalityId}".`);
-    }
-
-    const rows = (data ?? []) as MunicipalityShelterStatsFilterRow[];
-
-    for (const row of rows) {
       const capacity = row.capacity ?? 0;
-      const candidate: AppV2PublicShelterRow = {
-        id: row.id,
-        canonicalSourceName: row.canonical_source_name,
-        canonicalSourceReference: row.canonical_source_reference,
-        addressLine1: (row.address_line1 ?? "").trim(),
-        postalCode: (row.postal_code ?? "").trim(),
-        city: (row.city ?? "").trim(),
-        capacity,
-        sourceApplicationCode: row.source_application_code,
-      };
-
-      if (isExcluded(candidate)) continue;
-      if (!isPublicNearbyEligible(candidate, eligibleCodes)) continue;
+      const postalCode = (row.postal_code ?? "").trim();
+      const city = (row.city ?? "").trim();
 
       activeShelterCount += 1;
       totalCapacity += capacity;
@@ -1756,10 +1151,10 @@ export async function getAppV2PublicMunicipalityShelterStats(
         latestSeenAt = row.last_seen_at;
       }
 
-      const postalKey = `${candidate.postalCode}|${candidate.city}`;
+      const postalKey = `${postalCode}|${city}`;
       const postalArea = postalAreas.get(postalKey) ?? {
-        postalCode: candidate.postalCode,
-        city: candidate.city,
+        postalCode,
+        city,
         activeShelterCount: 0,
         totalCapacity: 0,
       };
@@ -1841,99 +1236,22 @@ type MunicipalityShelterRow = {
   canonical_source_reference?: string | null;
 };
 
-export async function getAppV2MunicipalityShelters(
-  municipalityId: string,
-): Promise<AppV2MunicipalityShelter[]> {
-  const supabase = createAppV2ReadClient();
-  const pageSize = 1000;
-  const allRows: MunicipalityShelterRow[] = [];
-  let from = 0;
-
-  while (true) {
-    const to = from + pageSize - 1;
-    const { data, error } = await supabase
-      .from("shelters")
-      .select(
-        "id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, status, source_application_code, canonical_source_name, canonical_source_reference",
-      )
-      .eq("municipality_id", municipalityId)
-      .eq("import_state", "active")
-      .order("address_line1", { ascending: true })
-      .order("postal_code", { ascending: true })
-      .order("capacity", { ascending: false })
-      .range(from, to);
-
-    if (error) {
-      throw new Error(
-        `Could not load app_v2 municipality shelters for "${municipalityId}": ${error.message}`,
-      );
-    }
-
-    const rows = (data ?? []) as MunicipalityShelterRow[];
-    allRows.push(...rows);
-
-    if (rows.length < pageSize) {
-      break;
-    }
-
-    from += pageSize;
-  }
-
-  // Batch-fetch application code labels
-  const uniqueCodes = Array.from(
-    new Set(allRows.map((r) => r.source_application_code).filter((c): c is string => c !== null)),
-  );
-  const labelByCode = new Map<string, string>();
-
-  if (uniqueCodes.length > 0) {
-    const labelClient = createAppV2ReadClient();
-    const { data: labelRows } = await labelClient
-      .from("application_code_eligibility")
-      .select("application_code, label")
-      .eq("source_name", "datafordeler-bbr-dar")
-      .in("application_code", uniqueCodes);
-
-    for (const row of (labelRows ?? []) as Array<{ application_code: string; label: string | null }>) {
-      if (row.label) labelByCode.set(row.application_code, row.label);
-    }
-  }
-
-  return allRows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    addressLine1: row.address_line1,
-    postalCode: row.postal_code,
-    city: row.city,
-    latitude: row.latitude,
-    longitude: row.longitude,
-    capacity: row.capacity,
-    status: row.status,
-    sourceApplicationCode: row.source_application_code,
-    applicationCodeLabel: row.source_application_code
-      ? (labelByCode.get(row.source_application_code) ?? null)
-      : null,
-  }));
-}
-
 export async function getAppV2PublicMunicipalityShelters(
   municipalityId: string,
 ): Promise<AppV2MunicipalityShelter[]> {
-  const { isExcluded, eligibleCodes } = await getAppV2PublicVisibilityMatchers();
-  const supabase = createAppV2ReadClient();
+  const pub = createAppV2PublicClient();
   const pageSize = 1000;
   const allRows: MunicipalityShelterRow[] = [];
   let from = 0;
 
   while (true) {
     const to = from + pageSize - 1;
-    const { data, error } = await supabase
-      .from("shelters")
+    const { data, error } = await pub
+      .from("shelter_public")
       .select(
         "id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, status, source_application_code, canonical_source_name, canonical_source_reference",
       )
       .eq("municipality_id", municipalityId)
-      .eq("import_state", "active")
       .order("address_line1", { ascending: true })
       .order("postal_code", { ascending: true })
       .order("capacity", { ascending: false })
@@ -1952,27 +1270,13 @@ export async function getAppV2PublicMunicipalityShelters(
     from += pageSize;
   }
 
-  const visibleRows = allRows.filter((row) => {
-    const candidate: AppV2PublicShelterRow = {
-      id: row.id,
-      canonicalSourceName: row.canonical_source_name ?? null,
-      canonicalSourceReference: row.canonical_source_reference ?? null,
-      addressLine1: (row.address_line1 ?? "").trim(),
-      postalCode: (row.postal_code ?? "").trim(),
-      city: (row.city ?? "").trim(),
-      capacity: row.capacity ?? 0,
-      sourceApplicationCode: row.source_application_code,
-    };
-    return !isExcluded(candidate) && isPublicNearbyEligible(candidate, eligibleCodes);
-  });
-
-  // Batch-fetch application code labels for the visible set
   const uniqueCodes = Array.from(
-    new Set(visibleRows.map((r) => r.source_application_code).filter((c): c is string => c !== null)),
+    new Set(allRows.map((r) => r.source_application_code).filter((c): c is string => c !== null)),
   );
   const labelByCode = new Map<string, string>();
   if (uniqueCodes.length > 0) {
-    const { data: labelRows, error: labelError } = await supabase
+    const admin = createAppV2AdminClient();
+    const { data: labelRows, error: labelError } = await admin
       .from("application_code_eligibility")
       .select("application_code, label")
       .eq("source_name", "datafordeler-bbr-dar")
@@ -1985,7 +1289,7 @@ export async function getAppV2PublicMunicipalityShelters(
     }
   }
 
-  return visibleRows.map((row) => ({
+  return allRows.map((row) => ({
     id: row.id,
     slug: row.slug,
     name: row.name,
@@ -2059,7 +1363,7 @@ export function groupMunicipalityShelters(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function getAppV2ShelterBySlug(slug: string) {
-  const supabase = createAppV2ReadClient();
+  const supabase = createAppV2AdminClient();
   const { data: shelterData, error: shelterError } = await supabase
     .from("shelters")
     .select(
@@ -2095,24 +1399,37 @@ export async function getAppV2ShelterBySlug(slug: string) {
 }
 
 export async function getAppV2PublicShelterBySlug(slug: string) {
-  const { isExcluded, eligibleCodes } = await getAppV2PublicVisibilityMatchers();
-  const shelter = await getAppV2ShelterBySlug(slug);
+  const pub = createAppV2PublicClient();
+  const { data: shelterData, error: shelterError } = await pub
+    .from("shelter_public")
+    .select(
+      "id, municipality_id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, last_seen_at, last_imported_at, canonical_source_name, canonical_source_reference, source_application_code",
+    )
+    .eq("slug", slug)
+    .maybeSingle();
 
-  if (!shelter) return null;
+  if (shelterError) {
+    throw new Error(`Could not load public app_v2 shelter "${slug}": ${shelterError.message}`);
+  }
 
-  const candidate: AppV2PublicShelterRow = {
-    id: shelter.id,
-    canonicalSourceName: shelter.canonicalSourceName,
-    canonicalSourceReference: shelter.canonicalSourceReference,
-    addressLine1: shelter.addressLine1,
-    postalCode: shelter.postalCode,
-    city: shelter.city,
-    capacity: shelter.capacity,
-    sourceApplicationCode: shelter.sourceApplicationCode,
-  };
+  if (!shelterData) {
+    return null;
+  }
 
-  if (isExcluded(candidate)) return null;
-  if (!isPublicNearbyEligible(candidate, eligibleCodes)) return null;
+  const shelter = shelterData as ShelterRow;
+  const admin = createAppV2AdminClient();
+  const { data: municipalityData, error: municipalityError } = await admin
+    .from("municipalities")
+    .select("id, code, slug, name, description, region_name")
+    .eq("id", shelter.municipality_id)
+    .single();
 
-  return shelter;
+  if (municipalityError || !municipalityData) {
+    throw new Error(`Could not load app_v2 municipality for shelter "${slug}".`);
+  }
+
+  const activeShelterCount = await getActiveShelterCountByMunicipalityId(shelter.municipality_id);
+  const municipality = normalizeMunicipality(municipalityData as MunicipalityRow, activeShelterCount);
+
+  return normalizeShelter(shelter, municipality);
 }

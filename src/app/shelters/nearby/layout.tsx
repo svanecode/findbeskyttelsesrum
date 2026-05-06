@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { siteUrl } from "@/lib/seo/site";
+
 export const metadata: Metadata = {
   title: "Nærmeste beskyttelsesrum",
   description:
@@ -10,7 +12,7 @@ export const metadata: Metadata = {
     description:
       "Resultater efter adresse eller placering: kort og liste over de nærmeste beskyttelsesrum ud fra offentlige registerdata.",
     type: "website",
-    url: "https://findbeskyttelsesrum.dk/shelters/nearby",
+    url: `${siteUrl}/shelters/nearby`,
     siteName: "Find Beskyttelsesrum",
     locale: "da_DK",
   },

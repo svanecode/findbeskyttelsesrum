@@ -7,14 +7,9 @@ import '@/styles/leaflet-overrides.css'
 import L from 'leaflet'
 import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
+import { setupLeafletDefaults } from '@/lib/leaflet/setup-defaults'
 
-// Fix Leaflet default markers
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconUrl: '/leaflet/marker-icon.png',
-  iconRetinaUrl: '/leaflet/marker-icon-2x.png',
-  shadowUrl: '/leaflet/marker-shadow.png',
-})
+setupLeafletDefaults(L)
 
 // Create custom icons using div icons for better reliability
 const createDivIcon = (className: string, html: string, size: number = 40) => {
@@ -59,16 +54,6 @@ const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLaye
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then((mod) => mod.Popup), { ssr: false })
 
-type AppV2NearbyEligibilityParam = 'source-application-code' | 'legacy-capacity' | 'none'
-
-function normalizeEligibilityParam(value: string): AppV2NearbyEligibilityParam {
-  if (value === 'legacy-capacity' || value === 'none' || value === 'source-application-code') {
-    return value
-  }
-
-  return 'source-application-code'
-}
-
 function formatDistanceKm(distanceKm: number) {
   if (!Number.isFinite(distanceKm)) return ''
   if (distanceKm < 1) {
@@ -96,16 +81,11 @@ function getGoogleMapsRouteHref(location: NearbyResultShelter['location']) {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
 }
 
-async function fetchAppV2GroupedShelters(
-  lat: number,
-  lng: number,
-  eligibility: AppV2NearbyEligibilityParam,
-): Promise<NearbyResultShelter[]> {
+async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<NearbyResultShelter[]> {
   const params = new URLSearchParams({
     lat: String(lat),
     lng: String(lng),
     limit: '10',
-    eligibility,
   })
   const response = await fetch(`/api/app-v2/nearby/grouped?${params.toString()}`, {
     cache: 'no-store',
@@ -122,14 +102,9 @@ async function fetchAppV2GroupedShelters(
 interface Props {
   lat: string
   lng: string
-  appV2NearbyEligibility?: string
 }
 
-export default function ShelterMapClient({
-  lat: latString,
-  lng: lngString,
-  appV2NearbyEligibility = 'source-application-code',
-}: Props) {
+export default function ShelterMapClient({ lat: latString, lng: lngString }: Props) {
   const [shelters, setShelters] = useState<NearbyResultShelter[]>([])
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
@@ -144,7 +119,6 @@ export default function ShelterMapClient({
   const srMapSelectionClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lat = parseFloat(latString)
   const lng = parseFloat(lngString)
-  const eligibility = normalizeEligibilityParam(appV2NearbyEligibility)
 
   useEffect(() => {
     ensureLeafletPopupStyles()
@@ -195,7 +169,7 @@ export default function ShelterMapClient({
         setLoadError(null)
 
         const [rawSheltersData, anvendelseskoderData, kommunekoderData] = await Promise.all([
-          fetchAppV2GroupedShelters(lat, lng, eligibility),
+          fetchAppV2GroupedShelters(lat, lng),
           getAnvendelseskoder(),
           getKommunekoder()
         ])
@@ -225,28 +199,7 @@ export default function ShelterMapClient({
     return () => {
       isMounted = false
     }
-  }, [lat, lng, eligibility])
-
-  if (isNaN(lat) || isNaN(lng)) {
-    return (
-      <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
-        <div className="mx-auto max-w-7xl p-4">
-          <h1 className="mb-3 text-2xl font-bold sm:text-3xl">Ugyldig position</h1>
-          <p className="mb-6 max-w-xl text-gray-400">
-            Koordinaterne kunne ikke læses. Gå tilbage til forsiden og søg igen, eller brug din placering.
-          </p>
-          <Link
-            href="/"
-            className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
-          >
-            Til forsiden
-          </Link>
-        </div>
-      </main>
-    )
-  }
-
-  // Legacy nearby compare path removed (Sprint 4d).
+  }, [lat, lng])
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
@@ -373,7 +326,7 @@ export default function ShelterMapClient({
                   onMouseLeave={() => setHoveredShelter(null)}
                   onClick={() => focusShelterOnMap(shelter)}
                   onKeyDown={(e) => handleShelterCardKeyDown(e, shelter)}
-                  aria-current={selectedShelter === shelter.id ? true : undefined}
+                  aria-current={selectedShelter === shelter.id ? 'location' : undefined}
                   aria-label={`${shelter.vejnavn} ${shelter.husnummer}, ${formatDistanceKm(shelter.distance)}. Tryk Enter for at vise på kortet.`}
                 >
                   <div className="flex items-start justify-between gap-4">

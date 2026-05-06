@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import SiteHeader from "@/components/SiteHeader";
@@ -20,6 +20,13 @@ const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0a0a0a",
+};
+
 export const metadata: Metadata = {
   title: {
     default: "Find Beskyttelsesrum | Find nærmeste beskyttelsesrum",
@@ -32,6 +39,12 @@ export const metadata: Metadata = {
   creator: siteName,
   publisher: siteName,
   applicationName: siteName,
+  manifest: "/site.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Beskyttelsesrum",
+    statusBarStyle: "black-translucent",
+  },
   category: "Sikkerhed",
   classification: "Public Service",
   icons: {
@@ -93,6 +106,7 @@ export const metadata: Metadata = {
     'geo.region': 'DK',
     'geo.placename': 'Danmark',
     'version': '1.0.0',
+    'mobile-web-app-capable': 'yes',
   },
 };
 
@@ -107,21 +121,13 @@ export default function RootLayout({
     <html lang="da" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <head>
         <link rel="preload" href="/grid.svg" as="image" />
-        <link rel="manifest" href="/site.webmanifest" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#0a0a0a" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Beskyttelsesrum" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="format-detection" content="telephone=no" />
         <script
           type="application/ld+json"
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd) }}
         />
       </head>
-      <body className={`${inter.className} antialiased`}>
+      <body className="font-inter antialiased">
         <ErrorBoundary>
           <a
             href="#main-content"

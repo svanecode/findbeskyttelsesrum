@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
-import { getAppV2ShelterCount, getAppV2TotalShelterCapacity } from "@/lib/supabase/app-v2-queries";
+import { getAppV2PublicCountryShelterMarkers } from "@/lib/supabase/app-v2-queries";
+import { siteUrl } from "@/lib/seo/site";
 
 import CountryMapExperience from "./country-map-experience";
 
 export const revalidate = 86400;
+/** Requires DB migration `013_app_v2_public_read_views` (public views). Avoid build-time prerender without views. */
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Landskort",
@@ -15,7 +18,7 @@ export const metadata: Metadata = {
     title: "Landskort",
     description: "Landskort med beskyttelsesrum i Danmark ud fra offentlige registerdata.",
     type: "website",
-    url: "https://findbeskyttelsesrum.dk/kort",
+    url: `${siteUrl}/kort`,
     siteName: "Find Beskyttelsesrum",
     locale: "da_DK",
   },
@@ -31,10 +34,9 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 export default async function CountryMapPage() {
-  const [totalCount, totalCapacity] = await Promise.all([
-    getAppV2ShelterCount(),
-    getAppV2TotalShelterCapacity(),
-  ]);
+  const markers = await getAppV2PublicCountryShelterMarkers();
+  const totalCount = markers.length;
+  const totalCapacity = markers.reduce((sum, m) => sum + m.capacity, 0);
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">

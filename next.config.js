@@ -18,10 +18,6 @@ function contentSecurityPolicyValue() {
     'https://*.vercel-insights.com',
     'https://*.vercel.com',
     'https://va.vercel-scripts.com',
-    'https://consent.cookiebot.com',
-    'https://consentcdn.cookiebot.com',
-    'https://*.leafletjs.com',
-    'https://unpkg.com',
     'https://a.tile.openstreetmap.org',
     'https://b.tile.openstreetmap.org',
     'https://c.tile.openstreetmap.org',
@@ -38,12 +34,12 @@ function contentSecurityPolicyValue() {
 
   return [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://consent.cookiebot.com https://consentcdn.cookiebot.com https://*.vercel-scripts.com https://*.vercel-insights.com https://unpkg.com https://*.leafletjs.com https://*.vercel.app https://cdnjs.cloudflare.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://*.leafletjs.com https://*.vercel.app https://cdnjs.cloudflare.com",
-    "img-src 'self' data: https://*.tile.openstreetmap.org https://raw.githubusercontent.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://cdnjs.cloudflare.com https://unpkg.com https://*.leafletjs.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://*.cookiebot.com https://imgsct.cookiebot.com https://tiles.stadiamaps.com https://tiles.maptiler.com https://*.vercel.app",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vercel-scripts.com https://*.vercel-insights.com https://*.vercel.app",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.vercel.app",
+    "img-src 'self' data: https://*.tile.openstreetmap.org https://raw.githubusercontent.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://tiles.stadiamaps.com https://tiles.maptiler.com https://*.vercel.app",
     "font-src 'self' https://fonts.gstatic.com data: https://*.vercel.app",
     `connect-src ${connectSrc.join(' ')}`,
-    "frame-src 'self' https://www.openstreetmap.org https://consent.cookiebot.com https://consentcdn.cookiebot.com",
+    "frame-src 'self' https://www.openstreetmap.org",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -63,28 +59,20 @@ const nextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
   async redirects() {
-    return [{ source: "/land", destination: "/kommune", permanent: true }];
+    return [
+      { source: "/land", destination: "/kommune", permanent: true },
+      { source: "/tell-me-more", destination: "/om-data", permanent: true },
+    ];
   },
   typescript: {
     ignoreBuildErrors: false,
   },
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   },
-  // Generate a unique build ID using git commit hash and timestamp
   generateBuildId: async () => {
-    try {
-      const commitHash = require('child_process')
-        .execSync('git rev-parse --short HEAD')
-        .toString()
-        .trim();
-      const timestamp = Date.now();
-      return `${commitHash}-${timestamp}`;
-    } catch (error) {
-      // Fallback to timestamp if git is not available
-      return `build-${Date.now()}`;
-    }
+    const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
+    return sha ? `${sha}-${Date.now()}` : `build-${Date.now()}`;
   },
   // Add headers for static assets
   async headers() {
@@ -123,15 +111,6 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
-      {
-        source: '/manifest.json',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=86400',
           },
         ],
       },

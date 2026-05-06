@@ -1,3 +1,5 @@
+import { siteUrl } from "@/lib/seo/site";
+
 export function serializeJsonLd(value: unknown) {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
@@ -7,7 +9,7 @@ export function getWebsiteJsonLd() {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "Find Beskyttelsesrum",
-    url: "https://findbeskyttelsesrum.dk",
+    url: siteUrl,
     inLanguage: "da",
   };
 }

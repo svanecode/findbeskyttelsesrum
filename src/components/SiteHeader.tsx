@@ -1,10 +1,11 @@
 'use client'
 
+import type { Route } from 'next'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-type NavItem = { href: string; label: string; active: (p: string) => boolean }
+type NavItem = { href: Route; label: string; active: (p: string) => boolean }
 
 const NAV: NavItem[] = [
   { href: '/', label: 'Søg', active: (p) => p === '/' || p.startsWith('/shelters/nearby') },
@@ -78,7 +79,7 @@ export default function SiteHeader() {
             return (
               <Link
                 key={href}
-                href={href as never}
+                href={href}
                 className={desktopNavClass(isActive)}
                 aria-current={isActive ? 'page' : undefined}
               >
@@ -119,7 +120,7 @@ export default function SiteHeader() {
             return (
               <Link
                 key={href}
-                href={href as never}
+                href={href}
                 className={mobileNavClass(isActive)}
                 aria-current={isActive ? 'page' : undefined}
                 onClick={close}

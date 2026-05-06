@@ -52,13 +52,16 @@ The live repo now carries these `app_v2` migrations:
 - `010_app_v2_shelter_exclusions.sql`
 - `011_app_v2_nearby_read_rpc.sql`
 - `012_app_v2_application_code_eligibility.sql`
+- `013_app_v2_public_read_views.sql`
+  - views: `shelter_public`, `country_marker_public`, `sitemap_shelter_public`, `municipality_public` (same rules as the former TS “public” filters: active import, capacity ≥ 40, eligible `source_application_code`, active exclusions)
+  - revokes direct `SELECT` on base `app_v2` tables from `anon` / `authenticated` / `PUBLIC`; grants `SELECT` on the views to `anon` and `authenticated`
 
 These migrations do not reshape legacy `public` tables.
 
 ## Access Boundary
 - Importer writes use `createAppV2AdminClient()` from `src/lib/supabase/app-v2.ts`.
 - The helper explicitly targets the `app_v2` schema through Supabase's schema API.
-- Server-side public read helpers and routes for selected `app_v2` surfaces now exist. Browser code must not import service-role app_v2 helpers directly.
+- Server-side public read helpers use `createAppV2PublicClient()` (`NEXT_PUBLIC_SUPABASE_ANON_KEY`) and **must only query `*_public` views**. Browser code must not import service-role app_v2 helpers directly.
 - `SUPABASE_SECRET_KEY` is server-only and must not be exposed to client code.
 
 ## Operational Notes

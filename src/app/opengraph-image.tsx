@@ -1,5 +1,7 @@
 import { ImageResponse } from "next/og";
 
+import { siteUrl } from "@/lib/seo/site";
+
 export const alt = "Find Beskyttelsesrum";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -51,7 +53,7 @@ export default function OpenGraphImage() {
             fontFamily: "ui-monospace, monospace",
           }}
         >
-          findbeskyttelsesrum.dk
+          {new URL(siteUrl).host}
         </div>
       </div>
     ),

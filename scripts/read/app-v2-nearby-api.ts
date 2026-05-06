@@ -1,8 +1,6 @@
 type CliOptions = {
   baseUrl: string;
   sample: string;
-  shape: "row" | "grouped" | "shadow";
-  eligibility: "legacy-capacity" | "source-application-code" | "none";
   latitude: number;
   longitude: number;
   radiusMeters: number;
@@ -41,8 +39,6 @@ const coordinateSamples = {
 const defaultOptions: CliOptions = {
   baseUrl: "http://localhost:3000",
   sample: "copenhagen",
-  shape: "row",
-  eligibility: "legacy-capacity",
   latitude: 55.6761,
   longitude: 12.5683,
   radiusMeters: 50_000,
@@ -89,27 +85,15 @@ function parseIntegerFlag(flag: string, fallback: number) {
 function getOptions(): CliOptions {
   const baseUrl = getFlagValue("--base-url") ?? defaultOptions.baseUrl;
   const sampleName = getFlagValue("--sample") ?? defaultOptions.sample;
-  const shape = getFlagValue("--shape") ?? defaultOptions.shape;
-  const eligibility = getFlagValue("--eligibility") ?? defaultOptions.eligibility;
   const sample = coordinateSamples[sampleName as keyof typeof coordinateSamples];
 
   if (!sample) {
     throw new Error(`Unknown --sample "${sampleName}". Expected one of: ${Object.keys(coordinateSamples).join(", ")}.`);
   }
 
-  if (shape !== "row" && shape !== "grouped" && shape !== "shadow") {
-    throw new Error('--shape must be "row", "grouped", or "shadow".');
-  }
-
-  if (eligibility !== "legacy-capacity" && eligibility !== "source-application-code" && eligibility !== "none") {
-    throw new Error('--eligibility must be "legacy-capacity", "source-application-code", or "none".');
-  }
-
   return {
     baseUrl,
     sample: sampleName,
-    shape,
-    eligibility,
     latitude: parseNumberFlag("--lat", sample.latitude),
     longitude: parseNumberFlag("--lng", sample.longitude),
     radiusMeters: parseIntegerFlag("--radius", defaultOptions.radiusMeters),
@@ -128,8 +112,6 @@ Usage:
 Options:
   --base-url          Base URL for the app. Defaults to http://localhost:3000.
   --sample            Named coordinate sample: ${Object.keys(coordinateSamples).join(", ")}.
-  --shape             API shape: row, grouped, or shadow. Defaults to ${defaultOptions.shape}.
-  --eligibility       Grouped API eligibility: legacy-capacity, source-application-code, or none. Defaults to legacy-capacity.
   --lat               Latitude. Overrides --sample latitude when provided.
   --lng               Longitude. Overrides --sample longitude when provided.
   --radius            Radius in meters. Defaults to 50000.
@@ -137,31 +119,17 @@ Options:
   --candidate-limit   Candidate row limit used by the app_v2 nearby read model. Defaults to 500.
   --help              Print this help text.
 
-The script only calls /api/app-v2/nearby, /api/app-v2/nearby/grouped, or the opt-in /api/app-v2/nearby/shadow route. It does not read Supabase directly and does not write data.`);
+The script only calls /api/app-v2/nearby/grouped. It does not read Supabase directly and does not write data.`);
 }
 
 function buildUrl(options: CliOptions) {
-  const pathname =
-    options.shape === "shadow"
-      ? "/api/app-v2/nearby/shadow"
-      : options.shape === "grouped"
-        ? "/api/app-v2/nearby/grouped"
-        : "/api/app-v2/nearby";
-  const url = new URL(pathname, options.baseUrl);
+  const url = new URL("/api/app-v2/nearby/grouped", options.baseUrl);
 
   url.searchParams.set("lat", String(options.latitude));
   url.searchParams.set("lng", String(options.longitude));
   url.searchParams.set("radius", String(options.radiusMeters));
   url.searchParams.set("limit", String(options.limit));
   url.searchParams.set("candidateLimit", String(options.candidateLimit));
-
-  if (options.shape === "grouped" || options.shape === "shadow") {
-    url.searchParams.set("eligibility", options.eligibility);
-  }
-
-  if (options.shape === "shadow") {
-    url.searchParams.set("shadow", "1");
-  }
 
   return url;
 }
@@ -227,8 +195,7 @@ async function main() {
 
   console.log("[read:app-v2-nearby-api] read-only API probe");
   console.log(`[read:app-v2-nearby-api] sample: ${options.sample}`);
-  console.log(`[read:app-v2-nearby-api] shape: ${options.shape}`);
-  console.log(`[read:app-v2-nearby-api] eligibility: ${options.shape === "grouped" || options.shape === "shadow" ? options.eligibility : "n/a"}`);
+  console.log(`[read:app-v2-nearby-api] shape: grouped`);
   console.log(`[read:app-v2-nearby-api] GET ${url.toString()}`);
 
   let response: Response;

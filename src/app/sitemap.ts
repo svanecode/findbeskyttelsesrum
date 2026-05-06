@@ -1,10 +1,11 @@
 import { MetadataRoute } from 'next'
 import { getAppV2MunicipalitySlugs, getAppV2PublicSitemapShelters } from '@/lib/supabase/app-v2-queries'
+import { siteUrl } from '@/lib/seo/site'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 86400
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://findbeskyttelsesrum.dk'
+  const baseUrl = siteUrl
   
   const routes = [
     {
@@ -25,12 +26,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(),
       changeFrequency: 'weekly' as const,
       priority: 0.85,
-    },
-    {
-      url: `${baseUrl}/tell-me-more`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.7,
     },
     {
       url: `${baseUrl}/om-data`,

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
 import { getAppV2MunicipalitySummaries } from "@/lib/supabase/app-v2-queries";
+import { siteUrl } from "@/lib/seo/site";
 
 export const revalidate = 86400;
 
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
-    url: "https://findbeskyttelsesrum.dk/kommune",
+    url: `${siteUrl}/kommune`,
   },
 };
 

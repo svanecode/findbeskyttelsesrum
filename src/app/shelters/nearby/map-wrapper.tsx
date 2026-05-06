@@ -1,8 +1,6 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
-import { MapErrorBoundary } from '@/components/MapErrorBoundary'
 
 const ShelterMapClient = dynamic(
   () => import('./client'),
@@ -38,44 +36,8 @@ const ShelterMapClient = dynamic(
 interface MapWrapperProps {
   lat: string
   lng: string
-  appV2NearbyEligibility?: string
 }
 
-export default function MapWrapper({
-  lat,
-  lng,
-  appV2NearbyEligibility = 'source-application-code',
-}: MapWrapperProps) {
-  // Add validation for coordinates
-  const latNum = parseFloat(lat)
-  const lngNum = parseFloat(lng)
-
-  if (!lat || !lng || isNaN(latNum) || isNaN(lngNum)) {
-    return (
-      <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
-        <div className="mx-auto max-w-7xl p-4">
-          <h1 className="mb-3 text-2xl font-bold sm:text-3xl">Manglende position</h1>
-          <p className="mb-6 max-w-xl text-gray-400">
-            Der mangler koordinater i linket. Gå til forsiden og søg adresse eller brug din placering.
-          </p>
-          <Link
-            href="/"
-            className="inline-flex items-center rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
-          >
-            Til forsiden
-          </Link>
-        </div>
-      </main>
-    )
-  }
-
-  return (
-    <MapErrorBoundary>
-      <ShelterMapClient
-        lat={lat}
-        lng={lng}
-        appV2NearbyEligibility={appV2NearbyEligibility}
-      />
-    </MapErrorBoundary>
-  )
-} 
+export default function MapWrapper({ lat, lng }: MapWrapperProps) {
+  return <ShelterMapClient lat={lat} lng={lng} />
+}

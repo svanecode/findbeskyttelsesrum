@@ -110,14 +110,4 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-// Hook for error boundary
-export function useErrorHandler() {
-  return (error: Error, errorInfo?: ErrorInfo) => {
-    console.error('Error caught by useErrorHandler:', error, errorInfo)
-    
-    // In a real app, you might want to show a toast notification
-    // or send the error to a logging service
-  }
-}
-
 export default ErrorBoundary

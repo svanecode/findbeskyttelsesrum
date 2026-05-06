@@ -22,6 +22,7 @@ export default function ShelterOsmEmbedMap({ latitude, longitude, title }: Props
         className="aspect-[4/3] min-h-[17rem] w-full border-0 sm:min-h-[22rem]"
         loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
+        sandbox="allow-scripts allow-popups allow-same-origin"
       />
       <p className="border-t border-white/10 px-3 py-2 text-xs text-gray-400">
         Kort:{" "}

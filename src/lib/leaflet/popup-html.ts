@@ -1,6 +1,3 @@
-import { getAnvendelseskodeBeskrivelse } from "@/lib/anvendelseskoder";
-import type { Anvendelseskode } from "@/types/anvendelseskode";
-
 function escapeHtml(text: string) {
   return text
     .replace(/&/g, "&amp;")
@@ -45,12 +42,3 @@ export function buildLeafletPopupHtml({ title, usageLine, postalLine, capacity, 
     <a class="fb-popup__link" href="${escapeHtml(href)}">Se detaljer</a>
   </div>`;
 }
-
-export function usageFromSourceApplicationCode(
-  sourceApplicationCode: string | null | undefined,
-  anvendelseskoder: Anvendelseskode[],
-) {
-  const text = getAnvendelseskodeBeskrivelse(sourceApplicationCode ?? null, anvendelseskoder).trim();
-  return text || "";
-}
-

@@ -10,6 +10,7 @@ import {
   type AppV2MunicipalityShelter,
 } from '@/lib/supabase/app-v2-queries'
 import { serializeJsonLd } from '@/lib/seo/json-ld'
+import { siteUrl } from '@/lib/seo/site'
 import KommuneExperience from './kommune-experience'
 export { generateMetadata } from './metadata'
 
@@ -38,12 +39,12 @@ function buildKommunePageJsonLd(
     '@type': 'CollectionPage',
     name: `Registrerede beskyttelsesrum i ${kommuneNavn}`,
     description: `Kommuneoversigt over beskyttelsesrum i ${kommuneNavn} ud fra offentlige registerdata — antal, kapacitet, adresser og detaljesider.`,
-    url: `https://findbeskyttelsesrum.dk/kommune/${municipality.slug}`,
+    url: `${siteUrl}/kommune/${municipality.slug}`,
     inLanguage: 'da-DK',
     isPartOf: {
       '@type': 'WebSite',
       name: 'Find Beskyttelsesrum',
-      url: 'https://findbeskyttelsesrum.dk',
+      url: siteUrl,
     },
   }
 
@@ -73,7 +74,7 @@ function buildKommunePageJsonLd(
       item: {
         '@type': 'Place',
         name: shelter.name,
-        url: `https://findbeskyttelsesrum.dk/beskyttelsesrum/${shelter.slug}`,
+        url: `${siteUrl}/beskyttelsesrum/${shelter.slug}`,
         address: {
           '@type': 'PostalAddress',
           streetAddress: shelter.addressLine1,

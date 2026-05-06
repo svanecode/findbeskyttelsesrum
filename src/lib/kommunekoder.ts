@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { getLegacyPublicSupabase } from "@/lib/supabase/legacy-public-client";
 import { Kommunekode } from '@/types/kommunekode'
 
 let kommunekoderCache: Kommunekode[] | null = null
@@ -13,7 +13,7 @@ export async function getKommunekoder(): Promise<Kommunekode[]> {
     return kommunekoderCache
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getLegacyPublicSupabase()
     .from('kommunekoder')
     .select('*')
     .order('navn')

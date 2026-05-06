@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { getLegacyPublicSupabase } from "@/lib/supabase/legacy-public-client";
 import { Anvendelseskode } from '@/types/anvendelseskode'
 
 let anvendelseskoderCache: Anvendelseskode[] | null = null
@@ -8,7 +8,7 @@ export async function getAnvendelseskoder(): Promise<Anvendelseskode[]> {
     return anvendelseskoderCache
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await getLegacyPublicSupabase()
     .from('anvendelseskoder')
     .select('*')
     .order('beskrivelse')

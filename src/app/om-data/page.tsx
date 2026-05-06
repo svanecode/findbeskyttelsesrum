@@ -8,6 +8,7 @@ import {
   getLatestAppV2ImportRun,
   type AppV2ImportRunSummary,
 } from "@/lib/supabase/app-v2-queries";
+import { siteUrl } from "@/lib/seo/site";
 
 export const revalidate = 600;
 
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
-    url: "https://findbeskyttelsesrum.dk/om-data",
+    url: `${siteUrl}/om-data`,
   },
 };
 

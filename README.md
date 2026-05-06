@@ -55,5 +55,5 @@ This repo is under active modernization. The current work is focused on removing
 
 ## Documentation
 
-- `docs/audit-baseline.md` contains the reverse engineering baseline.
-- `docs/project-plan-2.0.md` and `docs/status-tracker.md` contain planning/status notes when present in the checkout.
+- `docs/archive/cutover-2025/audit-baseline.md` contains the reverse engineering baseline.
+- `docs/archive/cutover-2025/project-plan-2.0.md` and `docs/archive/cutover-2025/status-tracker.md` contain planning/status notes when present in the checkout.

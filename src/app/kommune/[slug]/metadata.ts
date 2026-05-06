@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { getAppV2MunicipalityBySlug } from '@/lib/supabase/app-v2-queries'
+import { siteUrl } from '@/lib/seo/site'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -36,7 +37,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       type: 'website',
       locale: 'da_DK',
       siteName: 'Find Beskyttelsesrum',
-      url: `https://findbeskyttelsesrum.dk/kommune/${kommune.slug}`,
+      url: `${siteUrl}/kommune/${kommune.slug}`,
     },
     alternates: {
       canonical: `/kommune/${kommune.slug}`,

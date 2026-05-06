@@ -1,5 +1,7 @@
 import { MetadataRoute } from 'next'
 
+import { siteUrl } from '@/lib/seo/site'
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
@@ -12,7 +14,7 @@ export default function robots(): MetadataRoute.Robots {
         '/private/',
       ],
     },
-    sitemap: 'https://findbeskyttelsesrum.dk/sitemap.xml',
-    host: 'https://findbeskyttelsesrum.dk',
+    sitemap: `${siteUrl}/sitemap.xml`,
+    host: siteUrl,
   }
 } 

@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import "@/styles/leaflet-overrides.css";
 import type { CountryMapShelterMarker, CountryShelterMarkersResponse } from "@/types/country-map";
 import { ensureLeafletPopupStyles } from "@/lib/leaflet/ensure-popup-styles";
+import { setupLeafletDefaults } from "@/lib/leaflet/setup-defaults";
 import { getAnvendelseskodeBeskrivelse, getAnvendelseskoder } from "@/lib/anvendelseskoder";
 import type { Anvendelseskode } from "@/types/anvendelseskode";
 import { buildLeafletPopupHtml, normalizeShelterName } from "@/lib/leaflet/popup-html";
@@ -95,12 +96,7 @@ export default function CountryMap() {
     import("leaflet").then((leaflet) => {
       if (cancelled) return;
       const L = leaflet.default;
-      delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconUrl: "/leaflet/marker-icon.png",
-        iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-        shadowUrl: "/leaflet/marker-shadow.png",
-      });
+      setupLeafletDefaults(L);
       leafletRef.current = L;
       setShelterMarkerIcon(makeShelterIcon(L));
     });
