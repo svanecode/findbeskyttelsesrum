@@ -138,7 +138,8 @@ export default function CountryMap() {
       for (const s of slice) {
         const anvendelse = getAnvendelseskodeBeskrivelse(s.sourceApplicationCode ?? null, anvendelseskoder);
         const marker = L.marker([s.latitude, s.longitude], { icon });
-        marker.bindPopup(buildPopupHtml(s, anvendelse), { maxWidth: 340, className: "fb-popup" });
+        // Match kommune-kortets popup sizing (use popup-html + shared CSS)
+        marker.bindPopup(buildPopupHtml(s, anvendelse), { className: "fb-popup" });
         marker.on("click", () => {
           marker.openPopup();
         });
