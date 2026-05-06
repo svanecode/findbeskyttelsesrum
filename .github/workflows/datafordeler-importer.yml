@@ -1,0 +1,143 @@
+name: Datafordeler Importer
+
+on:
+  schedule:
+    - cron: "15 1 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run the importer without writing to app_v2."
+        required: false
+        default: false
+        type: boolean
+      max_pages:
+        description: "Optional BBR page cap for bounded validation runs."
+        required: false
+        default: ""
+        type: string
+      resume_latest:
+        description: "Resume from the latest failed import run checkpoint."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: datafordeler-importer
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  importer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      DATAFORDELER_API_KEY: ${{ secrets.DATAFORDELER_API_KEY }}
+      DATAFORDELER_BBR_GRAPHQL_URL: ${{ secrets.DATAFORDELER_BBR_GRAPHQL_URL }}
+      DATAFORDELER_DAR_GRAPHQL_URL: ${{ secrets.DATAFORDELER_DAR_GRAPHQL_URL }}
+      DATAFORDELER_MUNICIPALITY_CODES: ${{ secrets.DATAFORDELER_MUNICIPALITY_CODES }}
+      DATAFORDELER_MUNICIPALITY_METADATA: ${{ secrets.DATAFORDELER_MUNICIPALITY_METADATA }}
+      DATAFORDELER_BBR_SHELTER_USAGE_CODES: ${{ secrets.DATAFORDELER_BBR_SHELTER_USAGE_CODES }}
+      DATAFORDELER_BBR_USAGE_CODES: ${{ secrets.DATAFORDELER_BBR_USAGE_CODES }}
+      DATAFORDELER_PAGE_SIZE: ${{ secrets.DATAFORDELER_PAGE_SIZE }}
+      DATAFORDELER_REQUEST_TIMEOUT_MS: ${{ secrets.DATAFORDELER_REQUEST_TIMEOUT_MS }}
+      DATAFORDELER_BITEMPORAL_TIMESTAMP: ${{ secrets.DATAFORDELER_BITEMPORAL_TIMESTAMP }}
+      DATAFORDELER_DAR_ACTIVE_STATUSES: ${{ secrets.DATAFORDELER_DAR_ACTIVE_STATUSES }}
+      IMPORTER_SUMMARY_PATH: ${{ github.workspace }}/importer-summary.json
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Datafordeler importer
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          args=()
+
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            args+=(--dry-run)
+          fi
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+              args+=(--dry-run)
+            fi
+
+            if [[ -n "${{ inputs.max_pages }}" ]]; then
+              args+=(--max-pages "${{ inputs.max_pages }}")
+            fi
+
+            if [[ "${{ inputs.resume_latest }}" == "true" ]]; then
+              args+=(--resume-latest)
+            fi
+          fi
+
+          echo "[workflow] importer args: ${args[*]:-none}"
+          npx tsx scripts/importer/run.ts datafordeler "${args[@]}"
+
+      - name: Publish importer summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "$IMPORTER_SUMMARY_PATH" ]]; then
+            {
+              echo "## Importer Summary"
+              echo
+              echo "No summary file was produced. Check the importer logs above."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          node - <<'NODE'
+          const fs = require("node:fs");
+
+          const summaryPath = process.env.IMPORTER_SUMMARY_PATH;
+          const stepSummaryPath = process.env.GITHUB_STEP_SUMMARY;
+          const summary = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
+
+          const lines = [
+            "## Importer Summary",
+            "",
+            `- Source: \`${summary.sourceName}\``,
+            `- Snapshot: \`${summary.snapshotName}\``,
+            `- Dry run: \`${summary.dryRun}\``,
+            `- Import run id: \`${summary.importRunId ?? "none"}\``,
+            `- Records seen: \`${summary.recordsSeen}\``,
+            `- Records upserted: \`${summary.recordsUpserted}\``,
+            `- Inserted: \`${summary.inserted}\``,
+            `- Updated: \`${summary.updated}\``,
+            `- Unchanged: \`${summary.unchanged}\``,
+            `- Restored: \`${summary.restored}\``,
+            `- Missing: \`${summary.missing}\``,
+            `- Pages fetched: \`${summary.pagesFetched}\``,
+            `- Missing transitions applied: \`${summary.missingTransitionsApplied}\``,
+            `- Missing transitions skipped reason: \`${summary.missingTransitionsSkippedReason ?? "none"}\``,
+            `- Warnings: \`${summary.warningsCount}\``,
+            "",
+            "### Fetch Stats",
+            "",
+            `- Fetched BBR records: \`${summary.fetchStats.fetchedRecords}\``,
+            `- Accepted after capacity filter: \`${summary.fetchStats.acceptedAfterCapacityFilter}\``,
+            `- Normalized records: \`${summary.fetchStats.normalizedRecords}\``,
+            `- DAR batch size: \`${summary.fetchStats.darBatchSizeUsed}\``,
+            `- DAR failed batches: \`${summary.fetchStats.darFailedBatchCount}\``,
+            `- Accepted records skipped due to DAR failure: \`${summary.fetchStats.acceptedRecordsSkippedDueToDarFailure}\``,
+          ];
+
+          fs.appendFileSync(stepSummaryPath, `${lines.join("\n")}\n`, "utf8");
+          NODE
