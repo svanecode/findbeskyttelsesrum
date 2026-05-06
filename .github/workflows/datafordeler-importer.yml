@@ -65,8 +65,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          export DATAFORDELER_BBR_GRAPHQL_URL="${DATAFORDELER_BBR_GRAPHQL_URL:-https://graphql.datafordeler.dk/BBR/v1}"
-          export DATAFORDELER_DAR_GRAPHQL_URL="${DATAFORDELER_DAR_GRAPHQL_URL:-https://graphql.datafordeler.dk/DAR/v1}"
+          if [[ ! "${DATAFORDELER_BBR_GRAPHQL_URL:-}" =~ ^https?:// ]]; then
+            export DATAFORDELER_BBR_GRAPHQL_URL="https://graphql.datafordeler.dk/BBR/v1"
+          fi
+
+          if [[ ! "${DATAFORDELER_DAR_GRAPHQL_URL:-}" =~ ^https?:// ]]; then
+            export DATAFORDELER_DAR_GRAPHQL_URL="https://graphql.datafordeler.dk/DAR/v1"
+          fi
 
           echo "DATAFORDELER_BBR_GRAPHQL_URL=$DATAFORDELER_BBR_GRAPHQL_URL" >> "$GITHUB_ENV"
           echo "DATAFORDELER_DAR_GRAPHQL_URL=$DATAFORDELER_DAR_GRAPHQL_URL" >> "$GITHUB_ENV"
