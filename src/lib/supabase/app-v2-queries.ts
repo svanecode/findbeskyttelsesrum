@@ -941,6 +941,7 @@ export type AppV2CountryShelterMarker = {
   postalCode: string;
   city: string;
   capacity: number;
+  sourceApplicationCode: string | null;
   latitude: number;
   longitude: number;
 };
@@ -983,6 +984,7 @@ function normalizeCountryShelterMarker(row: CountryShelterMarkerRow): AppV2Count
     postalCode,
     city,
     capacity,
+    sourceApplicationCode: row.source_application_code,
     latitude,
     longitude,
   };
