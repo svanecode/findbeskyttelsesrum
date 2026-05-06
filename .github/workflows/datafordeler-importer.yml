@@ -60,6 +60,33 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate Datafordeler endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node - <<'NODE'
+          function describeUrl(name) {
+            const raw = process.env[name];
+            const value = raw ? String(raw) : "";
+            const trimmed = value.trim();
+
+            console.log(`[workflow] ${name} present=${Boolean(value)} length=${value.length} trimmedLength=${trimmed.length} prefix=${trimmed.slice(0, 12)}`);
+
+            try {
+              // Validate it is parseable without printing it.
+              void new URL(trimmed);
+              console.log(`[workflow] ${name} url_parse=ok`);
+            } catch (error) {
+              console.log(`[workflow] ${name} url_parse=failed message=${error instanceof Error ? error.message : "unknown"}`);
+              process.exitCode = 1;
+            }
+          }
+
+          describeUrl("DATAFORDELER_BBR_GRAPHQL_URL");
+          describeUrl("DATAFORDELER_DAR_GRAPHQL_URL");
+          NODE
+
       - name: Run Datafordeler importer
         shell: bash
         run: |
