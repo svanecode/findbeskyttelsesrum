@@ -49,31 +49,6 @@ npm run test-caching
 npm run verify-assets
 ```
 
-## GitHub Actions
-
-This repo includes a scheduled workflow at `.github/workflows/datafordeler-importer.yml` that runs the Datafordeler importer.
-
-### Required repository secrets
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `SUPABASE_SECRET_KEY`
-- `DATAFORDELER_API_KEY`
-
-### Optional repository secrets
-
-These can be set to tune the importer behavior (defaults are applied in code when omitted):
-
-- `DATAFORDELER_BBR_GRAPHQL_URL`
-- `DATAFORDELER_DAR_GRAPHQL_URL`
-- `DATAFORDELER_MUNICIPALITY_CODES`
-- `DATAFORDELER_MUNICIPALITY_METADATA`
-- `DATAFORDELER_BBR_SHELTER_USAGE_CODES`
-- `DATAFORDELER_BBR_USAGE_CODES`
-- `DATAFORDELER_PAGE_SIZE`
-- `DATAFORDELER_REQUEST_TIMEOUT_MS`
-- `DATAFORDELER_BITEMPORAL_TIMESTAMP`
-- `DATAFORDELER_DAR_ACTIVE_STATUSES`
-
 ## Modernization Status
 
 This repo is under active modernization. The current work is focused on removing legacy cache, search, and data-access abstractions before larger product or architecture changes.
