@@ -64,6 +64,7 @@ export type AppV2MunicipalitySummary = {
   name: string;
   regionName: string | null;
   activeShelterCount: number;
+  activeShelterTotalCapacity: number;
 };
 
 export type AppV2MunicipalityDetail = AppV2MunicipalitySummary & {
@@ -241,7 +242,10 @@ const sourceApplicationCodeRuleSource = "app_v2.application_code_eligibility";
 const sourceApplicationCodeLookupChunkSize = 100;
 const allowedImportStates: AppV2ImportState[] = ["active", "missing_from_source", "suppressed"];
 
-function normalizeMunicipality(row: MunicipalityRow, activeShelterCount: number): AppV2MunicipalityDetail {
+function normalizeMunicipality(
+  row: MunicipalityRow,
+  stats: { activeShelterCount: number; activeShelterTotalCapacity: number },
+): AppV2MunicipalityDetail {
   const display = normalizeMunicipalityDisplay({
     id: row.id,
     slug: row.slug,
@@ -255,7 +259,8 @@ function normalizeMunicipality(row: MunicipalityRow, activeShelterCount: number)
     name: display.name,
     description: row.description,
     regionName: row.region_name,
-    activeShelterCount,
+    activeShelterCount: stats.activeShelterCount,
+    activeShelterTotalCapacity: stats.activeShelterTotalCapacity,
   };
 }
 
@@ -457,6 +462,7 @@ function normalizeNearbyRpcRow(value: unknown): AppV2NearbyShelter {
       name: getString(value.municipality_name, "municipality_name"),
       regionName: getNullableString(value.municipality_region_name, "municipality_region_name"),
       activeShelterCount: 0,
+      activeShelterTotalCapacity: 0,
     },
   };
 }
@@ -670,6 +676,62 @@ function groupNearbyRows(
     })
     .sort((a, b) => a.distanceMeters - b.distanceMeters || a.groupKey.localeCompare(b.groupKey))
     .slice(0, limit);
+}
+
+type PublicShelterMunicipalityAggregate = {
+  activeShelterCount: number;
+  totalCapacity: number;
+};
+
+async function getPublicShelterAggregatesByMunicipalityId(): Promise<
+  Map<string, PublicShelterMunicipalityAggregate>
+> {
+  const supabase = createAppV2PublicClient();
+  const aggregates = new Map<string, PublicShelterMunicipalityAggregate>();
+  let from = 0;
+
+  while (true) {
+    const to = from + municipalityStatsPageSize - 1;
+    const { data, error } = await supabase
+      .from("shelter_public")
+      .select("municipality_id, capacity")
+      .range(from, to);
+
+    if (error) {
+      throw new Error(`Could not load app_v2 public shelter aggregates: ${error.message}`);
+    }
+
+    const rows = (data ?? []) as Array<{ municipality_id: string; capacity: number | null }>;
+
+    for (const row of rows) {
+      const current = aggregates.get(row.municipality_id) ?? {
+        activeShelterCount: 0,
+        totalCapacity: 0,
+      };
+      current.activeShelterCount += 1;
+      current.totalCapacity += row.capacity ?? 0;
+      aggregates.set(row.municipality_id, current);
+    }
+
+    if (rows.length < municipalityStatsPageSize) {
+      break;
+    }
+
+    from += municipalityStatsPageSize;
+  }
+
+  return aggregates;
+}
+
+function getPublicShelterStatsForMunicipality(
+  aggregates: Map<string, PublicShelterMunicipalityAggregate>,
+  municipalityId: string,
+) {
+  const stats = aggregates.get(municipalityId);
+  return {
+    activeShelterCount: stats?.activeShelterCount ?? 0,
+    activeShelterTotalCapacity: stats?.totalCapacity ?? 0,
+  };
 }
 
 async function getActiveShelterCountByMunicipalityId(municipalityId: string) {
@@ -906,13 +968,9 @@ export async function getAppV2MunicipalitySummaries() {
   }
 
   const rows = (data ?? []) as MunicipalityRow[];
+  const aggregates = await getPublicShelterAggregatesByMunicipalityId();
 
-  return Promise.all(
-    rows.map(async (row) => {
-      const activeShelterCount = await getActiveShelterCountByMunicipalityId(row.id);
-      return normalizeMunicipality(row, activeShelterCount);
-    }),
-  );
+  return rows.map((row) => normalizeMunicipality(row, getPublicShelterStatsForMunicipality(aggregates, row.id)));
 }
 
 export async function getAppV2MunicipalitySlugs() {
@@ -928,7 +986,9 @@ export async function getAppV2MunicipalitySlugs() {
 
   const rows = (data ?? []) as MunicipalityRow[];
 
-  return rows.map((row) => normalizeMunicipality(row, 0).slug);
+  return rows.map((row) =>
+    normalizeMunicipality(row, { activeShelterCount: 0, activeShelterTotalCapacity: 0 }).slug,
+  );
 }
 
 const sitemapShelterPageSize = 1000;
@@ -1093,9 +1153,12 @@ export async function getAppV2MunicipalityBySlug(slug: string) {
   }
 
   const row = data as MunicipalityRow;
-  const activeShelterCount = await getActiveShelterCountByMunicipalityId(row.id);
+  const stats = await getAppV2PublicMunicipalityShelterStats(row.id);
 
-  return normalizeMunicipality(row, activeShelterCount);
+  return normalizeMunicipality(row, {
+    activeShelterCount: stats.activeShelterCount,
+    activeShelterTotalCapacity: stats.totalCapacity,
+  });
 }
 
 type MunicipalityShelterStatsRow = {
@@ -1393,8 +1456,11 @@ export async function getAppV2ShelterBySlug(slug: string) {
     throw new Error(`Could not load app_v2 municipality for shelter "${slug}".`);
   }
 
-  const activeShelterCount = await getActiveShelterCountByMunicipalityId(shelter.municipality_id);
-  const municipality = normalizeMunicipality(municipalityData as MunicipalityRow, activeShelterCount);
+  const stats = await getAppV2PublicMunicipalityShelterStats(shelter.municipality_id);
+  const municipality = normalizeMunicipality(municipalityData as MunicipalityRow, {
+    activeShelterCount: stats.activeShelterCount,
+    activeShelterTotalCapacity: stats.totalCapacity,
+  });
 
   return normalizeShelter(shelter, municipality);
 }
@@ -1429,8 +1495,11 @@ export async function getAppV2PublicShelterBySlug(slug: string) {
     throw new Error(`Could not load app_v2 municipality for shelter "${slug}".`);
   }
 
-  const activeShelterCount = await getActiveShelterCountByMunicipalityId(shelter.municipality_id);
-  const municipality = normalizeMunicipality(municipalityData as MunicipalityRow, activeShelterCount);
+  const stats = await getAppV2PublicMunicipalityShelterStats(shelter.municipality_id);
+  const municipality = normalizeMunicipality(municipalityData as MunicipalityRow, {
+    activeShelterCount: stats.activeShelterCount,
+    activeShelterTotalCapacity: stats.totalCapacity,
+  });
 
   return normalizeShelter(shelter, municipality);
 }

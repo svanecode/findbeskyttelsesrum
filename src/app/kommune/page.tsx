@@ -28,6 +28,15 @@ export default async function MunicipalityOverviewPage() {
     a.name.localeCompare(b.name, "da-DK"),
   );
 
+  const publicShelterCount = municipalities.reduce(
+    (sum, municipality) => sum + municipality.activeShelterCount,
+    0,
+  );
+  const totalCapacity = municipalities.reduce(
+    (sum, municipality) => sum + municipality.activeShelterTotalCapacity,
+    0,
+  );
+
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
       <div className="fixed inset-0 -z-10 overflow-hidden">
@@ -40,6 +49,15 @@ export default async function MunicipalityOverviewPage() {
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
             Kommuneoversigt
           </h1>
+          <p className="text-lg tabular-nums text-gray-300">
+            {publicShelterCount === 1
+              ? "1 beskyttelsesrum"
+              : `${publicShelterCount.toLocaleString("da-DK")} beskyttelsesrum`}
+            <span className="text-gray-500"> · </span>
+            {totalCapacity === 1
+              ? "1 registreret plads"
+              : `${totalCapacity.toLocaleString("da-DK")} registrerede pladser`}
+          </p>
         </header>
 
         <section className="rounded-lg border border-white/10 bg-white/5">
@@ -65,14 +83,20 @@ export default async function MunicipalityOverviewPage() {
                   <Link
                     href={`/kommune/${municipality.slug}`}
                     className="flex min-h-[44px] flex-col gap-2 px-5 py-4 transition hover:bg-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-                    aria-label={`${municipality.name}, ${municipality.activeShelterCount.toLocaleString('da-DK')} beskyttelsesrum`}
+                    aria-label={`${municipality.name}, ${municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum, ${municipality.activeShelterTotalCapacity.toLocaleString("da-DK")} registrerede pladser`}
                   >
                     <span>
                       <span className="block font-medium text-white">{municipality.name}</span>
                     </span>
-                    <span className="flex flex-col gap-1 text-sm text-gray-300 sm:items-end">
+                    <span className="flex flex-col gap-1 text-sm tabular-nums text-gray-300 sm:items-end">
                       <span>
-                        {municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum
+                        {municipality.activeShelterCount === 1
+                          ? "1 beskyttelsesrum"
+                          : `${municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum`}
+                        <span className="text-gray-500"> · </span>
+                        {municipality.activeShelterTotalCapacity === 1
+                          ? "1 registreret plads"
+                          : `${municipality.activeShelterTotalCapacity.toLocaleString("da-DK")} registrerede pladser`}
                       </span>
                       <span className="font-medium text-white">Se kommune</span>
                     </span>

@@ -98,6 +98,8 @@ export default async function KommunePage({ params }: Props) {
   const shelters = await getAppV2PublicMunicipalityShelters(municipality.id)
 
   const groups = groupMunicipalityShelters(shelters)
+  const publicShelterCount = shelters.length
+  const totalCapacity = shelters.reduce((sum, shelter) => sum + shelter.capacity, 0)
   const kommuneJsonLd = buildKommunePageJsonLd(municipality, shelters)
 
   return (
@@ -137,7 +139,13 @@ export default async function KommunePage({ params }: Props) {
         </h1>
 
         <p className="mt-3 text-lg tabular-nums text-gray-300">
-          {shelters.length.toLocaleString('da-DK')} beskyttelsesrum
+          {publicShelterCount === 1
+            ? '1 beskyttelsesrum'
+            : `${publicShelterCount.toLocaleString('da-DK')} beskyttelsesrum`}
+          <span className="text-gray-500"> · </span>
+          {totalCapacity === 1
+            ? '1 registreret plads'
+            : `${totalCapacity.toLocaleString('da-DK')} registrerede pladser`}
         </p>
       </header>
 
