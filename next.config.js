@@ -1,3 +1,6 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 function supabaseOriginForCsp() {
   const raw = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (!raw || typeof raw !== 'string') return ''
@@ -54,10 +57,15 @@ function contentSecurityPolicyValue() {
     .trim()
 }
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
+  turbopack: {
+    root: path.join(__dirname),
+  },
   async redirects() {
     return [
       { source: "/land", destination: "/kommune", permanent: true },

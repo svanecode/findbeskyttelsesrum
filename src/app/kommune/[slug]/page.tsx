@@ -5,12 +5,12 @@ import GlobalFooter from '@/components/GlobalFooter'
 import {
   getAppV2MunicipalityBySlug,
   getAppV2PublicMunicipalityShelters,
-  getAppV2PublicMunicipalityShelterStats,
   groupMunicipalityShelters,
   type AppV2MunicipalityShelter,
 } from '@/lib/supabase/app-v2-queries'
 import { serializeJsonLd } from '@/lib/seo/json-ld'
 import { siteUrl } from '@/lib/seo/site'
+import { getShelterPublicDisplayName } from '@/lib/shelter-display-name'
 import KommuneExperience from './kommune-experience'
 export { generateMetadata } from './metadata'
 
@@ -73,7 +73,7 @@ function buildKommunePageJsonLd(
       position: index + 1,
       item: {
         '@type': 'Place',
-        name: shelter.name,
+        name: getShelterPublicDisplayName(shelter.name, shelter.addressLine1),
         url: `${siteUrl}/beskyttelsesrum/${shelter.slug}`,
         address: {
           '@type': 'PostalAddress',
@@ -89,27 +89,13 @@ function buildKommunePageJsonLd(
   return [webPage, administrativeArea, itemList]
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  const formatted =
-    typeof value === 'number' ? value.toLocaleString('da-DK') : value
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm px-4 py-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums text-white">{formatted}</p>
-    </div>
-  )
-}
-
 export default async function KommunePage({ params }: Props) {
   const { slug } = await params
   const municipality = await getAppV2MunicipalityBySlug(slug)
 
   if (!municipality) notFound()
 
-  const [shelters, stats] = await Promise.all([
-    getAppV2PublicMunicipalityShelters(municipality.id),
-    getAppV2PublicMunicipalityShelterStats(municipality.id),
-  ])
+  const shelters = await getAppV2PublicMunicipalityShelters(municipality.id)
 
   const groups = groupMunicipalityShelters(shelters)
   const kommuneJsonLd = buildKommunePageJsonLd(municipality, shelters)
@@ -150,15 +136,12 @@ export default async function KommunePage({ params }: Props) {
           Registrerede beskyttelsesrum i {municipality.name}
         </h1>
 
-        {/* Stats */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <StatCard label="Adresser" value={groups.length} />
-          <StatCard label="Beskyttelsesrum i oversigten" value={stats.activeShelterCount} />
-          <StatCard label="Registrerede pladser" value={stats.totalCapacity} />
-        </div>
+        <p className="mt-3 text-lg tabular-nums text-gray-300">
+          {shelters.length.toLocaleString('da-DK')} beskyttelsesrum
+        </p>
       </header>
 
-      {/* List + map experience */}
+      {/* Map experience */}
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
         <KommuneExperience
           groups={groups}

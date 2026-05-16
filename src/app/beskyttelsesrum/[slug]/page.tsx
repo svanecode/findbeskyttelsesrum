@@ -7,6 +7,7 @@ import ShelterOsmEmbedMap from "@/components/ShelterOsmEmbedMap";
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from "@/lib/anvendelseskoder";
 import { serializeJsonLd } from "@/lib/seo/json-ld";
 import { siteUrl } from "@/lib/seo/site";
+import { getShelterPublicDisplayName } from "@/lib/shelter-display-name";
 import { getAppV2PublicShelterBySlug, type AppV2ShelterDetail } from "@/lib/supabase/app-v2-queries";
 
 type Props = {
@@ -28,11 +29,11 @@ function getGoogleMapsRouteHref(shelter: AppV2ShelterDetail) {
   return `https://www.google.com/maps/dir/?api=1&destination=${shelter.latitude},${shelter.longitude}`;
 }
 
-function getJsonLd(shelter: AppV2ShelterDetail) {
+function getJsonLd(shelter: AppV2ShelterDetail, displayName: string) {
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Place",
-    name: shelter.name,
+    name: displayName,
     url: `${siteUrl}${getShelterCanonicalPath(shelter.slug)}`,
     address: {
       "@type": "PostalAddress",
@@ -64,16 +65,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
+  const displayName = getShelterPublicDisplayName(shelter.name, shelter.addressLine1);
   const address = getShelterAddress(shelter);
 
   return {
-    title: `${shelter.name} | Beskyttelsesrum i ${shelter.city}`,
+    title: `${displayName} | Beskyttelsesrum i ${shelter.city}`,
     description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} pladser.`,
     alternates: {
       canonical: getShelterCanonicalPath(shelter.slug),
     },
     openGraph: {
-      title: `${shelter.name} | Beskyttelsesrum i ${shelter.city}`,
+      title: `${displayName} | Beskyttelsesrum i ${shelter.city}`,
       description: `${address}. Registreret kapacitet: ${shelter.capacity.toLocaleString("da-DK")} pladser.`,
       type: "article",
       locale: "da_DK",
@@ -94,7 +96,8 @@ export default async function ShelterDetailPage({ params }: Props) {
     notFound();
   }
 
-  const jsonLd = getJsonLd(shelter);
+  const displayName = getShelterPublicDisplayName(shelter.name, shelter.addressLine1);
+  const jsonLd = getJsonLd(shelter, displayName);
   const anvendelseRaw = getAnvendelseskodeBeskrivelse(shelter.sourceApplicationCode, anvendelseskoder).trim();
   const anvendelseLabel = anvendelseRaw || null;
   const hasCoords = shelter.latitude !== null && shelter.longitude !== null;
@@ -126,7 +129,7 @@ export default async function ShelterDetailPage({ params }: Props) {
 
           <header className="space-y-4">
             <p className="text-sm uppercase tracking-wide text-gray-400">Beskyttelsesrum</p>
-            <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">{shelter.name}</h1>
+            <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">{displayName}</h1>
             <p className="text-lg text-gray-300">
               {shelter.addressLine1}, {shelter.postalCode} {shelter.city}
             </p>
@@ -174,7 +177,7 @@ export default async function ShelterDetailPage({ params }: Props) {
                 <ShelterOsmEmbedMap
                   latitude={shelter.latitude!}
                   longitude={shelter.longitude!}
-                  title={`Kort over ${shelter.name}`}
+                  title={`Kort over ${displayName}`}
                 />
               </div>
             </section>

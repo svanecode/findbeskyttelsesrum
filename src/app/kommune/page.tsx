@@ -65,14 +65,14 @@ export default async function MunicipalityOverviewPage() {
                   <Link
                     href={`/kommune/${municipality.slug}`}
                     className="flex min-h-[44px] flex-col gap-2 px-5 py-4 transition hover:bg-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-                    aria-label={`${municipality.name}, ${municipality.activeShelterCount.toLocaleString('da-DK')} beskyttelsesrum i oversigten`}
+                    aria-label={`${municipality.name}, ${municipality.activeShelterCount.toLocaleString('da-DK')} beskyttelsesrum`}
                   >
                     <span>
                       <span className="block font-medium text-white">{municipality.name}</span>
                     </span>
                     <span className="flex flex-col gap-1 text-sm text-gray-300 sm:items-end">
                       <span>
-                        {municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum i oversigten
+                        {municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum
                       </span>
                       <span className="font-medium text-white">Se kommune</span>
                     </span>

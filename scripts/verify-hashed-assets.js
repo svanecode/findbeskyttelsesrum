@@ -80,15 +80,18 @@ function checkBuildId() {
 function checkConfiguration() {
   console.log('\n🔍 Checking configuration files...\n');
 
-  const nextConfigPath = path.join(projectRoot, 'next.config.js');
+  const nextConfigCandidates = ['next.config.js', 'next.config.mjs', 'next.config.ts'];
+  const nextConfigPath = nextConfigCandidates
+    .map((name) => path.join(projectRoot, name))
+    .find((p) => fs.existsSync(p));
   const vercelConfigPath = path.join(projectRoot, 'vercel.json');
 
-  if (fs.existsSync(nextConfigPath)) {
+  if (nextConfigPath) {
     const nextConfig = fs.readFileSync(nextConfigPath, 'utf8');
     const hasCacheHeaders = nextConfig.includes('Cache-Control') && nextConfig.includes('max-age=31536000');
-    console.log(`✅ next.config.js: ${hasCacheHeaders ? 'Cache headers configured' : 'Cache headers missing'}`);
+    console.log(`✅ ${path.basename(nextConfigPath)}: ${hasCacheHeaders ? 'Cache headers configured' : 'Cache headers missing'}`);
   } else {
-    console.log('❌ next.config.js not found');
+    console.log('❌ next.config.(js|mjs|ts) not found');
   }
 
   if (fs.existsSync(vercelConfigPath)) {
@@ -96,7 +99,7 @@ function checkConfiguration() {
     const hasCacheHeaders = vercelConfig.includes('Cache-Control') && vercelConfig.includes('max-age=31536000');
     console.log(`✅ vercel.json: ${hasCacheHeaders ? 'Cache headers configured' : 'Cache headers missing'}`);
   } else {
-    console.log('❌ vercel.json not found');
+    console.log('⚠️  vercel.json not found (optional if next.config headers cover static assets)');
   }
 }
 

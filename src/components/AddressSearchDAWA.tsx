@@ -270,7 +270,7 @@ export default function AddressSearchDAWA() {
               type="text"
               id="adresse"
               placeholder="Indtast adresse, by eller postnummer"
-              className="input-interactive touch-target w-full rounded-full border border-[color:var(--accent)] bg-[var(--surface-input)] py-3 pl-12 pr-11 text-sm text-white transition-all placeholder-gray-400 focus:border-[color:var(--accent)] focus:bg-[var(--surface-input-focus)] focus:outline-none focus-visible disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12 sm:text-base"
+              className="input-interactive touch-target w-full rounded-full border border-[color:var(--accent)] bg-[var(--surface-input)] py-3 pl-12 pr-11 text-base text-white transition-all placeholder-gray-400 focus:border-[color:var(--accent)] focus:bg-[var(--surface-input-focus)] focus:outline-none focus-visible disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12"
               disabled={hasFailed}
               aria-describedby={hasFailed ? 'dawa-error' : undefined}
               role="combobox"
@@ -316,7 +316,7 @@ export default function AddressSearchDAWA() {
                       id={`dawa-address-option-${index}`}
                       role="option"
                       aria-selected={activeIndex === index}
-                      className={`cursor-pointer border-b border-white/10 px-2.5 py-2.5 text-sm text-white last:border-b-0 sm:py-2 ${activeIndex === index ? 'bg-[var(--surface-row-hover)]' : 'hover:bg-[var(--surface-row-hover)]'}`}
+                      className={`cursor-pointer border-b border-white/10 px-2.5 py-2.5 text-base text-white last:border-b-0 sm:py-2 ${activeIndex === index ? 'bg-[var(--surface-row-hover)]' : 'hover:bg-[var(--surface-row-hover)]'}`}
                       onMouseEnter={() => setActiveIndex(index)}
                       onMouseDown={(event) => {
                         event.preventDefault()

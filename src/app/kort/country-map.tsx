@@ -10,7 +10,8 @@ import { ensureLeafletPopupStyles } from "@/lib/leaflet/ensure-popup-styles";
 import { setupLeafletDefaults } from "@/lib/leaflet/setup-defaults";
 import { getAnvendelseskodeBeskrivelse, getAnvendelseskoder } from "@/lib/anvendelseskoder";
 import type { Anvendelseskode } from "@/types/anvendelseskode";
-import { buildLeafletPopupHtml, normalizeShelterName } from "@/lib/leaflet/popup-html";
+import { buildLeafletPopupHtml } from "@/lib/leaflet/popup-html";
+import { getShelterPublicDisplayName } from "@/lib/shelter-display-name";
 
 const MapContainer = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
@@ -38,7 +39,9 @@ function makeShelterIcon(L: typeof import("leaflet")) {
 
 function buildPopupHtml(shelter: CountryMapShelterMarker, anvendelse: string) {
   const postalLine = [shelter.postalCode, shelter.city].filter(Boolean).join(" ").trim();
-  const title = shelter.addressLine1?.trim() ? shelter.addressLine1.trim() : normalizeShelterName(shelter.name);
+  const title = shelter.addressLine1?.trim()
+    ? shelter.addressLine1.trim()
+    : getShelterPublicDisplayName(shelter.name, shelter.addressLine1 ?? "");
   const slugSeg = encodeURIComponent(shelter.slug);
   return buildLeafletPopupHtml({
     title,
@@ -88,6 +91,8 @@ export default function CountryMap() {
   const clusterRef = useRef<MarkerClusterLike | null>(null);
   const [clusterReady, setClusterReady] = useState(false);
   const [markerState, setMarkerState] = useState<MarkerLoadState>({ status: "loading" });
+  /** First marker batch applied — until then show on-map status for a11y. */
+  const [markerChunkReady, setMarkerChunkReady] = useState(false);
   const [anvendelseskoder, setAnvendelseskoderState] = useState<Anvendelseskode[]>([]);
 
   useEffect(() => {
@@ -123,13 +128,32 @@ export default function CountryMap() {
     if (!L || !icon || !cg) return;
     if (markerState.status !== "loaded") return;
 
-    const BATCH = 1200;
+    const BATCH = 500;
     let cancelled = false;
     let rafId: number | null = null;
 
     cg.clearLayers();
+    setMarkerChunkReady(false);
 
     const shelters = markerState.shelters;
+    if (shelters.length === 0) {
+      setMarkerChunkReady(true);
+      return () => {
+        cancelled = true;
+        if (rafId !== null) window.cancelAnimationFrame(rafId);
+        cg.clearLayers();
+      };
+    }
+
+    const scheduleNext = (fn: () => void) => {
+      rafId = window.requestAnimationFrame(() => {
+        rafId = window.requestAnimationFrame(() => {
+          rafId = null;
+          fn();
+        });
+      });
+    };
+
     const pump = (from: number) => {
       if (cancelled) return;
       const slice = shelters.slice(from, from + BATCH);
@@ -146,20 +170,17 @@ export default function CountryMap() {
         layers.push(marker);
       }
       cg.addLayers(layers);
+      if (from === 0) {
+        setMarkerChunkReady(true);
+      }
       const next = from + BATCH;
       if (next < shelters.length) {
-        rafId = window.requestAnimationFrame(() => {
-          rafId = null;
-          pump(next);
-        });
+        scheduleNext(() => pump(next));
       }
     };
 
     if (shelters.length > 0) {
-      rafId = window.requestAnimationFrame(() => {
-        rafId = null;
-        pump(0);
-      });
+      scheduleNext(() => pump(0));
     }
 
     return () => {
@@ -223,10 +244,6 @@ export default function CountryMap() {
 
   const center: [number, number] = [56.26, 9.5];
 
-  if (!shelterMarkerIcon || markerState.status === "loading") {
-    return <MapLoadingSkeleton />;
-  }
-
   if (markerState.status === "error") {
     return (
       <div
@@ -260,11 +277,24 @@ export default function CountryMap() {
     );
   }
 
+  if (markerState.status !== "loaded" || !shelterMarkerIcon) {
+    return <MapLoadingSkeleton />;
+  }
+
   return (
     <div
-      className="h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
+      className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
       aria-label="Kort over registrerede beskyttelsesrum i Danmark. Zoom og klik på klynger for at se enkeltsteder."
     >
+      {!markerChunkReady ? (
+        <div
+          className="pointer-events-none absolute bottom-4 left-4 z-[5000] max-w-[min(100%,18rem)] rounded-lg border border-white/15 bg-black/75 px-3 py-2 text-sm text-gray-100 shadow-lg backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          Indlæser steder på kortet…
+        </div>
+      ) : null}
       <MapContainer
         center={center}
         zoom={7}

@@ -673,16 +673,15 @@ function groupNearbyRows(
 }
 
 async function getActiveShelterCountByMunicipalityId(municipalityId: string) {
-  const supabase = createAppV2AdminClient();
+  const supabase = createAppV2PublicClient();
   const { count, error } = await supabase
-    .from("shelters")
+    .from("shelter_public")
     .select("id", { count: "exact", head: true })
-    .eq("municipality_id", municipalityId)
-    .eq("import_state", "active");
+    .eq("municipality_id", municipalityId);
 
   if (error) {
     console.warn(
-      `Could not count active app_v2 shelters for municipality "${municipalityId}": ${error.message}`,
+      `Could not count public app_v2 shelters for municipality "${municipalityId}": ${error.message}`,
     );
     return 0;
   }

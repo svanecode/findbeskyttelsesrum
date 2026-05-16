@@ -492,10 +492,6 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
         </div>
       </div>
 
-      <p className="mx-auto mt-8 max-w-3xl px-4 text-center text-xs text-gray-500 sm:text-sm">
-        Bygger på offentlige registerdata. Følg altid myndighedernes anvisninger.
-      </p>
-
       <GlobalFooter />
     </main>
   )

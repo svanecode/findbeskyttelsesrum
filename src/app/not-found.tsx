@@ -1,6 +1,13 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
+
+export const metadata: Metadata = {
+  title: "Siden findes ikke",
+  description: "Den side, du ledte efter, findes ikke på Find Beskyttelsesrum.",
+  robots: { index: false, follow: false },
+};
 
 export default function NotFound() {
   return (
