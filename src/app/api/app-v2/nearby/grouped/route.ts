@@ -6,6 +6,7 @@ import {
   getAppV2GroupedNearbySheltersWithDiagnostics,
   type AppV2GroupedNearbyShelter,
 } from "@/lib/supabase/app-v2-queries";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,7 +16,7 @@ const defaultLimit = 10;
 const defaultCandidateLimit = 500;
 const maxRadiusMeters = 100_000;
 const maxLimit = 50;
-const maxCandidateLimit = 2_000;
+const maxCandidateLimit = 500;
 const apiContract = "app_v2_nearby_grouped_v1";
 const apiSource = "app_v2";
 const activeImportStates = ["active"] as const;
@@ -176,8 +177,6 @@ function toApiGroup(row: AppV2GroupedNearbyShelter) {
     shelterCount: row.shelterCount,
     totalCapacity: row.totalCapacity,
     applicationCodeLabel: row.applicationCodeLabel,
-    statuses: row.statuses,
-    importStates: row.importStates,
     municipality: {
       id: row.municipality.id,
       slug: row.municipality.slug,
@@ -189,9 +188,13 @@ function toApiGroup(row: AppV2GroupedNearbyShelter) {
       slug: row.representativeShelter.slug,
       name: row.representativeShelter.name,
       capacity: row.representativeShelter.capacity,
-      status: row.representativeShelter.status,
-      importState: row.representativeShelter.importState,
     },
+    shelters: row.shelters.map((shelter) => ({
+      id: shelter.id,
+      slug: shelter.slug,
+      name: shelter.name,
+      capacity: shelter.capacity,
+    })),
     shelterIds: row.shelters.map((shelter) => shelter.id),
     shelterSlugs: row.shelters.map((shelter) => shelter.slug),
   };
@@ -221,17 +224,30 @@ function errorResponse(input: {
         source: apiSource,
       },
     },
-    { status: input.status },
+    {
+      status: input.status,
+      headers: { "Cache-Control": "private, no-store" },
+    },
   );
 }
 
 function isMissingAppV2EnvError(error: unknown) {
-  return error instanceof Error && error.message.includes("Missing server Supabase write environment variables");
+  return error instanceof Error && error.message.includes("Missing NEXT_PUBLIC_SUPABASE");
 }
 
 export async function GET(request: NextRequest) {
   const requestId = getRequestId();
-  const debugMeta = request.nextUrl.searchParams.get("debug") === "1";
+  if (!rateLimit(request, { maxRequests: 30, windowMs: 60_000 }, "nearby")) {
+    return NextResponse.json(
+      { error: { code: "rate_limited", message: "Too many nearby requests. Try again shortly." } },
+      {
+        status: 429,
+        headers: { "Cache-Control": "private, no-store", "Retry-After": "60" },
+      },
+    );
+  }
+
+  const debugMeta = process.env.NODE_ENV !== "production" && request.nextUrl.searchParams.get("debug") === "1";
   const validation = validateNearbyRequest(request.nextUrl.searchParams);
 
   if (!validation.ok) {
@@ -263,22 +279,25 @@ export async function GET(request: NextRequest) {
       query: validation.value,
     };
 
-    return NextResponse.json({
-      results: result.rows.map(toApiGroup),
-      meta: debugMeta
-        ? {
-            ...slimMeta,
-            defaults: parameterDefaults,
-            bounds: parameterBounds,
-            capabilities,
-            grouping,
-            eligibility,
-            exclusionMode,
-            diagnostics: result.diagnostics,
-            limitations,
-          }
-        : slimMeta,
-    });
+    return NextResponse.json(
+      {
+        results: result.rows.map(toApiGroup),
+        meta: debugMeta
+          ? {
+              ...slimMeta,
+              defaults: parameterDefaults,
+              bounds: parameterBounds,
+              capabilities,
+              grouping,
+              eligibility,
+              exclusionMode,
+              diagnostics: result.diagnostics,
+              limitations,
+            }
+          : slimMeta,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error) {
     if (isMissingAppV2EnvError(error)) {
       return errorResponse({

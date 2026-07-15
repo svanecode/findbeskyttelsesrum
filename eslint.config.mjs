@@ -10,7 +10,8 @@ export default [
       "build/**",
       "next-env.d.ts",
       "public/**",
-      "generated/**"
+      "generated/**",
+      ".claude/**"
     ]
   },
   ...nextConfig,
@@ -22,4 +23,3 @@ export default [
     }
   }
 ];
-

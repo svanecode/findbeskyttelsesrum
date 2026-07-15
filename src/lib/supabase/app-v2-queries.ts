@@ -1,6 +1,8 @@
 import { getMunicipalitySlugCandidates, normalizeMunicipalityDisplay } from "@/lib/municipalities/metadata";
 import { createAppV2PublicClient } from "@/lib/app-v2-public";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
+import { cache } from "react";
+import { normalizePublicApplicationLabel } from "@/lib/public-labels";
 
 export type AppV2ShelterStatus = "active" | "temporarily_closed" | "under_review";
 export type AppV2ImportState = "active" | "missing_from_source" | "suppressed";
@@ -239,7 +241,6 @@ const defaultNearbyImportStates: AppV2ImportState[] = ["active"];
 const defaultNearbyEligibilityMode: AppV2NearbyEligibilityMode = "source_application_code_v1";
 const legacyNearbyMinimumCapacity = 40;
 const sourceApplicationCodeRuleSource = "app_v2.application_code_eligibility";
-const sourceApplicationCodeLookupChunkSize = 100;
 const allowedImportStates: AppV2ImportState[] = ["active", "missing_from_source", "suppressed"];
 
 function normalizeMunicipality(
@@ -546,61 +547,6 @@ function normalizeNearbyDiagnostics(value: unknown): AppV2NearbyDiagnostics {
   };
 }
 
-async function attachSourceApplicationCodeEligibility(rows: AppV2NearbyShelter[]) {
-  if (rows.length === 0) {
-    return rows;
-  }
-
-  const supabase = createAppV2AdminClient();
-  const ids = rows.map((row) => row.id);
-  const shelterRows: Array<{ id: string; source_application_code: string | null }> = [];
-
-  for (let index = 0; index < ids.length; index += sourceApplicationCodeLookupChunkSize) {
-    const chunk = ids.slice(index, index + sourceApplicationCodeLookupChunkSize);
-    const { data, error } = await supabase.from("shelters").select("id, source_application_code").in("id", chunk);
-
-    if (error) {
-      throw new Error(`Could not load app_v2 source application codes for nearby eligibility: ${error.message}`);
-    }
-
-    shelterRows.push(...((data ?? []) as Array<{ id: string; source_application_code: string | null }>));
-  }
-
-  const sourceCodeById = new Map(
-    shelterRows.map((row) => [row.id, row.source_application_code]),
-  );
-  const sourceCodes = Array.from(new Set(Array.from(sourceCodeById.values()).filter((code): code is string => Boolean(code))));
-  const eligibilityByCode = new Map<string, boolean>();
-
-  if (sourceCodes.length > 0) {
-    const { data: eligibilityRows, error: eligibilityError } = await supabase
-      .from("application_code_eligibility")
-      .select("application_code, is_nearby_eligible")
-      .eq("source_name", "datafordeler-bbr-dar")
-      .in("application_code", sourceCodes);
-
-    if (eligibilityError) {
-      throw new Error(`Could not load app_v2 application-code nearby eligibility rules: ${eligibilityError.message}`);
-    }
-
-    for (const row of (eligibilityRows ?? []) as Array<{ application_code: string; is_nearby_eligible: boolean }>) {
-      eligibilityByCode.set(row.application_code, row.is_nearby_eligible);
-    }
-  }
-
-  return rows.map((row) => {
-    const sourceApplicationCode = sourceCodeById.get(row.id) ?? null;
-
-    return {
-      ...row,
-      sourceApplicationCode,
-      sourceApplicationCodeNearbyEligible: sourceApplicationCode
-        ? eligibilityByCode.get(sourceApplicationCode) ?? null
-        : null,
-    };
-  });
-}
-
 /** Source-application-code eligibility (capacity + eligible code), matching DB view rules. */
 function applySourceApplicationCodeNearbyEligibility(rows: AppV2NearbyShelter[]) {
   const capacityEligibleRows = rows.filter((row) => row.capacity >= legacyNearbyMinimumCapacity);
@@ -695,6 +641,7 @@ async function getPublicShelterAggregatesByMunicipalityId(): Promise<
     const { data, error } = await supabase
       .from("shelter_public")
       .select("municipality_id, capacity")
+      .order("id", { ascending: true })
       .range(from, to);
 
     if (error) {
@@ -765,6 +712,36 @@ export async function getAppV2ShelterCount(options: ShelterCountOptions = {}) {
   return count ?? 0;
 }
 
+export async function getAppV2PublicShelterCount() {
+  const supabase = createAppV2PublicClient();
+  const { count, error } = await supabase
+    .from("shelter_public")
+    .select("id", { count: "exact", head: true });
+
+  if (error) {
+    throw new Error(`Could not count public app_v2 shelters: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
+export async function getAppV2PublicDataFreshness() {
+  const supabase = createAppV2PublicClient();
+  const { data, error } = await supabase
+    .from("shelter_public")
+    .select("last_imported_at")
+    .not("last_imported_at", "is", null)
+    .order("last_imported_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Could not load public app_v2 data freshness: ${error.message}`);
+  }
+
+  return (data as { last_imported_at: string | null } | null)?.last_imported_at ?? null;
+}
+
 export async function getAppV2TotalShelterCapacity() {
   const supabase = createAppV2AdminClient();
   let totalCapacity = 0;
@@ -776,6 +753,7 @@ export async function getAppV2TotalShelterCapacity() {
       .from("shelters")
       .select("capacity")
       .eq("import_state", "active")
+      .order("id", { ascending: true })
       .range(from, to);
 
     if (error) {
@@ -821,17 +799,43 @@ export async function getLatestAppV2ImportRun(sourceName?: string) {
   return data ? normalizeImportRun(data as ImportRunRow) : null;
 }
 
+export async function getLatestSuccessfulAppV2ImportRun(sourceName?: string) {
+  const supabase = createAppV2AdminClient();
+  let query = supabase
+    .from("import_runs")
+    .select(
+      "id, source_name, source_url, status, records_seen, records_upserted, started_at, finished_at, error_summary, pages_fetched, last_successful_page, last_successful_cursor, resumed_from_import_run_id, missing_transitions_applied, missing_transitions_skipped_reason",
+    )
+    .eq("status", "succeeded")
+    .order("finished_at", { ascending: false })
+    .limit(1);
+
+  if (sourceName) {
+    query = query.eq("source_name", sourceName);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error) {
+    throw new Error(`Could not load latest successful app_v2 import run: ${error.message}`);
+  }
+  return data ? normalizeImportRun(data as ImportRunRow) : null;
+}
+
 async function getAppV2NearbySheltersWithDiagnostics(
   options: AppV2NearbySheltersOptions,
 ): Promise<AppV2NearbySheltersResult> {
   assertValidCoordinate(options);
 
-  const supabase = createAppV2AdminClient();
+  const supabase = createAppV2PublicClient();
   const radiusMeters = options.radiusMeters ?? defaultNearbyRadiusMeters;
   const limit = options.limit ?? defaultNearbyLimit;
   const candidateLimit = options.candidateLimit ?? defaultNearbyCandidateLimit;
   const importStates = getNearbyImportStates(options);
   const eligibilityMode = defaultNearbyEligibilityMode;
+
+  if (importStates.length !== 1 || importStates[0] !== "active") {
+    throw new Error("Public nearby app_v2 reads support only the active import state.");
+  }
 
   if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
     throw new Error("Nearby app_v2 query requires a positive radiusMeters value.");
@@ -850,13 +854,12 @@ async function getAppV2NearbySheltersWithDiagnostics(
   }
 
   const rpcLimit = candidateLimit;
-  const { data, error } = await supabase.rpc("get_nearby_shelters", {
+  const { data, error } = await supabase.rpc("get_nearby_shelters_public", {
     p_lat: options.latitude,
     p_lng: options.longitude,
     p_radius_meters: radiusMeters,
     p_limit: rpcLimit,
     p_candidate_limit: candidateLimit,
-    p_import_states: importStates,
   });
 
   if (error) {
@@ -870,8 +873,7 @@ async function getAppV2NearbySheltersWithDiagnostics(
   }
 
   const sourceRows = parseJsonArray(payload.results, "results").map(normalizeNearbyRpcRow);
-  const sourceRowsWithEligibility = await attachSourceApplicationCodeEligibility(sourceRows);
-  const eligibility = applySourceApplicationCodeNearbyEligibility(sourceRowsWithEligibility);
+  const eligibility = applySourceApplicationCodeNearbyEligibility(sourceRows);
   const rows = eligibility.rows.slice(0, limit);
   const baseDiagnostics = normalizeNearbyDiagnostics(payload.diagnostics);
   const eligibilitySummary = getAppV2NearbyEligibilitySummary(eligibilityMode);
@@ -927,14 +929,13 @@ export async function getAppV2GroupedNearbySheltersWithDiagnostics(
   );
   const labelByCode = new Map<string, string>();
   if (uniqueCodes.length > 0) {
-    const labelClient = createAppV2AdminClient();
+    const labelClient = createAppV2PublicClient();
     const { data: labelRows } = await labelClient
-      .from("application_code_eligibility")
+      .from("application_code_public")
       .select("application_code, label")
-      .eq("source_name", "datafordeler-bbr-dar")
       .in("application_code", uniqueCodes);
     for (const row of (labelRows ?? []) as Array<{ application_code: string; label: string | null }>) {
-      if (row.label) labelByCode.set(row.application_code, row.label);
+      if (row.label) labelByCode.set(row.application_code, normalizePublicApplicationLabel(row.label));
     }
   }
 
@@ -957,9 +958,9 @@ export async function getAppV2GroupedNearbySheltersWithDiagnostics(
 }
 
 export async function getAppV2MunicipalitySummaries() {
-  const supabase = createAppV2AdminClient();
+  const supabase = createAppV2PublicClient();
   const { data, error } = await supabase
-    .from("municipalities")
+    .from("municipality_public")
     .select("id, code, slug, name, description, region_name")
     .order("name", { ascending: true });
 
@@ -974,9 +975,9 @@ export async function getAppV2MunicipalitySummaries() {
 }
 
 export async function getAppV2MunicipalitySlugs() {
-  const supabase = createAppV2AdminClient();
+  const supabase = createAppV2PublicClient();
   const { data, error } = await supabase
-    .from("municipalities")
+    .from("municipality_public")
     .select("id, code, slug, name, description, region_name")
     .order("name", { ascending: true });
 
@@ -1134,11 +1135,11 @@ export async function getAppV2PublicSitemapShelters(): Promise<AppV2SitemapShelt
   return out;
 }
 
-export async function getAppV2MunicipalityBySlug(slug: string) {
-  const supabase = createAppV2AdminClient();
+export const getAppV2MunicipalityBySlug = cache(async function getAppV2MunicipalityBySlug(slug: string) {
+  const supabase = createAppV2PublicClient();
   const slugCandidates = getMunicipalitySlugCandidates(slug);
   const { data, error } = await supabase
-    .from("municipalities")
+    .from("municipality_public")
     .select("id, code, slug, name, description, region_name")
     .in("slug", slugCandidates)
     .limit(1)
@@ -1159,7 +1160,7 @@ export async function getAppV2MunicipalityBySlug(slug: string) {
     activeShelterCount: stats.activeShelterCount,
     activeShelterTotalCapacity: stats.totalCapacity,
   });
-}
+});
 
 type MunicipalityShelterStatsRow = {
   address_line1: string | null;
@@ -1194,6 +1195,7 @@ export async function getAppV2PublicMunicipalityShelterStats(
       .from("shelter_public")
       .select("address_line1, postal_code, city, capacity, last_seen_at")
       .eq("municipality_id", municipalityId)
+      .order("id", { ascending: true })
       .range(from, to);
 
     if (error) {
@@ -1282,6 +1284,7 @@ export type AppV2MunicipalityShelterGroup = {
   slugs: string[];
   primarySlug: string;
   applicationCodeLabel: string | null;
+  shelters: Array<Pick<AppV2MunicipalityShelter, "id" | "slug" | "name" | "capacity">>;
 };
 
 type MunicipalityShelterRow = {
@@ -1339,17 +1342,16 @@ export async function getAppV2PublicMunicipalityShelters(
   );
   const labelByCode = new Map<string, string>();
   if (uniqueCodes.length > 0) {
-    const admin = createAppV2AdminClient();
-    const { data: labelRows, error: labelError } = await admin
-      .from("application_code_eligibility")
+    const publicClient = createAppV2PublicClient();
+    const { data: labelRows, error: labelError } = await publicClient
+      .from("application_code_public")
       .select("application_code, label")
-      .eq("source_name", "datafordeler-bbr-dar")
       .in("application_code", uniqueCodes);
     if (labelError) {
       throw new Error(`Could not load app_v2 application code labels: ${labelError.message}`);
     }
     for (const row of (labelRows ?? []) as Array<{ application_code: string; label: string | null }>) {
-      if (row.label) labelByCode.set(row.application_code, row.label);
+      if (row.label) labelByCode.set(row.application_code, normalizePublicApplicationLabel(row.label));
     }
   }
 
@@ -1416,6 +1418,7 @@ export function groupMunicipalityShelters(
         slugs: groupShelters.map((s) => s.slug),
         primarySlug: primary.slug,
         applicationCodeLabel: dominantLabel,
+        shelters: groupShelters.map(({ id, slug, name, capacity }) => ({ id, slug, name, capacity })),
       };
     })
     .sort((a, b) =>
@@ -1465,7 +1468,7 @@ export async function getAppV2ShelterBySlug(slug: string) {
   return normalizeShelter(shelter, municipality);
 }
 
-export async function getAppV2PublicShelterBySlug(slug: string) {
+export const getAppV2PublicShelterBySlug = cache(async function getAppV2PublicShelterBySlug(slug: string) {
   const pub = createAppV2PublicClient();
   const { data: shelterData, error: shelterError } = await pub
     .from("shelter_public")
@@ -1484,9 +1487,8 @@ export async function getAppV2PublicShelterBySlug(slug: string) {
   }
 
   const shelter = shelterData as ShelterRow;
-  const admin = createAppV2AdminClient();
-  const { data: municipalityData, error: municipalityError } = await admin
-    .from("municipalities")
+  const { data: municipalityData, error: municipalityError } = await pub
+    .from("municipality_public")
     .select("id, code, slug, name, description, region_name")
     .eq("id", shelter.municipality_id)
     .single();
@@ -1502,4 +1504,4 @@ export async function getAppV2PublicShelterBySlug(slug: string) {
   });
 
   return normalizeShelter(shelter, municipality);
-}
+});

@@ -53,7 +53,7 @@ export default async function Home() {
             </p>
 
             <p className="text-center text-xs text-gray-300/90 sm:text-sm">
-              Bygger på offentlige BBR- og DAR-registerdata. Følg altid myndighedernes anvisninger.
+              Resultaterne er vejledende. Følg altid myndighedernes anvisninger.
             </p>
             
           </div>

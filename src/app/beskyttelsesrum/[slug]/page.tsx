@@ -117,7 +117,7 @@ export default async function ShelterDetailPage({ params }: Props) {
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
       </div>
 
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 pb-28 pt-8 sm:px-6 sm:pb-8 lg:px-8">
         <article className="space-y-8">
           <nav className="flex items-center gap-2 sm:gap-3" aria-label="Side">
             <BackLinkButton
@@ -147,9 +147,9 @@ export default async function ShelterDetailPage({ params }: Props) {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[var(--accent-hover)] active:bg-[var(--accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f0f0f]"
-                  aria-label="Åbn navigation"
+                  aria-label="Åbn rute til adressen i kort"
                 >
-                  Naviger
+                  Åbn rute i kort
                 </a>
               ) : null}
             </div>
@@ -191,6 +191,19 @@ export default async function ShelterDetailPage({ params }: Props) {
           )}
         </article>
       </div>
+
+      {navigationHref ? (
+        <div className="fixed inset-x-0 bottom-0 z-[1000] border-t border-white/10 bg-[#0a0a0a]/95 p-3 backdrop-blur sm:hidden">
+          <a
+            href={navigationHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mx-auto flex min-h-[48px] w-full max-w-3xl items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-base font-semibold text-white"
+          >
+            Åbn rute i kort
+          </a>
+        </div>
+      ) : null}
 
       <GlobalFooter />
     </main>

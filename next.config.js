@@ -35,9 +35,18 @@ function contentSecurityPolicyValue() {
     'wss:',
   ].filter(Boolean)
 
+  const scriptSrc = [
+    "'self'",
+    "'unsafe-inline'",
+    ...(process.env.NODE_ENV === 'development' ? ["'unsafe-eval'"] : []),
+    'https://*.vercel-scripts.com',
+    'https://*.vercel-insights.com',
+    'https://*.vercel.app',
+  ].join(' ')
+
   return [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.vercel-scripts.com https://*.vercel-insights.com https://*.vercel.app",
+    `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.vercel.app",
     "img-src 'self' data: https://*.tile.openstreetmap.org https://raw.githubusercontent.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://tiles.stadiamaps.com https://tiles.maptiler.com https://*.vercel.app",
     "font-src 'self' https://fonts.gstatic.com data: https://*.vercel.app",
@@ -85,33 +94,7 @@ const nextConfig = {
   // Add headers for static assets
   async headers() {
     return [
-      // Moderate caching for hashed static assets (Next.js handles versioning)
-      {
-        source: '/_next/static/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            // 1 year immutable for hashed build assets
-            value: 'public, max-age=31536000, immutable',
-          },
-          {
-            key: 'Access-Control-Allow-Origin',
-            value: '*',
-          },
-          {
-            key: 'Access-Control-Allow-Methods',
-            value: 'GET, OPTIONS',
-          },
-          {
-            key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type, Accept',
-          },
-          {
-            key: 'Access-Control-Allow-Credentials',
-            value: 'true',
-          },
-        ],
-      },
+      // Next.js owns immutable caching for /_next/static assets.
       // Cache static files with shorter duration
       {
         source: '/favicon.ico',

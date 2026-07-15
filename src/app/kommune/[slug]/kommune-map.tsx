@@ -55,7 +55,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const leafletRef = useRef<typeof import('leaflet') | null>(null)
   const fittedRef = useRef(false)
-  const [leafletReady, setLeafletReady] = useState(false)
+  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
 
   // Load Leaflet once
   useEffect(() => {
@@ -70,7 +70,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
         shadowUrl: '/leaflet/marker-shadow.png',
       })
       leafletRef.current = L
-      setLeafletReady(true)
+      setLeaflet(L)
     })
   }, [])
 
@@ -110,7 +110,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
       ? [withCoords[0]!.latitude as number, withCoords[0]!.longitude as number]
       : [56.2639, 9.5018]
 
-  if (!leafletReady) {
+  if (!leaflet) {
     return (
       <div
         className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/5"
@@ -118,6 +118,17 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
         aria-live="polite"
       >
         <p className="text-sm text-gray-300">Indlæser kort...</p>
+      </div>
+    )
+  }
+
+  if (withCoords.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center rounded-xl border border-white/10 bg-white/5 p-6" role="status">
+        <div className="max-w-sm text-center">
+          <p className="font-semibold text-white">Kortet kan ikke vises</p>
+          <p className="mt-2 text-sm leading-6 text-gray-300">Ingen af kommunens viste registreringer har brugbare koordinater. Brug adresselisten i stedet.</p>
+        </div>
       </div>
     )
   }
@@ -146,27 +157,27 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
           zoomToBoundsOnClick
           disableClusteringAtZoom={16}
           iconCreateFunction={(cluster: any) => {
-            const L = leafletRef.current!
             const count = cluster.getChildCount()
             const cls =
               count < 10 ? 'marker-cluster-small' : count < 50 ? 'marker-cluster-medium' : 'marker-cluster-large'
-            return L.divIcon({
-              html: `<div><span>${count}</span></div>`,
+            return leaflet.divIcon({
+              html: `<div><span class="sr-only">Åbn gruppe med </span><span>${count}</span><span class="sr-only"> adresser</span></div>`,
               className: `marker-cluster ${cls}`,
-              iconSize: L.point(40, 40),
+              iconSize: leaflet.point(40, 40),
             })
           }}
         >
           {withCoords.map((group) => {
-            const L = leafletRef.current
             const isSelected = group.groupKey === selectedGroupKey
-            const icon = L ? makeIcon(L, isSelected) : undefined
+            const icon = makeIcon(leaflet, isSelected)
 
             return (
               <Marker
                 key={group.groupKey}
                 position={[group.latitude as number, group.longitude as number]}
                 icon={icon}
+                title={`${group.addressLine1}, ${group.postalCode} ${group.city}`}
+                alt={`Beskyttelsesrum ved ${group.addressLine1}`}
                 eventHandlers={{
                   click: () => onMarkerClick(group.groupKey),
                 }}
@@ -179,7 +190,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
                         usageLine: group.applicationCodeLabel || '',
                         postalLine: `${group.postalCode} ${group.city}`.trim(),
                         capacity: group.totalCapacity,
-                        href: `/beskyttelsesrum/${group.primarySlug}`,
+                        href: group.shelterCount === 1 ? `/beskyttelsesrum/${group.primarySlug}` : null,
                       }),
                     }}
                   />

@@ -15,19 +15,27 @@ const rateLimitStore = new Map<string, RateLimitState>()
 /** Best-effort token bucket per client key; not shared across serverless instances. */
 export function rateLimit(
   request: NextRequest,
-  config: RateLimitConfig = { maxRequests: 100, windowMs: 60000 }
+  config: RateLimitConfig = { maxRequests: 100, windowMs: 60000 },
+  namespace = 'global',
 ): boolean {
   const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+  const key = `${namespace}:${ip.split(',')[0]?.trim() || 'unknown'}`
   const now = Date.now()
   
-  let state = rateLimitStore.get(ip)
+  if (rateLimitStore.size > 10_000) {
+    for (const [storedKey, storedState] of rateLimitStore) {
+      if (now - storedState.lastRefill > config.windowMs * 2) rateLimitStore.delete(storedKey)
+    }
+  }
+
+  let state = rateLimitStore.get(key)
   
   if (!state) {
     state = {
       tokens: config.maxRequests,
       lastRefill: now
     }
-    rateLimitStore.set(ip, state)
+    rateLimitStore.set(key, state)
   }
   
   // Refill tokens based on time passed
@@ -45,4 +53,4 @@ export function rateLimit(
   
   state.tokens--
   return true
-} 
+}

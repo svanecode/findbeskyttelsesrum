@@ -1,9 +1,9 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
 import { getAppV2MunicipalitySummaries } from "@/lib/supabase/app-v2-queries";
 import { siteUrl } from "@/lib/seo/site";
+import MunicipalityList from "./municipality-list";
 
 export const revalidate = 86400;
 
@@ -60,52 +60,7 @@ export default async function MunicipalityOverviewPage() {
           </p>
         </header>
 
-        <section className="rounded-lg border border-white/10 bg-white/5">
-          <div className="border-b border-white/10 px-5 py-4 sm:px-6">
-            <h2 className="text-lg font-semibold text-white">Oversigt</h2>
-            <p className="mt-1 text-sm text-gray-400">Kommuner sorteret alfabetisk efter visningsnavn.</p>
-          </div>
-
-          {municipalities.length === 0 ? (
-            <div className="px-5 py-6 sm:px-6" role="status">
-              <p className="text-gray-300">Der er ikke registreret kommuner i oversigten endnu.</p>
-              <Link
-                href="/"
-                className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
-              >
-                Til forsiden
-              </Link>
-            </div>
-          ) : (
-            <ul className="divide-y divide-white/10">
-              {municipalities.map((municipality) => (
-                <li key={municipality.id}>
-                  <Link
-                    href={`/kommune/${municipality.slug}`}
-                    className="flex min-h-[44px] flex-col gap-2 px-5 py-4 transition hover:bg-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-                    aria-label={`${municipality.name}, ${municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum, ${municipality.activeShelterTotalCapacity.toLocaleString("da-DK")} registrerede pladser`}
-                  >
-                    <span>
-                      <span className="block font-medium text-white">{municipality.name}</span>
-                    </span>
-                    <span className="flex flex-col gap-1 text-sm tabular-nums text-gray-300 sm:items-end">
-                      <span>
-                        {municipality.activeShelterCount === 1
-                          ? "1 beskyttelsesrum"
-                          : `${municipality.activeShelterCount.toLocaleString("da-DK")} beskyttelsesrum`}
-                        <span className="text-gray-500"> · </span>
-                        {municipality.activeShelterTotalCapacity === 1
-                          ? "1 registreret plads"
-                          : `${municipality.activeShelterTotalCapacity.toLocaleString("da-DK")} registrerede pladser`}
-                      </span>
-                      <span className="font-medium text-white">Se kommune</span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <MunicipalityList municipalities={municipalities} />
       </div>
 
       <GlobalFooter />

@@ -15,7 +15,32 @@ function extractRscManifestJson(jsFilePath, routeKey) {
   const start = raw.indexOf(needle);
   if (start === -1) throw new Error(`Could not find routeKey ${routeKey} in ${jsFilePath}`);
   const jsonStart = start + needle.length;
-  const jsonText = raw.slice(jsonStart).trim();
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let jsonEnd = -1;
+
+  for (let index = jsonStart; index < raw.length; index += 1) {
+    const character = raw[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') inString = true;
+    else if (character === "{") depth += 1;
+    else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        jsonEnd = index + 1;
+        break;
+      }
+    }
+  }
+
+  if (jsonEnd === -1) throw new Error(`Could not parse routeKey ${routeKey} in ${jsFilePath}`);
+  const jsonText = raw.slice(jsonStart, jsonEnd);
   return JSON.parse(jsonText);
 }
 
@@ -65,7 +90,6 @@ const routes = [
   { route: "/om-data", routeKey: "/om-data/page", entryHint: "/src/app/om-data/page" },
   { route: "/kort", routeKey: "/kort/page", entryHint: "/src/app/kort/page" },
   { route: "/shelters/nearby", routeKey: "/shelters/nearby/page", entryHint: "/src/app/shelters/nearby/page" },
-  { route: "/tell-me-more", routeKey: "/tell-me-more/page", entryHint: "/src/app/tell-me-more/page" },
 ];
 
 const rows = [];
@@ -136,4 +160,3 @@ async function runtimeKortGuard() {
 }
 
 await runtimeKortGuard();
-

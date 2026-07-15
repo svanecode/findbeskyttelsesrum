@@ -10,6 +10,10 @@ interface ErrorReport {
   context?: Record<string, any>
 }
 
+function getPagePath() {
+  return `${window.location.origin}${window.location.pathname}`
+}
+
 class ErrorTracker {
   private endpoint = '/api/errors'
   private isProduction = process.env.NODE_ENV === 'production'
@@ -23,7 +27,7 @@ class ErrorTracker {
     const errorReport: ErrorReport = {
       message: error.message,
       stack: error.stack,
-      url: window.location.href,
+      url: getPagePath(),
       userAgent: navigator.userAgent,
       timestamp: new Date().toISOString(),
       context
@@ -41,7 +45,7 @@ class ErrorTracker {
 
     const errorReport: ErrorReport = {
       message: `[${level.toUpperCase()}] ${message}`,
-      url: window.location.href,
+      url: getPagePath(),
       userAgent: navigator.userAgent,
       timestamp: new Date().toISOString(),
       context

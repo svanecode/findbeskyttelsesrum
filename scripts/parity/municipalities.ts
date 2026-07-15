@@ -131,6 +131,22 @@ function normalizeAppV2Rows(rows: AppV2MunicipalityRow[]): NormalizedAppV2Munici
   });
 }
 
+function normalizeMunicipalityName(name: string) {
+  const trimmed = name.trim();
+  const aliases: Record<string, string> = {
+    "Københavns Kommune": "København",
+    "Bornholms Regionskommune": "Bornholm",
+  };
+  return aliases[trimmed] ?? trimmed.replace(/\s+Kommune$/i, "");
+}
+
+function normalizeMunicipalitySlug(slug: string) {
+  const aliases: Record<string, string> = {
+    bornholms: "bornholm",
+  };
+  return aliases[slug] ?? slug;
+}
+
 async function main() {
   const env = getSupabaseEnv();
 
@@ -159,7 +175,7 @@ async function main() {
     .map((row) => {
       const legacy = row.code ? legacyByCode.get(row.code) : undefined;
 
-      return legacy && legacy.slug !== row.normalizedSlug
+      return legacy && normalizeMunicipalitySlug(legacy.slug) !== normalizeMunicipalitySlug(row.normalizedSlug)
         ? {
             code: row.code,
             legacySlug: legacy.slug,
@@ -173,7 +189,7 @@ async function main() {
     .map((row) => {
       const legacy = row.code ? legacyByCode.get(row.code) : undefined;
 
-      return legacy && legacy.navn !== row.normalizedName
+      return legacy && normalizeMunicipalityName(legacy.navn) !== normalizeMunicipalityName(row.normalizedName)
         ? {
             code: row.code,
             legacyName: legacy.navn,

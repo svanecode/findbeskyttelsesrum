@@ -32,6 +32,12 @@ NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
+Server-side importer/sanity scripts additionally require a secret key. Never expose it through a `NEXT_PUBLIC_` variable:
+
+```bash
+SUPABASE_SECRET_KEY=...
+```
+
 Run the development server:
 
 ```bash
@@ -44,10 +50,14 @@ Open `http://localhost:3000`.
 
 ```bash
 npm run lint
+npm test
+npm run typecheck
 npm run build
 npm run test-caching
 npm run verify-assets
 ```
+
+Before releasing database-dependent changes, apply every pending file in `supabase/migrations` with `supabase db push`.
 
 ## Modernization Status
 

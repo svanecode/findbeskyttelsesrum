@@ -85,7 +85,7 @@ async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<Near
   const params = new URLSearchParams({
     lat: String(lat),
     lng: String(lng),
-    limit: '10',
+    limit: String(nearbyResultLimit),
   })
   const response = await fetch(`/api/app-v2/nearby/grouped?${params.toString()}`, {
     cache: 'no-store',
@@ -102,9 +102,13 @@ async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<Near
 interface Props {
   lat: string
   lng: string
+  originLabel?: string
 }
 
-export default function ShelterMapClient({ lat: latString, lng: lngString }: Props) {
+const nearbyResultLimit = 10
+const nearbyRadiusKm = 50
+
+export default function ShelterMapClient({ lat: latString, lng: lngString, originLabel }: Props) {
   const [shelters, setShelters] = useState<NearbyResultShelter[]>([])
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [kommunekoder, setKommunekoder] = useState<Kommunekode[]>([])
@@ -112,8 +116,8 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
   const [hoveredShelter, setHoveredShelter] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [isClient, setIsClient] = useState(false)
   const [srMapSelection, setSrMapSelection] = useState('')
+  const [showBackToTop, setShowBackToTop] = useState(false)
   const shelterRefs = useRef<{ [key: string]: HTMLElement | null }>({})
   const mapRef = useRef<any>(null)
   const srMapSelectionClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -122,7 +126,13 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
 
   useEffect(() => {
     ensureLeafletPopupStyles()
-    setIsClient(true)
+  }, [])
+
+  useEffect(() => {
+    const updateBackToTop = () => setShowBackToTop(window.scrollY > 700)
+    updateBackToTop()
+    window.addEventListener('scroll', updateBackToTop, { passive: true })
+    return () => window.removeEventListener('scroll', updateBackToTop)
   }, [])
 
   useEffect(() => {
@@ -215,15 +225,23 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </Link>
-            <h1 className="text-xl font-bold sm:text-2xl">Nærmeste beskyttelsesrum</h1>
+            <h1 className="text-xl font-bold sm:text-2xl">Nærmeste registrerede beskyttelsesrum</h1>
           </div>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-400 sm:text-base">
-            Listen starter med det nærmeste. Vælg et beskyttelsesrum for detaljer eller navigation.
+            Viser op til {nearbyResultLimit} adresser inden for {nearbyRadiusKm} km, sorteret efter afstand.
           </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+            {originLabel ? <span className="text-gray-300">Nær {originLabel}</span> : null}
+            <Link href="/" className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-white underline-offset-4 hover:bg-white/5 hover:underline">
+              Skift adresse
+            </Link>
+            <a href="#nearby-map" className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-white underline-offset-4 hover:bg-white/5 hover:underline lg:hidden">
+              Vis kort
+            </a>
+          </div>
         </div>
 
-        {/* Back to top button */}
-        <button
+        {showBackToTop ? <button
           type="button"
           onClick={handleBackToTop}
           className="fixed z-50 rounded-full bg-orange-500/90 p-3 text-white shadow-lg transition-all duration-300 hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 motion-safe:hover:scale-110 md:hidden"
@@ -236,7 +254,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
           </svg>
-        </button>
+        </button> : null}
 
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-6">
           <section className="order-1 space-y-4 lg:order-1" aria-labelledby="nearby-results-heading">
@@ -374,16 +392,37 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                   </div>
 
                   <div className="mt-4 border-t border-white/5 pt-4 sm:pt-5">
+                    {shelter.registrations && shelter.registrations.length > 1 ? (
+                      <div className="mb-4">
+                        <p className="mb-2 text-sm font-medium text-gray-200">Registreringer på adressen</p>
+                        <ul className="space-y-2">
+                          {shelter.registrations.map((registration, index) => (
+                            <li key={registration.id}>
+                              <Link
+                                href={`/beskyttelsesrum/${registration.slug}`}
+                                onClick={(event) => event.stopPropagation()}
+                                className="flex min-h-[44px] items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70"
+                              >
+                                <span>Beskyttelsesrum {index + 1}</span>
+                                <span className="text-gray-300">
+                                  {registration.capacity.toLocaleString('da-DK')} {registration.capacity === 1 ? 'plads' : 'pladser'}
+                                </span>
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      {shelter.representativeSlug ? (
+                      {shelter.registrations?.length === 1 ? (
                         <Link
-                          href={`/beskyttelsesrum/${shelter.representativeSlug}`}
+                          href={`/beskyttelsesrum/${shelter.registrations[0].slug}`}
                           onClick={(event) => event.stopPropagation()}
                           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-[color:var(--accent)]/25 bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-row)]"
                         >
                           Se detaljer
                         </Link>
-                      ) : (
+                      ) : shelter.registrations?.length ? null : (
                         <span className="text-sm text-gray-400">Detaljeside er ikke tilgængelig</span>
                       )}
 
@@ -394,9 +433,9 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                           rel="noopener"
                           onClick={(event) => event.stopPropagation()}
                           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
-                          aria-label="Åbn navigation"
+                          aria-label="Åbn rute til adressen i kort"
                         >
-                          Naviger
+                          Åbn rute i kort
                         </a>
                       ) : null}
                     </div>
@@ -408,6 +447,7 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
           </section>
 
           <section
+            id="nearby-map"
             className="order-2 lg:order-2"
             aria-label="Kort med din placering og nærmeste beskyttelsesrum. Markører er bedst med mus eller touch; brug resultatlisten med tastatur."
           >
@@ -416,15 +456,14 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
               eller navigation.
             </p>
             <p className="mb-2 text-center text-xs leading-snug text-gray-500 lg:hidden">
-              Kortet følger med, når du vælger et sted på listen. Knappen nederst til højre ruller tilbage til toppen.
+              Kortet følger med, når du vælger et sted på listen.
             </p>
             <div
               className="relative h-[400px] min-h-[400px] lg:sticky lg:top-24 lg:z-10 lg:h-[min(600px,calc(100vh-8rem))] lg:min-h-[min(600px,calc(100vh-8rem))]"
               aria-describedby="nearby-map-keyboard-hint"
             >
             <div className="absolute inset-0 overflow-hidden rounded-lg border border-white/5 shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
-              {isClient && (
-                <MapContainer
+              <MapContainer
                   center={[lat, lng]}
                   zoom={13}
                   style={{ width: '100%', height: '100%' }}
@@ -441,6 +480,8 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                   <Marker
                     position={[lat, lng]}
                     icon={userLocationIcon}
+                    title="Din placering"
+                    alt="Din placering på kortet"
                   />
 
                   {/* Shelter markers */}
@@ -450,6 +491,8 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                         key={shelter.id}
                         position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
                         icon={hoveredShelter === shelter.id || selectedShelter === shelter.id ? hoveredShelterIcon : shelterIcon}
+                        title={`${shelter.vejnavn} ${shelter.husnummer}`.trim()}
+                        alt={`Beskyttelsesrum ved ${shelter.vejnavn} ${shelter.husnummer}`.trim()}
                         eventHandlers={{
                           click: () => {
                             setSelectedShelter(shelter.id)
@@ -473,7 +516,11 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                                 usageLine: formatBygningensAnvendelse(shelter, anvendelseskoder) ?? '',
                                 postalLine: `${shelter.postnummer} ${shelter.city ?? getKommunenavn(shelter.kommunekode, kommunekoder)}`.trim(),
                                 capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
-                                href: shelter.representativeSlug ? `/beskyttelsesrum/${shelter.representativeSlug}` : '#',
+                                href:
+                                  shelter.registrations?.length === 1
+                                    ? `/beskyttelsesrum/${shelter.registrations[0].slug}`
+                                    : null,
+                                linkLabel: 'Se beskyttelsesrum',
                               }),
                             }}
                           />
@@ -485,7 +532,6 @@ export default function ShelterMapClient({ lat: latString, lng: lngString }: Pro
                   {/* Auto-fit bounds to all markers */}
                   <NearbyFitBounds userLocation={[lat, lng]} shelters={shelters} />
                 </MapContainer>
-              )}
             </div>
             </div>
           </section>

@@ -36,7 +36,7 @@ console.log('📋 Migration SQL files to execute:\n');
 // Read migration files
 const migrationsDir = join(__dirname, '..', 'supabase', 'migrations');
 const files = readdirSync(migrationsDir)
-  .filter(file => file.endsWith('.sql'))
+  .filter(file => file.endsWith('.sql') && file !== '000_all_migrations_combined.sql')
   .sort();
 
 if (files.length === 0) {
@@ -59,19 +59,19 @@ console.log('⚠️  IMPORTANT: The Supabase JS client cannot execute DDL statem
 console.log('   for security reasons. You need to execute these SQL files using one of these methods:\n');
 console.log('   Option 1: Supabase CLI (recommended)');
 console.log('   ─────────────────────────────────────');
-console.log('   1. Link your project: supabase link --project-ref irafzkpgqxdhsahoddxr');
+  console.log('   1. Link your project: supabase link --project-ref <project-ref>');
 console.log('   2. Run: supabase db push');
-console.log('   3. Or execute SQL files: supabase db execute --file supabase/migrations/XXX.sql\n');
+  console.log('   3. Verify applied versions: supabase migration list\n');
 console.log('   Option 2: Supabase Dashboard');
 console.log('   ─────────────────────────────');
-console.log('   1. Go to: https://supabase.com/dashboard/project/irafzkpgqxdhsahoddxr/sql');
+  console.log('   1. Open the project SQL editor in Supabase Dashboard');
 console.log('   2. Copy and paste each SQL file content');
-console.log('   3. Run them in order (001, 002, 003, 004)\n');
+  console.log('   3. Run all numbered/timestamped files in lexical order (exclude 000_all_migrations_combined.sql)\n');
 console.log('   Option 3: Direct Database Connection');
 console.log('   ────────────────────────────────────');
 console.log('   If you have DATABASE_URL (direct connection):');
 console.log('   Run: node scripts/run-migrations.js');
-console.log('   (requires: npm install pg)\n');
+  console.log('   (the pg dependency is included in devDependencies)\n');
 
 // Test if we can query to verify connection
 console.log('🔍 Testing Supabase connection...');
@@ -80,7 +80,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 try {
   // Try a simple query to verify connection
   const { data, error } = await supabase
-    .from('sheltersv2')
+    .schema('app_v2')
+    .from('shelter_public')
     .select('id')
     .limit(1);
   

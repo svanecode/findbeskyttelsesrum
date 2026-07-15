@@ -35,7 +35,7 @@ export default function GlobalFooter() {
         <div>
           <h2 className="text-xs font-medium uppercase tracking-wider text-gray-300">Data og forbehold</h2>
           <div className="mt-4 space-y-2 text-sm leading-relaxed text-gray-400">
-            <p>Bygger på offentlige BBR- og DAR-registerdata.</p>
+            <p>Oplysningerne er vejledende og kan have begrænsninger.</p>
             <p>Følg altid myndighedernes anvisninger.</p>
             <p>Uafhængig. Ikke tilknyttet den danske stat.</p>
           </div>
@@ -58,7 +58,7 @@ export default function GlobalFooter() {
               rel="noopener noreferrer"
               target="_blank"
             >
-              Kildekode på GitHub
+              GitHub
             </a>
           </p>
         </div>

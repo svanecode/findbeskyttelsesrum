@@ -5,12 +5,16 @@ import { siteUrl } from "@/lib/seo/site";
 export const metadata: Metadata = {
   title: "Nærmeste beskyttelsesrum",
   description:
-    "Resultater efter adresse eller placering: kort og liste over de nærmeste beskyttelsesrum ud fra offentlige registerdata.",
+    "Resultater efter adresse eller placering: kort og liste over registrerede beskyttelsesrum i nærheden.",
   alternates: { canonical: "/shelters/nearby" },
+  robots: {
+    index: false,
+    follow: false,
+  },
   openGraph: {
     title: "Nærmeste beskyttelsesrum",
     description:
-      "Resultater efter adresse eller placering: kort og liste over de nærmeste beskyttelsesrum ud fra offentlige registerdata.",
+      "Resultater efter adresse eller placering: kort og liste over registrerede beskyttelsesrum i nærheden.",
     type: "website",
     url: `${siteUrl}/shelters/nearby`,
     siteName: "Find Beskyttelsesrum",

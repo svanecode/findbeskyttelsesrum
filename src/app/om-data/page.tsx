@@ -4,9 +4,8 @@ import type { Metadata } from "next";
 import GlobalFooter from "@/components/GlobalFooter";
 import {
   getAppV2MunicipalitySummaries,
-  getAppV2ShelterCount,
-  getLatestAppV2ImportRun,
-  type AppV2ImportRunSummary,
+  getAppV2PublicDataFreshness,
+  getAppV2PublicShelterCount,
 } from "@/lib/supabase/app-v2-queries";
 import { siteUrl } from "@/lib/seo/site";
 
@@ -15,14 +14,14 @@ export const revalidate = 600;
 export const metadata: Metadata = {
   title: "Datagrundlag",
   description:
-    "Findbeskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Læs om datagrundlag, opdatering og forbehold.",
+    "Find Beskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Læs om datagrundlag, opdatering og forbehold.",
   alternates: {
     canonical: "/om-data",
   },
   openGraph: {
     title: "Datagrundlag",
     description:
-      "Findbeskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Læs om datagrundlag, opdatering og forbehold.",
+      "Find Beskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Læs om datagrundlag, opdatering og forbehold.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -35,50 +34,41 @@ type DataOverview =
       ok: true;
       municipalityCount: number;
       activeShelterCount: number;
-      latestImportRun: AppV2ImportRunSummary | null;
+      latestImportedAt: string | null;
     }
   | {
       ok: false;
     };
 
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return new Intl.DateTimeFormat("da-DK", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 async function getDataOverview(): Promise<DataOverview> {
   try {
-    const [municipalities, activeShelterCount, latestImportRun] = await Promise.all([
+    const [municipalities, activeShelterCount, latestImportedAt] = await Promise.all([
       getAppV2MunicipalitySummaries(),
-      getAppV2ShelterCount(),
-      getLatestAppV2ImportRun(),
+      getAppV2PublicShelterCount(),
+      getAppV2PublicDataFreshness(),
     ]);
 
     return {
       ok: true,
       municipalityCount: municipalities.length,
       activeShelterCount,
-      latestImportRun,
+      latestImportedAt,
     };
   } catch (error) {
     console.error("Could not load app_v2 public data overview:", error);
     return { ok: false };
   }
+}
+
+function formatDataDate(value: string | null) {
+  if (!value) return "Ikke oplyst";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Ikke oplyst";
+  return new Intl.DateTimeFormat("da-DK", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
 }
 
 function StatCard({ label, value, note }: { label: string; value: string; note: string }) {
@@ -93,7 +83,6 @@ function StatCard({ label, value, note }: { label: string; value: string; note: 
 
 export default async function DataPage() {
   const overview = await getDataOverview();
-  const latestImportCompletedAt = overview.ok ? formatDateTime(overview.latestImportRun?.finishedAt ?? null) : null;
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
@@ -107,7 +96,7 @@ export default async function DataPage() {
           <p className="text-sm uppercase tracking-wide text-gray-400">Data</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Datagrundlag</h1>
           <p className="text-lg leading-8 text-gray-300">
-            Findbeskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Siden er uafhængig og ikke tilknyttet
+            Find Beskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Siden er uafhængig og ikke tilknyttet
             den danske stat.
           </p>
           <p className="text-sm leading-6 text-gray-400">Følg altid myndighedernes anvisninger i en akut situation.</p>
@@ -129,14 +118,14 @@ export default async function DataPage() {
               note="Kommuner i oversigten."
             />
             <StatCard
-              label="Beskyttelsesrum i oversigten"
+              label="Offentligt viste beskyttelsesrum"
               value={overview.activeShelterCount.toLocaleString("da-DK")}
-              note="Antal beskyttelsesrum der indgår i den samlede oversigt ud fra registerdata."
+              note="Antal beskyttelsesrum efter sidens offentlige udvælgelses- og eksklusionsregler."
             />
             <StatCard
-              label="Senest opdateret"
-              value={latestImportCompletedAt ?? "Ikke registreret"}
-              note="Vises kun hvis der findes opdateringsdato."
+              label="Senest registreret"
+              value={formatDataDate(overview.latestImportedAt)}
+              note="Seneste importdato blandt de beskyttelsesrum, der vises offentligt."
             />
           </section>
         ) : (
@@ -173,16 +162,35 @@ export default async function DataPage() {
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Hvor kommer data fra?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Oversigten bygger på offentlige registerdata fra BBR (Bygnings- og Boligregistret) og DAR (Danmarks
-              Adresseregister). Siderne viser registrerede oplysninger og kan have begrænsninger.
+              Oplysninger om bygninger og kapacitet kommer fra{" "}
+              <a className="text-white underline underline-offset-4 hover:text-orange-300" href="https://bbr.dk/bbr" rel="noopener noreferrer" target="_blank">
+                BBR (Bygnings- og Boligregistret)
+              </a>
+              . Adresser og koordinater kobles med{" "}
+              <a className="text-white underline underline-offset-4 hover:text-orange-300" href="https://danmarksadresser.dk/om-adresser/danmarks-adresseregister-dar" rel="noopener noreferrer" target="_blank">
+                DAR (Danmarks Adresseregister)
+              </a>
+              . Data hentes via Datafordeler. Registeroplysninger kan være ufuldstændige eller forsinkede.
+            </p>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold text-white">Hvilke registreringer vises?</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Oversigten viser aktive registreringer med mindst 40 registrerede pladser og en bygningsanvendelse, der er
+              medtaget i søgningen. Registreringer, som ikke længere findes i datakilden, er fravalgt. Det samme gælder
+              konkrete registreringer, som er udelukket fra den offentlige oversigt.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-gray-400">
+              Nærhedssøgning og kort kræver desuden brugbare koordinater. Derfor kan antallet variere mellem oversigter.
             </p>
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Hvor ofte opdateres data?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Hvis der findes en opdateringsdato, vises den øverst på siden. Mangler datoen, kan siden stadig vise
-              beskyttelsesrum, men uden en tydelig “senest opdateret”.
+              Datagrundlaget importeres løbende. Datoen ovenfor viser den seneste registrering i det aktuelt viste datasæt.
+              Der kan gå tid, fra en ændring foretages i et offentligt register, til den fremgår her.
             </p>
           </section>
 
@@ -190,8 +198,7 @@ export default async function DataPage() {
             <h2 className="text-lg font-semibold text-white">Hvad siden ikke lover</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Beskyttelsesrum og registreret kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse
-              eller aktuel fysisk stand. Udvalgte beskyttelsesrum på kommunesider er indgange til detail-sider, ikke
-              anbefalinger eller komplette lister.
+              eller aktuel fysisk stand. Kort, søgelister og kommuneoversigter er orienterende og er ikke anbefalinger.
             </p>
           </section>
 
