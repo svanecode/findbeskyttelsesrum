@@ -133,11 +133,9 @@ export default function CountryMap() {
     let rafId: number | null = null;
 
     cg.clearLayers();
-    setMarkerChunkReady(false);
 
     const shelters = markerState.shelters;
     if (shelters.length === 0) {
-      setMarkerChunkReady(true);
       return () => {
         cancelled = true;
         if (rafId !== null) window.cancelAnimationFrame(rafId);
@@ -161,7 +159,11 @@ export default function CountryMap() {
       const layers: import("leaflet").Marker[] = [];
       for (const s of slice) {
         const anvendelse = getAnvendelseskodeBeskrivelse(s.sourceApplicationCode ?? null, anvendelseskoder);
-        const marker = L.marker([s.latitude, s.longitude], { icon });
+        const marker = L.marker([s.latitude, s.longitude], {
+          icon,
+          title: `${s.addressLine1}, ${s.postalCode} ${s.city}`.trim(),
+          alt: `Beskyttelsesrum ved ${s.addressLine1}`,
+        });
         // Match kommune-kortets popup sizing (use popup-html + shared CSS)
         marker.bindPopup(buildPopupHtml(s, anvendelse), { className: "fb-popup" });
         marker.on("click", () => {
@@ -236,7 +238,7 @@ export default function CountryMap() {
     const cls =
       count < 10 ? "marker-cluster-small" : count < 50 ? "marker-cluster-medium" : "marker-cluster-large";
     return Leaf.divIcon({
-      html: `<div><span>${count}</span></div>`,
+      html: `<div><span class="sr-only">Åbn gruppe med </span><span>${count}</span><span class="sr-only"> adresser</span></div>`,
       className: `marker-cluster ${cls}`,
       iconSize: Leaf.point(40, 40),
     });
@@ -281,12 +283,14 @@ export default function CountryMap() {
     return <MapLoadingSkeleton />;
   }
 
+  const markersReady = markerChunkReady || markerState.shelters.length === 0;
+
   return (
     <div
       className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
       aria-label="Kort over registrerede beskyttelsesrum i Danmark. Zoom og klik på klynger for at se enkeltsteder."
     >
-      {!markerChunkReady ? (
+      {!markersReady ? (
         <div
           className="pointer-events-none absolute bottom-4 left-4 z-[5000] max-w-[min(100%,18rem)] rounded-lg border border-white/15 bg-black/75 px-3 py-2 text-sm text-gray-100 shadow-lg backdrop-blur-sm"
           role="status"

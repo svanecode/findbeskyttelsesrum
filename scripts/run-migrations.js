@@ -69,8 +69,8 @@ async function runMigrations() {
     let files = [];
     try {
       files = readdirSync(migrationsDir)
-        .filter(file => file.endsWith('.sql'))
-        .sort(); // Sort to ensure order (001, 002, 003, 004)
+        .filter(file => file.endsWith('.sql') && file !== '000_all_migrations_combined.sql')
+        .sort();
     } catch (e) {
       console.error('❌ Could not read migrations directory:', migrationsDir);
       console.error('   Make sure the supabase/migrations directory exists');
@@ -91,17 +91,15 @@ async function runMigrations() {
       console.log(`⏳ Running: ${file}...`);
 
       try {
+        await client.query('BEGIN');
         await client.query(sql);
+        await client.query('COMMIT');
         console.log(`✅ Completed: ${file}\n`);
       } catch (error) {
-        // If it's a "already exists" error, that's okay for migrations with IF NOT EXISTS
-        if (error.message.includes('already exists') || error.code === '42P07' || error.code === '42710') {
-          console.log(`⚠️  Skipped (already exists): ${file}\n`);
-        } else {
-          console.error(`❌ Error in ${file}:`);
-          console.error(`   ${error.message}\n`);
-          throw error;
-        }
+        await client.query('ROLLBACK');
+        console.error(`❌ Error in ${file}:`);
+        console.error(`   ${error.message}\n`);
+        throw error;
       }
     }
 

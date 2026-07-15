@@ -11,7 +11,10 @@ export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   if (!rateLimit(request)) {
-    return new NextResponse('Too Many Requests', { status: 429 })
+    return new NextResponse('Too Many Requests', {
+      status: 429,
+      headers: { 'Retry-After': '60', 'Cache-Control': 'private, no-store' },
+    })
   }
 
   const response = NextResponse.next()
@@ -36,7 +39,6 @@ export function proxy(request: NextRequest) {
   return response
 }
 
-/** API routes excluded so server handlers are not gated by this edge rate limiter. */
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }

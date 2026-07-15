@@ -12,11 +12,11 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Landskort",
-  description: "Landskort med beskyttelsesrum i Danmark ud fra offentlige registerdata.",
+  description: "Landskort med registrerede beskyttelsesrum i Danmark.",
   alternates: { canonical: "/kort" },
   openGraph: {
     title: "Landskort",
-    description: "Landskort med beskyttelsesrum i Danmark ud fra offentlige registerdata.",
+    description: "Landskort med registrerede beskyttelsesrum i Danmark.",
     type: "website",
     url: `${siteUrl}/kort`,
     siteName: "Find Beskyttelsesrum",

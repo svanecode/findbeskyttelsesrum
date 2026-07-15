@@ -38,7 +38,7 @@ function buildKommunePageJsonLd(
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: `Registrerede beskyttelsesrum i ${kommuneNavn}`,
-    description: `Kommuneoversigt over beskyttelsesrum i ${kommuneNavn} ud fra offentlige registerdata — antal, kapacitet, adresser og detaljesider.`,
+    description: `Kommuneoversigt over registrerede beskyttelsesrum i ${kommuneNavn} — antal, kapacitet, adresser og detaljesider.`,
     url: `${siteUrl}/kommune/${municipality.slug}`,
     inLanguage: 'da-DK',
     isPartOf: {

@@ -36,8 +36,9 @@ const ShelterMapClient = dynamic(
 interface MapWrapperProps {
   lat: string
   lng: string
+  originLabel?: string
 }
 
-export default function MapWrapper({ lat, lng }: MapWrapperProps) {
-  return <ShelterMapClient lat={lat} lng={lng} />
+export default function MapWrapper({ lat, lng, originLabel }: MapWrapperProps) {
+  return <ShelterMapClient lat={lat} lng={lng} originLabel={originLabel} />
 }

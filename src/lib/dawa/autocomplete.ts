@@ -47,6 +47,23 @@ export function suggestionHasCoordinates(s: DawaSuggestion): boolean {
   );
 }
 
+export function dedupeAddressSuggestions(suggestions: DawaSuggestion[], limit: number) {
+  const seen = new Set<string>();
+  const result: DawaSuggestion[] = [];
+
+  for (const suggestion of suggestions) {
+    const key = suggestionHasCoordinates(suggestion)
+      ? `coords:${suggestion.data.x}:${suggestion.data.y}`
+      : `text:${(suggestion.forslagstekst ?? suggestion.tekst).trim().toLocaleLowerCase("da-DK")}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(suggestion);
+    if (result.length >= limit) break;
+  }
+
+  return result;
+}
+
 export async function fetchAddressSuggestions(
   query: string,
   options: { signal?: AbortSignal; limit?: number; caretpos?: number } = {},
@@ -58,10 +75,11 @@ export async function fetchAddressSuggestions(
   }
 
   const limit = options.limit ?? 5;
+  const requestLimit = Math.min(Math.max(limit * 2, limit), 20);
   const caretpos = options.caretpos ?? trimmedQuery.length;
   const url = `https://api.dataforsyningen.dk/autocomplete?q=${encodeURIComponent(
     trimmedQuery,
-  )}&caretpos=${encodeURIComponent(String(caretpos))}&per_side=${encodeURIComponent(String(limit))}`;
+  )}&caretpos=${encodeURIComponent(String(caretpos))}&per_side=${encodeURIComponent(String(requestLimit))}`;
 
   const response = await fetch(url, { signal: options.signal });
 
@@ -88,10 +106,10 @@ export async function fetchAddressSuggestions(
     if (suggestion) {
       parsed.push(suggestion);
     }
-    if (parsed.length >= limit) {
+    if (parsed.length >= requestLimit) {
       break;
     }
   }
 
-  return parsed;
+  return dedupeAddressSuggestions(parsed, limit);
 }

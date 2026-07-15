@@ -33,8 +33,8 @@ export const metadata: Metadata = {
     template: "%s | Find Beskyttelsesrum"
   },
   description:
-    "Find nærmeste beskyttelsesrum i Danmark. Bygger på offentlige registerdata. Følg altid myndighedernes anvisninger.",
-  keywords: ["find beskyttelsesrum", "beskyttelsesrum", "find nærmeste beskyttelsesrum", "nødstilfælde", "sikkerhed", "Danmark", "shelter", "emergency", "BBR", "DAR", "sikringspladser", "civilforsvar", "nødsituation", "beskyttelse", "sikkerhedsrum"],
+    "Find registrerede beskyttelsesrum i Danmark. Følg altid myndighedernes anvisninger.",
+  keywords: ["find beskyttelsesrum", "beskyttelsesrum", "find nærmeste beskyttelsesrum", "nødstilfælde", "sikkerhed", "Danmark", "shelter", "emergency", "sikringspladser", "civilforsvar", "nødsituation", "beskyttelse", "sikkerhedsrum"],
   authors: [{ name: siteName }],
   creator: siteName,
   publisher: siteName,
@@ -76,7 +76,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Find Beskyttelsesrum | Find nærmeste beskyttelsesrum",
     description:
-      "Find nærmeste beskyttelsesrum i Danmark. Bygger på offentlige registerdata. Følg altid myndighedernes anvisninger.",
+      "Find registrerede beskyttelsesrum i Danmark. Følg altid myndighedernes anvisninger.",
     url: siteUrl,
     siteName,
     locale: siteLocale,
@@ -86,7 +86,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: "Find Beskyttelsesrum | Find nærmeste beskyttelsesrum",
     description:
-      "Find nærmeste beskyttelsesrum i Danmark. Bygger på offentlige registerdata. Følg altid myndighedernes anvisninger.",
+      "Find registrerede beskyttelsesrum i Danmark. Følg altid myndighedernes anvisninger.",
     creator: '@beskyttelsesrum',
   },
   robots: {
@@ -102,7 +102,6 @@ export const metadata: Metadata = {
   },
   other: {
     'disclaimer': 'Denne tjeneste er uafhængig og er ikke tilknyttet, drevet eller godkendt af den danske stat eller nogen offentlige myndigheder.',
-    'data-source': 'Oversigten bygger på offentlige registerdata og kan have begrænsninger.',
     'geo.region': 'DK',
     'geo.placename': 'Danmark',
     'version': '1.0.0',

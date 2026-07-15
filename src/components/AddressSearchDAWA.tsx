@@ -46,7 +46,12 @@ export default function AddressSearchDAWA() {
         setIsOpen(false)
         setActiveIndex(null)
         setQuery(suggestion.tekst.trimEnd())
-        router.push(`/shelters/nearby?lat=${suggestion.data.y}&lng=${suggestion.data.x}`)
+        const params = new URLSearchParams({
+          lat: String(suggestion.data.y),
+          lng: String(suggestion.data.x),
+          q: label,
+        })
+        router.push(`/shelters/nearby?${params.toString()}`)
         return
       }
 
@@ -122,7 +127,12 @@ export default function AddressSearchDAWA() {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true })
       })
-      router.push(`/shelters/nearby?lat=${position.coords.latitude}&lng=${position.coords.longitude}`)
+      const params = new URLSearchParams({
+        lat: String(position.coords.latitude),
+        lng: String(position.coords.longitude),
+        q: 'Din placering',
+      })
+      router.push(`/shelters/nearby?${params.toString()}`)
     } catch (error) {
       handleError(error instanceof Error ? error : new Error('Failed to get location'), 'Geolocation failed')
     } finally {
@@ -133,10 +143,6 @@ export default function AddressSearchDAWA() {
   useEffect(() => {
     abortControllerRef.current?.abort()
     if (query.trim().length < 2) {
-      setSuggestions([])
-      setIsOpen(false)
-      setActiveIndex(null)
-      setIsLoading(false)
       return
     }
 
@@ -287,7 +293,15 @@ export default function AddressSearchDAWA() {
               minLength={2}
               value={query}
               onChange={(event) => {
-                setQuery(event.target.value)
+                const nextQuery = event.target.value
+                setQuery(nextQuery)
+                if (nextQuery.trim().length < 2) {
+                  abortControllerRef.current?.abort()
+                  setSuggestions([])
+                  setIsOpen(false)
+                  setActiveIndex(null)
+                  setIsLoading(false)
+                }
                 cursorPosRef.current = event.target.selectionStart ?? event.target.value.length
               }}
               onSelect={syncCaretFromInput}

@@ -26,11 +26,20 @@ function truncate(value: string, max: number) {
   return `${value.slice(0, max)}…[truncated]`
 }
 
+function stripUrlQuery(value: string) {
+  try {
+    const url = new URL(value)
+    return `${url.origin}${url.pathname}`
+  } catch {
+    return value.split(/[?#]/, 1)[0] ?? ''
+  }
+}
+
 function sanitizeReport(raw: ErrorReport): ErrorReport {
   return {
     message: truncate(String(raw.message), MAX_MESSAGE),
     stack: raw.stack !== undefined ? truncate(String(raw.stack), MAX_STACK) : undefined,
-    url: truncate(String(raw.url ?? ''), MAX_URL),
+    url: truncate(stripUrlQuery(String(raw.url ?? '')), MAX_URL),
     userAgent: truncate(String(raw.userAgent ?? ''), MAX_USER_AGENT),
     timestamp: String(raw.timestamp),
     userId: raw.userId !== undefined ? truncate(String(raw.userId), 256) : undefined,
@@ -41,7 +50,11 @@ function sanitizeReport(raw: ErrorReport): ErrorReport {
 function sanitizeContext(context: Record<string, unknown> | undefined) {
   if (!context || typeof context !== 'object') return undefined
   try {
-    const json = JSON.stringify(context)
+    const json = JSON.stringify(context, (key, value) => {
+      if (/^(lat|latitude|lng|lon|longitude|coordinates?|location)$/i.test(key)) return '[redacted]'
+      if (typeof value === 'string' && /^https?:\/\//i.test(value)) return stripUrlQuery(value)
+      return value
+    })
     if (json.length <= MAX_CONTEXT_JSON) {
       return JSON.parse(json) as Record<string, unknown>
     }
@@ -72,8 +85,11 @@ async function forwardToWebhook(payload: ErrorReport) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!rateLimit(request, { maxRequests: 40, windowMs: 60_000 })) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  if (!rateLimit(request, { maxRequests: 40, windowMs: 60_000 }, 'client-errors')) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': '60', 'Cache-Control': 'private, no-store' } },
+    )
   }
 
   try {
@@ -111,7 +127,7 @@ export async function POST(request: NextRequest) {
 
     await forwardToWebhook(errorReport)
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     console.error('Error in error tracking endpoint:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

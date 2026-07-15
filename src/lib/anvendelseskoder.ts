@@ -1,5 +1,6 @@
 import { getLegacyPublicSupabase } from "@/lib/supabase/legacy-public-client";
 import { Anvendelseskode } from '@/types/anvendelseskode'
+import { normalizePublicApplicationLabel } from '@/lib/public-labels'
 
 let anvendelseskoderCache: Anvendelseskode[] | null = null
 
@@ -25,5 +26,5 @@ export async function getAnvendelseskoder(): Promise<Anvendelseskode[]> {
 export function getAnvendelseskodeBeskrivelse(kode: string | null, anvendelseskoder: Anvendelseskode[]): string {
   if (!kode) return ''
   const anvendelseskode = anvendelseskoder.find(a => a.kode === kode)
-  return anvendelseskode?.beskrivelse || kode
-} 
+  return normalizePublicApplicationLabel(anvendelseskode?.beskrivelse || kode)
+}

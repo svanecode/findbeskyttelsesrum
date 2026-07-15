@@ -172,7 +172,7 @@ async function readOptionalCounts() {
 
   const [exclusions, eligibility] = await Promise.all([
     supabase.from("shelter_exclusions").select("id", { count: "exact", head: true }).eq("is_active", true),
-    supabase.from("application_code_eligibility").select("id", { count: "exact", head: true }),
+    supabase.from("application_code_eligibility").select("application_code", { count: "exact", head: true }),
   ]);
 
   const shelterExclusionsActive =
@@ -250,7 +250,6 @@ async function main() {
 
   // Warning-only anchors (do not fail on drift).
   warnIfMaterialDeviation("Total capacity", totalCapacity, 3_417_530, 0.15);
-  warnIfMaterialDeviation("Country marker count", countryMarkerCount, 23_694, 0.15);
 
   if (hardFailures.length > 0) {
     console.log("");
@@ -269,4 +268,3 @@ main().catch((error) => {
   console.error(`[read:app-v2-sanity] failed: ${message}`);
   process.exit(1);
 });
-

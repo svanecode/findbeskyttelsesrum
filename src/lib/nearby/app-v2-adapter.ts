@@ -8,10 +8,16 @@ type ApiGroupedResult = {
   totalCapacity: number
   applicationCodeLabel: string | null
   municipality: { code: string | null; name: string; slug: string; id: string }
-  statuses?: Array<"active" | "temporarily_closed" | "under_review">
-  importStates?: Array<"active" | "missing_from_source" | "suppressed">
-  representativeShelter?: { slug: string; status?: "active" | "temporarily_closed" | "under_review" }
+  representativeShelter?: { slug: string; name?: string; capacity?: number }
+  shelters?: Array<{ id: string; slug: string; name: string; capacity: number }>
   shelterSlugs?: string[]
+}
+
+export type NearbyShelterRegistration = {
+  id: string
+  slug: string
+  name: string
+  capacity: number
 }
 
 export type NearbyResultShelter = {
@@ -29,8 +35,8 @@ export type NearbyResultShelter = {
   distance: number
   address: string | null
   source: 'legacy' | 'app_v2'
-  statuses?: Array<"active" | "temporarily_closed" | "under_review">
   representativeSlug?: string | null
+  registrations?: NearbyShelterRegistration[]
   // Legacy-only fields — absent for app_v2 results
   created_at?: string
   bygning_id?: string | null
@@ -72,8 +78,8 @@ export function adaptAppV2Grouped(rows: ApiGroupedResult[]): NearbyResultShelter
       distance: row.distanceMeters / 1000,
       address: `${row.address.line1}, ${row.address.postalCode} ${row.address.city}`,
       source: 'app_v2',
-      statuses: row.statuses ?? [],
       representativeSlug: row.representativeShelter?.slug ?? row.shelterSlugs?.[0] ?? null,
+      registrations: row.shelters ?? [],
     }
   })
 }

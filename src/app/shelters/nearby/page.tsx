@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 
 import { MapErrorBoundary } from '@/components/MapErrorBoundary'
+import GlobalFooter from '@/components/GlobalFooter'
 import { parseNearbySearchParams } from '@/lib/nearby/parse-nearby-search-params'
 
 import MapWrapper from './map-wrapper'
@@ -47,6 +48,7 @@ function MissingPosition() {
           Til forsiden
         </Link>
       </div>
+      <GlobalFooter />
     </main>
   )
 }
@@ -66,6 +68,7 @@ function InvalidPosition() {
           Til forsiden
         </Link>
       </div>
+      <GlobalFooter />
     </main>
   )
 }
@@ -77,6 +80,8 @@ type PageProps = {
 export default async function Page({ searchParams }: PageProps) {
   const sp = await searchParams;
   const parsed = parseNearbySearchParams(sp);
+  const rawOriginLabel = typeof sp.q === 'string' ? sp.q : Array.isArray(sp.q) ? sp.q[0] : '';
+  const originLabel = rawOriginLabel.trim().slice(0, 120) || undefined;
 
   if (parsed.kind === 'missing') {
     return <MissingPosition />;
@@ -88,7 +93,7 @@ export default async function Page({ searchParams }: PageProps) {
   return (
     <MapErrorBoundary>
       <Suspense fallback={<NearbySuspenseFallback />}>
-        <MapWrapper lat={parsed.lat} lng={parsed.lng} />
+        <MapWrapper lat={parsed.lat} lng={parsed.lng} originLabel={originLabel} />
       </Suspense>
     </MapErrorBoundary>
   )

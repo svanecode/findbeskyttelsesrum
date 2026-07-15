@@ -21,10 +21,11 @@ export type PopupHtmlArgs = {
   usageLine?: string | null;
   postalLine?: string | null;
   capacity: number;
-  href: string;
+  href?: string | null;
+  linkLabel?: string;
 };
 
-export function buildLeafletPopupHtml({ title, usageLine, postalLine, capacity, href }: PopupHtmlArgs) {
+export function buildLeafletPopupHtml({ title, usageLine, postalLine, capacity, href, linkLabel = "Se detaljer" }: PopupHtmlArgs) {
   const cap = capacity.toLocaleString("da-DK");
   const hasMeta = Boolean((usageLine ?? "").trim()) || Boolean((postalLine ?? "").trim());
 
@@ -39,6 +40,6 @@ export function buildLeafletPopupHtml({ title, usageLine, postalLine, capacity, 
     <p class="fb-popup__title">${escapeHtml(title)}</p>
     ${metaBlock}
     <p class="fb-popup__capacity">${escapeHtml(cap)} pladser</p>
-    <a class="fb-popup__link" href="${escapeHtml(href)}">Se detaljer</a>
+    ${href ? `<a class="fb-popup__link" href="${escapeHtml(href)}">${escapeHtml(linkLabel)}</a>` : ""}
   </div>`;
 }
