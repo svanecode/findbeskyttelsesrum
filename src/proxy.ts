@@ -1,21 +1,13 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { rateLimit } from './lib/rate-limit'
 
 /**
- * Next.js 16+ request proxy: security headers + best-effort rate limiting.
+ * Next.js 16+ request proxy for security headers.
  * CSP is set only in next.config.js (single policy) to avoid duplicate Content-Security-Policy headers.
- * In-memory rate limits reset per isolate and do not coordinate across serverless instances.
+ * Expensive and write-oriented API routes apply their own shared database-backed limits.
  */
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-
-  if (!rateLimit(request)) {
-    return new NextResponse('Too Many Requests', {
-      status: 429,
-      headers: { 'Retry-After': '60', 'Cache-Control': 'private, no-store' },
-    })
-  }
 
   const response = NextResponse.next()
 

@@ -757,61 +757,95 @@ export async function getAppV2ShelterCount(options: ShelterCountOptions = {}) {
   return count ?? 0;
 }
 
-export async function getAppV2PublicShelterCount() {
-  const supabase = createAppV2PublicClient();
-  const { count, error } = await supabase
-    .from("shelter_public_v2")
-    .select("id", { count: "exact", head: true });
+type PublicDataStatsRow = {
+  public_registrations: number | string | null;
+  public_capacity: number | string | null;
+  mapped_registrations: number | string | null;
+  mapped_capacity: number | string | null;
+  latest_public_import_at: string | null;
+};
 
-  if (error) {
-    throw new Error(`Could not count public app_v2 shelters: ${error.message}`);
-  }
+export type AppV2PublicDataStats = {
+  publicRegistrations: number;
+  publicCapacity: number;
+  mappedRegistrations: number;
+  mappedCapacity: number;
+  latestPublicImportAt: string | null;
+};
 
-  return count ?? 0;
+type PublicDataFunnelRow = {
+  active_source_registrations: number | string | null;
+  active_source_capacity: number | string | null;
+  capacity_threshold_registrations: number | string | null;
+  capacity_threshold_capacity: number | string | null;
+  application_eligible_registrations: number | string | null;
+  application_eligible_capacity: number | string | null;
+  published_registrations: number | string | null;
+  published_capacity: number | string | null;
+};
+
+export type AppV2PublicDataFunnel = {
+  activeSourceRegistrations: number;
+  activeSourceCapacity: number;
+  capacityThresholdRegistrations: number;
+  capacityThresholdCapacity: number;
+  applicationEligibleRegistrations: number;
+  applicationEligibleCapacity: number;
+  publishedRegistrations: number;
+  publishedCapacity: number;
+};
+
+function normalizePublicStat(value: number | string | null) {
+  const numericValue = Number(value ?? 0);
+  return Number.isFinite(numericValue) && numericValue >= 0 ? Math.trunc(numericValue) : 0;
 }
 
-export async function getAppV2PublicTotalShelterCapacity() {
-  const supabase = createAppV2PublicClient();
-  let totalCapacity = 0;
-  let from = 0;
-
-  while (true) {
-    const to = from + shelterCapacityPageSize - 1;
-    const { data, error } = await supabase
-      .from("shelter_public_v2")
-      .select("capacity")
-      .order("id", { ascending: true })
-      .range(from, to);
-
-    if (error) {
-      throw new Error(`Could not load public app_v2 shelter capacity: ${error.message}`);
-    }
-
-    const rows = (data ?? []) as Array<{ capacity: number | null }>;
-    for (const row of rows) totalCapacity += row.capacity ?? 0;
-
-    if (rows.length < shelterCapacityPageSize) break;
-    from += shelterCapacityPageSize;
-  }
-
-  return totalCapacity;
-}
-
-export async function getAppV2PublicDataFreshness() {
+export async function getAppV2PublicDataStats(): Promise<AppV2PublicDataStats> {
   const supabase = createAppV2PublicClient();
   const { data, error } = await supabase
-    .from("shelter_public_v2")
-    .select("last_imported_at")
-    .not("last_imported_at", "is", null)
-    .order("last_imported_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .from("public_data_stats_v1")
+    .select(
+      "public_registrations, public_capacity, mapped_registrations, mapped_capacity, latest_public_import_at",
+    )
+    .single();
 
   if (error) {
-    throw new Error(`Could not load public app_v2 data freshness: ${error.message}`);
+    throw new Error(`Could not load public app_v2 data stats: ${error.message}`);
   }
 
-  return (data as { last_imported_at: string | null } | null)?.last_imported_at ?? null;
+  const row = data as PublicDataStatsRow;
+  return {
+    publicRegistrations: normalizePublicStat(row.public_registrations),
+    publicCapacity: normalizePublicStat(row.public_capacity),
+    mappedRegistrations: normalizePublicStat(row.mapped_registrations),
+    mappedCapacity: normalizePublicStat(row.mapped_capacity),
+    latestPublicImportAt: row.latest_public_import_at,
+  };
+}
+
+export async function getAppV2PublicDataFunnel(): Promise<AppV2PublicDataFunnel> {
+  const admin = createAppV2AdminClient();
+  const { data, error } = await admin.rpc("get_public_data_funnel_v1");
+
+  if (error) {
+    throw new Error(`Could not load app_v2 public data funnel: ${error.message}`);
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as PublicDataFunnelRow | null;
+  if (!row) {
+    throw new Error("Could not load app_v2 public data funnel: no aggregate row returned.");
+  }
+
+  return {
+    activeSourceRegistrations: normalizePublicStat(row.active_source_registrations),
+    activeSourceCapacity: normalizePublicStat(row.active_source_capacity),
+    capacityThresholdRegistrations: normalizePublicStat(row.capacity_threshold_registrations),
+    capacityThresholdCapacity: normalizePublicStat(row.capacity_threshold_capacity),
+    applicationEligibleRegistrations: normalizePublicStat(row.application_eligible_registrations),
+    applicationEligibleCapacity: normalizePublicStat(row.application_eligible_capacity),
+    publishedRegistrations: normalizePublicStat(row.published_registrations),
+    publishedCapacity: normalizePublicStat(row.published_capacity),
+  };
 }
 
 export async function getAppV2TotalShelterCapacity() {

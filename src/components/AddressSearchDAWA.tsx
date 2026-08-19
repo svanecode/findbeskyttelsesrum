@@ -337,7 +337,7 @@ export default function AddressSearchDAWA() {
                 ref={inputRef}
                 type="text"
                 id="adresse"
-                placeholder="Fx Elsted Byvej 29, Aarhus eller 8200"
+                placeholder="Skriv vejnavn, by eller postnummer"
                 className="input-interactive touch-target w-full rounded-lg border border-white/20 bg-[var(--surface-input)] py-3 pl-12 pr-11 text-base text-white transition-colors placeholder:text-gray-400 focus:border-[color:var(--accent)] focus:bg-[var(--surface-input-focus)] focus:outline-none focus-visible disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12"
                 disabled={hasFailed}
                 aria-describedby={hasFailed ? 'dawa-error' : hasNoResults ? 'dawa-no-results' : undefined}

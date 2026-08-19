@@ -22,6 +22,18 @@ const remainingLegacyFunctionsMigrationUrl = new URL(
   "../supabase/migrations/20260819184711_harden_remaining_legacy_function_access.sql",
   import.meta.url,
 );
+const publicDataStatsMigrationUrl = new URL(
+  "../supabase/migrations/20260819204929_add_public_data_stats.sql",
+  import.meta.url,
+);
+const distributedRateLimitMigrationUrl = new URL(
+  "../supabase/migrations/20260819205515_add_distributed_rate_limits.sql",
+  import.meta.url,
+);
+const securePublicDataStatsMigrationUrl = new URL(
+  "../supabase/migrations/20260819205856_secure_public_data_stats.sql",
+  import.meta.url,
+);
 
 test("security migration closes exclusion RPC and bounds anonymous nearby work", async () => {
   const sql = (await readFile(migrationUrl, "utf8")).toLowerCase();
@@ -109,4 +121,42 @@ test("remaining legacy helpers use pinned schemas and explicit role allowlists",
     sql,
     /grant execute on function public\.get_nearby_shelters_v3\([\s\S]+to anon, authenticated, service_role/,
   );
+});
+
+test("public data stats expose aggregate values only through an explicit allowlist", async () => {
+  const sql = (await readFile(publicDataStatsMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /create or replace view app_v2\.public_data_stats_v1/);
+  assert.match(sql, /with \(security_barrier = true\)/);
+  assert.match(sql, /public_registrations/);
+  assert.match(sql, /mapped_capacity/);
+  assert.match(sql, /latest_public_import_at/);
+  assert.match(sql, /revoke all on table app_v2\.public_data_stats_v1 from public/);
+  assert.match(sql, /grant select on table app_v2\.public_data_stats_v1 to anon, authenticated, service_role/);
+});
+
+test("distributed rate limits store only digests and remain service-role only", async () => {
+  const sql = (await readFile(distributedRateLimitMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /create table if not exists app_v2\.rate_limit_buckets/);
+  assert.match(sql, /key_hash ~ '\^\[0-9a-f\]\{64\}\$'/);
+  assert.match(sql, /alter table app_v2\.rate_limit_buckets enable row level security/);
+  assert.match(sql, /security invoker/);
+  assert.match(sql, /on conflict \(key_hash, window_start\)/);
+  assert.match(sql, /revoke all on table app_v2\.rate_limit_buckets from public, anon, authenticated/);
+  assert.match(sql, /grant execute on function app_v2\.consume_rate_limit\(text, integer, integer\)\s+to service_role/);
+  assert.doesNotMatch(sql, /grant execute[^;]+to anon/);
+  assert.doesNotMatch(sql, /grant execute[^;]+to authenticated/);
+});
+
+test("public stats use invoker rights and internal funnel counts stay server-only", async () => {
+  const sql = (await readFile(securePublicDataStatsMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /security_barrier = true, security_invoker = true/);
+  assert.match(sql, /from app_v2\.shelter_public_v2/);
+  assert.match(sql, /from app_v2\.country_marker_public_v2/);
+  assert.match(sql, /create or replace function app_v2\.get_public_data_funnel_v1\(\)/);
+  assert.match(sql, /security invoker/);
+  assert.match(sql, /revoke all on function app_v2\.get_public_data_funnel_v1\(\)\s+from public, anon, authenticated/);
+  assert.match(sql, /grant execute on function app_v2\.get_public_data_funnel_v1\(\)\s+to service_role/);
 });

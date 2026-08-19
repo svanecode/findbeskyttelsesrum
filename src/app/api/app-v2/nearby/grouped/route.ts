@@ -6,6 +6,7 @@ import {
   getAppV2GroupedNearbySheltersWithDiagnostics,
   type AppV2GroupedNearbyShelter,
 } from "@/lib/supabase/app-v2-queries";
+import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -231,6 +232,25 @@ function errorResponse(input: {
   );
 }
 
+function rateLimitedResponse(requestId: string, retryAfterSeconds: number) {
+  return NextResponse.json(
+    {
+      error: {
+        code: "rate_limited",
+        message: "Du har søgt for mange gange på kort tid. Vent et øjeblik, og prøv igen.",
+      },
+      meta: { requestId, contract: apiContract, source: apiSource },
+    },
+    {
+      status: 429,
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Retry-After": String(retryAfterSeconds),
+      },
+    },
+  );
+}
+
 function isMissingAppV2EnvError(error: unknown) {
   return error instanceof Error && error.message.includes("Missing NEXT_PUBLIC_SUPABASE");
 }
@@ -259,13 +279,7 @@ async function handleNearbyRequest(
 ) {
   const requestId = getRequestId();
   if (!rateLimit(request, { maxRequests: 30, windowMs: 60_000 }, "nearby")) {
-    return NextResponse.json(
-      { error: { code: "rate_limited", message: "Too many nearby requests. Try again shortly." } },
-      {
-        status: 429,
-        headers: { "Cache-Control": "private, no-store", "Retry-After": "60" },
-      },
-    );
+    return rateLimitedResponse(requestId, 60);
   }
 
   const validation = validateNearbyRequest(searchParams);
@@ -278,6 +292,15 @@ async function handleNearbyRequest(
       requestId,
       details: validation.errors,
     });
+  }
+
+  const sharedLimit = await consumeDistributedRateLimit(
+    request,
+    { maxRequests: 30, windowMs: 60_000 },
+    "nearby",
+  );
+  if (!sharedLimit.allowed) {
+    return rateLimitedResponse(requestId, sharedLimit.retryAfterSeconds);
   }
 
   try {

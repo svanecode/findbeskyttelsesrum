@@ -40,11 +40,6 @@ export const metadata: Metadata = {
   publisher: siteName,
   applicationName: siteName,
   manifest: "/site.webmanifest",
-  appleWebApp: {
-    capable: true,
-    title: "Beskyttelsesrum",
-    statusBarStyle: "black-translucent",
-  },
   category: "Sikkerhed",
   classification: "Public Service",
   icons: {

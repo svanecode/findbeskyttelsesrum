@@ -3,7 +3,7 @@
   "short_name": "Beskyttelsesrum",
   "description": "Orientér dig i BBR-registreringer af sikringsrumspladser i Danmark",
   "start_url": "/",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
   "icons": [
@@ -25,6 +25,5 @@
     }
   ],
   "lang": "da",
-  "dir": "ltr",
-  "orientation": "portrait-primary"
+  "dir": "ltr"
 }
