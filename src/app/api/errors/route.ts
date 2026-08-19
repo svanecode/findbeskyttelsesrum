@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { consumeDistributedRateLimit } from '@/lib/distributed-rate-limit'
 import { rateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
@@ -89,6 +90,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: 'Too many requests' },
       { status: 429, headers: { 'Retry-After': '60', 'Cache-Control': 'private, no-store' } },
+    )
+  }
+
+  const sharedLimit = await consumeDistributedRateLimit(
+    request,
+    { maxRequests: 40, windowMs: 60_000 },
+    'client-errors',
+  )
+  if (!sharedLimit.allowed) {
+    return NextResponse.json(
+      { error: 'For mange fejlrapporter på kort tid' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(sharedLimit.retryAfterSeconds),
+          'Cache-Control': 'private, no-store',
+        },
+      },
     )
   }
 

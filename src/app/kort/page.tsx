@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
-import { getAppV2PublicCountryShelterMarkers } from "@/lib/supabase/app-v2-queries";
+import { getAppV2PublicDataStats } from "@/lib/supabase/app-v2-queries";
 import { siteUrl } from "@/lib/seo/site";
 
 import CountryMapExperience from "./country-map-experience";
 
 export const revalidate = 86400;
-/** Requires DB migration `013_app_v2_public_read_views` (public views). Avoid build-time prerender without views. */
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Landskort",
@@ -34,9 +32,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 export default async function CountryMapPage() {
-  const markers = await getAppV2PublicCountryShelterMarkers();
-  const totalCount = markers.length;
-  const totalCapacity = markers.reduce((sum, m) => sum + m.capacity, 0);
+  const stats = await getAppV2PublicDataStats();
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
@@ -56,11 +52,11 @@ export default async function CountryMapPage() {
         <section className="mb-6 grid gap-3 sm:grid-cols-2" aria-label="Nøgletal for kortet">
           <StatCard
             label="BBR-registreringer på kortet"
-            value={totalCount.toLocaleString("da-DK")}
+            value={stats.mappedRegistrations.toLocaleString("da-DK")}
           />
           <StatCard
             label="BBR-registrerede pladser"
-            value={totalCapacity.toLocaleString("da-DK")}
+            value={stats.mappedCapacity.toLocaleString("da-DK")}
           />
         </section>
       </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
 import { rateLimit } from "@/lib/rate-limit";
 import { isShelterReportType } from "@/lib/reporting/shelter-report";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
@@ -48,6 +49,24 @@ export async function POST(request: NextRequest) {
       {
         status: 429,
         headers: { "Cache-Control": "private, no-store", "Retry-After": "3600" },
+      },
+    );
+  }
+
+  const sharedLimit = await consumeDistributedRateLimit(
+    request,
+    { maxRequests: 5, windowMs: 60 * 60 * 1_000 },
+    "shelter-reports",
+  );
+  if (!sharedLimit.allowed) {
+    return NextResponse.json(
+      { error: "Du har sendt for mange rapporter. Prøv igen senere." },
+      {
+        status: 429,
+        headers: {
+          "Cache-Control": "private, no-store",
+          "Retry-After": String(sharedLimit.retryAfterSeconds),
+        },
       },
     );
   }

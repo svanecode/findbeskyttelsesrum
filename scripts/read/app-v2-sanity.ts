@@ -165,6 +165,23 @@ async function assertAnonPublicReadModel(): Promise<string[]> {
     }
   }
 
+  const statsSample = await pub
+    .from("public_data_stats_v1")
+    .select("public_registrations, public_capacity, mapped_registrations, latest_public_import_at")
+    .single();
+
+  if (statsSample.error) {
+    failures.push(`public_data_stats_v1: ${statsSample.error.message}`);
+  } else if (
+    !statsSample.data
+    || Number(statsSample.data.public_registrations) < 1
+    || Number(statsSample.data.public_capacity) < 1
+    || Number(statsSample.data.mapped_registrations) < 1
+    || !statsSample.data.latest_public_import_at
+  ) {
+    failures.push("public_data_stats_v1: expected positive aggregate values and a public import timestamp");
+  }
+
   return failures;
 }
 

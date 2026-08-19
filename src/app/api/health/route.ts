@@ -1,7 +1,4 @@
-import {
-  getAppV2PublicDataFreshness,
-  getAppV2PublicShelterCount,
-} from "@/lib/supabase/app-v2-queries";
+import { getAppV2PublicDataStats } from "@/lib/supabase/app-v2-queries";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,10 +16,9 @@ export async function GET() {
   const checkedAt = new Date().toISOString();
 
   try {
-    const [shelterCount, latestImportedAt] = await Promise.all([
-      getAppV2PublicShelterCount(),
-      getAppV2PublicDataFreshness(),
-    ]);
+    const stats = await getAppV2PublicDataStats();
+    const shelterCount = stats.publicRegistrations;
+    const latestImportedAt = stats.latestPublicImportAt;
     const latestImportTime = latestImportedAt ? new Date(latestImportedAt).getTime() : Number.NaN;
 
     if (shelterCount < 1 || !Number.isFinite(latestImportTime)) {

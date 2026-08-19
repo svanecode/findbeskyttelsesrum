@@ -4,9 +4,10 @@ import type { Metadata } from "next";
 import GlobalFooter from "@/components/GlobalFooter";
 import {
   getAppV2MunicipalitySummaries,
-  getAppV2PublicDataFreshness,
-  getAppV2PublicShelterCount,
-  getAppV2PublicTotalShelterCapacity,
+  getAppV2PublicDataFunnel,
+  getAppV2PublicDataStats,
+  type AppV2PublicDataFunnel,
+  type AppV2PublicDataStats,
 } from "@/lib/supabase/app-v2-queries";
 import { siteUrl } from "@/lib/seo/site";
 
@@ -34,9 +35,8 @@ type DataOverview =
   | {
       ok: true;
       municipalityCount: number;
-      activeShelterCount: number;
-      totalCapacity: number;
-      latestImportedAt: string | null;
+      stats: AppV2PublicDataStats;
+      funnel: AppV2PublicDataFunnel;
     }
   | {
       ok: false;
@@ -44,19 +44,17 @@ type DataOverview =
 
 async function getDataOverview(): Promise<DataOverview> {
   try {
-    const [municipalities, activeShelterCount, totalCapacity, latestImportedAt] = await Promise.all([
+    const [municipalities, stats, funnel] = await Promise.all([
       getAppV2MunicipalitySummaries(),
-      getAppV2PublicShelterCount(),
-      getAppV2PublicTotalShelterCapacity(),
-      getAppV2PublicDataFreshness(),
+      getAppV2PublicDataStats(),
+      getAppV2PublicDataFunnel(),
     ]);
 
     return {
       ok: true,
       municipalityCount: municipalities.length,
-      activeShelterCount,
-      totalCapacity,
-      latestImportedAt,
+      stats,
+      funnel,
     };
   } catch (error) {
     console.error("Could not load app_v2 public data overview:", error);
@@ -126,17 +124,17 @@ export default async function DataPage() {
             />
             <StatCard
               label="Viste BBR-registreringer"
-              value={overview.activeShelterCount.toLocaleString("da-DK")}
+              value={overview.stats.publicRegistrations.toLocaleString("da-DK")}
               note="Registreringer efter sidens udvælgelses- og eksklusionsregler."
             />
             <StatCard
               label="Registrerede pladser i udvalget"
-              value={overview.totalCapacity.toLocaleString("da-DK")}
+              value={overview.stats.publicCapacity.toLocaleString("da-DK")}
               note="Ikke en samlet national opgørelse over alle typer beskyttelsesrum."
             />
             <StatCard
               label="Seneste dataimport"
-              value={formatDataDate(overview.latestImportedAt)}
+              value={formatDataDate(overview.stats.latestPublicImportAt)}
               note="Fysisk stand er ikke verificeret i dette datasæt."
             />
           </section>
@@ -196,6 +194,66 @@ export default async function DataPage() {
             <p className="mt-3 text-sm leading-6 text-gray-400">
               Nærhedssøgning og kort kræver desuden brugbare koordinater. Derfor kan antallet variere mellem oversigter.
             </p>
+            {overview.ok ? (
+              <div className="mt-5 overflow-x-auto rounded-lg border border-white/10">
+                <table className="min-w-full border-collapse text-left text-sm">
+                  <caption className="sr-only">
+                    Trinvis afgrænsning fra aktive BBR-rækker til registreringer på landskortet
+                  </caption>
+                  <thead className="bg-white/5 text-gray-300">
+                    <tr>
+                      <th scope="col" className="px-4 py-3 font-medium">Trin</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">Registreringer</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">Pladser</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10 text-gray-200">
+                    {[
+                      {
+                        label: "Aktive rækker fra datakilden",
+                        registrations: overview.funnel.activeSourceRegistrations,
+                        capacity: overview.funnel.activeSourceCapacity,
+                      },
+                      {
+                        label: "Mindst 40 registrerede pladser",
+                        registrations: overview.funnel.capacityThresholdRegistrations,
+                        capacity: overview.funnel.capacityThresholdCapacity,
+                      },
+                      {
+                        label: "Medtaget bygningsanvendelse",
+                        registrations: overview.funnel.applicationEligibleRegistrations,
+                        capacity: overview.funnel.applicationEligibleCapacity,
+                      },
+                      {
+                        label: "Publiceret i datamodellen",
+                        registrations: overview.funnel.publishedRegistrations,
+                        capacity: overview.funnel.publishedCapacity,
+                      },
+                      {
+                        label: "Efter publicering og eksklusioner",
+                        registrations: overview.stats.publicRegistrations,
+                        capacity: overview.stats.publicCapacity,
+                      },
+                      {
+                        label: "Med koordinater på landskortet",
+                        registrations: overview.stats.mappedRegistrations,
+                        capacity: overview.stats.mappedCapacity,
+                      },
+                    ].map((row) => (
+                      <tr key={row.label}>
+                        <th scope="row" className="px-4 py-3 font-normal">{row.label}</th>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {row.registrations.toLocaleString("da-DK")}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {row.capacity.toLocaleString("da-DK")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">

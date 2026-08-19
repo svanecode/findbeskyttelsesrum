@@ -11,11 +11,17 @@ const addressSearchUrl = new URL("../src/components/AddressSearchDAWA.tsx", impo
 const registrationNoticeUrl = new URL("../src/components/RegistrationNotice.tsx", import.meta.url);
 const reportFormUrl = new URL("../src/components/ReportShelterIssue.tsx", import.meta.url);
 const reportApiUrl = new URL("../src/app/api/app-v2/shelter-reports/route.ts", import.meta.url);
+const clientErrorApiUrl = new URL("../src/app/api/errors/route.ts", import.meta.url);
+const proxyUrl = new URL("../src/proxy.ts", import.meta.url);
 const privacyPageUrl = new URL("../src/app/privatliv/page.tsx", import.meta.url);
 const footerUrl = new URL("../src/components/GlobalFooter.tsx", import.meta.url);
 const countryMapUrl = new URL("../src/app/kort/country-map.tsx", import.meta.url);
+const countryMapPageUrl = new URL("../src/app/kort/page.tsx", import.meta.url);
 const municipalityMapUrl = new URL("../src/app/kommune/[slug]/kommune-map.tsx", import.meta.url);
 const healthApiUrl = new URL("../src/app/api/health/route.ts", import.meta.url);
+const manifestUrl = new URL("../public/site.webmanifest", import.meta.url);
+const layoutUrl = new URL("../src/app/layout.tsx", import.meta.url);
+const nextConfigUrl = new URL("../next.config.js", import.meta.url);
 
 test("public shelter pages do not display internal review statuses", async () => {
   const publicUi = `${await readFile(detailPageUrl, "utf8")}\n${await readFile(nearbyPageUrl, "utf8")}`;
@@ -26,15 +32,23 @@ test("public shelter pages do not display internal review statuses", async () =>
   assert.doesNotMatch(publicUi, />Status</);
 });
 
-test("data overview uses only public reads", async () => {
+test("data overview uses bounded aggregate read models", async () => {
   const dataPage = await readFile(dataPageUrl, "utf8");
 
   assert.match(dataPage, /getAppV2MunicipalitySummaries/);
-  assert.match(dataPage, /getAppV2PublicShelterCount/);
-  assert.match(dataPage, /getAppV2PublicTotalShelterCapacity/);
-  assert.match(dataPage, /getAppV2PublicDataFreshness/);
+  assert.match(dataPage, /getAppV2PublicDataStats/);
+  assert.match(dataPage, /getAppV2PublicDataFunnel/);
+  assert.match(dataPage, /Aktive rækker fra datakilden/);
+  assert.match(dataPage, /Med koordinater på landskortet/);
   assert.doesNotMatch(dataPage, /getLatestSuccessfulAppV2ImportRun/);
   assert.doesNotMatch(dataPage, /AppV2ImportRunSummary/);
+});
+
+test("the homepage does not contain the removed personal example address", async () => {
+  const addressSearch = await readFile(addressSearchUrl, "utf8");
+
+  assert.doesNotMatch(addressSearch, /Elsted Byvej/i);
+  assert.match(addressSearch, /Skriv vejnavn, by eller postnummer/);
 });
 
 test("core search surfaces explain registration limits and data freshness", async () => {
@@ -99,8 +113,21 @@ test("detail pages expose contact, moderated reporting and related registrations
   assert.match(reportForm, /ændres ikke automatisk/i);
   assert.match(reportApi, /isSameOrigin/);
   assert.match(reportApi, /rateLimit/);
+  assert.match(reportApi, /consumeDistributedRateLimit/);
   assert.match(reportApi, /admin\.rpc\("submit_public_shelter_report"/);
   assert.doesNotMatch(reportApi, /\.from\("shelter_reports"\)\.insert/);
+});
+
+test("expensive public APIs use shared rate limits without globally limiting page requests", async () => {
+  const nearbyApi = await readFile(nearbyApiUrl, "utf8");
+  const reportApi = await readFile(reportApiUrl, "utf8");
+  const clientErrorApi = await readFile(clientErrorApiUrl, "utf8");
+  const proxy = await readFile(proxyUrl, "utf8");
+
+  assert.match(nearbyApi, /consumeDistributedRateLimit/);
+  assert.match(reportApi, /consumeDistributedRateLimit/);
+  assert.match(clientErrorApi, /consumeDistributedRateLimit/);
+  assert.doesNotMatch(proxy, /rateLimit\(/);
 });
 
 test("the compact footer links to accurate privacy and reporting guidance", async () => {
@@ -113,7 +140,27 @@ test("the compact footer links to accurate privacy and reporting guidance", asyn
   assert.match(privacyPage, /fanesession/);
   assert.match(privacyPage, /queryparametre og fragmenter/);
   assert.match(privacyPage, /privat moderationskø/);
+  assert.match(privacyPage, /kræver netforbindelse/);
+  assert.match(privacyPage, /tilbyder ikke en offlinekopi/);
   assert.match(dataPage, /id="rapportering"/);
+});
+
+test("the site is explicitly a browser-based online service rather than an offline PWA", async () => {
+  const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as Record<string, unknown>;
+  const layout = await readFile(layoutUrl, "utf8");
+
+  assert.equal(manifest.display, "browser");
+  assert.equal("orientation" in manifest, false);
+  assert.doesNotMatch(layout, /appleWebApp/);
+});
+
+test("production CSP keeps only the free OSM tile host and required public services", async () => {
+  const config = await readFile(nextConfigUrl, "utf8");
+
+  assert.match(config, /https:\/\/tile\.openstreetmap\.org/);
+  assert.match(config, /developmentConnections = process\.env\.NODE_ENV === 'development'/);
+  assert.doesNotMatch(config, /stadiamaps|maptiler|cartocdn|nominatim|dawa\.aws|raw\.githubusercontent/);
+  assert.doesNotMatch(config, /https:\/\/\*\.tile\.openstreetmap\.org/);
 });
 
 test("all Leaflet maps use the current non-subdomain OpenStreetMap tile URL", async () => {
@@ -127,11 +174,18 @@ test("all Leaflet maps use the current non-subdomain OpenStreetMap tile URL", as
   assert.equal(mapSources.match(/https:\/\/tile\.openstreetmap\.org\/\{z\}\/\{x\}\/\{y\}\.png/g)?.length, 3);
 });
 
+test("the national map page loads aggregate stats instead of all markers", async () => {
+  const mapPage = await readFile(countryMapPageUrl, "utf8");
+
+  assert.match(mapPage, /getAppV2PublicDataStats/);
+  assert.doesNotMatch(mapPage, /getAppV2PublicCountryShelterMarkers/);
+  assert.doesNotMatch(mapPage, /markers\.reduce/);
+});
+
 test("the health endpoint checks only the public read model", async () => {
   const healthApi = await readFile(healthApiUrl, "utf8");
 
-  assert.match(healthApi, /getAppV2PublicShelterCount/);
-  assert.match(healthApi, /getAppV2PublicDataFreshness/);
+  assert.match(healthApi, /getAppV2PublicDataStats/);
   assert.doesNotMatch(healthApi, /createAppV2AdminClient/);
   assert.doesNotMatch(healthApi, /SUPABASE_SECRET_KEY/);
   assert.match(healthApi, /Cache-Control/);

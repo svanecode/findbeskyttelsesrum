@@ -45,6 +45,14 @@ export default function PrivacyPage() {
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold">Netforbindelse og lokal lagring</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Tjenesten er en almindelig hjemmeside og kræver netforbindelse. Den tilbyder ikke en offlinekopi af
+              registreringerne eller kortet, så ældre data ikke kan forveksles med den seneste dataimport.
+            </p>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold">Fejlrapporter</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               En fejlrapport indeholder den valgte kategori, din beskrivelse og kun en e-mailadresse, hvis du selv vælger

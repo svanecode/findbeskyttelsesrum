@@ -13,27 +13,15 @@ function supabaseOriginForCsp() {
 
 function contentSecurityPolicyValue() {
   const supabase = supabaseOriginForCsp()
+  const developmentConnections = process.env.NODE_ENV === 'development' ? ['ws:', 'wss:'] : []
   const connectSrc = [
     "'self'",
     supabase,
     'https://tile.openstreetmap.org',
-    'https://*.tile.openstreetmap.org',
     'https://*.vercel-scripts.com',
     'https://*.vercel-insights.com',
-    'https://*.vercel.com',
-    'https://va.vercel-scripts.com',
-    'https://a.tile.openstreetmap.org',
-    'https://b.tile.openstreetmap.org',
-    'https://c.tile.openstreetmap.org',
-    'https://tiles.stadiamaps.com',
-    'https://tiles.maptiler.com',
     'https://api.dataforsyningen.dk',
-    'https://*.dataforsyningen.dk',
-    'https://dawa.aws.dk',
-    'https://nominatim.openstreetmap.org',
-    'https://*.vercel.app',
-    'ws:',
-    'wss:',
+    ...developmentConnections,
   ].filter(Boolean)
 
   const scriptSrc = [
@@ -48,9 +36,9 @@ function contentSecurityPolicyValue() {
   return [
     "default-src 'self'",
     `script-src ${scriptSrc}`,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.vercel.app",
-    "img-src 'self' data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://raw.githubusercontent.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://tiles.stadiamaps.com https://tiles.maptiler.com https://*.vercel.app",
-    "font-src 'self' https://fonts.gstatic.com data: https://*.vercel.app",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://tile.openstreetmap.org",
+    "font-src 'self' data:",
     `connect-src ${connectSrc.join(' ')}`,
     "frame-src 'self' https://www.openstreetmap.org",
     "object-src 'none'",
@@ -60,7 +48,7 @@ function contentSecurityPolicyValue() {
     'block-all-mixed-content',
     'upgrade-insecure-requests',
     "manifest-src 'self'",
-    "worker-src 'self' blob:",
+    "worker-src 'self'",
   ]
     .join('; ')
     .replace(/\s+/g, ' ')
