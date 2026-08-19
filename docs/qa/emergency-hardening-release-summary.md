@@ -1,5 +1,8 @@
 # Emergency hardening release summary (RC)
 
+> Historisk release-note. Retningslinjerne om akut navigation er afløst af 2026-08-sprinten for sandhed, sikkerhed og
+> privatliv. Brug `emergency-copy-standard.md` og `emergency-utility-checklist.md` som aktuelle releasekriterier.
+
 Formålet med denne release candidate er at sikre, at Findbeskyttelsesrum fungerer som en **akut nyttefunktion**: brugeren skal hurtigt kunne finde nærmeste beskyttelsesrum, forstå de vigtigste oplysninger og starte navigation.
 
 ## Scope og principper
@@ -91,4 +94,3 @@ Når preview er deployed, test disse URL’er (erstat `<PREVIEW_BASE_URL>`):
 - [ ] Go: Failure states (ugyldige koordinater, ingen resultater, kort-fejl)
 - [ ] Go: Sekundære sider er tydeligt sekundære og linker tilbage til søgning
 - [ ] Go: Lint/typecheck/build grøn
-

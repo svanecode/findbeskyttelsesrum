@@ -8,7 +8,7 @@ function MapLoadingSkeleton() {
       className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[var(--surface-elevated)] md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
       role="status"
       aria-live="polite"
-      aria-label="Indlæser kort over beskyttelsesrum"
+      aria-label="Indlæser kort over BBR-registreringer"
     >
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

@@ -106,10 +106,9 @@ $$;
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION add_excluded_shelter TO authenticated;
 GRANT EXECUTE ON FUNCTION remove_excluded_shelter TO authenticated;
-REVOKE ALL ON FUNCTION list_excluded_shelters() FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION list_excluded_shelters() TO service_role;
+GRANT EXECUTE ON FUNCTION list_excluded_shelters TO authenticated;
 
 -- Add comments
 COMMENT ON FUNCTION add_excluded_shelter IS 'Adds a shelter address to the exclusion list. Returns the ID of the created/updated exclusion.';
 COMMENT ON FUNCTION remove_excluded_shelter IS 'Removes a shelter address from the exclusion list. Returns true if deleted, false if not found.';
-COMMENT ON FUNCTION list_excluded_shelters IS 'Lists all excluded shelters with their details.';
+COMMENT ON FUNCTION list_excluded_shelters IS 'Lists all excluded shelters with their details.';;

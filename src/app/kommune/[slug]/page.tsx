@@ -37,8 +37,8 @@ function buildKommunePageJsonLd(
   const webPage = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: `Registrerede beskyttelsesrum i ${kommuneNavn}`,
-    description: `Kommuneoversigt over registrerede beskyttelsesrum i ${kommuneNavn} — antal, kapacitet, adresser og detaljesider.`,
+    name: `BBR-registreringer i ${kommuneNavn}`,
+    description: `Kommuneoversigt over BBR-registreringer af sikringsrumspladser i ${kommuneNavn} — antal, kapacitet, adresser og detaljesider.`,
     url: `${siteUrl}/kommune/${municipality.slug}`,
     inLanguage: 'da-DK',
     isPartOf: {
@@ -66,7 +66,7 @@ function buildKommunePageJsonLd(
   const itemList = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
-    name: `Udvalgte beskyttelsesrum i ${kommuneNavn}`,
+    name: `Udvalgte BBR-registreringer i ${kommuneNavn}`,
     numberOfItems: topShelters.length,
     itemListElement: topShelters.map((shelter, index) => ({
       '@type': 'ListItem',
@@ -131,21 +131,21 @@ export default async function KommunePage({ params }: Props) {
 
       {/* Header */}
       <header className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-        <p className="text-xs font-medium uppercase tracking-widest text-gray-500">
+        <p className="text-xs font-medium uppercase tracking-widest text-gray-400">
           Kommune
         </p>
         <h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
-          Registrerede beskyttelsesrum i {municipality.name}
+          BBR-registreringer i {municipality.name}
         </h1>
 
         <p className="mt-3 text-lg tabular-nums text-gray-300">
           {publicShelterCount === 1
-            ? '1 beskyttelsesrum'
-            : `${publicShelterCount.toLocaleString('da-DK')} beskyttelsesrum`}
-          <span className="text-gray-500"> · </span>
+            ? '1 BBR-registrering'
+            : `${publicShelterCount.toLocaleString('da-DK')} BBR-registreringer`}
+          <span className="text-gray-400"> · </span>
           {totalCapacity === 1
-            ? '1 registreret plads'
-            : `${totalCapacity.toLocaleString('da-DK')} registrerede pladser`}
+            ? '1 BBR-registreret plads'
+            : `${totalCapacity.toLocaleString('da-DK')} BBR-registrerede pladser`}
         </p>
       </header>
 

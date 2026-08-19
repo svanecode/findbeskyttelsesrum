@@ -31,10 +31,10 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
   if (groups.length === 0) {
     return (
       <div className="rounded-xl border border-white/10 bg-white/5 p-6 sm:p-8" role="status">
-        <h2 className="text-xl font-semibold text-white">Ingen registrerede beskyttelsesrum i {municipalityName}</h2>
+        <h2 className="text-xl font-semibold text-white">Ingen viste BBR-registreringer i {municipalityName}</h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-300">
-          Der er ingen beskyttelsesrum fra denne kommune i den offentlige oversigt lige nu. Det er ikke det samme som,
-          at kommunen med sikkerhed ikke har beskyttelsesrum.
+          Der er ingen registreringer fra denne kommune i den offentlige oversigt lige nu. Det dokumenterer ikke, at
+          kommunen er uden sikringsrum eller offentlige beskyttelsesrum.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <Link href="/kommune" className="inline-flex min-h-[44px] items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-gray-200">
@@ -69,7 +69,7 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
             setVisibleCount(30)
           }}
           placeholder="Adresse, postnummer eller by"
-          className="mt-2 min-h-[48px] w-full rounded-lg border border-white/15 bg-white/5 px-4 text-base text-white placeholder:text-gray-500 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30"
+          className="mt-2 min-h-[48px] w-full rounded-lg border border-white/15 bg-white/5 px-4 text-base text-white placeholder:text-gray-400 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30"
         />
         <p className="mt-2 text-sm text-gray-400" role="status" aria-live="polite">
           {filteredGroups.length.toLocaleString('da-DK')} {filteredGroups.length === 1 ? 'adresse' : 'adresser'}
@@ -112,8 +112,8 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
                   ) : null}
                 </div>
                 <p className="mt-3 text-sm text-gray-300">
-                  {group.shelterCount === 1 ? '1 beskyttelsesrum' : `${group.shelterCount} beskyttelsesrum`}
-                  <span className="text-gray-500"> · </span>
+                  {group.shelterCount === 1 ? '1 BBR-registrering' : `${group.shelterCount} BBR-registreringer`}
+                  <span className="text-gray-400"> · </span>
                   {group.totalCapacity.toLocaleString('da-DK')} {group.totalCapacity === 1 ? 'registreret plads' : 'registrerede pladser'}
                 </p>
                 {group.applicationCodeLabel ? <p className="mt-1 text-sm text-gray-400">{group.applicationCodeLabel}</p> : null}
@@ -124,7 +124,7 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
                         href={`/beskyttelsesrum/${shelter.slug}`}
                         className="flex min-h-[44px] items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70"
                       >
-                        <span>{group.shelters.length === 1 ? 'Se detaljer' : `Beskyttelsesrum ${index + 1}`}</span>
+                        <span>{group.shelters.length === 1 ? 'Se detaljer' : `Registrering ${index + 1}`}</span>
                         <span className="text-gray-300">{shelter.capacity.toLocaleString('da-DK')} {shelter.capacity === 1 ? 'plads' : 'pladser'}</span>
                       </Link>
                     </li>
@@ -146,7 +146,7 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
         ) : null}
       </section>
 
-      <section id="municipality-map" className="h-[60vh] min-h-[420px] scroll-mt-24 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]" aria-label={`Kort over registrerede beskyttelsesrum i ${municipalityName}`}>
+      <section id="municipality-map" className="h-[60vh] min-h-[420px] scroll-mt-24 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]" aria-label={`Kort over BBR-registreringer af sikringsrumspladser i ${municipalityName}`}>
         <KommuneMap
           groups={groups}
           selectedGroupKey={selectedGroupKey}

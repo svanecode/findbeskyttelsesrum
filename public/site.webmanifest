@@ -1,7 +1,7 @@
 {
   "name": "Find Beskyttelsesrum",
   "short_name": "Beskyttelsesrum",
-  "description": "Find det nærmeste beskyttelsesrum i dit område",
+  "description": "Orientér dig i BBR-registreringer af sikringsrumspladser i Danmark",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0a",
@@ -27,4 +27,4 @@
   "lang": "da",
   "dir": "ltr",
   "orientation": "portrait-primary"
-} 
+}

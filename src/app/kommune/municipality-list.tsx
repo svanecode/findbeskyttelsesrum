@@ -30,7 +30,7 @@ export default function MunicipalityList({ municipalities }: { municipalities: A
             setQuery(event.target.value)
             setVisibleCount(pageSize)
           }}
-          className="mt-2 min-h-[48px] w-full rounded-lg border border-white/15 bg-black/20 px-4 text-base text-white placeholder:text-gray-500 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30"
+          className="mt-2 min-h-[48px] w-full rounded-lg border border-white/15 bg-black/20 px-4 text-base text-white placeholder:text-gray-400 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30"
           placeholder="Eksempelvis København"
         />
         <p className="mt-2 text-sm text-gray-400" role="status" aria-live="polite">
@@ -50,11 +50,11 @@ export default function MunicipalityList({ municipalities }: { municipalities: A
               <Link
                 href={`/kommune/${municipality.slug}`}
                 className="flex min-h-[64px] flex-col gap-2 px-5 py-4 transition hover:bg-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-                aria-label={`${municipality.name}, ${municipality.activeShelterCount.toLocaleString('da-DK')} beskyttelsesrum, ${municipality.activeShelterTotalCapacity.toLocaleString('da-DK')} registrerede pladser`}
+                aria-label={`${municipality.name}, ${municipality.activeShelterCount.toLocaleString('da-DK')} BBR-registreringer, ${municipality.activeShelterTotalCapacity.toLocaleString('da-DK')} BBR-registrerede pladser`}
               >
                 <span className="font-medium text-white">{municipality.name}</span>
                 <span className="flex flex-col gap-1 text-sm tabular-nums text-gray-300 sm:items-end">
-                  <span>{municipality.activeShelterCount.toLocaleString('da-DK')} beskyttelsesrum · {municipality.activeShelterTotalCapacity.toLocaleString('da-DK')} pladser</span>
+                  <span>{municipality.activeShelterCount.toLocaleString('da-DK')} BBR-registreringer · {municipality.activeShelterTotalCapacity.toLocaleString('da-DK')} pladser</span>
                   <span className="font-medium text-white">Se kommune</span>
                 </span>
               </Link>

@@ -17,7 +17,8 @@
 
 .user-location-marker,
 .shelter-marker,
-.shelter-marker-hovered {
+.shelter-marker-hovered,
+.shelter-marker-selected {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -59,13 +60,11 @@
 }
 
 .leaflet-control-container .leaflet-control {
-  background: rgba(26, 26, 26, 0.88) !important;
+  background: #1a1a1a !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   border-radius: 0.75rem !important;
   overflow: hidden !important;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
 }
 
 .leaflet-control-attribution {
@@ -134,17 +133,21 @@
   }
 }
 
+@media (max-width: 1023px) {
+  .nearby-map .leaflet-popup {
+    display: none;
+  }
+}
+
 /* Popup styling */
 .leaflet-popup .leaflet-popup-content-wrapper {
-  background: rgba(26, 26, 26, 0.92) !important;
+  background: #1a1a1a !important;
   color: var(--text-primary) !important;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
   box-shadow:
     0 18px 50px rgba(0, 0, 0, 0.45),
     inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
 }
 
 .leaflet-popup .leaflet-popup-tip {
@@ -311,7 +314,7 @@
   --font-extrabold: 800;
 }
 
-@theme inline {
+:root {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-accent: var(--accent);
@@ -319,8 +322,8 @@
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-tertiary: var(--text-tertiary);
-  --font-sans: var(--font-poppins);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -339,14 +342,7 @@
 }
 
 body {
-  background: 
-    radial-gradient(circle at 50% 50%, rgba(249, 115, 22, 0.03) 0%, transparent 50%),
-    linear-gradient(to bottom, rgba(17, 17, 17, 0.8), rgba(17, 17, 17, 1)),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M0 0h100v100H0z' fill='none'/%3E%3Cpath d='M20 20h60v60H20z' stroke='rgba(249,115,22,0.05)' stroke-width='0.5' fill='none'/%3E%3Cpath d='M10 10h80v80H10z' stroke='rgba(249,115,22,0.05)' stroke-width='0.5' fill='none'/%3E%3C/svg%3E");
-  background-attachment: fixed;
-  background-size: cover, cover, 200px 200px, 100px 100px;
-  background-blend-mode: normal, normal, overlay, overlay;
+  background: var(--surface-page);
   color: var(--text-primary);
   font-family: var(--font-sans);
   position: relative;
@@ -357,19 +353,7 @@ body {
 }
 
 body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    radial-gradient(circle at 50% 50%, rgba(249, 115, 22, 0.03) 0%, transparent 50%),
-    linear-gradient(to bottom, rgba(17, 17, 17, 0.8), rgba(17, 17, 17, 1)),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  opacity: 0.1;
-  pointer-events: none;
-  z-index: -1;
+  display: none;
 }
 
 @keyframes backgroundFadeIn {
@@ -511,21 +495,19 @@ input:focus:not(:focus-visible) {
 /* Improved button styles with better contrast */
 .btn-primary {
   background-color: var(--accent);
-  color: white;
+  color: #0a0a0a;
   border: 2px solid var(--accent);
   min-height: 44px;
   min-width: 44px;
   padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .btn-primary:hover {
   background-color: var(--accent-hover);
   border-color: var(--accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgb(var(--accent-rgb) / 0.3);
 }
 
 .btn-primary:focus-visible {
@@ -940,24 +922,15 @@ input:focus:not(:focus-visible) {
 .btn-interactive {
   position: relative;
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .btn-interactive:active {
-  animation: button-press 0.15s ease;
+  animation: none;
 }
 
 .btn-interactive::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
+  display: none;
 }
 
 .btn-interactive:active::before {
@@ -967,27 +940,27 @@ input:focus:not(:focus-visible) {
 
 /* Enhanced input interactions */
 .input-interactive {
-  transition: all 0.3s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
   position: relative;
 }
 
 .input-interactive:focus {
-  animation: input-focus-glow 0.6s ease;
+  animation: none;
 }
 
 /* Card hover effects */
 .card-interactive {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .card-interactive:hover {
-  animation: card-hover 0.3s ease forwards;
+  animation: none;
 }
 
 /* Loading animations */
 .loading-dots::after {
-  content: '...';
-  animation: loading-dots 1.4s infinite;
+  content: '…';
+  animation: none;
 }
 
 .loading-pulse {
@@ -996,7 +969,7 @@ input:focus:not(:focus-visible) {
 
 /* Success state animation */
 .success-animation {
-  animation: success-check 0.5s ease;
+  animation: none;
 }
 
 /* Skeleton loading */
@@ -1062,4 +1035,3 @@ input:focus:not(:focus-visible) {
 .marker-cluster span {
   line-height: 30px;
 }
-

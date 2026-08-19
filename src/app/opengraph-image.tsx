@@ -43,7 +43,7 @@ export default function OpenGraphImage() {
             fontFamily: "ui-sans-serif, system-ui, sans-serif",
           }}
         >
-          Oversigt over registrerede beskyttelsesrum i Danmark
+          Oversigt over BBR-registreringer af sikringsrumspladser i Danmark
         </div>
         <div
           style={{

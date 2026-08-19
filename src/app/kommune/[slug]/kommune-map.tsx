@@ -145,7 +145,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
         whenReady={handleMapReady}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           maxZoom={18}
         />
@@ -177,7 +177,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
                 position={[group.latitude as number, group.longitude as number]}
                 icon={icon}
                 title={`${group.addressLine1}, ${group.postalCode} ${group.city}`}
-                alt={`Beskyttelsesrum ved ${group.addressLine1}`}
+                alt={`BBR-registrering ved ${group.addressLine1}`}
                 eventHandlers={{
                   click: () => onMarkerClick(group.groupKey),
                 }}

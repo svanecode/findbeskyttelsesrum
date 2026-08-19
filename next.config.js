@@ -16,6 +16,7 @@ function contentSecurityPolicyValue() {
   const connectSrc = [
     "'self'",
     supabase,
+    'https://tile.openstreetmap.org',
     'https://*.tile.openstreetmap.org',
     'https://*.vercel-scripts.com',
     'https://*.vercel-insights.com',
@@ -48,7 +49,7 @@ function contentSecurityPolicyValue() {
     "default-src 'self'",
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.vercel.app",
-    "img-src 'self' data: https://*.tile.openstreetmap.org https://raw.githubusercontent.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://tiles.stadiamaps.com https://tiles.maptiler.com https://*.vercel.app",
+    "img-src 'self' data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://raw.githubusercontent.com blob: https://*.openstreetmap.org https://*.tile.osm.org https://*.basemaps.cartocdn.com https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://tiles.stadiamaps.com https://tiles.maptiler.com https://*.vercel.app",
     "font-src 'self' https://fonts.gstatic.com data: https://*.vercel.app",
     `connect-src ${connectSrc.join(' ')}`,
     "frame-src 'self' https://www.openstreetmap.org",

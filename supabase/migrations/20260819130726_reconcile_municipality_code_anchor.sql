@@ -1,3 +1,5 @@
+-- Record the municipality code schema drift that already exists remotely so
+-- fresh databases and future migration pushes share the same history.
 alter table app_v2.municipalities
 add column if not exists code text;
 

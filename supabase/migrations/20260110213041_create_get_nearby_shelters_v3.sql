@@ -114,4 +114,4 @@ GRANT EXECUTE ON FUNCTION get_nearby_shelters_v3 TO anon;
 
 -- Add comment
 COMMENT ON FUNCTION get_nearby_shelters_v3 IS 
-'Optimized function to find nearest 10 shelters using spatial index (ST_DWithin) and excluding owner-requested addresses. Returns shelters within specified radius (default 50km), ordered by distance.';
+'Optimized function to find nearest 10 shelters using spatial index (ST_DWithin) and excluding owner-requested addresses. Returns shelters within specified radius (default 50km), ordered by distance.';;

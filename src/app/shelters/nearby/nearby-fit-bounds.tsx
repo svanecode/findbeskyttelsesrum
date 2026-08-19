@@ -34,13 +34,13 @@ export function NearbyFitBounds({ userLocation, shelters }: NearbyFitBoundsProps
     }
 
     if (shelters.filter((s) => s.location).length === 0) {
-      map.setView(userLocation, 13, { animate: true })
+      map.setView(userLocation, 13, { animate: false })
     } else {
       const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
       map.fitBounds(bounds, {
         padding: isMobile ? [30, 30] : [50, 50],
         maxZoom: 16,
-        animate: true,
+        animate: false,
       })
     }
 

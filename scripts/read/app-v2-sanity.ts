@@ -71,7 +71,8 @@ function getPublicEnv(): SanityEnv {
 }
 
 /**
- * PostgREST checks: anon must not read base tables; public views must exist and return sample rows.
+ * PostgREST checks: anon must not read base tables; the current versioned
+ * public views must exist and return sample rows.
  */
 async function assertAnonPublicReadModel(): Promise<string[]> {
   const env = getPublicEnv();
@@ -93,14 +94,14 @@ async function assertAnonPublicReadModel(): Promise<string[]> {
   }
 
   const shelterSample = await pub
-    .from("shelter_public")
+    .from("shelter_public_v2")
     .select("slug, municipality_id, capacity, source_application_code")
     .limit(5);
 
   if (shelterSample.error) {
-    failures.push(`shelter_public: ${shelterSample.error.message}`);
+    failures.push(`shelter_public_v2: ${shelterSample.error.message}`);
   } else if (!shelterSample.data?.length) {
-    failures.push("shelter_public: expected ≥1 row");
+    failures.push("shelter_public_v2: expected ≥1 row");
   } else {
     const bad = shelterSample.data.find(
       (row) =>
@@ -111,19 +112,19 @@ async function assertAnonPublicReadModel(): Promise<string[]> {
         !row.source_application_code,
     );
     if (bad) {
-      failures.push("shelter_public: row missing slug, municipality_id, capacity, or source_application_code");
+      failures.push("shelter_public_v2: row missing slug, municipality_id, capacity, or source_application_code");
     }
   }
 
   const markerSample = await pub
-    .from("country_marker_public")
+    .from("country_marker_public_v2")
     .select("slug, latitude, longitude, capacity")
     .limit(5);
 
   if (markerSample.error) {
-    failures.push(`country_marker_public: ${markerSample.error.message}`);
+    failures.push(`country_marker_public_v2: ${markerSample.error.message}`);
   } else if (!markerSample.data?.length) {
-    failures.push("country_marker_public: expected ≥1 row");
+    failures.push("country_marker_public_v2: expected ≥1 row");
   } else {
     const bad = markerSample.data.find(
       (row) =>
@@ -134,33 +135,33 @@ async function assertAnonPublicReadModel(): Promise<string[]> {
         row.longitude === undefined,
     );
     if (bad) {
-      failures.push("country_marker_public: row missing slug or coordinates");
+      failures.push("country_marker_public_v2: row missing slug or coordinates");
     }
   }
 
-  const sitemapSample = await pub.from("sitemap_shelter_public").select("slug").limit(5);
+  const sitemapSample = await pub.from("sitemap_shelter_public_v2").select("slug").limit(5);
 
   if (sitemapSample.error) {
-    failures.push(`sitemap_shelter_public: ${sitemapSample.error.message}`);
+    failures.push(`sitemap_shelter_public_v2: ${sitemapSample.error.message}`);
   } else if (!sitemapSample.data?.length) {
-    failures.push("sitemap_shelter_public: expected ≥1 row");
+    failures.push("sitemap_shelter_public_v2: expected ≥1 row");
   } else {
     const bad = sitemapSample.data.find((row) => !row.slug);
     if (bad) {
-      failures.push("sitemap_shelter_public: row missing slug");
+      failures.push("sitemap_shelter_public_v2: row missing slug");
     }
   }
 
-  const muniSample = await pub.from("municipality_public").select("id, slug, name").limit(5);
+  const muniSample = await pub.from("municipality_public_v2").select("id, slug, name").limit(5);
 
   if (muniSample.error) {
-    failures.push(`municipality_public: ${muniSample.error.message}`);
+    failures.push(`municipality_public_v2: ${muniSample.error.message}`);
   } else if (!muniSample.data?.length) {
-    failures.push("municipality_public: expected ≥1 row");
+    failures.push("municipality_public_v2: expected ≥1 row");
   } else {
     const bad = muniSample.data.find((row) => !row.id || !row.slug || !row.name);
     if (bad) {
-      failures.push("municipality_public: row missing id, slug, or name");
+      failures.push("municipality_public_v2: row missing id, slug, or name");
     }
   }
 

@@ -1,15 +1,16 @@
-# Emergency utility checklist (manual QA)
+# Orienteringsværktøj: manuel QA-checkliste
 
-Denne checkliste bruges før preview/prod release for at sikre, at Findbeskyttelsesrum fungerer som en akut nyttefunktion.
+Denne checkliste bruges før preview/prod release for at sikre, at Findbeskyttelsesrum er et tydeligt og ansvarligt
+orienteringsværktøj baseret på BBR-registreringer.
 
 ## A. Primær brugerrejse
 
 - [ ] Åbn `/`
 - [ ] Søg på en adresse (fx vejnavn + nummer)
 - [ ] Vælg et forslag i autocomplete
-- [ ] Bekræft at du lander på `/shelters/nearby?lat=...&lng=...`
+- [ ] Bekræft at du lander på `/shelters/nearby` uden adresse eller koordinater i URL'en
 - [ ] Åbn nærmeste resultat
-- [ ] Start navigation
+- [ ] Åbn adressen i kort som en sekundær handling
 - [ ] Gå tilbage til søgning (til `/`) og gentag med en ny adresse
 
 ## B. Mobil-checks
@@ -17,9 +18,9 @@ Denne checkliste bruges før preview/prod release for at sikre, at Findbeskyttel
 - [ ] Forsidens søgning er synlig hurtigt (uden at scroll)
 - [ ] “Brug min placering” er synlig og tydelig
 - [ ] På `/shelters/nearby` vises **listen før kortet** på mobil
-- [ ] Hvert resultat har **“Åbn”** og (hvis koordinater findes) **“Rute”**
-- [ ] Detaljesiden har sticky bund-CTA: **“Navigér hertil”** (hvis koordinater findes)
-- [ ] Detaljesiden viser **adresse, kapacitet, status, kilde/dato** før rapport-/sekundære elementer
+- [ ] Hvert resultat viser **afstand i luftlinje**, BBR-labels og **“Se detaljer”**
+- [ ] Der findes ingen sticky navigations-CTA
+- [ ] Detaljesiden viser **adresse, kapacitet, adgangsforbehold, datakilde og importdato**
 
 ## C. Copy-checks
 
@@ -29,21 +30,21 @@ Denne checkliste bruges før preview/prod release for at sikre, at Findbeskyttel
 - [ ] Ingen demo-links som “Prøv København”
 - [ ] Ingen tekniske UI-ord som “parametre”, “provider”, “geocoding”, “source context”
 - [ ] “Bygger på offentlige registerdata” bruges hvor relevant
-- [ ] “Følg altid myndighedernes anvisninger” findes på primære trust paths (søg/resultat/detalje)
+- [ ] “Ikke en evakueringsanvisning” og myndighedsvejledning findes på primære tillidsstier
 
 ## D. Fejl- og tomme states
 
 - [ ] **Placering afvist** i browser: brugeren får en brugbar fejl og kan fortsætte med adresse
-- [ ] **Ugyldige koordinater** på `/shelters/nearby?lat=...&lng=...` giver dansk, praktisk fejltekst
+- [ ] Gammelt link med ugyldige koordinater renses og giver dansk, praktisk fejltekst
 - [ ] **Adresseopslag fejler** (DAWA nede): brugeren får dansk besked og kan bruge placering
-- [ ] **Ingen forslag** ved adresseinput: “Søg” kan stadig prøves uden at bryde flow
-- [ ] **Ingen nærliggende resultater**: “Vi fandt ikke et beskyttelsesrum” + næste skridt + links
+- [ ] **Ingen forslag** ved adresseinput: der vises en forklaring, og “Søg” er deaktiveret, indtil en gyldig adresse er valgt
+- [ ] **Ingen nærliggende resultater**: “Ingen registreringer i resultatet” + næste skridt + links
 - [ ] **Kort-fejl / kort indlæser ikke**: listen er stadig brugbar
-- [ ] **Detaljeside uden koordinater**: siden er stadig brugbar, og navigation-CTA er skjult/erstattet
+- [ ] **Detaljeside uden koordinater**: siden er stadig brugbar, og kortlinket er skjult
 
 ## E. Sekundære sider
 
-For hver side: tjek at den er sekundær og linker tydeligt tilbage til “Find nærmeste beskyttelsesrum”.
+For hver side: tjek at den er sekundær og linker tydeligt tilbage til forsiden.
 
 - [ ] `/kommune`
 - [ ] `/kommune/[slug]`
@@ -67,3 +68,12 @@ For hver side: tjek at den er sekundær og linker tydeligt tilbage til “Find n
 - [ ] `/kort` (hvis til stede) embedder ikke fuld marker-payload i HTML (skal hentes klient-side)
 - [ ] Ingen stor payload blev tilføjet til forsiden i denne hardening-pass
 
+## H. Automatiske releasekontroller
+
+- [ ] `npm run test:release` består mod en produktionsbygning
+- [ ] Playwright består i desktop- og mobilprofil
+- [ ] Axe finder ingen automatiserbart registrerbare WCAG A/AA-fejl på nøglesiderne
+- [ ] Afvist placering, DAWA-fejl samt nearby-fejl 429, 502 og 504 giver brugbare danske fejltilstande
+- [ ] Adresseflowet forlader ikke adresse eller koordinater i resultat-URL'en
+- [ ] Rapporteringsflowet er testet uden at skrive testdata til moderationskøen
+- [ ] `npm run monitor:production` består for forside, database, DAWA, nearby, kort, kommune og detaljeside

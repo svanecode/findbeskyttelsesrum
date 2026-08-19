@@ -38,7 +38,9 @@ function parseDawaSuggestion(raw: unknown): DawaSuggestion | null {
   };
 }
 
-export function suggestionHasCoordinates(s: DawaSuggestion): boolean {
+export function suggestionHasCoordinates(
+  s: DawaSuggestion,
+): s is DawaSuggestion & { data: DawaSuggestion["data"] & { x: number; y: number } } {
   return (
     typeof s.data.x === "number" &&
     Number.isFinite(s.data.x) &&

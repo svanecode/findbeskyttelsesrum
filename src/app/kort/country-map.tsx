@@ -58,7 +58,7 @@ function MapLoadingSkeleton() {
       className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 bg-[var(--surface-elevated)] md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
       role="status"
       aria-live="polite"
-      aria-label="Indlæser kort over beskyttelsesrum"
+      aria-label="Indlæser kort over BBR-registreringer"
     >
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -162,7 +162,7 @@ export default function CountryMap() {
         const marker = L.marker([s.latitude, s.longitude], {
           icon,
           title: `${s.addressLine1}, ${s.postalCode} ${s.city}`.trim(),
-          alt: `Beskyttelsesrum ved ${s.addressLine1}`,
+          alt: `BBR-registrering ved ${s.addressLine1}`,
         });
         // Match kommune-kortets popup sizing (use popup-html + shared CSS)
         marker.bindPopup(buildPopupHtml(s, anvendelse), { className: "fb-popup" });
@@ -288,7 +288,7 @@ export default function CountryMap() {
   return (
     <div
       className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
-      aria-label="Kort over registrerede beskyttelsesrum i Danmark. Zoom og klik på klynger for at se enkeltsteder."
+      aria-label="Kort over BBR-registreringer af sikringsrumspladser i Danmark. Zoom og klik på klynger for at se enkeltsteder."
     >
       {!markersReady ? (
         <div
@@ -310,7 +310,7 @@ export default function CountryMap() {
         className="leaflet-container z-0"
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
 

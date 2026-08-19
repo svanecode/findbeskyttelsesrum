@@ -1,5 +1,8 @@
 # Emergency utility hardening review
 
+> Historisk dokument. Produktløftet og QA-kravene nedenfor er afløst af 2026-08-sprinten for sandhed, sikkerhed og
+> privatliv. Brug `emergency-copy-standard.md` og `emergency-utility-checklist.md` som aktuelle releasekriterier.
+
 Denne note opsummerer hardening-pass’et og fungerer som release-gate sammen med den manuelle checklist.
 
 ## Hvad blev ændret (kort)
@@ -103,4 +106,3 @@ Søgt efter: `v2`, `Officielle data`, `officielle data`, `Prøv København`, `Ud
 - Geolocation “placering afvist” (permissions) på flere enheder/browsere.
 - DAWA autocomplete: forslag + “Søg” flow ved realistiske adresser.
 - “Rute”/“Navigér hertil” destinations-koordinater verificeres for flere tilfældige shelters.
-

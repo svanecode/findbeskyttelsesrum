@@ -12,11 +12,11 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Landskort",
-  description: "Landskort med registrerede beskyttelsesrum i Danmark.",
+  description: "Orienterende landskort med BBR-registreringer af sikringsrumspladser i Danmark.",
   alternates: { canonical: "/kort" },
   openGraph: {
     title: "Landskort",
-    description: "Landskort med registrerede beskyttelsesrum i Danmark.",
+    description: "Orienterende landskort med BBR-registreringer af sikringsrumspladser i Danmark.",
     type: "website",
     url: `${siteUrl}/kort`,
     siteName: "Find Beskyttelsesrum",
@@ -55,11 +55,11 @@ export default async function CountryMapPage() {
 
         <section className="mb-6 grid gap-3 sm:grid-cols-2" aria-label="Nøgletal for kortet">
           <StatCard
-            label="Beskyttelsesrum på kortet"
+            label="BBR-registreringer på kortet"
             value={totalCount.toLocaleString("da-DK")}
           />
           <StatCard
-            label="Registrerede pladser"
+            label="BBR-registrerede pladser"
             value={totalCapacity.toLocaleString("da-DK")}
           />
         </section>
@@ -67,9 +67,9 @@ export default async function CountryMapPage() {
 
       <section className="w-full px-4 pb-12 sm:px-6 lg:px-8" aria-label="Interaktivt landskort">
         <div className="mx-auto max-w-7xl">
-          <p className="mb-3 max-w-3xl text-xs leading-relaxed text-gray-500 sm:text-sm">
+          <p className="mb-3 max-w-3xl text-xs leading-relaxed text-gray-400 sm:text-sm">
             Zoom ind og klik på punktgrupper for at se enkelte steder. Kortet er bedst med mus eller touch; for præcis
-            søgning efter nærmeste beskyttelsesrum, brug forsiden.
+            søgning efter BBR-registreringer i nærheden, brug forsiden.
           </p>
           <CountryMapExperience />
         </div>

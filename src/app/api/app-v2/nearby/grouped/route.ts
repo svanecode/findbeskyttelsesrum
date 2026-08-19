@@ -235,7 +235,28 @@ function isMissingAppV2EnvError(error: unknown) {
   return error instanceof Error && error.message.includes("Missing NEXT_PUBLIC_SUPABASE");
 }
 
-export async function GET(request: NextRequest) {
+function isRequestBody(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function searchParamsFromRequestBody(value: unknown) {
+  if (!isRequestBody(value)) return null;
+
+  const searchParams = new URLSearchParams();
+  for (const key of ["lat", "lng", "radius", "limit", "candidateLimit"] as const) {
+    const field = value[key];
+    if (typeof field === "string" || typeof field === "number") {
+      searchParams.set(key, String(field));
+    }
+  }
+  return searchParams;
+}
+
+async function handleNearbyRequest(
+  request: NextRequest,
+  searchParams: URLSearchParams,
+  debugMeta = false,
+) {
   const requestId = getRequestId();
   if (!rateLimit(request, { maxRequests: 30, windowMs: 60_000 }, "nearby")) {
     return NextResponse.json(
@@ -247,8 +268,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const debugMeta = process.env.NODE_ENV !== "production" && request.nextUrl.searchParams.get("debug") === "1";
-  const validation = validateNearbyRequest(request.nextUrl.searchParams);
+  const validation = validateNearbyRequest(searchParams);
 
   if (!validation.ok) {
     return errorResponse({
@@ -276,7 +296,11 @@ export async function GET(request: NextRequest) {
       contract: apiContract,
       source: apiSource,
       resultCount: result.rows.length,
-      query: validation.value,
+      query: {
+        radiusMeters: validation.value.radiusMeters,
+        limit: validation.value.limit,
+        candidateLimit: validation.value.candidateLimit,
+      },
     };
 
     return NextResponse.json(
@@ -318,4 +342,35 @@ export async function GET(request: NextRequest) {
       requestId,
     });
   }
+}
+
+export async function GET(request: NextRequest) {
+  const debugMeta = process.env.NODE_ENV !== "production" && request.nextUrl.searchParams.get("debug") === "1";
+  return handleNearbyRequest(request, request.nextUrl.searchParams, debugMeta);
+}
+
+export async function POST(request: NextRequest) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse({
+      status: 400,
+      code: "invalid_grouped_nearby_body",
+      message: "The nearby request body must be valid JSON.",
+      requestId: getRequestId(),
+    });
+  }
+
+  const searchParams = searchParamsFromRequestBody(body);
+  if (!searchParams) {
+    return errorResponse({
+      status: 400,
+      code: "invalid_grouped_nearby_body",
+      message: "The nearby request body must be a JSON object.",
+      requestId: getRequestId(),
+    });
+  }
+
+  return handleNearbyRequest(request, searchParams);
 }

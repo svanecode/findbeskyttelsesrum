@@ -86,4 +86,4 @@ comment on column app_v2.shelter_exclusions.legacy_bygning_id is
 'Legacy sheltersv2 bygning_id retained for parity with public.excluded_shelters matching.';
 
 comment on column app_v2.shelter_exclusions.source is
-'Origin of the exclusion request. legacy_excluded_shelters is reserved for migrated public.excluded_shelters rows.';
+'Origin of the exclusion request. legacy_excluded_shelters is reserved for migrated public.excluded_shelters rows.';;
