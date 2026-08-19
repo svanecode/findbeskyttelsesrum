@@ -209,4 +209,4 @@ using (
     where app_v2.shelters.id = shelter_sources.shelter_id
       and app_v2.shelters.import_state = 'active'
   )
-);
+);;

@@ -38,13 +38,24 @@ export default function SiteHeader() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const firstMobileLinkRef = useRef<HTMLAnchorElement>(null)
 
-  const close = useCallback(() => setOpen(false), [])
+  const close = useCallback((restoreFocus = false) => {
+    setOpen(false)
+    if (restoreFocus) requestAnimationFrame(() => menuButtonRef.current?.focus())
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const frame = requestAnimationFrame(() => firstMobileLinkRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
+      if (e.key === 'Escape') close(true)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -63,7 +74,7 @@ export default function SiteHeader() {
   return (
     <header
       ref={rootRef}
-      className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0a]/80 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md"
+      className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0a] pt-[env(safe-area-inset-top,0px)]"
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-[max(1rem,env(safe-area-inset-left,0px))] py-4 pr-[max(1rem,env(safe-area-inset-right,0px))] sm:px-6 lg:px-8">
         <Link
@@ -90,6 +101,7 @@ export default function SiteHeader() {
         </nav>
 
         <button
+          ref={menuButtonRef}
           type="button"
           className="inline-flex h-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-gray-300 transition-colors hover:bg-white/10 hover:text-white md:hidden"
           aria-expanded={open}
@@ -115,15 +127,16 @@ export default function SiteHeader() {
           className="flex flex-col border-t border-white/10 px-[max(1rem,env(safe-area-inset-left,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] pt-1 sm:px-6 md:hidden lg:px-8"
           aria-label="Hovednavigation"
         >
-          {NAV.map(({ href, label, active }) => {
+          {NAV.map(({ href, label, active }, index) => {
             const isActive = active(pathname)
             return (
               <Link
+                ref={index === 0 ? firstMobileLinkRef : undefined}
                 key={href}
                 href={href}
                 className={mobileNavClass(isActive)}
                 aria-current={isActive ? 'page' : undefined}
-                onClick={close}
+                onClick={() => close()}
               >
                 {label}
               </Link>

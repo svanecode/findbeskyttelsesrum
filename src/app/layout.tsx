@@ -29,12 +29,12 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Find Beskyttelsesrum | Find nærmeste beskyttelsesrum",
+    default: "Find Beskyttelsesrum | Se BBR-registreringer nær dig",
     template: "%s | Find Beskyttelsesrum"
   },
   description:
-    "Find registrerede beskyttelsesrum i Danmark. Følg altid myndighedernes anvisninger.",
-  keywords: ["find beskyttelsesrum", "beskyttelsesrum", "find nærmeste beskyttelsesrum", "nødstilfælde", "sikkerhed", "Danmark", "shelter", "emergency", "sikringspladser", "civilforsvar", "nødsituation", "beskyttelse", "sikkerhedsrum"],
+    "Orientér dig i BBR-registreringer af sikringsrumspladser. Adgang, klargøring og fysisk stand er ikke bekræftet.",
+  keywords: ["find beskyttelsesrum", "beskyttelsesrum", "BBR-registrering", "sikringsrum", "sikringsrumspladser", "Danmark", "civilforsvar"],
   authors: [{ name: siteName }],
   creator: siteName,
   publisher: siteName,
@@ -74,9 +74,9 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: "Find Beskyttelsesrum | Find nærmeste beskyttelsesrum",
+    title: "Find Beskyttelsesrum | Se BBR-registreringer nær dig",
     description:
-      "Find registrerede beskyttelsesrum i Danmark. Følg altid myndighedernes anvisninger.",
+      "Orientér dig i BBR-registreringer af sikringsrumspladser. Adgang, klargøring og fysisk stand er ikke bekræftet.",
     url: siteUrl,
     siteName,
     locale: siteLocale,
@@ -84,9 +84,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Find Beskyttelsesrum | Find nærmeste beskyttelsesrum",
+    title: "Find Beskyttelsesrum | Se BBR-registreringer nær dig",
     description:
-      "Find registrerede beskyttelsesrum i Danmark. Følg altid myndighedernes anvisninger.",
+      "Orientér dig i BBR-registreringer af sikringsrumspladser. Adgang, klargøring og fysisk stand er ikke bekræftet.",
     creator: '@beskyttelsesrum',
   },
   robots: {

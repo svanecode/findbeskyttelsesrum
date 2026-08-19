@@ -6,16 +6,18 @@ import { siteUrl } from "@/lib/seo/site";
 import MunicipalityList from "./municipality-list";
 
 export const revalidate = 86400;
+/** Requires the versioned public read model. Keep deployment builds independent of database rollout order. */
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Kommuneoversigt",
-  description: "Oversigt over kommuner med beskyttelsesrum i det viste register.",
+  description: "Oversigt over kommuner med viste BBR-registreringer af sikringsrumspladser.",
   alternates: {
     canonical: "/kommune",
   },
   openGraph: {
     title: "Kommuneoversigt",
-    description: "Oversigt over kommuner med beskyttelsesrum i det viste register.",
+    description: "Oversigt over kommuner med viste BBR-registreringer af sikringsrumspladser.",
     type: "website",
     locale: "da_DK",
     siteName: "Find Beskyttelsesrum",
@@ -51,12 +53,12 @@ export default async function MunicipalityOverviewPage() {
           </h1>
           <p className="text-lg tabular-nums text-gray-300">
             {publicShelterCount === 1
-              ? "1 beskyttelsesrum"
-              : `${publicShelterCount.toLocaleString("da-DK")} beskyttelsesrum`}
-            <span className="text-gray-500"> · </span>
+              ? "1 BBR-registrering"
+              : `${publicShelterCount.toLocaleString("da-DK")} BBR-registreringer`}
+            <span className="text-gray-400"> · </span>
             {totalCapacity === 1
-              ? "1 registreret plads"
-              : `${totalCapacity.toLocaleString("da-DK")} registrerede pladser`}
+              ? "1 BBR-registreret plads"
+              : `${totalCapacity.toLocaleString("da-DK")} BBR-registrerede pladser`}
           </p>
         </header>
 

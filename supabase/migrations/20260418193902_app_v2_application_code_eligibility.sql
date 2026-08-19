@@ -69,4 +69,4 @@ begin
           notes = excluded.notes;
   end if;
 end;
-$$;
+$$;;

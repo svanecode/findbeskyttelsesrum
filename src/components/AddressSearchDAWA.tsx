@@ -9,10 +9,34 @@ import {
   suggestionHasCoordinates,
   type DawaSuggestion,
 } from '@/lib/dawa/autocomplete'
+import { saveNearbySearchContext } from '@/lib/nearby/search-context'
 
 const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'
 
 const DAWA_LISTBOX_ID = 'dawa-address-suggestions'
+
+type SelectedAddress = {
+  label: string
+  latitude: number
+  longitude: number
+}
+
+function getGeolocationErrorMessage(error: unknown) {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const code = Number((error as { code?: unknown }).code)
+    if (code === 1) {
+      return 'Du har afvist adgang til din placering. Søg efter en adresse i stedet, eller tillad placering i browserens indstillinger.'
+    }
+    if (code === 3) {
+      return 'Din placering kunne ikke hentes inden for 10 sekunder. Prøv igen, eller søg efter en adresse.'
+    }
+    if (code === 2) {
+      return 'Din placering er ikke tilgængelig lige nu. Prøv igen, eller søg efter en adresse.'
+    }
+  }
+
+  return 'Din placering kunne ikke hentes. Prøv igen, eller søg efter en adresse.'
+}
 
 export default function AddressSearchDAWA() {
   const [query, setQuery] = useState('')
@@ -21,14 +45,36 @@ export default function AddressSearchDAWA() {
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [hasFailed, setHasFailed] = useState(false)
-  const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
+  const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null)
   const [gpsLoading, setGpsLoading] = useState(false)
+  const [gpsError, setGpsError] = useState<string | null>(null)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [hasNoResults, setHasNoResults] = useState(false)
   const router = useRouter()
   const { handleError } = useErrorHandler()
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const cursorPosRef = useRef(0)
+
+  const navigateToNearby = useCallback(
+    (search: SelectedAddress) => {
+      const saved = saveNearbySearchContext({
+        latitude: search.latitude,
+        longitude: search.longitude,
+        label: search.label,
+      })
+
+      if (!saved) {
+        setSearchError('Din browser blokerer midlertidig lagring af søgningen. Tillad sessionsdata, og prøv igen.')
+        return
+      }
+
+      setSearchError(null)
+      router.push('/shelters/nearby')
+    },
+    [router],
+  )
 
   const syncCaretFromInput = useCallback(() => {
     const el = inputRef.current
@@ -42,16 +88,16 @@ export default function AddressSearchDAWA() {
     (suggestion: DawaSuggestion) => {
       if (suggestionHasCoordinates(suggestion)) {
         const label = (suggestion.forslagstekst ?? suggestion.tekst).trim()
-        setSelectedAddress(label)
+        setSelectedAddress({
+          label,
+          latitude: suggestion.data.y,
+          longitude: suggestion.data.x,
+        })
         setIsOpen(false)
         setActiveIndex(null)
-        setQuery(suggestion.tekst.trimEnd())
-        const params = new URLSearchParams({
-          lat: String(suggestion.data.y),
-          lng: String(suggestion.data.x),
-          q: label,
-        })
-        router.push(`/shelters/nearby?${params.toString()}`)
+        setHasNoResults(false)
+        setSearchError(null)
+        setQuery(label)
         return
       }
 
@@ -71,69 +117,66 @@ export default function AddressSearchDAWA() {
         el.setSelectionRange(pos, pos)
       })
     },
-    [router],
+    [],
   )
 
-  const canSubmit = useMemo(() => query.trim().length >= 2 && !hasFailed, [query, hasFailed])
+  const canSubmit = useMemo(() => selectedAddress !== null && !hasFailed, [selectedAddress, hasFailed])
 
   const handleSubmit = useCallback(
     async (event: FormEvent) => {
       event.preventDefault()
 
       if (!canSubmit) {
-        inputRef.current?.focus()
-        return
-      }
-
-      syncCaretFromInput()
-
-      const active =
-        activeIndex !== null && suggestions[activeIndex] ? suggestions[activeIndex] : suggestions[0]
-
-      if (active) {
-        selectSuggestion(active)
-        return
-      }
-
-      try {
-        setIsLoading(true)
-        const results = await fetchAddressSuggestions(query, {
-          limit: 5,
-          caretpos: cursorPosRef.current,
-        })
-        if (results.length > 0) {
-          selectSuggestion(results[0])
+        if (query.trim().length < 2) {
+          inputRef.current?.focus()
           return
         }
-        setIsOpen(false)
-        setActiveIndex(null)
-      } catch (error) {
-        handleError(error instanceof Error ? error : new Error('DAWA autocomplete failed'), 'DAWA Autocomplete failed')
-      } finally {
-        setIsLoading(false)
+
+        syncCaretFromInput()
+        try {
+          setIsLoading(true)
+          const results = await fetchAddressSuggestions(query, {
+            limit: 5,
+            caretpos: cursorPosRef.current,
+          })
+          setSuggestions(results)
+          setIsOpen(results.length > 0)
+          setActiveIndex(results.length > 0 ? 0 : null)
+          setHasNoResults(results.length === 0)
+        } catch (error) {
+          handleError(error instanceof Error ? error : new Error('DAWA autocomplete failed'), 'DAWA Autocomplete failed')
+        } finally {
+          setIsLoading(false)
+        }
+        return
       }
+
+      if (selectedAddress) navigateToNearby(selectedAddress)
     },
-    [activeIndex, canSubmit, handleError, query, selectSuggestion, suggestions, syncCaretFromInput],
+    [canSubmit, handleError, navigateToNearby, query, selectedAddress, syncCaretFromInput],
   )
 
   const handleLocationClick = async () => {
     if (!navigator.geolocation) {
+      setGpsError('Denne browser understøtter ikke placering. Søg efter en adresse i stedet.')
       handleError(new Error('Geolocation not supported'), 'Geolocation API not available')
       return
     }
 
+    setGpsError(null)
+    setSearchError(null)
     setGpsLoading(true)
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true })
       })
-      const params = new URLSearchParams({
-        lat: String(position.coords.latitude),
-        lng: String(position.coords.longitude),
-        q: 'Din placering',
+      navigateToNearby({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        label: 'Din placering',
       })
-      router.push(`/shelters/nearby?${params.toString()}`)
     } catch (error) {
+      setGpsError(getGeolocationErrorMessage(error))
       handleError(error instanceof Error ? error : new Error('Failed to get location'), 'Geolocation failed')
     } finally {
       setGpsLoading(false)
@@ -142,6 +185,9 @@ export default function AddressSearchDAWA() {
 
   useEffect(() => {
     abortControllerRef.current?.abort()
+    if (selectedAddress?.label === query.trim()) {
+      return
+    }
     if (query.trim().length < 2) {
       return
     }
@@ -160,9 +206,11 @@ export default function AddressSearchDAWA() {
         setIsOpen(results.length > 0)
         setActiveIndex(null)
         setHasFailed(false)
+        setHasNoResults(results.length === 0)
       } catch (error) {
         if (!isAbortError(error)) {
           setHasFailed(true)
+          setHasNoResults(false)
           handleError(
             error instanceof Error ? error : new Error('DAWA autocomplete failed'),
             'DAWA Autocomplete failed',
@@ -179,7 +227,7 @@ export default function AddressSearchDAWA() {
       clearTimeout(timeoutId)
       controller.abort()
     }
-  }, [query, handleError])
+  }, [query, handleError, selectedAddress?.label])
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -203,7 +251,10 @@ export default function AddressSearchDAWA() {
       return
     }
     if (event.key === 'Enter') {
-      // Let the form submit handler pick the best suggestion (active/first/fetch).
+      if (isOpen && activeIndex !== null && suggestions[activeIndex]) {
+        event.preventDefault()
+        selectSuggestion(suggestions[activeIndex])
+      }
       return
     }
     if (!isOpen || suggestions.length === 0) {
@@ -225,7 +276,7 @@ export default function AddressSearchDAWA() {
         onClick={handleLocationClick}
         className="btn-primary btn-interactive focus-visible touch-target flex w-full items-center justify-center gap-3 rounded-full px-6 py-4 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         disabled={gpsLoading}
-        aria-label="Brug min placering til at finde nærmeste beskyttelsesrum"
+        aria-label="Brug min placering til at se registreringer i nærheden"
       >
         {gpsLoading ? <LoadingSpinner size="sm" text="Henter din position..." /> : (
           <>
@@ -235,6 +286,16 @@ export default function AddressSearchDAWA() {
         )}
       </button>
 
+      <p className="text-center text-xs text-gray-300 sm:text-sm">
+        Din placering bruges kun til denne søgning og gemmes ikke i linket.
+      </p>
+
+      {gpsError ? (
+        <div className="rounded-lg border border-yellow-600/30 bg-yellow-900/20 p-3 text-sm text-yellow-100" role="alert">
+          {gpsError}
+        </div>
+      ) : null}
+
       <div className="text-center text-gray-400 text-sm sm:text-base font-medium">eller</div>
 
       <div ref={containerRef} className="relative w-full">
@@ -243,8 +304,8 @@ export default function AddressSearchDAWA() {
             <div className="flex items-center gap-2">
               <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
               <div className="flex-1">
-                <p className="font-medium">DAWA Autocomplete er ikke tilgængelig</p>
-                <p className="text-xs mt-1 opacity-80">Prøv at genindlæse siden eller brug GPS-funktionen ovenfor</p>
+                <p className="font-medium">Adressesøgningen er ikke tilgængelig</p>
+                <p className="text-xs mt-1 opacity-80">Prøv at genindlæse siden eller brug din placering ovenfor.</p>
               </div>
               <button
                 type="button"
@@ -258,99 +319,124 @@ export default function AddressSearchDAWA() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="autocomplete-container w-full">
-          <label htmlFor="adresse" className="sr-only">
-            Adresse
+        <form onSubmit={handleSubmit} className="autocomplete-container w-full space-y-2">
+          <label htmlFor="adresse" className="block text-sm font-medium text-gray-200">
+            Adresse, by eller postnummer
           </label>
 
-          <div className="relative w-full">
-            <svg className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 transform text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            {isLoading && (
-              <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2 transform">
-                <LoadingSpinner size="sm" />
-              </div>
-            )}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <svg className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 transform text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              {isLoading && (
+                <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2 transform">
+                  <LoadingSpinner size="sm" />
+                </div>
+              )}
 
-            <input
-              ref={inputRef}
-              type="text"
-              id="adresse"
-              placeholder="Indtast adresse, by eller postnummer"
-              className="input-interactive touch-target w-full rounded-full border border-[color:var(--accent)] bg-[var(--surface-input)] py-3 pl-12 pr-11 text-base text-white transition-all placeholder-gray-400 focus:border-[color:var(--accent)] focus:bg-[var(--surface-input-focus)] focus:outline-none focus-visible disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12"
-              disabled={hasFailed}
-              aria-describedby={hasFailed ? 'dawa-error' : undefined}
-              role="combobox"
-              aria-haspopup="listbox"
-              aria-autocomplete="list"
-              aria-controls={isOpen && suggestions.length > 0 ? DAWA_LISTBOX_ID : undefined}
-              aria-expanded={isOpen && suggestions.length > 0}
-              aria-activedescendant={
-                isOpen && activeIndex !== null && suggestions[activeIndex]
-                  ? `dawa-address-option-${activeIndex}`
-                  : undefined
-              }
-              autoComplete="off"
-              minLength={2}
-              value={query}
-              onChange={(event) => {
-                const nextQuery = event.target.value
-                setQuery(nextQuery)
-                if (nextQuery.trim().length < 2) {
-                  abortControllerRef.current?.abort()
-                  setSuggestions([])
-                  setIsOpen(false)
-                  setActiveIndex(null)
-                  setIsLoading(false)
+              <input
+                ref={inputRef}
+                type="text"
+                id="adresse"
+                placeholder="Fx Elsted Byvej 29, Aarhus eller 8200"
+                className="input-interactive touch-target w-full rounded-lg border border-white/20 bg-[var(--surface-input)] py-3 pl-12 pr-11 text-base text-white transition-colors placeholder:text-gray-400 focus:border-[color:var(--accent)] focus:bg-[var(--surface-input-focus)] focus:outline-none focus-visible disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12"
+                disabled={hasFailed}
+                aria-describedby={hasFailed ? 'dawa-error' : hasNoResults ? 'dawa-no-results' : undefined}
+                role="combobox"
+                aria-haspopup="listbox"
+                aria-autocomplete="list"
+                aria-controls={isOpen && suggestions.length > 0 ? DAWA_LISTBOX_ID : undefined}
+                aria-expanded={isOpen && suggestions.length > 0}
+                aria-activedescendant={
+                  isOpen && activeIndex !== null && suggestions[activeIndex]
+                    ? `dawa-address-option-${activeIndex}`
+                    : undefined
                 }
-                cursorPosRef.current = event.target.selectionStart ?? event.target.value.length
-              }}
-              onSelect={syncCaretFromInput}
-              onClick={syncCaretFromInput}
-              onFocus={() => setIsOpen(suggestions.length > 0)}
-              onKeyDown={handleKeyDown}
-            />
+                autoComplete="off"
+                minLength={2}
+                value={query}
+                onChange={(event) => {
+                  const nextQuery = event.target.value
+                  setQuery(nextQuery)
+                  setSelectedAddress(null)
+                  setSearchError(null)
+                  setHasNoResults(false)
+                  if (nextQuery.trim().length < 2) {
+                    abortControllerRef.current?.abort()
+                    setSuggestions([])
+                    setIsOpen(false)
+                    setActiveIndex(null)
+                    setIsLoading(false)
+                  }
+                  cursorPosRef.current = event.target.selectionStart ?? event.target.value.length
+                }}
+                onSelect={syncCaretFromInput}
+                onClick={syncCaretFromInput}
+                onFocus={() => setIsOpen(suggestions.length > 0 && !selectedAddress)}
+                onKeyDown={handleKeyDown}
+              />
 
-            {isOpen && suggestions.length > 0 && (
-              <div
-                id={DAWA_LISTBOX_ID}
-                className="absolute left-0 right-0 top-full z-[9999] mt-1 max-h-[min(18rem,50vh)] overflow-y-auto rounded-md border-2 border-white/30 bg-[var(--surface-elevated)] shadow-[0_8px_16px_rgba(0,0,0,0.6),0_0_15px_rgba(255,255,255,0.1)]"
-                role="listbox"
-                aria-label="Adresseforslag"
-              >
-                {suggestions.map((suggestion, index) => {
-                  const display = (suggestion.forslagstekst ?? suggestion.tekst).trim()
-                  const key =
-                    typeof suggestion.data.href === 'string'
-                      ? suggestion.data.href
-                      : `${suggestion.dawaType ?? 'item'}-${display}-${index}`
+              {isOpen && suggestions.length > 0 && (
+                <div
+                  id={DAWA_LISTBOX_ID}
+                  className="absolute left-0 right-0 top-full z-[9999] mt-1 max-h-[min(18rem,50vh)] overflow-y-auto rounded-md border-2 border-white/30 bg-[var(--surface-elevated)] shadow-[0_8px_16px_rgba(0,0,0,0.6),0_0_15px_rgba(255,255,255,0.1)]"
+                  role="listbox"
+                  aria-label="Adresseforslag"
+                >
+                  {suggestions.map((suggestion, index) => {
+                    const display = (suggestion.forslagstekst ?? suggestion.tekst).trim()
+                    const key =
+                      typeof suggestion.data.href === 'string'
+                        ? suggestion.data.href
+                        : `${suggestion.dawaType ?? 'item'}-${display}-${index}`
 
-                  return (
-                    <div
-                      key={key}
-                      id={`dawa-address-option-${index}`}
-                      role="option"
-                      aria-selected={activeIndex === index}
-                      className={`cursor-pointer border-b border-white/10 px-2.5 py-2.5 text-base text-white last:border-b-0 sm:py-2 ${activeIndex === index ? 'bg-[var(--surface-row-hover)]' : 'hover:bg-[var(--surface-row-hover)]'}`}
-                      onMouseEnter={() => setActiveIndex(index)}
-                      onMouseDown={(event) => {
-                        event.preventDefault()
-                        selectSuggestion(suggestion)
-                      }}
-                    >
-                      {display}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+                    return (
+                      <div
+                        key={key}
+                        id={`dawa-address-option-${index}`}
+                        role="option"
+                        aria-selected={activeIndex === index}
+                        className={`cursor-pointer border-b border-white/10 px-2.5 py-2.5 text-base text-white last:border-b-0 sm:py-2 ${activeIndex === index ? 'bg-[var(--surface-row-hover)]' : 'hover:bg-[var(--surface-row-hover)]'}`}
+                        onMouseEnter={() => setActiveIndex(index)}
+                        onMouseDown={(event) => {
+                          event.preventDefault()
+                          selectSuggestion(suggestion)
+                        }}
+                      >
+                        {display}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="inline-flex min-h-[48px] items-center justify-center rounded-lg bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-[#0a0a0a] transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-400 sm:min-w-28"
+            >
+              Søg
+            </button>
           </div>
         </form>
+
+        {hasNoResults ? (
+          <p id="dawa-no-results" className="mt-3 text-sm text-gray-200" role="status">
+            Ingen adresser fundet. Prøv med vejnavn og by eller søg efter kommunen.
+          </p>
+        ) : null}
+
+        {searchError ? (
+          <p className="mt-3 rounded-lg border border-yellow-600/30 bg-yellow-900/20 p-3 text-sm text-yellow-100" role="alert">
+            {searchError}
+          </p>
+        ) : null}
 
         {selectedAddress && (
           <div className="mt-3 p-3 bg-success-bg border border-success/30 rounded-lg" role="status" aria-live="polite">
             <div className="flex items-center gap-2">
               <svg className="w-4 h-4 text-success success-animation" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-              <p className="text-sm sm:text-base text-success font-medium">Valgt adresse: <span className="text-white">{selectedAddress}</span></p>
+              <p className="text-sm sm:text-base text-success font-medium">Valgt adresse: <span className="text-white">{selectedAddress.label}</span></p>
             </div>
           </div>
         )}

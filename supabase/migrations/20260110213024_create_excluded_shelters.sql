@@ -23,4 +23,4 @@ ON excluded_shelters(bygning_id)
 WHERE bygning_id IS NOT NULL;
 
 -- Add comment
-COMMENT ON TABLE excluded_shelters IS 'Stores addresses that owners have requested to exclude from search results';
+COMMENT ON TABLE excluded_shelters IS 'Stores addresses that owners have requested to exclude from search results';;

@@ -110,3 +110,4 @@ grant select on app_v2.municipality_public to anon, authenticated;
 -- Service role retains full access for importers and server-side admin reads.
 grant all privileges on all tables in schema app_v2 to service_role;
 grant all privileges on all sequences in schema app_v2 to service_role;
+;

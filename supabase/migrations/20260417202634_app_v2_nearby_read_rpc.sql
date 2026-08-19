@@ -236,4 +236,4 @@ $$;
 grant execute on function app_v2.get_nearby_shelters(double precision, double precision, integer, integer, integer, text[]) to service_role;
 
 comment on function app_v2.get_nearby_shelters(double precision, double precision, integer, integer, integer, text[]) is
-'First app_v2 database-side nearby read foundation. Returns app_v2-native rows and diagnostics using bounding-box prefiltering plus database-side Haversine distance ordering. It is not legacy grouped output and does not mirror public.excluded_shelters.';
+'First app_v2 database-side nearby read foundation. Returns app_v2-native rows and diagnostics using bounding-box prefiltering plus database-side Haversine distance ordering. It is not legacy grouped output and does not mirror public.excluded_shelters.';;

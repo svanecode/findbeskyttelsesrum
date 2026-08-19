@@ -7,4 +7,4 @@ begin
   new.updated_at = timezone('utc', now());
   return new;
 end;
-$$;
+$$;;

@@ -11,4 +11,4 @@ on app_v2.import_runs (source_name, status, started_at desc);
 
 create index if not exists app_v2_import_runs_resumed_from_idx
 on app_v2.import_runs (resumed_from_import_run_id)
-where resumed_from_import_run_id is not null;
+where resumed_from_import_run_id is not null;;

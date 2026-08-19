@@ -20,14 +20,15 @@ export default async function Home() {
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
         <div className="mb-6 text-center sm:mb-10 lg:mb-12">
           <h1 className="mb-3 text-heading-md text-white sm:mb-4 sm:text-heading-lg lg:mb-6 lg:text-heading-xl">
-            Find nærmeste beskyttelsesrum
+            Se registrerede beskyttelsesrum nær dig
           </h1>
           <p className="mx-auto max-w-lg text-body-lg leading-snug text-[#E5E7EB] sm:text-xl">
-            Søg efter en adresse, eller brug din placering.
+            Søg i BBR&apos;s registreringer af sikringsrumspladser. En registrering er ikke en garanti for offentlig adgang,
+            klargøring eller aktuel fysisk stand.
           </p>
         </div>
 
-        <div className="glass-effect card-interactive relative overflow-visible rounded-2xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-md sm:p-8 lg:p-10">
+        <div className="relative overflow-visible rounded-xl border border-white/15 bg-[#151515] p-6 sm:p-8 lg:p-10">
           <div className="relative z-20 space-y-6 sm:space-y-6 lg:space-y-8">
             <div suppressHydrationWarning className="relative z-20">
               <AddressSearchDAWA key="dawa-v2" />
@@ -52,9 +53,12 @@ export default async function Home() {
               </Link>
             </p>
 
-            <p className="text-center text-xs text-gray-300/90 sm:text-sm">
-              Resultaterne er vejledende. Følg altid myndighedernes anvisninger.
-            </p>
+            <div className="rounded-lg border border-orange-400/30 bg-orange-400/10 p-4 text-sm leading-6 text-gray-100">
+              <p className="font-semibold text-white">Til orientering – ikke en evakueringsanvisning</p>
+              <p className="mt-1">
+                Ved varsling skal du gå indenfor og følge information fra myndighederne.
+              </p>
+            </div>
             
           </div>
         </div>

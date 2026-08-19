@@ -6,6 +6,7 @@ import {
   getAppV2MunicipalitySummaries,
   getAppV2PublicDataFreshness,
   getAppV2PublicShelterCount,
+  getAppV2PublicTotalShelterCapacity,
 } from "@/lib/supabase/app-v2-queries";
 import { siteUrl } from "@/lib/seo/site";
 
@@ -34,6 +35,7 @@ type DataOverview =
       ok: true;
       municipalityCount: number;
       activeShelterCount: number;
+      totalCapacity: number;
       latestImportedAt: string | null;
     }
   | {
@@ -42,9 +44,10 @@ type DataOverview =
 
 async function getDataOverview(): Promise<DataOverview> {
   try {
-    const [municipalities, activeShelterCount, latestImportedAt] = await Promise.all([
+    const [municipalities, activeShelterCount, totalCapacity, latestImportedAt] = await Promise.all([
       getAppV2MunicipalitySummaries(),
       getAppV2PublicShelterCount(),
+      getAppV2PublicTotalShelterCapacity(),
       getAppV2PublicDataFreshness(),
     ]);
 
@@ -52,6 +55,7 @@ async function getDataOverview(): Promise<DataOverview> {
       ok: true,
       municipalityCount: municipalities.length,
       activeShelterCount,
+      totalCapacity,
       latestImportedAt,
     };
   } catch (error) {
@@ -96,10 +100,13 @@ export default async function DataPage() {
           <p className="text-sm uppercase tracking-wide text-gray-400">Data</p>
           <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Datagrundlag</h1>
           <p className="text-lg leading-8 text-gray-300">
-            Find Beskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Siden er uafhængig og ikke tilknyttet
-            den danske stat.
+            Find Beskyttelsesrum er et uafhængigt orienteringsværktøj baseret på BBR-registreringer af
+            sikringsrumspladser og adresser fra DAR. Siden er ikke en myndighedstjeneste.
           </p>
-          <p className="text-sm leading-6 text-gray-400">Følg altid myndighedernes anvisninger i en akut situation.</p>
+          <p className="text-sm leading-6 text-gray-300">
+            En registrering dokumenterer ikke offentlig adgang, klargøring eller aktuel fysisk stand. Ved varsling skal du
+            gå indenfor og følge information fra myndighederne.
+          </p>
           <div className="pt-1">
             <Link
               href="/"
@@ -111,21 +118,26 @@ export default async function DataPage() {
         </header>
 
         {overview.ok ? (
-          <section className="mb-8 grid gap-4 sm:grid-cols-3">
+          <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="Kommuner"
               value={overview.municipalityCount.toLocaleString("da-DK")}
               note="Kommuner i oversigten."
             />
             <StatCard
-              label="Offentligt viste beskyttelsesrum"
+              label="Viste BBR-registreringer"
               value={overview.activeShelterCount.toLocaleString("da-DK")}
-              note="Antal beskyttelsesrum efter sidens offentlige udvælgelses- og eksklusionsregler."
+              note="Registreringer efter sidens udvælgelses- og eksklusionsregler."
             />
             <StatCard
-              label="Senest registreret"
+              label="Registrerede pladser i udvalget"
+              value={overview.totalCapacity.toLocaleString("da-DK")}
+              note="Ikke en samlet national opgørelse over alle typer beskyttelsesrum."
+            />
+            <StatCard
+              label="Seneste dataimport"
               value={formatDataDate(overview.latestImportedAt)}
-              note="Seneste importdato blandt de beskyttelsesrum, der vises offentligt."
+              note="Fysisk stand er ikke verificeret i dette datasæt."
             />
           </section>
         ) : (
@@ -133,7 +145,7 @@ export default async function DataPage() {
             <h2 className="text-lg font-semibold text-white">Kunne ikke hente oversigtstal</h2>
             <p className="mt-2 text-sm leading-6 text-gray-300">
               Vi kunne ikke hente de seneste tal fra databasen lige nu. Resten af siden om datagrundlag kan du stadig
-              læse. Prøv at genindlæse, eller gå til forsiden og søg efter beskyttelsesrum som sædvanligt.
+              læse. Prøv at genindlæse, eller gå til forsiden og søg i BBR-registreringerne.
             </p>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <a
@@ -177,9 +189,9 @@ export default async function DataPage() {
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Hvilke registreringer vises?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Oversigten viser aktive registreringer med mindst 40 registrerede pladser og en bygningsanvendelse, der er
-              medtaget i søgningen. Registreringer, som ikke længere findes i datakilden, er fravalgt. Det samme gælder
-              konkrete registreringer, som er udelukket fra den offentlige oversigt.
+              Oversigten viser publicerede BBR-registreringer med mindst 40 registrerede pladser og en
+              bygningsanvendelseskode, der er medtaget i søgningen. Registreringer, som ikke længere findes i datakilden,
+              er fravalgt. Det samme gælder konkrete registreringer, som er udelukket fra den offentlige oversigt.
             </p>
             <p className="mt-3 text-sm leading-6 text-gray-400">
               Nærhedssøgning og kort kræver desuden brugbare koordinater. Derfor kan antallet variere mellem oversigter.
@@ -187,9 +199,51 @@ export default async function DataPage() {
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold text-white">Hvorfor er tallet ikke en national total?</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Den officielle opgørelse fra 2024 omfattede cirka 3,681 millioner pladser på tværs af sikringsrum,
+              offentlige beskyttelsesrum og supplerende rum. Denne side viser kun et afgrænset udvalg af
+              BBR-registreringer efter reglerne ovenfor og kan derfor ikke sammenlignes direkte med den samlede
+              officielle opgørelse.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Den officielle opgørelse var heller ikke en fysisk kontrol af, om rummene fortsat var egnede eller
+              klargjorte. Se den{" "}
+              <a
+                href="https://www.ft.dk/samling/20241/almdel/fou/spm/268/svar/2137655/3018567/index.htm"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white underline underline-offset-4 hover:text-orange-300"
+              >
+                officielle opgørelse hos Folketinget
+              </a>
+              .
+            </p>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold text-white">Sikringsrum og offentlige beskyttelsesrum</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Sikringsrum er som udgangspunkt knyttet til personer, der bor, arbejder eller har ærinde i ejendommen.
+              Offentlige beskyttelsesrum er en anden kategori. BBR-feltet på denne side dokumenterer ikke, at en adresse
+              er et offentligt tilgængeligt beskyttelsesrum.
+            </p>
+            <p className="mt-3 text-sm">
+              <a
+                href="https://www.borger.dk/politi-retsvaesen-forsvar/Forsvar-og-beredskab/beskyttelsesrum-og-sikringsrum"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white underline underline-offset-4 hover:text-orange-300"
+              >
+                Læs myndighedernes forklaring på Borger.dk
+              </a>
+            </p>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Hvor ofte opdateres data?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Datagrundlaget importeres løbende. Datoen ovenfor viser den seneste registrering i det aktuelt viste datasæt.
+              Datagrundlaget importeres løbende. Datoen ovenfor viser den seneste dataimport i det aktuelt viste datasæt.
               Der kan gå tid, fra en ændring foretages i et offentligt register, til den fremgår her.
             </p>
           </section>
@@ -197,9 +251,26 @@ export default async function DataPage() {
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
             <h2 className="text-lg font-semibold text-white">Hvad siden ikke lover</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Beskyttelsesrum og registreret kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse
+              En BBR-registrering og dens kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse
               eller aktuel fysisk stand. Kort, søgelister og kommuneoversigter er orienterende og er ikke anbefalinger.
             </p>
+          </section>
+
+          <section id="rapportering" className="scroll-mt-24 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold text-white">Rapportér en mulig fejl</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Åbn detaljesiden for den konkrete registrering og vælg “Rapportér fejl ved registreringen”. Rapporten
+              lægges i en privat moderationskø og ændrer ikke de viste data automatisk.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-gray-400">
+              Du kan blandt andet rapportere en forkert adresse, en manglende bygning, forkert kapacitet eller manglende
+              tilgængelighed.
+            </p>
+            <div className="mt-4">
+              <Link href="/" className="inline-flex min-h-[44px] items-center rounded-lg px-3 font-medium text-white underline underline-offset-4 hover:bg-white/5">
+                Find registreringen fra forsiden
+              </Link>
+            </div>
           </section>
 
           <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">

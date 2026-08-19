@@ -28,7 +28,7 @@ export function MapErrorBoundary({ children }: Props) {
                 </button>
                 <Link
                   href="/"
-                  className="inline-flex items-center rounded-lg bg-orange-500 px-4 py-2 text-white transition-colors hover:bg-orange-600"
+                  className="inline-flex items-center rounded-lg bg-orange-500 px-4 py-2 font-semibold text-[#0a0a0a] transition-colors hover:bg-orange-600"
                 >
                   ← Tilbage til forsiden
                 </Link>

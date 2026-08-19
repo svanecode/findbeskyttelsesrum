@@ -1,9 +1,6 @@
-import Link from 'next/link'
 import { Suspense } from 'react'
 
 import { MapErrorBoundary } from '@/components/MapErrorBoundary'
-import GlobalFooter from '@/components/GlobalFooter'
-import { parseNearbySearchParams } from '@/lib/nearby/parse-nearby-search-params'
 
 import MapWrapper from './map-wrapper'
 
@@ -33,67 +30,11 @@ function NearbySuspenseFallback() {
   )
 }
 
-function MissingPosition() {
-  return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
-      <div className="mx-auto max-w-7xl p-4">
-        <h1 className="mb-3 text-2xl font-bold sm:text-3xl">Manglende position</h1>
-        <p className="mb-6 max-w-xl text-gray-400">
-          Der mangler koordinater i linket. Gå til forsiden og søg adresse eller brug din placering.
-        </p>
-        <Link
-          href="/"
-          className="inline-flex items-center rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
-        >
-          Til forsiden
-        </Link>
-      </div>
-      <GlobalFooter />
-    </main>
-  )
-}
-
-function InvalidPosition() {
-  return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
-      <div className="mx-auto max-w-7xl p-4">
-        <h1 className="mb-3 text-2xl font-bold sm:text-3xl">Ugyldig position</h1>
-        <p className="mb-6 max-w-xl text-gray-400">
-          Koordinaterne er ugyldige. Gå til forsiden og søg igen, eller brug din placering.
-        </p>
-        <Link
-          href="/"
-          className="inline-flex items-center rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
-        >
-          Til forsiden
-        </Link>
-      </div>
-      <GlobalFooter />
-    </main>
-  )
-}
-
-type PageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-};
-
-export default async function Page({ searchParams }: PageProps) {
-  const sp = await searchParams;
-  const parsed = parseNearbySearchParams(sp);
-  const rawOriginLabel = typeof sp.q === 'string' ? sp.q : Array.isArray(sp.q) ? sp.q[0] : '';
-  const originLabel = rawOriginLabel.trim().slice(0, 120) || undefined;
-
-  if (parsed.kind === 'missing') {
-    return <MissingPosition />;
-  }
-  if (parsed.kind === 'invalid') {
-    return <InvalidPosition />;
-  }
-
+export default function Page() {
   return (
     <MapErrorBoundary>
       <Suspense fallback={<NearbySuspenseFallback />}>
-        <MapWrapper lat={parsed.lat} lng={parsed.lng} originLabel={originLabel} />
+        <MapWrapper />
       </Suspense>
     </MapErrorBoundary>
   )

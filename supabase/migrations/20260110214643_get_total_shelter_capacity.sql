@@ -24,4 +24,4 @@ GRANT EXECUTE ON FUNCTION get_total_shelter_capacity TO authenticated;
 GRANT EXECUTE ON FUNCTION get_total_shelter_capacity TO anon;
 
 -- Add comment
-COMMENT ON FUNCTION get_total_shelter_capacity IS 'Returns the total number of sikringspladser (shelter capacity) from all active (non-deleted) shelters in the database.';
+COMMENT ON FUNCTION get_total_shelter_capacity IS 'Returns the total number of sikringspladser (shelter capacity) from all active (non-deleted) shelters in the database.';;

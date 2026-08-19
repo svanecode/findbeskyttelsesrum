@@ -11,7 +11,7 @@ export function normalizeShelterName(name: string) {
   const trimmed = name.trim();
   const prefix = "Shelter at ";
   if (trimmed.startsWith(prefix)) {
-    return `Beskyttelsesrum ved ${trimmed.slice(prefix.length)}`;
+    return `Registrering ved ${trimmed.slice(prefix.length)}`;
   }
   return trimmed;
 }
@@ -39,7 +39,7 @@ export function buildLeafletPopupHtml({ title, usageLine, postalLine, capacity, 
   return `<div class="fb-popup" style="min-width:240px;">
     <p class="fb-popup__title">${escapeHtml(title)}</p>
     ${metaBlock}
-    <p class="fb-popup__capacity">${escapeHtml(cap)} pladser</p>
+    <p class="fb-popup__capacity">${escapeHtml(cap)} BBR-registrerede pladser</p>
     ${href ? `<a class="fb-popup__link" href="${escapeHtml(href)}">${escapeHtml(linkLabel)}</a>` : ""}
   </div>`;
 }
