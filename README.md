@@ -38,6 +38,11 @@ Server-side importer/sanity scripts additionally require a secret key. Never exp
 SUPABASE_SECRET_KEY=...
 ```
 
+BBR/DAR-importerens nye hjem er `tools/datafordeler-importer`. Dens
+Python-afhængigheder er låst separat. Den eksisterende daglige kørsel bliver i
+det tidligere updater-repository, og den nye GitHub-arbejdsgang er manuel,
+indtil overtagelsen er verificeret.
+
 Run the development server:
 
 ```bash
@@ -55,6 +60,15 @@ npm run typecheck
 npm run build
 npm run test-caching
 npm run verify-assets
+```
+
+Importerens egne kontroller køres fra `tools/datafordeler-importer` med:
+
+```bash
+uv sync --frozen --extra dev
+uv run ruff check .
+uv run mypy shelter_importer
+uv run pytest
 ```
 
 Before releasing database-dependent changes, apply every pending file in `supabase/migrations` with `supabase db push`.
