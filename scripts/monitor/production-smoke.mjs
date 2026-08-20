@@ -34,7 +34,37 @@ const checks = [
       if (!html.includes("Se registrerede beskyttelsesrum nær dig")) {
         throw new Error("Forsidens centrale overskrift mangler.");
       }
-      return "HTTP 200 og central tekst fundet";
+      const csp = response.headers.get("content-security-policy") ?? "";
+      if (!csp.includes("script-src-attr 'none'") || csp.includes("https://*.vercel.app")) {
+        throw new Error("Forsidens Content Security Policy er ikke den forventede, stramme version.");
+      }
+      return "HTTP 200, central tekst og stram CSP fundet";
+    },
+  },
+  {
+    name: "Crawler-metadata og browseroprydning",
+    run: async () => {
+      const [robotsResponse, sitemapResponse, serviceWorkerResponse] = await Promise.all([
+        requireOk(await request(`${baseUrl}/robots.txt`), "Robots-filen"),
+        requireOk(await request(`${baseUrl}/sitemap.xml`), "Sitemappet"),
+        request(`${baseUrl}/sw.js`),
+      ]);
+      const [robots, sitemap] = await Promise.all([
+        robotsResponse.text(),
+        sitemapResponse.text(),
+      ]);
+
+      if (robots.includes("Disallow: /_next/")) {
+        throw new Error("Robots-filen blokerer stadig Next.js' offentlige assets.");
+      }
+      if (!sitemap.includes("<lastmod>") || !sitemap.includes("/beskyttelsesrum/")) {
+        throw new Error("Sitemappet mangler ændringsdatoer eller detaljesider.");
+      }
+      if (serviceWorkerResponse.status !== 404) {
+        throw new Error(`Den udgåede service worker svarede med HTTP ${serviceWorkerResponse.status}.`);
+      }
+
+      return "robots, sitemap og fjernet service worker er korrekte";
     },
   },
   {
@@ -112,10 +142,14 @@ const checks = [
       const sitemap = await sitemapResponse.text();
       const detailUrl = sitemap.match(/<loc>(https?:\/\/[^<]+\/beskyttelsesrum\/[^<]+)<\/loc>/)?.[1];
       if (!detailUrl) throw new Error("Sitemappet indeholder ingen detaljeside.");
-      const response = await requireOk(await request(detailUrl), "Detaljesiden");
+      const detailPath = new URL(detailUrl).pathname;
+      const response = await requireOk(await request(`${baseUrl}${detailPath}`), "Detaljesiden");
       const html = await response.text();
       if (!html.includes("BBR-registrering")) throw new Error("Detaljesiden mangler BBR-labelen.");
-      return new URL(detailUrl).pathname;
+      if (!html.includes('"@type":"BreadcrumbList"')) {
+        throw new Error("Detaljesiden mangler maskinlæsbare brødkrummer.");
+      }
+      return detailPath;
     },
   },
   {

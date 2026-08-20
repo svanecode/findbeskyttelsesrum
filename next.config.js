@@ -1,6 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+const siteBuildTimestamp = process.env.SITE_BUILD_TIMESTAMP || new Date().toISOString();
+
 function supabaseOriginForCsp() {
   const raw = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (!raw || typeof raw !== 'string') return ''
@@ -11,13 +13,14 @@ function supabaseOriginForCsp() {
   }
 }
 
-function contentSecurityPolicyValue() {
-  const supabase = supabaseOriginForCsp()
-  const developmentConnections = process.env.NODE_ENV === 'development' ? ['ws:', 'wss:'] : []
+export function contentSecurityPolicyValue({
+  environment = process.env.NODE_ENV,
+  supabaseOrigin = supabaseOriginForCsp(),
+} = {}) {
+  const developmentConnections = environment === 'development' ? ['ws:', 'wss:'] : []
   const connectSrc = [
     "'self'",
-    supabase,
-    'https://tile.openstreetmap.org',
+    supabaseOrigin,
     'https://*.vercel-scripts.com',
     'https://*.vercel-insights.com',
     'https://api.dataforsyningen.dk',
@@ -27,20 +30,21 @@ function contentSecurityPolicyValue() {
   const scriptSrc = [
     "'self'",
     "'unsafe-inline'",
-    ...(process.env.NODE_ENV === 'development' ? ["'unsafe-eval'"] : []),
+    ...(environment === 'development' ? ["'unsafe-eval'"] : []),
     'https://*.vercel-scripts.com',
     'https://*.vercel-insights.com',
-    'https://*.vercel.app',
   ].join(' ')
 
   return [
     "default-src 'self'",
     `script-src ${scriptSrc}`,
+    "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://tile.openstreetmap.org",
     "font-src 'self' data:",
     `connect-src ${connectSrc.join(' ')}`,
-    "frame-src 'self' https://www.openstreetmap.org",
+    "frame-src https://www.openstreetmap.org",
+    "media-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -75,6 +79,7 @@ const nextConfig = {
   },
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    SITE_BUILD_TIMESTAMP: siteBuildTimestamp,
   },
   generateBuildId: async () => {
     const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
@@ -147,16 +152,6 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
-      // Service worker - short cache to allow updates
-      {
-        source: '/sw.js',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=0, must-revalidate',
           },
         ],
       },

@@ -163,7 +163,9 @@ test("production CSP keeps only the free OSM tile host and required public servi
   const config = await readFile(nextConfigUrl, "utf8");
 
   assert.match(config, /https:\/\/tile\.openstreetmap\.org/);
-  assert.match(config, /developmentConnections = process\.env\.NODE_ENV === 'development'/);
+  assert.match(config, /developmentConnections = environment === 'development'/);
+  assert.match(config, /script-src-attr 'none'/);
+  assert.doesNotMatch(config, /https:\/\/\*\.vercel\.app/);
   assert.doesNotMatch(config, /stadiamaps|maptiler|cartocdn|nominatim|dawa\.aws|raw\.githubusercontent/);
   assert.doesNotMatch(config, /https:\/\/\*\.tile\.openstreetmap\.org/);
 });
