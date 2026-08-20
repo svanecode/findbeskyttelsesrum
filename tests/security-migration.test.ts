@@ -34,6 +34,10 @@ const securePublicDataStatsMigrationUrl = new URL(
   "../supabase/migrations/20260819205856_secure_public_data_stats.sql",
   import.meta.url,
 );
+const moderatorWorkflowMigrationUrl = new URL(
+  "../supabase/migrations/20260820105609_moderator_workflow.sql",
+  import.meta.url,
+);
 
 test("security migration closes exclusion RPC and bounds anonymous nearby work", async () => {
   const sql = (await readFile(migrationUrl, "utf8")).toLowerCase();
@@ -159,4 +163,49 @@ test("public stats use invoker rights and internal funnel counts stay server-onl
   assert.match(sql, /security invoker/);
   assert.match(sql, /revoke all on function app_v2\.get_public_data_funnel_v1\(\)\s+from public, anon, authenticated/);
   assert.match(sql, /grant execute on function app_v2\.get_public_data_funnel_v1\(\)\s+to service_role/);
+});
+
+test("moderation is bound to a stable provider identity and aal2", async () => {
+  const sql = (await readFile(moderatorWorkflowMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /create table if not exists app_v2\.moderator_accounts/);
+  assert.match(sql, /unique \(provider, provider_subject\)/);
+  assert.match(sql, /from auth\.identities identity_row/);
+  assert.match(sql, /identity_row\.provider_id = p_provider_subject/);
+  assert.match(sql, /auth\.uid\(\)/);
+  assert.match(sql, /auth\.jwt\(\)->>'aal'/);
+  assert.match(sql, /= 'aal2'/);
+  assert.doesNotMatch(sql, /user_metadata|raw_user_meta_data/);
+  assert.match(sql, /revoke all on table app_v2\.moderator_accounts from public, anon, authenticated/);
+  assert.match(sql, /revoke all on function app_v2\.link_moderator_identity_v1[\s\S]+from public, anon, authenticated/);
+  assert.match(sql, /grant execute on function app_v2\.link_moderator_identity_v1[\s\S]+to service_role/);
+});
+
+test("moderator actions are atomic, audited and never granted to anonymous users", async () => {
+  const sql = (await readFile(moderatorWorkflowMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /create or replace function app_v2\.moderate_shelter_report_v1/);
+  assert.match(sql, /for update/);
+  assert.match(sql, /insert into app_v2\.audit_events/);
+  assert.match(sql, /insert into app_v2\.shelter_exclusions/);
+  assert.match(sql, /insert into app_v2\.shelter_overrides/);
+  assert.match(sql, /grant execute on function app_v2\.moderate_shelter_report_v1[\s\S]+to authenticated/);
+  assert.match(sql, /revoke all on function app_v2\.moderate_shelter_report_v1[\s\S]+from public, anon/);
+  assert.doesNotMatch(
+    sql,
+    /grant execute on function app_v2\.moderate_shelter_report_v1\([^;]+to anon\s*;/,
+  );
+  assert.match(sql, /coalesce\(override_row\.capacity, shelter\.capacity\) as capacity/);
+});
+
+test("report contact details have a hard retention boundary", async () => {
+  const sql = (await readFile(moderatorWorkflowMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /contact_retention_until/);
+  assert.match(sql, /interval '90 days'/);
+  assert.match(sql, /create or replace function app_v2\.redact_expired_report_contacts_v1/);
+  assert.match(sql, /contact_email = null/);
+  assert.match(sql, /report\.status in \('resolved', 'rejected'\)/);
+  assert.match(sql, /cron\.schedule/);
+  assert.match(sql, /app-v2-redact-expired-report-contacts/);
 });

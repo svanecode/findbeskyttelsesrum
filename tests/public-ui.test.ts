@@ -22,6 +22,11 @@ const healthApiUrl = new URL("../src/app/api/health/route.ts", import.meta.url);
 const manifestUrl = new URL("../public/site.webmanifest", import.meta.url);
 const layoutUrl = new URL("../src/app/layout.tsx", import.meta.url);
 const nextConfigUrl = new URL("../next.config.js", import.meta.url);
+const adminPageUrl = new URL("../src/app/admin/page.tsx", import.meta.url);
+const adminActionsUrl = new URL("../src/app/admin/actions.ts", import.meta.url);
+const adminAuthUrl = new URL("../src/lib/moderation/auth.ts", import.meta.url);
+const adminMfaUrl = new URL("../src/app/admin/mfa/mfa-panel.tsx", import.meta.url);
+const authCallbackUrl = new URL("../src/app/auth/callback/route.ts", import.meta.url);
 
 test("public shelter pages do not display internal review statuses", async () => {
   const publicUi = `${await readFile(detailPageUrl, "utf8")}\n${await readFile(nearbyPageUrl, "utf8")}`;
@@ -190,4 +195,31 @@ test("the health endpoint checks only the public read model", async () => {
   assert.doesNotMatch(healthApi, /SUPABASE_SECRET_KEY/);
   assert.match(healthApi, /Cache-Control/);
   assert.match(healthApi, /no-store/);
+});
+
+test("the private moderator flow requires GitHub, an allowlisted identity and MFA", async () => {
+  const adminPage = await readFile(adminPageUrl, "utf8");
+  const adminActions = await readFile(adminActionsUrl, "utf8");
+  const adminAuth = await readFile(adminAuthUrl, "utf8");
+  const adminMfa = await readFile(adminMfaUrl, "utf8");
+  const authCallback = await readFile(authCallbackUrl, "utf8");
+
+  assert.match(authCallback, /exchangeCodeForSession/);
+  assert.match(authCallback, /identity\.provider === "github"/);
+  assert.match(authCallback, /link_moderator_identity_v1/);
+  assert.match(adminAuth, /get_current_moderator_profile_v1/);
+  assert.match(adminAuth, /assuranceLevel !== "aal2"/);
+  assert.match(adminMfa, /challengeAndVerify/);
+  assert.match(adminMfa, /factorType: "totp"/);
+  assert.match(adminPage, /list_shelter_reports_for_moderation_v1|Moderationskø/);
+  assert.match(adminActions, /requireModerator\(true\)/);
+  assert.match(adminActions, /moderate_shelter_report_v1/);
+  assert.doesNotMatch(adminPage, /SUPABASE_SECRET_KEY/);
+});
+
+test("privacy copy documents automatic contact deletion", async () => {
+  const privacyPage = await readFile(privacyPageUrl, "utf8");
+
+  assert.match(privacyPage, /kontaktmail slettes automatisk/);
+  assert.match(privacyPage, /senest efter 90 dage/);
 });
