@@ -14,3 +14,20 @@ export function getWebsiteJsonLd() {
   };
 }
 
+export type BreadcrumbJsonLdItem = {
+  name: string;
+  url: string;
+};
+
+export function getBreadcrumbJsonLd(items: readonly BreadcrumbJsonLdItem[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  };
+}

@@ -1200,7 +1200,7 @@ export async function getAppV2PublicCountryShelterMarkers(): Promise<AppV2Countr
 
 export type AppV2SitemapShelterRow = {
   slug: string;
-  lastModified: Date;
+  lastModified?: Date;
 };
 
 /**
@@ -1226,9 +1226,10 @@ export async function getAppV2PublicSitemapShelters(): Promise<AppV2SitemapShelt
     const rows = (data ?? []) as Array<{ slug: string; last_modified: string | null }>;
 
     for (const row of rows) {
+      const lastModified = row.last_modified ? new Date(row.last_modified) : undefined;
       out.push({
         slug: row.slug,
-        lastModified: row.last_modified ? new Date(row.last_modified) : new Date(),
+        ...(lastModified && !Number.isNaN(lastModified.getTime()) ? { lastModified } : {}),
       });
     }
 

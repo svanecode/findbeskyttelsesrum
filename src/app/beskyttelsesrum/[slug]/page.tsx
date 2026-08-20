@@ -8,7 +8,7 @@ import RegistrationNotice, { RegistrationStatusLabels } from "@/components/Regis
 import ReportShelterIssue from "@/components/ReportShelterIssue";
 import ShelterOsmEmbedMap from "@/components/ShelterOsmEmbedMap";
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from "@/lib/anvendelseskoder";
-import { serializeJsonLd } from "@/lib/seo/json-ld";
+import { getBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
 import { siteUrl } from "@/lib/seo/site";
 import { getShelterPublicDisplayName } from "@/lib/shelter-display-name";
 import {
@@ -136,6 +136,17 @@ export default async function ShelterDetailPage({ params }: Props) {
 
   const displayName = getShelterPublicDisplayName(shelter.name, shelter.addressLine1);
   const jsonLd = getJsonLd(shelter, displayName);
+  const breadcrumbJsonLd = getBreadcrumbJsonLd([
+    { name: "Forside", url: siteUrl },
+    {
+      name: shelter.municipality.name,
+      url: `${siteUrl}/kommune/${shelter.municipality.slug}`,
+    },
+    {
+      name: `Registrering ved ${shelter.addressLine1}`,
+      url: `${siteUrl}${getShelterCanonicalPath(shelter.slug)}`,
+    },
+  ]);
   const anvendelseRaw = getAnvendelseskodeBeskrivelse(shelter.sourceApplicationCode, anvendelseskoder).trim();
   const anvendelseLabel = anvendelseRaw || null;
   const hasCoords = shelter.latitude !== null && shelter.longitude !== null;
@@ -156,6 +167,13 @@ export default async function ShelterDetailPage({ params }: Props) {
           __html: serializeJsonLd(jsonLd),
         }}
       />
+      <script
+        type="application/ld+json"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(breadcrumbJsonLd),
+        }}
+      />
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute inset-0 bg-[#0a0a0a]" />
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
@@ -163,6 +181,29 @@ export default async function ShelterDetailPage({ params }: Props) {
 
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-8 sm:px-6 lg:px-8">
         <article className="space-y-8">
+          <nav aria-label="Brødkrummer">
+            <ol className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400">
+              <li>
+                <Link className="transition hover:text-white" href="/">
+                  Forside
+                </Link>
+              </li>
+              <li aria-hidden="true">/</li>
+              <li>
+                <Link
+                  className="transition hover:text-white"
+                  href={`/kommune/${shelter.municipality.slug}`}
+                >
+                  {shelter.municipality.name}
+                </Link>
+              </li>
+              <li aria-hidden="true">/</li>
+              <li className="min-w-0 text-gray-200" aria-current="page">
+                Registrering ved {shelter.addressLine1}
+              </li>
+            </ol>
+          </nav>
+
           <nav className="flex items-center gap-2 sm:gap-3" aria-label="Side">
             <BackLinkButton
               fallbackHref={`/kommune/${shelter.municipality.slug}`}
