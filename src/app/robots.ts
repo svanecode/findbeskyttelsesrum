@@ -9,6 +9,8 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: [
         '/api/',
+        '/admin/',
+        '/auth/',
         '/_next/',
         '/static/',
         '/private/',
@@ -17,4 +19,4 @@ export default function robots(): MetadataRoute.Robots {
     sitemap: `${siteUrl}/sitemap.xml`,
     host: siteUrl,
   }
-} 
+}

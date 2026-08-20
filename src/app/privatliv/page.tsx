@@ -59,6 +59,10 @@ export default function PrivacyPage() {
               at oplyse den. Rapporten gemmes i en privat moderationskø med et auditspor og offentliggøres ikke direkte.
             </p>
             <p className="mt-3 text-sm leading-6 text-gray-400">
+              En eventuel kontaktmail slettes automatisk, når rapporten afsluttes eller afvises, og senest efter 90 dage.
+              Selve rapporten og dens auditspor kan bevares uden kontaktmail som dokumentation for databeslutningen.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-gray-400">
               Undlad CPR-nummer og andre følsomme oplysninger i beskrivelsen.
             </p>
           </section>
