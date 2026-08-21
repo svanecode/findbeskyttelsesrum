@@ -1,86 +1,142 @@
 # Find Beskyttelsesrum
 
-Find Beskyttelsesrum is a Danish web app for finding registered shelter capacity and nearby shelter locations. The primary flow lets a user search by address through DAWA autocomplete or use browser geolocation, then shows nearby shelters on a map.
+[![Application quality](https://github.com/svanecode/findbeskyttelsesrum/actions/workflows/application-quality.yml/badge.svg)](https://github.com/svanecode/findbeskyttelsesrum/actions/workflows/application-quality.yml)
+[![Production smoke monitoring](https://github.com/svanecode/findbeskyttelsesrum/actions/workflows/production-smoke.yml/badge.svg)](https://github.com/svanecode/findbeskyttelsesrum/actions/workflows/production-smoke.yml)
 
-## Tech Stack
+[findbeskyttelsesrum.dk](https://findbeskyttelsesrum.dk) er et gratis, uafhængigt orienteringsværktøj til BBR-registreringer af sikringsrumspladser i Danmark. Brugeren kan søge på en adresse, bruge sin aktuelle placering eller gå via kommuneoversigten og landskortet.
 
-- Next.js App Router
-- React and TypeScript
-- Supabase for data access and RPC functions
-- Leaflet and React Leaflet for maps
-- Tailwind CSS for styling
-- Vercel analytics and speed insights in production
+En registrering er ikke en garanti for offentlig adgang, klargøring eller aktuel fysisk stand. Tjenesten er ikke en myndighedstjeneste eller en evakueringsanvisning. Ved varsling skal man gå indenfor og følge myndighedernes information.
 
-## Local Development
+## Hvad løsningen indeholder
 
-Use Node.js 20.9.0 or newer. This repo includes an `.nvmrc` for local Node version alignment:
+- adressesøgning med DAWA og nærhedsberegning uden adresse eller koordinater i URL'en;
+- landskort og lokale kort med Leaflet og OpenStreetMap;
+- kommune- og registreringssider med forklaring af datagrundlaget;
+- privat fejlrapportering med moderationskø;
+- GitHub-login, tilladelsesliste og MFA til administration;
+- daglig BBR/DAR-import med staging, kvalitetskontrol, atomisk publicering og rollback;
+- gratis produktionskontrol og privatlivsvenlige, aggregerede driftstællere.
+
+Tjenesten skal forblive gratis for brugeren. Kortet må ikke få en obligatorisk betalt kortleverandør, og driften er indrettet til at bruge leverandørernes gratis muligheder og tydelige forbrugsgrænser. OpenStreetMaps offentlige standardtiles bruges ansvarligt med listevisninger som fallback.
+
+## Arkitektur og dataflow
+
+```text
+Datafordeler (BBR + DAR)
+        │
+        ▼
+Python-importer ──► privat staging ──► kvalitetskontrol
+                                          │
+                                          ▼
+                            versioneret publicering i app_v2
+                                          │
+                                          ▼
+DAWA ──► Next.js på Vercel ──► offentlige views/RPC'er i Supabase
+                 │
+                 └──► Leaflet + OpenStreetMap
+```
+
+Den offentlige app læser kun eksplicitte, offentlige views og read-only funktioner i Supabase-skemaet `app_v2`. Importkandidater, snapshots, moderation, audit og driftstællere er private. En fejlet eller mistænkelig import ændrer aldrig det aktuelt publicerede datasæt.
+
+## Kom i gang lokalt
+
+### Krav
+
+- Node.js 24 og npm;
+- en Supabase-projektadresse og publishable key;
+- valgfrit: Python 3.12 og `uv` til importeren;
+- valgfrit: Supabase CLI til migrationsarbejde.
+
+### Installation
 
 ```bash
 nvm use
-```
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Create a local `.env` with the required Supabase public values:
-
-```bash
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-```
-
-Server-side importer/sanity scripts additionally require a secret key. Never expose it through a `NEXT_PUBLIC_` variable:
-
-```bash
-SUPABASE_SECRET_KEY=...
-```
-
-Den autoritative BBR/DAR-importer ligger i `tools/datafordeler-importer`, og
-dens Python-afhængigheder er låst separat. Projektets egen GitHub-arbejdsgang
-kører dagligt. Data skrives først til privat staging, kvalitetskontrolleres og
-publiceres derefter atomisk. Den gamle updater er ikke længere en driftsafhængighed.
-
-Run the development server:
-
-```bash
+npm ci
+cp .env.example .env
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Åbn derefter [http://localhost:3000](http://localhost:3000).
 
-## Useful Commands
+Udfyld som minimum disse offentlige værdier i `.env`:
 
 ```bash
-npm run lint
-npm test
-npm run typecheck
-npm run build
-npm run test-caching
-npm run verify-assets
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 ```
 
-Importerens egne kontroller køres fra `tools/datafordeler-importer` med:
+`SUPABASE_SECRET_KEY` er kun til server-, import- og driftsopgaver. Den må aldrig få præfikset `NEXT_PUBLIC_`, bruges i browserkode, skrives i logoutput eller lægges i Git. Se alle sikre pladsholdere i [`.env.example`](.env.example).
+
+## Kvalitetskontrol
+
+| Kommando | Formål |
+| --- | --- |
+| `npm run lint` | Kontrollerer kodekvalitet. |
+| `npm run typecheck` | Kontrollerer TypeScript-typer. |
+| `npm test` | Kører enheds- og sikkerhedstests. |
+| `npm run build` | Bygger produktionsversionen. |
+| `npm run test:e2e` | Bygger og kører Playwright i en browser. |
+| `npm run test:release` | Kører den samlede lokale releasekontrol. |
+| `npm run monitor:production` | Kontrollerer den live brugerrejse og dataalder. |
+
+Pull requests skal bestå lint, typekontrol og tests. Efter merge til `main` køres desuden produktionsbuild og hele browserhistorien.
+
+## Dataimport
+
+Den autoritative importer ligger i [`tools/datafordeler-importer`](tools/datafordeler-importer). GitHub Actions kører den dagligt. En manuel kørsel starter som tørkørsel; en fuld skrivning kræver en eksplicit produktionsbekræftelse.
+
+Importerens lokale kontroller køres fra dens egen mappe:
 
 ```bash
 uv sync --frozen --extra dev
 uv run ruff check .
 uv run mypy shelter_importer
 uv run pytest
+uv run python -m build
 ```
 
-Before releasing database-dependent changes, apply every pending file in `supabase/migrations` with `supabase db push`.
+Læs den operationelle kontrakt i [importerens README](tools/datafordeler-importer/README.md) og det samlede dataflow i [`docs/data/import-flow.md`](docs/data/import-flow.md).
 
-## Operations
+## Databaseændringer
 
-The MFA-protected `/admin/drift` page shows import runs, quality-gate results,
-the active dataset, and retained versions. The owner can atomically restore a
-retained version. Scheduled failures create a free GitHub issue alert; the next
-successful run closes it.
+Alle databaseskemaændringer skal ligge som tidsstemplede filer i `supabase/migrations`. Brug Supabase CLI, så lokal og ekstern migrationshistorik forbliver enige:
 
-## Documentation
+```bash
+supabase db push --dry-run
+supabase db push
+supabase migration list
+```
 
-- `docs/archive/cutover-2025/audit-baseline.md` contains the reverse engineering baseline.
-- `docs/archive/cutover-2025/project-plan-2.0.md` and `docs/archive/cutover-2025/status-tracker.md` contain planning/status notes when present in the checkout.
+Kør ikke migrationsfiler direkte én efter én uden migrationshistorik. Kontrollér altid den konkrete diff og Supabase-advisors ved ændringer i views, funktioner, rettigheder eller RLS.
+
+## Drift og administration
+
+- `/admin` er den beskyttede indgang til moderation og drift.
+- Administratorer logger ind gennem GitHub OAuth, skal være på tilladelseslisten og skal gennemføre MFA.
+- `/admin/drift` viser importer, kvalitetskontroller, aktivt datasæt, rollback og 30 dages aggregerede driftstal.
+- Produktionsflowet kontrolleres automatisk to gange i timen. Fejl opretter en GitHub-issue; næste succes lukker den igen.
+- De egne driftstællere indeholder ikke IP-adresse, bruger-id, adresse, koordinater, søgetekst eller fuld URL og slettes senest efter 90 dage.
+
+## Release
+
+1. Opret en feature branch og en pull request.
+2. Lad de obligatoriske kvalitetskontroller bestå.
+3. Anvend og verificér eventuelle Supabase-migrations før kode, der afhænger af dem, frigives.
+4. Merge til `main`; Vercel bygger og udgiver produktionsversionen.
+5. Kontrollér den automatiske browserhistorie og produktionskontrol.
+
+## Struktur
+
+| Mappe | Indhold |
+| --- | --- |
+| `src/app` | Sider, API-ruter, metadata og adminflader. |
+| `src/components` | Genbrugelige brugerfladekomponenter. |
+| `src/lib` | Dataadgang, sikkerhed, kort, SEO og domænelogik. |
+| `supabase/migrations` | Versionsstyrede databaseændringer. |
+| `tools/datafordeler-importer` | Autoritativ Python-importer og egne tests. |
+| `tests` | Enheds- og sikkerhedstests. |
+| `e2e` | Playwright-tests af hele brugerrejsen. |
+| `scripts` | Aktive drifts-, parity- og verifikationsværktøjer. |
+| `docs` | Aktiv dokumentation og et tydeligt markeret historisk arkiv. |
+
+Se [dokumentationsoversigten](docs/README.md) for dataaftaler, kvalitet, drift og historiske cutover-noter.
