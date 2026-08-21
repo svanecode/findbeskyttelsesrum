@@ -42,6 +42,10 @@ const versionedImportMigrationUrl = new URL(
   "../supabase/migrations/20260821160328_versioned_import_publishing.sql",
   import.meta.url,
 );
+const versionedImportIndexesMigrationUrl = new URL(
+  "../supabase/migrations/20260821160508_index_versioned_import_foreign_keys.sql",
+  import.meta.url,
+);
 
 test("security migration closes exclusion RPC and bounds anonymous nearby work", async () => {
   const sql = (await readFile(migrationUrl, "utf8")).toLowerCase();
@@ -248,4 +252,12 @@ test("dataset rollback requires an aal2 owner and writes an audit event", async 
     sql,
     /grant execute on function app_v2\.rollback_dataset_publication_v1\(uuid\)\s+to anon/,
   );
+});
+
+test("versioned import foreign keys have covering indexes", async () => {
+  const sql = (await readFile(versionedImportIndexesMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /on app_v2\.dataset_publications \(previous_publication_id\)/);
+  assert.match(sql, /on app_v2\.dataset_publications \(rollback_of_publication_id\)/);
+  assert.match(sql, /on app_v2\.import_runs \(publication_id\)/);
 });
