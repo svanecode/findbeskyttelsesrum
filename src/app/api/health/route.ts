@@ -1,5 +1,6 @@
 import {
   getAppV2CurrentDatasetPublication,
+  getAppV2PublicDataRevision,
   getAppV2PublicDataStats,
 } from "@/lib/supabase/app-v2-queries";
 
@@ -46,9 +47,10 @@ export async function GET() {
   };
 
   try {
-    const [stats, publication] = await Promise.all([
+    const [stats, publication, dataRevision] = await Promise.all([
       getAppV2PublicDataStats(),
       getAppV2CurrentDatasetPublication(),
+      getAppV2PublicDataRevision(),
     ]);
     const shelterCount = stats.publicRegistrations;
     const latestImportedAt = stats.latestPublicImportAt;
@@ -69,6 +71,9 @@ export async function GET() {
     } else if (!publication.isConsistent) {
       degradationReasons.push("publication_import_link_is_inconsistent");
     }
+    if (dataRevision.publicationId !== (publication?.publicationId ?? null)) {
+      degradationReasons.push("public_revision_publication_mismatch");
+    }
     if (application.environment === "production") {
       if (!application.gitSha) degradationReasons.push("production_git_sha_missing");
       if (!application.deploymentId) degradationReasons.push("production_deployment_id_missing");
@@ -83,6 +88,8 @@ export async function GET() {
       application,
       dataset: {
         publicationId: publication?.publicationId ?? null,
+        revision: dataRevision.cacheKey,
+        revisionChangedAt: dataRevision.changedAt,
         importRunId: publication?.importRunId ?? null,
         publishedAt: publication?.publishedAt ?? null,
         latestImportedAt,

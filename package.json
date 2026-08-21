@@ -12,7 +12,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts",
-    "test:db": "supabase test db supabase/tests/release_1_data_integrity.sql --local",
+    "test:db": "supabase test db supabase/tests --local",
     "test:e2e": "npm run build && playwright test",
     "test:e2e:headed": "npm run build && playwright test --headed",
     "test:a11y": "npm run build && playwright test e2e/accessibility.spec.ts",

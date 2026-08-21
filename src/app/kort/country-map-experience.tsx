@@ -25,6 +25,10 @@ const CountryMap = dynamic(() => import("./country-map"), {
   loading: () => <MapLoadingSkeleton />,
 });
 
-export default function CountryMapExperience() {
-  return <CountryMap />;
+export default function CountryMapExperience({
+  initialDatasetRevision,
+}: {
+  initialDatasetRevision: string;
+}) {
+  return <CountryMap initialDatasetRevision={initialDatasetRevision} />;
 }

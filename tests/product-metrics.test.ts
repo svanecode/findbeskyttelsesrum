@@ -51,6 +51,8 @@ test("metrics stay private, aggregated and service-only", async () => {
   assert.doesNotMatch(lowerSql, /\b(ip_address|user_id|latitude|longitude|address|url)\s+(text|uuid|numeric|double)/);
   assert.match(route, /maximumBodyLength = 256/);
   assert.match(route, /isSameOrigin/);
+  assert.match(route, /consumeDistributedRateLimit/);
+  assert.match(route, /new TextEncoder\(\)\.encode\(rawBody\)\.byteLength/);
   assert.match(client, /credentials: "omit"/);
   assert.match(client, /keepalive: true/);
   assert.match(monitor, /"Content-Profile": "app_v2"/);

@@ -2,6 +2,7 @@ const baseUrl = (process.env.SMOKE_BASE_URL ?? "https://findbeskyttelsesrum.dk")
 const maximumImportAgeHours = Number(process.env.SMOKE_MAX_IMPORT_AGE_HOURS ?? "72");
 const requestTimeoutMs = Number(process.env.SMOKE_REQUEST_TIMEOUT_MS ?? "15000");
 const expectedGitSha = process.env.SMOKE_EXPECTED_GIT_SHA?.trim() || null;
+let currentPublicDataRevision = null;
 
 if (!Number.isFinite(maximumImportAgeHours) || maximumImportAgeHours <= 0) {
   throw new Error("SMOKE_MAX_IMPORT_AGE_HOURS skal være et positivt tal.");
@@ -84,6 +85,10 @@ const checks = [
       if (!payload?.dataset?.publicationId || !payload?.dataset?.importRunId || payload?.dataset?.isConsistent !== true) {
         throw new Error("Sundhedstjekket mangler en konsistent publication/import-kobling.");
       }
+      if (!payload?.dataset?.revision) {
+        throw new Error("Sundhedstjekket mangler den offentlige datarevision.");
+      }
+      currentPublicDataRevision = payload.dataset.revision;
       const deployedGitSha = payload?.application?.gitSha;
       if (!deployedGitSha) {
         throw new Error("Sundhedstjekket mangler produktionens Git SHA.");
@@ -114,6 +119,10 @@ const checks = [
   {
     name: "Nearby-API",
     run: async () => {
+      const legacyGet = await request(`${baseUrl}/api/app-v2/nearby/grouped?lat=55.6761&lng=12.5683`);
+      if (legacyGet.status !== 405) {
+        throw new Error(`Nearby GET skulle være lukket med 405, men svarede ${legacyGet.status}.`);
+      }
       const response = await requireOk(
         await request(`${baseUrl}/api/app-v2/nearby/grouped`, {
           method: "POST",
@@ -134,6 +143,7 @@ const checks = [
     run: async () => {
       const query = new URLSearchParams({
         format: "features",
+        revision: currentPublicDataRevision ?? "missing",
         north: "58",
         south: "54",
         // Eastern Bornholm reaches roughly 15.15°E.
@@ -147,7 +157,8 @@ const checks = [
       );
       const payload = await response.json();
       if (
-        payload?.contract !== "country-map-features-v1"
+        payload?.contract !== "country-map-features-v2"
+        || payload?.datasetRevision !== currentPublicDataRevision
         || !Array.isArray(payload.features)
         || payload.features.length < 1
         || payload.featureCount !== payload.features.length

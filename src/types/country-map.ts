@@ -47,7 +47,8 @@ export type CountryShelterMarkersResponse = {
 };
 
 export type CountryMapFeaturesResponse = {
-  contract: "country-map-features-v1";
+  contract: "country-map-features-v2";
+  datasetRevision: string;
   features: CountryMapFeature[];
   generatedAt: string;
   mode: "clusters" | "markers";

@@ -18,6 +18,7 @@ const defaultCandidateLimit = 500;
 const maxRadiusMeters = 100_000;
 const maxLimit = 50;
 const maxCandidateLimit = 500;
+const maximumBodyBytes = 2_048;
 const apiContract = "app_v2_nearby_grouped_v1";
 const apiSource = "app_v2";
 const activeImportStates = ["active"] as const;
@@ -360,15 +361,41 @@ async function handleNearbyRequest(
   }
 }
 
-export async function GET(request: NextRequest) {
-  const debugMeta = process.env.NODE_ENV !== "production" && request.nextUrl.searchParams.get("debug") === "1";
-  return handleNearbyRequest(request, request.nextUrl.searchParams, debugMeta);
+export async function GET() {
+  const response = errorResponse({
+    status: 405,
+    code: "nearby_post_required",
+    message: "Nearby requests must use POST so coordinates are not placed in the URL.",
+    requestId: getRequestId(),
+  });
+  response.headers.set("Allow", "POST");
+  return response;
 }
 
 export async function POST(request: NextRequest) {
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBodyBytes) {
+    return errorResponse({
+      status: 413,
+      code: "grouped_nearby_body_too_large",
+      message: "The nearby request body is too large.",
+      requestId: getRequestId(),
+    });
+  }
+
+  const rawBody = await request.text();
+  if (new TextEncoder().encode(rawBody).byteLength > maximumBodyBytes) {
+    return errorResponse({
+      status: 413,
+      code: "grouped_nearby_body_too_large",
+      message: "The nearby request body is too large.",
+      requestId: getRequestId(),
+    });
+  }
+
   let body: unknown;
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody) as unknown;
   } catch {
     return errorResponse({
       status: 400,

@@ -26,6 +26,8 @@ const mapProviderUrl = new URL("../src/lib/maps/provider.js", import.meta.url);
 const mapFallbackUrl = new URL("../src/components/MapUnavailableNotice.tsx", import.meta.url);
 const countryMarkerApiUrl = new URL("../src/app/api/country-shelters/route.ts", import.meta.url);
 const municipalityExperienceUrl = new URL("../src/app/kommune/[slug]/kommune-experience.tsx", import.meta.url);
+const municipalityOverviewUrl = new URL("../src/app/kommune/page.tsx", import.meta.url);
+const appV2QueriesUrl = new URL("../src/lib/supabase/app-v2-queries.ts", import.meta.url);
 const adminPageUrl = new URL("../src/app/admin/page.tsx", import.meta.url);
 const adminActionsUrl = new URL("../src/app/admin/actions.ts", import.meta.url);
 const adminOperationsPageUrl = new URL("../src/app/admin/drift/page.tsx", import.meta.url);
@@ -46,7 +48,7 @@ test("public shelter pages do not display internal review statuses", async () =>
 test("data overview uses bounded aggregate read models", async () => {
   const dataPage = await readFile(dataPageUrl, "utf8");
 
-  assert.match(dataPage, /getAppV2MunicipalitySummaries/);
+  assert.match(dataPage, /getAppV2PublicMunicipalitySummaryCount/);
   assert.match(dataPage, /getAppV2PublicDataStats/);
   assert.match(dataPage, /getAppV2PublicDataFunnel/);
   assert.match(dataPage, /Aktive rækker fra datakilden/);
@@ -131,11 +133,15 @@ test("detail pages expose contact, moderated reporting and related registrations
 
 test("expensive public APIs use shared rate limits without globally limiting page requests", async () => {
   const nearbyApi = await readFile(nearbyApiUrl, "utf8");
+  const countryMapApi = await readFile(countryMarkerApiUrl, "utf8");
+  const metricsApi = await readFile(new URL("../src/app/api/metrics/route.ts", import.meta.url), "utf8");
   const reportApi = await readFile(reportApiUrl, "utf8");
   const clientErrorApi = await readFile(clientErrorApiUrl, "utf8");
   const proxy = await readFile(proxyUrl, "utf8");
 
   assert.match(nearbyApi, /consumeDistributedRateLimit/);
+  assert.match(countryMapApi, /consumeDistributedRateLimit/);
+  assert.match(metricsApi, /consumeDistributedRateLimit/);
   assert.match(reportApi, /consumeDistributedRateLimit/);
   assert.match(clientErrorApi, /consumeDistributedRateLimit/);
   assert.doesNotMatch(proxy, /rateLimit\(/);
@@ -213,12 +219,42 @@ test("the national map requests bounded server clusters without low-zoom samplin
 
   assert.match(countryMap, /MapViewportEvents/);
   assert.match(countryMap, /format: "features"/);
+  assert.match(countryMap, /revision: datasetRevision/);
   assert.match(countryMap, /north: String\(viewport\.north\)/);
   assert.match(countryMap, /ServerClusterLayer/);
   assert.match(countryMap, /createBufferedCountryMapViewport/);
   assert.match(markerApi, /getAppV2PublicCountryMapFeatures/);
-  assert.match(markerApi, /format === "features"/);
-  assert.match(markerApi, /INVALID_COUNTRY_MAP_VIEWPORT/);
+  assert.match(markerApi, /getAppV2PublicDataRevision/);
+  assert.match(markerApi, /quantizeCountryMapViewport/);
+  assert.match(markerApi, /COUNTRY_MAP_REVISION_CHANGED/);
+  assert.match(markerApi, /INVALID_COUNTRY_MAP_REQUEST/);
+  assert.doesNotMatch(markerApi, /getAppV2PublicCountryShelterMarkers/);
+});
+
+test("municipality pages use bounded summaries and allow ISR", async () => {
+  const [overview, dataPage, queries] = await Promise.all([
+    readFile(municipalityOverviewUrl, "utf8"),
+    readFile(dataPageUrl, "utf8"),
+    readFile(appV2QueriesUrl, "utf8"),
+  ]);
+
+  assert.match(overview, /getAppV2MunicipalitySummaries/);
+  assert.match(overview, /export const revalidate = 3600/);
+  assert.doesNotMatch(overview, /force-dynamic/);
+  assert.match(dataPage, /getAppV2PublicMunicipalitySummaryCount/);
+  assert.match(queries, /municipality_summary_public_v1/);
+  assert.doesNotMatch(queries, /getPublicShelterAggregatesByMunicipalityId/);
+  assert.doesNotMatch(queries, /municipalityStatsPageSize/);
+});
+
+test("nearby accepts only bounded POST bodies", async () => {
+  const nearbyApi = await readFile(nearbyApiUrl, "utf8");
+
+  assert.match(nearbyApi, /maximumBodyBytes = 2_048/);
+  assert.match(nearbyApi, /new TextEncoder\(\)\.encode\(rawBody\)\.byteLength/);
+  assert.match(nearbyApi, /status: 405/);
+  assert.match(nearbyApi, /response\.headers\.set\("Allow", "POST"\)/);
+  assert.doesNotMatch(nearbyApi, /handleNearbyRequest\(request, request\.nextUrl\.searchParams/);
 });
 
 test("the national map page loads aggregate stats instead of all markers", async () => {

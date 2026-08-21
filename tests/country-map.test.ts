@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   countryMapViewportContains,
   createBufferedCountryMapViewport,
+  quantizeCountryMapViewport,
 } from "../src/lib/maps/country-map-viewport";
 import {
   denmarkGeographicBounds,
@@ -71,6 +72,26 @@ test("buffered country map coordinates stay within valid world bounds", () => {
     west: -180,
     zoom: 6,
   });
+});
+
+test("server-side country map quantization is deterministic and outward", () => {
+  const input = {
+    north: 57.71234,
+    south: 54.42123,
+    east: 13.02123,
+    west: 7.93212,
+    zoom: 7,
+  };
+  const quantized = quantizeCountryMapViewport(input);
+
+  assert.deepEqual(quantized, {
+    north: 57.8,
+    south: 54.4,
+    east: 13.2,
+    west: 7.8,
+    zoom: 7,
+  });
+  assert.deepEqual(quantizeCountryMapViewport(quantized), quantized);
 });
 
 test("the national bounds include eastern Bornholm", () => {

@@ -107,7 +107,11 @@ type MarkerLoadState =
 
 const noFeatures: CountryMapFeature[] = [];
 
-export default function CountryMap() {
+export default function CountryMap({
+  initialDatasetRevision,
+}: {
+  initialDatasetRevision: string;
+}) {
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
   const [shelterMarkerIcon, setShelterMarkerIcon] = useState<import("leaflet").DivIcon | null>(null);
   const clusterRef = useRef<MarkerClusterLike | null>(null);
@@ -117,6 +121,7 @@ export default function CountryMap() {
   const [markerChunkReady, setMarkerChunkReady] = useState(false);
   const [anvendelseskoder, setAnvendelseskoderState] = useState<Anvendelseskode[]>([]);
   const [viewport, setViewport] = useState<CountryMapViewport | null>(null);
+  const [datasetRevision, setDatasetRevision] = useState(initialDatasetRevision);
   const [markerRetryKey, setMarkerRetryKey] = useState(0);
   const [tileStatus, setTileStatus] = useState<MapTileStatus>("loading");
   const [tileRetryKey, setTileRetryKey] = useState(0);
@@ -233,6 +238,7 @@ export default function CountryMap() {
     const timer = window.setTimeout(() => {
       const search = new URLSearchParams({
         format: "features",
+        revision: datasetRevision,
         north: String(viewport.north),
         south: String(viewport.south),
         east: String(viewport.east),
@@ -250,13 +256,25 @@ export default function CountryMap() {
             headers: { Accept: "application/json" },
           });
 
+          if (response.status === 409) {
+            const changed = (await response.json()) as { currentRevision?: unknown };
+            if (typeof changed.currentRevision === "string" && changed.currentRevision !== datasetRevision) {
+              setDatasetRevision(changed.currentRevision);
+              return;
+            }
+          }
+
           if (!response.ok) {
             throw new Error(`Marker endpoint failed with ${response.status}`);
           }
 
           const payload = (await response.json()) as CountryMapFeaturesResponse;
 
-          if (payload.contract !== "country-map-features-v1" || !Array.isArray(payload.features)) {
+          if (
+            payload.contract !== "country-map-features-v2"
+            || payload.datasetRevision !== datasetRevision
+            || !Array.isArray(payload.features)
+          ) {
             throw new Error("Marker endpoint returned an invalid contract");
           }
 
@@ -291,7 +309,7 @@ export default function CountryMap() {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [viewport, markerRetryKey]);
+  }, [viewport, markerRetryKey, datasetRevision]);
 
   const handleViewportChange = useCallback((nextViewport: CountryMapViewport) => {
     setViewport((current) => {

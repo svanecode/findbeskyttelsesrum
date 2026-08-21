@@ -3,7 +3,10 @@ import type { Metadata } from "next";
 import GlobalFooter from "@/components/GlobalFooter";
 import ProductMetricView from "@/components/ProductMetricView";
 import { ui } from "@/components/ui-classes";
-import { getAppV2PublicDataStats } from "@/lib/supabase/app-v2-queries";
+import {
+  getAppV2PublicDataRevision,
+  getAppV2PublicDataStats,
+} from "@/lib/supabase/app-v2-queries";
 import { siteUrl } from "@/lib/seo/site";
 
 import CountryMapExperience from "./country-map-experience";
@@ -34,7 +37,10 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 export default async function CountryMapPage() {
-  const stats = await getAppV2PublicDataStats();
+  const [stats, dataRevision] = await Promise.all([
+    getAppV2PublicDataStats(),
+    getAppV2PublicDataRevision(),
+  ]);
 
   return (
     <main id="main-content" tabIndex={-1} className={ui.page}>
@@ -65,7 +71,7 @@ export default async function CountryMapPage() {
             Zoom ind og klik på punktgrupper for at se enkelte steder. Kortet er bedst med mus eller touch; for præcis
             søgning efter BBR-registreringer i nærheden, brug forsiden.
           </p>
-          <CountryMapExperience />
+          <CountryMapExperience initialDatasetRevision={dataRevision.cacheKey} />
         </div>
       </section>
 
