@@ -7,14 +7,14 @@ on:
     paths:
       - ".github/workflows/datafordeler-import.yml"
       - "tools/datafordeler-importer/**"
-      - "supabase/migrations/*datafordeler_import_finalizer.sql"
+      - "supabase/migrations/*versioned_import_publishing.sql"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/datafordeler-import.yml"
       - "tools/datafordeler-importer/**"
-      - "supabase/migrations/*datafordeler_import_finalizer.sql"
+      - "supabase/migrations/*versioned_import_publishing.sql"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -78,6 +78,9 @@ jobs:
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    permissions:
+      contents: read
+      issues: write
     defaults:
       run:
         working-directory: tools/datafordeler-importer
@@ -127,20 +130,6 @@ jobs:
               exit 1
             fi
           fi
-
-      - name: Kontrollér at den gamle importer ikke kører
-        if: github.event_name == 'schedule' || inputs.dry_run == false
-        shell: bash
-        run: |
-          for state in in_progress queued; do
-            total="$(curl --fail --silent --show-error \
-              "https://api.github.com/repos/svanecode/Shelter-updater/actions/workflows/shelter-sync-graphql.yml/runs?status=${state}&per_page=1" \
-              | jq -r '.total_count')"
-            if [[ "$total" != "0" ]]; then
-              echo "Den gamle importer har en ${state}-kørsel. Prøv igen, når den er færdig." >&2
-              exit 1
-            fi
-          done
 
       - name: Kør import
         shell: bash
@@ -206,3 +195,33 @@ jobs:
           path: tools/datafordeler-importer/import-summary.json
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Opret gratis driftsalarm ved planlagt fejl
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          gh label create data-import-alert --color B60205 --description "Automatisk alarm for Datafordeler-import" --force
+          alert_url="$(gh issue list --label data-import-alert --state open --limit 1 --json url --jq '.[0].url' 2>/dev/null || true)"
+          if [[ -z "$alert_url" ]]; then
+            gh issue create \
+              --title "Datafordeler-import kræver opmærksomhed" \
+              --label data-import-alert \
+              --body "Den planlagte import fejlede uden at ændre det offentlige datasæt. Se kørslen: $RUN_URL"
+          else
+            gh issue comment "$alert_url" --body "Importen fejlede igen uden publicering. Se kørslen: $RUN_URL"
+          fi
+
+      - name: Luk driftsalarm efter næste succes
+        if: success() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          alert_url="$(gh issue list --label data-import-alert --state open --limit 1 --json url --jq '.[0].url' 2>/dev/null || true)"
+          if [[ -n "$alert_url" ]]; then
+            gh issue close "$alert_url" --comment "Den næste planlagte import blev publiceret korrekt. Se kørslen: $RUN_URL"
+          fi

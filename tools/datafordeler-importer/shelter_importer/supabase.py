@@ -6,13 +6,13 @@ import logging
 import random
 import re
 import time
-from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import requests
 
-from .config import CANONICAL_SOURCE_NAME, SOURCE_DISPLAY_NAME, SOURCE_DOCS_URL, ImportConfig
+from .config import CANONICAL_SOURCE_NAME, SOURCE_DOCS_URL, ImportConfig
 from .models import ShelterRecord
 
 logger = logging.getLogger("shelter_importer")
@@ -21,6 +21,18 @@ RETRYABLE_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 
 class SupabaseError(RuntimeError):
     """Safe database error without credentials or response payload dumps."""
+
+
+class PublicationRejectedError(SupabaseError):
+    """The complete staged dataset did not pass the database quality gates."""
+
+    def __init__(self, result: dict[str, Any]) -> None:
+        raw_reasons = result.get("qualityGateReasons")
+        reasons = [str(value) for value in raw_reasons] if isinstance(raw_reasons, list) else []
+        self.result = result
+        self.reasons = reasons
+        detail = "; ".join(reasons) if reasons else "unknown quality gate"
+        super().__init__(f"Dataset publication rejected: {detail}")
 
 
 class AppV2Store:
@@ -39,7 +51,6 @@ class AppV2Store:
         self.max_attempts = config.max_request_attempts
         self.retry_base_seconds = config.retry_base_seconds
         self.batch_size = config.supabase_batch_size
-        self.write_workers = config.supabase_write_workers
         self.session = session or requests.Session()
         self.session.headers.update(
             {
@@ -52,9 +63,6 @@ class AppV2Store:
         )
         self.sleep = sleep
         self.jitter = jitter
-        self._municipalities: dict[str, str] | None = None
-        self._shelters: dict[str, str] | None = None
-        self._written_municipalities: set[str] = set()
 
     def _request(
         self,
@@ -127,22 +135,8 @@ class AppV2Store:
         )
         self.sleep(delay)
 
-    def _all_rows(
-        self, table: str, select: str, params: dict[str, str]
-    ) -> Iterator[dict[str, Any]]:
-        offset = 0
-        limit = 1000
-        while True:
-            page_params = {**params, "select": select, "offset": str(offset), "limit": str(limit)}
-            rows = self._request("GET", table, operation=f"read app_v2.{table}", params=page_params)
-            if not isinstance(rows, list):
-                raise SupabaseError(f"Supabase app_v2.{table} read returned an invalid shape")
-            yield from rows
-            if len(rows) < limit:
-                break
-            offset += limit
-
     def latest_failed_run(self) -> dict[str, Any] | None:
+        resume_cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
         rows = self._request(
             "GET",
             "import_runs",
@@ -155,6 +149,7 @@ class AppV2Store:
                 "source_name": f"eq.{CANONICAL_SOURCE_NAME}",
                 "status": "eq.failed",
                 "last_successful_page": "not.is.null",
+                "finished_at": f"gte.{resume_cutoff}",
                 "order": "started_at.desc",
                 "limit": "1",
             },
@@ -191,7 +186,13 @@ class AppV2Store:
         resumed_from: dict[str, Any] | None,
     ) -> dict[str, Any]:
         inherited = resumed_from or {}
-        payload = {
+        self._request(
+            "POST",
+            "rpc/prune_datafordeler_import_candidates_v1",
+            operation="prune stale staging candidates",
+            payload={},
+        )
+        payload: dict[str, Any] = {
             "source_name": CANONICAL_SOURCE_NAME,
             "source_url": SOURCE_DOCS_URL,
             "status": "running",
@@ -203,6 +204,10 @@ class AppV2Store:
             "resumed_from_import_run_id": inherited.get("id"),
             "missing_transitions_applied": False,
             "missing_transitions_skipped_reason": None,
+            "publication_status": "staging",
+            "quality_gate_passed": None,
+            "quality_gate_reasons": [],
+            "quality_metrics": {},
         }
         rows = self._request(
             "POST",
@@ -216,6 +221,16 @@ class AppV2Store:
         row = rows[0]
         if not isinstance(row, dict):
             raise SupabaseError("Supabase create import run returned an invalid row")
+        if resumed_from:
+            self._request(
+                "POST",
+                "rpc/copy_datafordeler_import_candidates_v1",
+                operation="copy staged resume candidates",
+                payload={
+                    "p_from_import_run_id": str(resumed_from["id"]),
+                    "p_to_import_run_id": str(row["id"]),
+                },
+            )
         return row
 
     def checkpoint_import_run(
@@ -300,192 +315,82 @@ class AppV2Store:
                 "last_successful_cursor": cursor,
                 "missing_transitions_applied": False,
                 "missing_transitions_skipped_reason": reason,
+                "publication_status": "not_published",
+                "quality_gate_passed": None,
             },
             prefer="return=minimal",
         )
+        self._request(
+            "DELETE",
+            "import_shelter_candidates",
+            operation="discard unpublished staging rows",
+            params={"import_run_id": f"eq.{run_id}"},
+            prefer="return=minimal",
+        )
 
-    def finalize_full_import(
+    def publish_full_import(
         self,
         run_id: str,
         *,
-        seen_references: set[str],
         records_seen: int,
-        records_upserted: int,
+        records_staged: int,
         pages_fetched: int,
         cursor: str | None,
         finished_at: str,
-    ) -> int:
+    ) -> dict[str, Any]:
         result = self._request(
             "POST",
-            "rpc/finalize_datafordeler_import",
-            operation="atomically finalize full import",
+            "rpc/publish_datafordeler_import_v2",
+            operation="validate and atomically publish full import",
             payload={
                 "p_import_run_id": run_id,
                 "p_source_name": CANONICAL_SOURCE_NAME,
-                "p_seen_references": sorted(seen_references),
                 "p_records_seen": records_seen,
-                "p_records_upserted": records_upserted,
+                "p_records_staged": records_staged,
                 "p_pages_fetched": pages_fetched,
                 "p_last_successful_cursor": cursor,
                 "p_finished_at": finished_at,
             },
         )
-        if not isinstance(result, int):
-            raise SupabaseError("Supabase full import finalizer returned an invalid result")
+        if not isinstance(result, dict) or result.get("status") not in {"published", "rejected"}:
+            raise SupabaseError("Supabase publication function returned an invalid result")
+        if result["status"] == "rejected":
+            raise PublicationRejectedError(result)
         return result
 
-    def preload(self) -> None:
-        self._municipalities = {}
-        for row in self._all_rows("municipalities", "id,code", {}):
-            if row.get("code"):
-                self._municipalities[str(row["code"])] = str(row["id"])
-        self._shelters = {}
-        for row in self._all_rows(
-            "shelters",
-            "id,canonical_source_reference",
-            {"canonical_source_name": f"eq.{CANONICAL_SOURCE_NAME}"},
-        ):
-            if row.get("canonical_source_reference"):
-                self._shelters[str(row["canonical_source_reference"])] = str(row["id"])
-
-    def upsert_records(self, records: list[ShelterRecord], imported_at: str, run_id: str) -> int:
-        if self._municipalities is None or self._shelters is None:
-            self.preload()
-        municipalities: dict[str, str] = {}
-        for record in records:
-            code = record.municipality.code
-            if code not in municipalities:
-                municipalities[code] = self._upsert_municipality(record)
-
-        def write_shelter(record: ShelterRecord) -> tuple[ShelterRecord, str]:
-            shelter_id = self._upsert_shelter(
-                record, municipalities[record.municipality.code], imported_at
-            )
-            return record, shelter_id
-
-        if self.write_workers == 1:
-            written = [write_shelter(record) for record in records]
-        else:
-            with ThreadPoolExecutor(max_workers=self.write_workers) as executor:
-                written = list(executor.map(write_shelter, records))
-
-        self._upsert_sources(written, run_id, imported_at)
-        return len(written)
-
-    def _upsert_municipality(self, record: ShelterRecord) -> str:
-        assert self._municipalities is not None
-        municipality = record.municipality
-        existing_id = self._municipalities.get(municipality.code)
-        if existing_id and municipality.code in self._written_municipalities:
-            return existing_id
-        payload = {
-            "code": municipality.code,
-            "slug": municipality.slug,
-            "name": municipality.name,
-            "region_name": municipality.region_name,
-        }
-        if existing_id:
-            self._request(
-                "PATCH",
-                "municipalities",
-                operation="update municipality",
-                params={"id": f"eq.{existing_id}"},
-                payload=payload,
-                prefer="return=minimal",
-            )
-            self._written_municipalities.add(municipality.code)
-            return existing_id
-        rows = self._request(
-            "POST",
-            "municipalities",
-            operation="insert municipality",
-            payload=payload,
-            prefer="return=representation",
-        )
-        if not isinstance(rows, list) or not rows:
-            raise SupabaseError("Supabase municipality insert returned no row")
-        municipality_id = str(rows[0]["id"])
-        self._municipalities[municipality.code] = municipality_id
-        self._written_municipalities.add(municipality.code)
-        return municipality_id
-
-    def _upsert_shelter(self, record: ShelterRecord, municipality_id: str, imported_at: str) -> str:
-        assert self._shelters is not None
-        existing_id = self._shelters.get(record.canonical_source_reference)
-        payload = {
-            "municipality_id": municipality_id,
-            "slug": record.slug,
-            "name": record.name,
-            "address_line1": record.address_line1,
-            "postal_code": record.postal_code,
-            "city": record.city,
-            "latitude": record.latitude,
-            "longitude": record.longitude,
-            "capacity": record.capacity,
-            "source_application_code": record.source_application_code,
-            "status": record.status,
-            "accessibility_notes": None,
-            "summary": (
-                "Importeret fra Datafordeler BBR og DAR. Fysisk og operationel "
-                "tilgængelighed er ikke dokumenteret af kilden."
-            ),
-            "import_state": "active",
-            "last_seen_at": imported_at,
-            "last_imported_at": imported_at,
-            "canonical_source_name": CANONICAL_SOURCE_NAME,
-            "canonical_source_reference": record.canonical_source_reference,
-        }
-        if existing_id:
-            self._request(
-                "PATCH",
-                "shelters",
-                operation="update shelter baseline",
-                params={"id": f"eq.{existing_id}"},
-                payload=payload,
-                prefer="return=minimal",
-            )
-            return existing_id
-        rows = self._request(
-            "POST",
-            "shelters",
-            operation="insert shelter baseline",
-            payload=payload,
-            prefer="return=representation",
-        )
-        if not isinstance(rows, list) or not rows:
-            raise SupabaseError("Supabase shelter insert returned no row")
-        shelter_id = str(rows[0]["id"])
-        self._shelters[record.canonical_source_reference] = shelter_id
-        return shelter_id
-
-    def _upsert_sources(
-        self,
-        written: list[tuple[ShelterRecord, str]],
-        run_id: str,
-        imported_at: str,
-    ) -> None:
+    def stage_records(self, records: list[ShelterRecord], run_id: str) -> int:
         payload = [
             {
-                "shelter_id": shelter_id,
                 "import_run_id": run_id,
-                "source_name": SOURCE_DISPLAY_NAME,
-                "source_url": SOURCE_DOCS_URL,
-                "source_type": "official",
-                "source_reference": record.canonical_source_reference,
-                "last_verified_at": imported_at,
-                "imported_at": imported_at,
-                "notes": "BBR building enriched through DAR v3",
+                "source_name": CANONICAL_SOURCE_NAME,
+                "canonical_source_reference": record.canonical_source_reference,
+                "municipality_code": record.municipality.code,
+                "municipality_slug": record.municipality.slug,
+                "municipality_name": record.municipality.name,
+                "municipality_region_name": record.municipality.region_name,
+                "slug": record.slug,
+                "name": record.name,
+                "address_line1": record.address_line1,
+                "postal_code": record.postal_code,
+                "city": record.city,
+                "latitude": record.latitude,
+                "longitude": record.longitude,
+                "capacity": record.capacity,
+                "source_application_code": record.source_application_code,
+                "status": record.status,
             }
-            for record, shelter_id in written
+            for record in records
         ]
-        self._request(
-            "POST",
-            "shelter_sources",
-            operation="upsert shelter source",
-            params={"on_conflict": "shelter_id,source_name,source_reference"},
-            payload=payload,
-            prefer="resolution=merge-duplicates,return=minimal",
-        )
+        for start in range(0, len(payload), self.batch_size):
+            self._request(
+                "POST",
+                "import_shelter_candidates",
+                operation="stage shelter candidates",
+                params={"on_conflict": "import_run_id,canonical_source_reference"},
+                payload=payload[start : start + self.batch_size],
+                prefer="resolution=merge-duplicates,return=minimal",
+            )
+        return len(payload)
 
 
 def safe_error_summary(value: str) -> str:

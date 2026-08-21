@@ -24,9 +24,7 @@
     "read:shelter-detail": "tsx scripts/read/app-v2-shelter-detail.ts",
     "read:app-v2-sanity": "tsx scripts/read/app-v2-sanity.ts",
     "read:app-v2-nearby-api": "tsx scripts/read/app-v2-nearby-api.ts",
-    "monitor:production": "node scripts/monitor/production-smoke.mjs",
-    "importer:fixture": "tsx scripts/importer/run.ts fixture",
-    "importer:datafordeler": "tsx scripts/importer/run.ts datafordeler"
+    "monitor:production": "node scripts/monitor/production-smoke.mjs"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

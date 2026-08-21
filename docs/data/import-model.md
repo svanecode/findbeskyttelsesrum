@@ -1,64 +1,38 @@
 # Import Model
 
-## Goal
-Establish the importer-side model for the future `app_v2` data layer without changing the current live app data source.
-
 ## Layers
-1. Official imported baseline:
+
+1. Per-run quarantine:
+   - `app_v2.import_runs`
+   - `app_v2.import_shelter_candidates`
+2. Current imported baseline:
    - `app_v2.municipalities`
    - `app_v2.shelters`
    - `app_v2.shelter_sources`
-   - `app_v2.import_runs`
-2. Manual corrections and operational state:
+3. Publication history and rollback:
+   - `app_v2.dataset_publications`
+   - `app_v2.dataset_publication_shelters`
+4. Manual and editorial state:
    - `app_v2.shelter_overrides`
    - `app_v2.shelter_exclusions`
    - `app_v2.audit_events`
-3. Future effective public read model:
-   - not active in the live app yet
-   - should apply override-first precedence later
 
-## Importer-Owned Fields
-The importer may write:
-- canonical shelter slug
-- municipality link
-- official name and address fields
-- coordinates
-- capacity
-- source-backed building/application code when available from the official source
-- status
-- accessibility notes when source-backed
-- summary when source-backed
-- import lifecycle fields
-- canonical source identity
-- source provenance rows
-- not `source_summary`; that field stays on its database default until a later trust-copy/read-model decision
+## Importer ownership
 
-## Importer Must Not Own
-- featured/curated ordering
-- municipality editorial descriptions
-- manual override rows
-- manual or migrated exclusion rows
-- public route cutover decisions
-- current legacy/public tables
+The importer owns canonical identity, municipality link, source-backed name and address, coordinates, capacity, application code, source status, summary, import lifecycle timestamps, and provenance. It does not own featured ordering, municipality descriptions, publication withholding, manual overrides, exclusions, reports, or audit history.
 
-## Missing and Restore Rules
-The future official importer should not hard-delete shelters when a source record disappears.
+The public read model applies active manual corrections and exclusions after the imported baseline. A later import therefore cannot erase a reviewed correction or republish an excluded registration.
 
-Expected behavior:
-- mark records as `missing_from_source` only after a complete, non-resumed, adequately covered run
-- keep source history and audit history
-- restore the same shelter row when the canonical official identity reappears
+## Lifecycle rules
 
-## Exclusions
-Owner-request exclusions are manual/operational state, not official import lifecycle state.
+- Candidate rows are private and never participate in public reads.
+- Missing rows are marked only inside a successful complete publication transaction.
+- Source rows are not hard-deleted when they disappear.
+- A returning canonical source identity restores the same shelter row.
+- Suspicious datasets are rejected before any public baseline mutation.
+- Each successful publication captures the importer-owned baseline needed for rollback.
+- Rollback creates a new ledger entry rather than rewriting history.
 
-The importer should not turn legacy `public.excluded_shelters` rows directly into `import_state = 'suppressed'`. Dedicated exclusion requests belong in `app_v2.shelter_exclusions`, where they can preserve legacy address and `bygning_id` identities and later be applied by the effective public read model.
+## Application-code eligibility
 
-## Current Skeleton
-The fixture importer proves the contract, dry-run summary, source identity validation, and `app_v2` write surface. The Datafordeler adapter can validate a bounded live-source read/normalize path in dry-run mode. Neither path proves production scheduling, broad write safety, or public runtime cutover yet.
-
-## Application-Code Eligibility
-
-The Datafordeler adapter receives BBR `byg021BygningensAnvendelse`. The app_v2 importer contract now carries that value as `sourceApplicationCode`, written to `app_v2.shelters.source_application_code`.
-
-That field is the source-backed basis for future nearby application-code eligibility. Existing imported target rows may still have `source_application_code = null` until a controlled importer/data-population run refreshes them. Nearby read logic must treat missing source codes as unknown, not as eligible.
+BBR `byg021BygningensAnvendelse` is stored as `source_application_code`. Public views treat missing codes as unknown and include only codes explicitly allowed by `app_v2.application_code_eligibility`.

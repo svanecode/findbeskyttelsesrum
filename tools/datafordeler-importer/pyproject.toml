@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "findbeskyttelsesrum-importer"
-version = "2.1.0"
+version = "2.2.0"
 description = "Idempotent Datafordeler BBR/DAR v3 importer for app_v2"
 readme = "README.md"
 license = "MIT"

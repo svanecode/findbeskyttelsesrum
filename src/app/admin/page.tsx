@@ -229,11 +229,16 @@ export default async function AdminPage({
               Logget ind som {profile.providerLogin} · MFA bekræftet · {profile.role === "owner" ? "Ejer" : "Moderator"}
             </p>
           </div>
-          <form action={signOutModeratorAction}>
-            <button type="submit" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
-              Log ud
-            </button>
-          </form>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/drift" className="inline-flex min-h-[44px] items-center rounded-lg border border-orange-400/30 bg-orange-500/10 px-4 text-sm font-medium text-orange-100 hover:bg-orange-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
+              Datadrift
+            </Link>
+            <form action={signOutModeratorAction}>
+              <button type="submit" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
+                Log ud
+              </button>
+            </form>
+          </div>
         </header>
 
         {params.updated ? <p className="mt-6 rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-100" role="status">Handlingen er gemt med auditspor.</p> : null}

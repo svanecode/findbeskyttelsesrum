@@ -28,6 +28,8 @@ const countryMarkerApiUrl = new URL("../src/app/api/country-shelters/route.ts", 
 const municipalityExperienceUrl = new URL("../src/app/kommune/[slug]/kommune-experience.tsx", import.meta.url);
 const adminPageUrl = new URL("../src/app/admin/page.tsx", import.meta.url);
 const adminActionsUrl = new URL("../src/app/admin/actions.ts", import.meta.url);
+const adminOperationsPageUrl = new URL("../src/app/admin/drift/page.tsx", import.meta.url);
+const adminOperationsActionsUrl = new URL("../src/app/admin/drift/actions.ts", import.meta.url);
 const adminAuthUrl = new URL("../src/lib/moderation/auth.ts", import.meta.url);
 const adminMfaUrl = new URL("../src/app/admin/mfa/mfa-panel.tsx", import.meta.url);
 const authCallbackUrl = new URL("../src/app/auth/callback/route.ts", import.meta.url);
@@ -253,6 +255,20 @@ test("the private moderator flow requires GitHub, an allowlisted identity and MF
   assert.match(adminActions, /requireModerator\(true\)/);
   assert.match(adminActions, /moderate_shelter_report_v1/);
   assert.doesNotMatch(adminPage, /SUPABASE_SECRET_KEY/);
+});
+
+test("private data operations reauthorize rollback and require owner confirmation", async () => {
+  const operationsPage = await readFile(adminOperationsPageUrl, "utf8");
+  const operationsActions = await readFile(adminOperationsActionsUrl, "utf8");
+
+  assert.match(operationsPage, /getImportOperations/);
+  assert.match(operationsPage, /profile\.role === "owner"/);
+  assert.match(operationsPage, /Skriv GENDAN/);
+  assert.match(operationsActions, /requireModerator\(true\)/);
+  assert.match(operationsActions, /profile\.role !== "owner"/);
+  assert.match(operationsActions, /confirmation !== "GENDAN"/);
+  assert.match(operationsActions, /rollback_dataset_publication_v1/);
+  assert.doesNotMatch(operationsPage, /SUPABASE_SECRET_KEY/);
 });
 
 test("privacy copy documents automatic contact deletion", async () => {

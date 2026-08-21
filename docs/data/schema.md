@@ -1,72 +1,38 @@
 # Data Schema
 
-## Current Boundary
-The current public app still reads the existing live structures in `public`. The new `app_v2` schema is a foundation for importer and later read-model work.
+## Active boundary
 
-## App V2 Tables
-- `app_v2.municipalities`
-  - canonical municipality records
-  - code-backed identity for importer convergence
-- `app_v2.shelters`
-  - imported shelter baseline
-  - lifecycle fields for active, missing, or suppressed records
-- `app_v2.shelter_sources`
-  - source provenance and freshness
-- `app_v2.import_runs`
-  - importer run bookkeeping, checkpoints, and failure summaries
-- `app_v2.shelter_overrides`
-  - future manual corrections, separate from imported baseline
-- `app_v2.shelter_exclusions`
-  - manual or migrated owner-request exclusions for future public read models
-  - preserves legacy exclusion identities without overloading importer-owned lifecycle state
-- `app_v2.application_code_eligibility`
-  - narrow nearby eligibility reference for source-backed building/application usage codes
-  - first source namespace is Datafordeler BBR `byg021BygningensAnvendelse`
-  - seeded from the reviewed legacy `public.anvendelseskoder.skal_med` rule by code
-- `app_v2.shelter_reports`
-  - future operational feedback surface
-- `app_v2.audit_events`
-  - append-only operational audit trail
+The live application and importer use `app_v2`. Anonymous reads are limited to explicit public views and read-only RPC functions. Base tables, quarantine data, snapshots, moderation data, and audit data are private.
 
-## App V2 Read Functions
-- `app_v2.get_nearby_shelters(...)`
-  - first database-side nearby read foundation for app_v2
-  - returns a JSON payload with app_v2-native shelter rows and diagnostics
-  - uses bounding-box prefiltering plus database-side Haversine distance ordering
-  - applies active app_v2 shelter exclusions for `shelter_id`, canonical source identity, and exact app_v2 address/postal matches
-  - does not return the legacy grouped nearby shape and does not read `public.excluded_shelters`
+## Core tables
 
-## App V2 Source-Backed Eligibility Fields
+- `municipalities`: code-backed municipality identity and public metadata.
+- `shelters`: stable canonical source rows and the current imported baseline.
+- `shelter_sources`: official provenance and last verification.
+- `import_runs`: checkpoints, counters, failures, publication result, and quality metrics.
+- `import_shelter_candidates`: private per-run quarantine, deleted after a terminal non-resumable result.
+- `dataset_publications`: immutable publication ledger with one current version per source.
+- `dataset_publication_shelters`: retained importer-owned snapshots for rollback.
+- `shelter_overrides`: reviewed manual corrections applied at the public read boundary.
+- `shelter_exclusions`: durable manual and migrated exclusions.
+- `shelter_reports`: private public-feedback workflow.
+- `moderator_accounts`: stable OAuth-subject allowlist and owner/moderator role.
+- `audit_events`: append-only operational audit trail.
+- `application_code_eligibility`: explicit BBR usage-code allowlist.
+- `rate_limit_buckets`: short-lived HMAC-keyed API rate limits without raw client addresses.
 
-- `app_v2.shelters.source_application_code`
-  - importer-owned source code, currently intended for Datafordeler BBR `byg021BygningensAnvendelse`
-  - nullable because older imported rows may predate this field
-  - used only by explicit source-code eligibility modes; missing values are unknown and must not be treated as eligible
+## Public reads
 
-## Migration Set
-The live repo now carries these `app_v2` migrations:
-- `006_app_v2_foundation.sql`
-- `007_app_v2_security_tightening.sql`
-- `008_app_v2_import_run_resilience.sql`
-- `009_app_v2_municipality_code_anchor.sql`
-- `010_app_v2_shelter_exclusions.sql`
-- `011_app_v2_nearby_read_rpc.sql`
-- `012_app_v2_application_code_eligibility.sql`
-- `013_app_v2_public_read_views.sql`
-  - views: `shelter_public`, `country_marker_public`, `sitemap_shelter_public`, `municipality_public` (same rules as the former TS “public” filters: active import, capacity ≥ 40, eligible `source_application_code`, active exclusions)
-  - revokes direct `SELECT` on base `app_v2` tables from `anon` / `authenticated` / `PUBLIC`; grants `SELECT` on the views to `anon` and `authenticated`
+The app reads `shelter_public_v2`, `country_marker_public_v2`, `sitemap_shelter_public_v2`, `municipality_public_v2`, the public statistics view, and the bounded nearby RPC. Public shelter rows must be active, published, capacity-eligible, application-code eligible, and not excluded. Active manual overrides take precedence at read time.
 
-These migrations do not reshape legacy `public` tables.
+## Publication and operations functions
 
-## Access Boundary
-- Importer writes use `createAppV2AdminClient()` from `src/lib/supabase/app-v2.ts`.
-- The helper explicitly targets the `app_v2` schema through Supabase's schema API.
-- Server-side public read helpers use `createAppV2PublicClient()` (`NEXT_PUBLIC_SUPABASE_ANON_KEY`) and **must only query `*_public` views**. Browser code must not import service-role app_v2 helpers directly.
-- `SUPABASE_SECRET_KEY` is server-only and must not be exposed to client code.
+- `publish_datafordeler_import_v2`: service-role-only quality gate and atomic promotion.
+- `copy_datafordeler_import_candidates_v1`: service-role-only safe resume helper.
+- `get_import_operations_v1`: minimal MFA-protected operational overview.
+- `rollback_dataset_publication_v1`: MFA owner-only atomic restore with audit event.
+- `finalize_datafordeler_import`: retained as a denied legacy compatibility signature that always raises.
 
-## Operational Notes
-- `pgcrypto` is created in the foundation migration because the schema uses `gen_random_uuid()`.
-- Supabase API schema exposure for `app_v2` must be confirmed before later public reads or non-SQL PostgREST access are expected to work.
-- Public read policies exist for active shelter-related reads, but the live app does not rely on them yet.
-- `app_v2.shelter_exclusions` has RLS enabled and no public read policy in this foundation phase. It is intended for service-role migration, parity scripts, and future server-side read-model work, not direct browser access.
-- `app_v2.get_nearby_shelters(...)` is granted to `service_role` in this foundation phase. It is intended for server-side helpers and diagnostics, not direct browser use.
+## Access boundary
+
+`SUPABASE_SECRET_KEY` is server-only. Public clients use the publishable/anonymous key and explicit views. The Next.js admin uses the signed-in user's Supabase session; every private RPC repeats authorization in the database.

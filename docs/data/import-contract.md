@@ -1,60 +1,31 @@
 # Import Contract
 
-## Purpose
-Define the normalized record contract that importer adapters must produce before records can be written to `app_v2`.
+## Authoritative implementation
 
-## Current Implementation
-- `src/lib/importer/types.ts` defines the normalized shelter record and run summary.
-- `src/lib/importer/source-adapter.ts` defines the adapter boundary.
-- `src/lib/importer/adapters/fixture-adapter.ts` provides local fixture validation.
-- `src/lib/importer/adapters/datafordeler-official-adapter.ts` provides bounded live-source dry-run validation through BBR and DAR.
-- Datafordeler writes, scheduling, and workflow automation are intentionally not enabled yet.
+The production contract is implemented by the Python package in `tools/datafordeler-importer/shelter_importer`. The retired TypeScript importer has been removed so there is one write path.
 
-## Source Assumptions
-- DAWA remains only a public address search/geocoding aid for the current product.
-- DAWA is not the shelter baseline source of truth.
-- Future official-source adapters must map source data into the same normalized contract used by the fixture adapter.
+Each `ShelterRecord` must contain:
 
-## Required Normalized Record Shape
-Each imported shelter record must provide:
-- stable source identity:
-  - `sourceName`
-  - `sourceType`
-  - `sourceReference`
-  - `canonicalSourceName`
-  - `canonicalSourceReference`
-- municipality identity:
-  - `code`
-  - `slug`
-  - `name`
-  - optional `regionName`
-- shelter baseline:
-  - `slug`
-  - `name`
-  - `addressLine1`
-  - `postalCode`
-  - `city`
-  - optional `latitude`
-  - optional `longitude`
-  - `capacity`
-  - `status`
-  - optional `accessibilityNotes`
-  - `summary`
-- lifecycle:
-  - `importState`
+- stable `canonical_source_reference`;
+- municipality code, slug, name, and optional region;
+- shelter slug, name, address, postcode, and city;
+- paired valid coordinates or no coordinates;
+- non-negative capacity;
+- optional source application code;
+- a supported source status.
 
-## Importer Responsibilities
-- Reject duplicate canonical source identities within one run.
-- Keep adapter source labels consistent with record source labels.
-- Write only importer-owned baseline fields.
-- Keep manual overrides, editorial fields, and live product routing out of importer writes.
-- Leave `source_summary` on its schema default until the later public trust-copy model is decided.
-- Preserve source provenance in `app_v2.shelter_sources`.
-- Record import-run state clearly enough to diagnose failed or partial runs.
-- Require explicit fixture write confirmation before any non-dry-run fixture write.
+## Database invariants
 
-## Explicitly Deferred
-- Datafordeler non-dry-run writes.
-- GitHub Actions importer scheduling.
-- Public app reads from `app_v2`.
-- Admin UI, reporting flows, or override editing.
+- Candidate identity is unique by import run and canonical source reference.
+- Candidate slug is unique within one run.
+- Municipality codes and Danish postcodes use four digits.
+- Latitude and longitude must either both be present or both be absent.
+- Only `service_role` can read or write candidate and snapshot tables.
+- Only `service_role` can invoke the publication function.
+- Browser roles cannot invoke the retired direct-write finalizer.
+- Private operational reads require an allowlisted MFA moderator.
+- Dataset rollback additionally requires the owner role.
+
+## Run result
+
+The secret-free JSON summary includes run status, publication status, publication ID, source counters, quality-gate result, rejection reasons, and quality metrics. Credentials, authorization headers, and query strings are redacted from failures.

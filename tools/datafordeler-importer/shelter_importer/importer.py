@@ -10,7 +10,7 @@ from typing import Any
 from .config import CANONICAL_SOURCE_NAME, ImportConfig
 from .datafordeler import DatafordelerSource
 from .models import ImportSummary
-from .supabase import AppV2Store, safe_error_summary
+from .supabase import AppV2Store, PublicationRejectedError, safe_error_summary
 
 logger = logging.getLogger("shelter_importer")
 
@@ -69,14 +69,9 @@ class Importer:
             last_successful_cursor=(resumed or {}).get("last_successful_cursor"),
             import_run_id=(str(run["id"]) if run else None),
         )
-        seen_references: set[str] = set()
         last_page_had_next = True
 
         try:
-            if not dry_run:
-                assert self.store is not None
-                self.store.preload()
-
             for page in self.source.pages(
                 snapshot_at=snapshot_at,
                 after=summary.last_successful_cursor,
@@ -92,10 +87,7 @@ class Importer:
                     next_upserted = 0
                 else:
                     assert self.store is not None and summary.import_run_id is not None
-                    imported_at = self.clock()
-                    next_upserted += self.store.upsert_records(
-                        page.records, imported_at, summary.import_run_id
-                    )
+                    next_upserted += self.store.stage_records(page.records, summary.import_run_id)
                     # Cursor is durable only after every mapping/write for the page succeeds.
                     self.store.checkpoint_import_run(
                         summary.import_run_id,
@@ -105,7 +97,6 @@ class Importer:
                         cursor=next_cursor,
                     )
 
-                seen_references.update(record.canonical_source_reference for record in page.records)
                 summary.records_seen = next_seen
                 summary.records_upserted = next_upserted
                 summary.pages_fetched = next_pages
@@ -130,28 +121,30 @@ class Importer:
             if dry_run:
                 summary.status = "succeeded"
                 summary.missing_transitions_skipped_reason = "dry-run never writes"
+                summary.publication_status = "not_published"
                 return summary
 
             assert self.store is not None and summary.import_run_id is not None
             finished_at = self.clock()
-            is_fresh_full_scan = resumed is None and max_pages is None and not last_page_had_next
-            if is_fresh_full_scan:
-                self.store.finalize_full_import(
+            is_complete_scan = max_pages is None and not last_page_had_next
+            if is_complete_scan:
+                publication = self.store.publish_full_import(
                     summary.import_run_id,
-                    seen_references=seen_references,
                     records_seen=summary.records_seen,
-                    records_upserted=summary.records_upserted,
+                    records_staged=summary.records_upserted,
                     pages_fetched=summary.pages_fetched,
                     cursor=summary.last_successful_cursor,
                     finished_at=finished_at,
                 )
                 summary.missing_transitions_applied = True
+                summary.publication_status = "published"
+                publication_id = publication.get("publicationId")
+                summary.publication_id = str(publication_id) if publication_id else None
+                summary.quality_gate_passed = True
+                raw_metrics = publication.get("qualityMetrics")
+                summary.quality_metrics = raw_metrics if isinstance(raw_metrics, dict) else {}
             else:
-                reason = (
-                    "resume run: missing transitions require a subsequent fresh full import"
-                    if resumed
-                    else "capped run: source traversal was intentionally incomplete"
-                )
+                reason = "capped run: source traversal was intentionally incomplete"
                 self.store.succeed_without_missing(
                     summary.import_run_id,
                     records_seen=summary.records_seen,
@@ -162,11 +155,18 @@ class Importer:
                     reason=reason,
                 )
                 summary.missing_transitions_skipped_reason = reason
+                summary.publication_status = "not_published"
             summary.status = "succeeded"
             return summary
         except (Exception, KeyboardInterrupt) as exc:
             summary.http_statuses = set(self.source.statuses_seen)
             summary.status = "failed"
+            if isinstance(exc, PublicationRejectedError):
+                summary.publication_status = "rejected"
+                summary.quality_gate_passed = False
+                summary.quality_gate_reasons = exc.reasons
+                raw_metrics = exc.result.get("qualityMetrics")
+                summary.quality_metrics = raw_metrics if isinstance(raw_metrics, dict) else {}
             if not dry_run and summary.import_run_id and self.store:
                 try:
                     self.store.fail_import_run(
