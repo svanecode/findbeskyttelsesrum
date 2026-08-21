@@ -14,4 +14,13 @@ export type CountryShelterMarkersResponse = {
   shelters: CountryMapShelterMarker[];
   generatedAt: string;
   count: number;
+  availableCount: number;
+  truncated: boolean;
+  viewport?: {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+    zoom: number;
+  };
 };

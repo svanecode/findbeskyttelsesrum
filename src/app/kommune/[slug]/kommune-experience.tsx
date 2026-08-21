@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
@@ -16,6 +16,8 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [visibleCount, setVisibleCount] = useState(30)
+  const [mapActivated, setMapActivated] = useState(false)
+  const mapSectionRef = useRef<HTMLElement | null>(null)
   const filteredGroups = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('da-DK')
     if (!normalizedQuery) return groups
@@ -27,6 +29,26 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
     )
   }, [groups, query])
   const visibleGroups = filteredGroups.slice(0, visibleCount)
+
+  useEffect(() => {
+    if (mapActivated) return
+    const section = mapSectionRef.current
+    if (!section || typeof IntersectionObserver === 'undefined') {
+      const timer = window.setTimeout(() => setMapActivated(true), 0)
+      return () => window.clearTimeout(timer)
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        setMapActivated(true)
+        observer.disconnect()
+      },
+      { rootMargin: '240px' },
+    )
+    observer.observe(section)
+    return () => observer.disconnect()
+  }, [mapActivated])
 
   if (groups.length === 0) {
     return (
@@ -53,7 +75,7 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
       <section aria-labelledby="municipality-list-heading">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="municipality-list-heading" className="text-xl font-semibold text-white">Adresser i {municipalityName}</h2>
-          <a href="#municipality-map" className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-white underline-offset-4 hover:bg-white/10 hover:underline lg:hidden">
+          <a href="#municipality-map" onClick={() => setMapActivated(true)} className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-white underline-offset-4 hover:bg-white/10 hover:underline lg:hidden">
             Vis kort
           </a>
         </div>
@@ -99,6 +121,7 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
                     <button
                       type="button"
                       onClick={() => {
+                        setMapActivated(true)
                         setSelectedGroupKey(group.groupKey)
                         if (window.matchMedia('(max-width: 1023px)').matches) {
                           document.getElementById('municipality-map')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -146,21 +169,32 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
         ) : null}
       </section>
 
-      <section id="municipality-map" className="h-[60vh] min-h-[420px] scroll-mt-24 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]" aria-label={`Kort over BBR-registreringer af sikringsrumspladser i ${municipalityName}`}>
-        <KommuneMap
-          groups={groups}
-          selectedGroupKey={selectedGroupKey}
-          onMarkerClick={(key) => {
-            setSelectedGroupKey(key)
-            const group = groups.find((item) => item.groupKey === key)
-            if (group) {
-              const groupIndex = groups.findIndex((item) => item.groupKey === key)
-              setQuery('')
-              setVisibleCount(Math.max(30, groupIndex + 1))
-              requestAnimationFrame(() => document.getElementById(`kommune-group-${group.primarySlug}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
-            }
-          }}
-        />
+      <section ref={mapSectionRef} id="municipality-map" className="h-[60vh] min-h-[420px] scroll-mt-24 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]" aria-label={`Kort over BBR-registreringer af sikringsrumspladser i ${municipalityName}`}>
+        {mapActivated ? (
+          <KommuneMap
+            groups={groups}
+            selectedGroupKey={selectedGroupKey}
+            onMarkerClick={(key) => {
+              setSelectedGroupKey(key)
+              const group = groups.find((item) => item.groupKey === key)
+              if (group) {
+                const groupIndex = groups.findIndex((item) => item.groupKey === key)
+                setQuery('')
+                setVisibleCount(Math.max(30, groupIndex + 1))
+                requestAnimationFrame(() => document.getElementById(`kommune-group-${group.primarySlug}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+              }
+            }}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center rounded-xl border border-white/10 bg-white/5 p-6 text-center" role="status">
+            <div className="max-w-sm">
+              <p className="text-sm leading-6 text-gray-300">Kortet indlæses først, når det nærmer sig skærmen.</p>
+              <button type="button" onClick={() => setMapActivated(true)} className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
+                Indlæs kort
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   )

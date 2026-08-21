@@ -4,16 +4,14 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import dynamic from 'next/dynamic'
 import 'leaflet/dist/leaflet.css'
 import '@/styles/leaflet-overrides.css'
+import MapUnavailableNotice from '@/components/MapUnavailableNotice'
+import type { MapTileStatus } from '@/components/ResilientMapTileLayer'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
 import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
 
 const MapContainer = dynamic(
   () => import('react-leaflet').then((mod) => mod.MapContainer),
-  { ssr: false },
-)
-const TileLayer = dynamic(
-  () => import('react-leaflet').then((mod) => mod.TileLayer),
   { ssr: false },
 )
 const Marker = dynamic(
@@ -28,6 +26,7 @@ const MarkerClusterGroup = dynamic(
   () => import('@/components/MarkerClusterGroup').then((mod) => mod.default),
   { ssr: false },
 )
+const ResilientMapTileLayer = dynamic(() => import('@/components/ResilientMapTileLayer'), { ssr: false })
 
 interface Props {
   groups: AppV2MunicipalityShelterGroup[]
@@ -56,6 +55,8 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
   const leafletRef = useRef<typeof import('leaflet') | null>(null)
   const fittedRef = useRef(false)
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
+  const [tileStatus, setTileStatus] = useState<MapTileStatus>('loading')
+  const [tileRetryKey, setTileRetryKey] = useState(0)
 
   // Load Leaflet once
   useEffect(() => {
@@ -104,6 +105,15 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
     }
   }, [groups])
 
+  const handleTileStatusChange = useCallback((status: MapTileStatus) => {
+    setTileStatus(status)
+  }, [])
+
+  const retryTiles = useCallback(() => {
+    setTileStatus('loading')
+    setTileRetryKey((key) => key + 1)
+  }, [])
+
   const withCoords = groups.filter((g) => g.latitude != null && g.longitude != null)
   const center: [number, number] =
     withCoords.length > 0
@@ -134,7 +144,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
   }
 
   return (
-    <div className="h-full w-full overflow-hidden rounded-xl">
+    <div className="relative h-full w-full overflow-hidden rounded-xl">
       <MapContainer
         center={center}
         zoom={10}
@@ -144,11 +154,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
         ref={mapRef}
         whenReady={handleMapReady}
       >
-        <TileLayer
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          maxZoom={18}
-        />
+        <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
 
         <MarkerClusterGroup
           maxClusterRadius={60}
@@ -200,6 +206,13 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
           })}
         </MarkerClusterGroup>
       </MapContainer>
+      {tileStatus === 'error' ? (
+        <MapUnavailableNotice
+          onRetry={retryTiles}
+          fallbackLabel="Brug adresselisten"
+          fallbackHref="#municipality-list-heading"
+        />
+      ) : null}
     </div>
   )
 }

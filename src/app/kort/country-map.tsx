@@ -6,6 +6,8 @@ import Link from "next/link";
 import "leaflet/dist/leaflet.css";
 import "@/styles/leaflet-overrides.css";
 import type { CountryMapShelterMarker, CountryShelterMarkersResponse } from "@/types/country-map";
+import MapUnavailableNotice from "@/components/MapUnavailableNotice";
+import type { MapTileStatus } from "@/components/ResilientMapTileLayer";
 import { ensureLeafletPopupStyles } from "@/lib/leaflet/ensure-popup-styles";
 import { setupLeafletDefaults } from "@/lib/leaflet/setup-defaults";
 import { getAnvendelseskodeBeskrivelse, getAnvendelseskoder } from "@/lib/anvendelseskoder";
@@ -17,7 +19,8 @@ const MapContainer = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
   { ssr: false },
 );
-const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
+const ResilientMapTileLayer = dynamic(() => import("@/components/ResilientMapTileLayer"), { ssr: false });
+const MapViewportEvents = dynamic(() => import("./map-viewport-events"), { ssr: false });
 const MarkerClusterGroup = dynamic(
   () => import("@/components/MarkerClusterGroup").then((mod) => mod.default),
   { ssr: false },
@@ -83,7 +86,16 @@ type MarkerClusterLike = {
 type MarkerLoadState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "loaded"; shelters: CountryMapShelterMarker[]; generatedAt: string; count: number };
+  | {
+      status: "loaded";
+      shelters: CountryMapShelterMarker[];
+      generatedAt: string;
+      count: number;
+      availableCount: number;
+      truncated: boolean;
+    };
+
+type CountryMapViewport = NonNullable<CountryShelterMarkersResponse["viewport"]>;
 
 export default function CountryMap() {
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
@@ -94,6 +106,10 @@ export default function CountryMap() {
   /** First marker batch applied — until then show on-map status for a11y. */
   const [markerChunkReady, setMarkerChunkReady] = useState(false);
   const [anvendelseskoder, setAnvendelseskoderState] = useState<Anvendelseskode[]>([]);
+  const [viewport, setViewport] = useState<CountryMapViewport | null>(null);
+  const [markerRetryKey, setMarkerRetryKey] = useState(0);
+  const [tileStatus, setTileStatus] = useState<MapTileStatus>("loading");
+  const [tileRetryKey, setTileRetryKey] = useState(0);
 
   useEffect(() => {
     ensureLeafletPopupStyles();
@@ -193,43 +209,82 @@ export default function CountryMap() {
   }, [markerState, shelterMarkerIcon, clusterReady, anvendelseskoder]);
 
   useEffect(() => {
+    if (!viewport) return;
     let cancelled = false;
     const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      const search = new URLSearchParams({
+        north: String(viewport.north),
+        south: String(viewport.south),
+        east: String(viewport.east),
+        west: String(viewport.west),
+        zoom: String(viewport.zoom),
+      });
 
-    const loadMarkers = async () => {
-      try {
-        setMarkerState({ status: "loading" });
-        const response = await fetch("/api/country-shelters", {
-          signal: controller.signal,
-          headers: { Accept: "application/json" },
-        });
+      const loadMarkers = async () => {
+        try {
+          setMarkerState({ status: "loading" });
+          setMarkerChunkReady(false);
+          const response = await fetch(`/api/country-shelters?${search.toString()}`, {
+            signal: controller.signal,
+            headers: { Accept: "application/json" },
+          });
 
-        if (!response.ok) {
-          throw new Error(`Marker endpoint failed with ${response.status}`);
+          if (!response.ok) {
+            throw new Error(`Marker endpoint failed with ${response.status}`);
+          }
+
+          const payload = (await response.json()) as CountryShelterMarkersResponse;
+
+          if (cancelled) return;
+          setMarkerState({
+            status: "loaded",
+            shelters: payload.shelters,
+            generatedAt: payload.generatedAt,
+            count: payload.count,
+            availableCount: payload.availableCount,
+            truncated: payload.truncated,
+          });
+        } catch (error) {
+          if (cancelled) return;
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setMarkerState({ status: "error" });
         }
+      };
 
-        const payload = (await response.json()) as CountryShelterMarkersResponse;
-
-        if (cancelled) return;
-        setMarkerState({
-          status: "loaded",
-          shelters: payload.shelters,
-          generatedAt: payload.generatedAt,
-          count: payload.count,
-        });
-      } catch (error) {
-        if (cancelled) return;
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setMarkerState({ status: "error" });
-      }
-    };
-
-    void loadMarkers();
+      void loadMarkers();
+    }, 250);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
       controller.abort();
     };
+  }, [viewport, markerRetryKey]);
+
+  const handleViewportChange = useCallback((nextViewport: CountryMapViewport) => {
+    setViewport((current) => {
+      if (
+        current &&
+        current.north === nextViewport.north &&
+        current.south === nextViewport.south &&
+        current.east === nextViewport.east &&
+        current.west === nextViewport.west &&
+        current.zoom === nextViewport.zoom
+      ) {
+        return current;
+      }
+      return nextViewport;
+    });
+  }, []);
+
+  const handleTileStatusChange = useCallback((status: MapTileStatus) => {
+    setTileStatus(status);
+  }, []);
+
+  const retryTiles = useCallback(() => {
+    setTileStatus("loading");
+    setTileRetryKey((key) => key + 1);
   }, []);
 
   const clusterIconCreate = useCallback((cluster: { getChildCount: () => number }) => {
@@ -257,7 +312,10 @@ export default function CountryMap() {
         <div className="mt-6 flex w-full max-w-sm flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              setMarkerState({ status: "loading" });
+              setMarkerRetryKey((key) => key + 1);
+            }}
             className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
           >
             Genindlæs siden
@@ -279,11 +337,11 @@ export default function CountryMap() {
     );
   }
 
-  if (markerState.status !== "loaded" || !shelterMarkerIcon) {
+  if (!shelterMarkerIcon) {
     return <MapLoadingSkeleton />;
   }
 
-  const markersReady = markerChunkReady || markerState.shelters.length === 0;
+  const markersReady = markerState.status === "loaded" && (markerChunkReady || markerState.shelters.length === 0);
 
   return (
     <div
@@ -299,6 +357,15 @@ export default function CountryMap() {
           Indlæser steder på kortet…
         </div>
       ) : null}
+      {markerState.status === "loaded" && markerState.truncated ? (
+        <div
+          className="pointer-events-none absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-white/15 bg-black/80 px-3 py-2 text-sm text-gray-100 shadow-lg backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          Viser {markerState.count.toLocaleString("da-DK")} af {markerState.availableCount.toLocaleString("da-DK")} markører i området. Zoom ind for flere.
+        </div>
+      ) : null}
       <MapContainer
         center={center}
         zoom={7}
@@ -309,10 +376,8 @@ export default function CountryMap() {
         style={{ width: "100%", height: "100%" }}
         className="leaflet-container z-0"
       >
-        <TileLayer
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        />
+        <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
+        <MapViewportEvents onViewportChange={handleViewportChange} />
 
         <MarkerClusterGroup
           ref={(instance) => {
@@ -332,6 +397,13 @@ export default function CountryMap() {
           {null}
         </MarkerClusterGroup>
       </MapContainer>
+      {tileStatus === "error" ? (
+        <MapUnavailableNotice
+          onRetry={retryTiles}
+          fallbackLabel="Brug kommuneoversigten"
+          fallbackHref="/kommune"
+        />
+      ) : null}
     </div>
   );
 }

@@ -60,7 +60,14 @@ export async function isolateRateLimit(page: Page, testInfo: TestInfo) {
 
 export async function quietThirdPartyRequests(page: Page) {
   await page.route("https://tile.openstreetmap.org/**", async (route) => {
-    await route.fulfill({ status: 204 });
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
   });
   await page.route("**/api/errors", async (route) => {
     await route.fulfill({ status: 204 });
