@@ -17,6 +17,8 @@ håndteres fortsat separat.
 
 ## Lokal udvikling
 
+Importeren kræver Python 3.12 og `uv`.
+
 Installér det låste miljø fra denne mappe:
 
 ```bash
@@ -39,14 +41,20 @@ uv run python sync_shelters_graphql.py --dry-run --max-pages 1 --summary import-
 ```
 
 GitHub-arbejdsgangen kører automatisk hver dag og kan også startes manuelt som
-tørkørsel eller bekræftet produktionskørsel.
+tørkørsel. En manuel skrivning kræver den præcise produktionsbekræftelse, som
+arbejdsgangen viser.
 
 ## Miljøvariabler
 
 - `DATAFORDELER_API_KEY` kræves altid.
 - `SUPABASE_URL` og `SUPABASE_SECRET_KEY` kræves kun ved skrivning.
-- Efterkontrollerne i hovedprojektet bruger også projektets offentlige
-  Supabase-nøgle.
+- Efterkontrollerne i hovedprojektet bruger også
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- Alle privilegerede værdier skal blive i lokale miljøfiler eller GitHub
+  Secrets. De må ikke indgå i `import-summary.json`.
 
 Databasen skal have alle filer i `supabase/migrations` anvendt, herunder
 `*_versioned_import_publishing.sql`, før skrivning aktiveres.
+
+Se [projektets dokumentationsoversigt](../../docs/README.md) for den samlede
+importmodel, feltansvar og driftskontrol.
