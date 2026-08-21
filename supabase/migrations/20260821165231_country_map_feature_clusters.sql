@@ -1,5 +1,5 @@
 -- The national map previously paginated every marker in the viewport through
--- PostgREST and sampled the result in the Next.js route.  This bounded RPC
+-- PostgREST and sampled the result in the Next.js route. This bounded RPC
 -- keeps the complete public read model in Postgres and returns grid clusters
 -- at low zoom levels, so public map requests use one connection and a small,
 -- deterministic payload without dropping registrations at random.
