@@ -3,14 +3,7 @@
 import { useEffect } from "react";
 import type { LeafletEvent, Map as LeafletMap } from "leaflet";
 import { useMapEvents } from "react-leaflet";
-
-export type CountryMapViewport = {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
-  zoom: number;
-};
+import type { CountryMapViewport } from "@/types/country-map";
 
 type Props = {
   onViewportChange: (viewport: CountryMapViewport) => void;

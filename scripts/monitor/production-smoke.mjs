@@ -118,12 +118,30 @@ const checks = [
   {
     name: "Landskortets marker-endpoint",
     run: async () => {
-      const response = await requireOk(await request(`${baseUrl}/api/country-shelters`), "Marker-endpointet");
+      const query = new URLSearchParams({
+        format: "features",
+        north: "58",
+        south: "54",
+        east: "15",
+        west: "8",
+        zoom: "7",
+      });
+      const response = await requireOk(
+        await request(`${baseUrl}/api/country-shelters?${query}`),
+        "Marker-endpointet",
+      );
       const payload = await response.json();
-      if (!Array.isArray(payload?.shelters) || payload.shelters.length < 1 || payload.count !== payload.shelters.length) {
-        throw new Error("Marker-endpointets antal eller payload er ugyldig.");
+      if (
+        payload?.contract !== "country-map-features-v1"
+        || !Array.isArray(payload.features)
+        || payload.features.length < 1
+        || payload.featureCount !== payload.features.length
+        || payload.availableCount < payload.featureCount
+        || payload.clusterCount < 1
+      ) {
+        throw new Error("Marker-endpointets klyngekontrakt eller optælling er ugyldig.");
       }
-      return `${payload.count.toLocaleString("da-DK")} markører`;
+      return `${payload.availableCount.toLocaleString("da-DK")} registreringer som ${payload.featureCount.toLocaleString("da-DK")} kortobjekter`;
     },
   },
   {

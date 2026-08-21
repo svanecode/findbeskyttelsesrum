@@ -1,11 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import "leaflet/dist/leaflet.css";
 import "@/styles/leaflet-overrides.css";
-import type { CountryMapShelterMarker, CountryShelterMarkersResponse } from "@/types/country-map";
+import type {
+  CountryMapFeature,
+  CountryMapFeaturesResponse,
+  CountryMapShelterMarker,
+  CountryMapViewport,
+} from "@/types/country-map";
 import MapUnavailableNotice from "@/components/MapUnavailableNotice";
 import type { MapTileStatus } from "@/components/ResilientMapTileLayer";
 import { ensureLeafletPopupStyles } from "@/lib/leaflet/ensure-popup-styles";
@@ -14,6 +19,10 @@ import { getAnvendelseskodeBeskrivelse, getAnvendelseskoder } from "@/lib/anvend
 import type { Anvendelseskode } from "@/types/anvendelseskode";
 import { buildLeafletPopupHtml } from "@/lib/leaflet/popup-html";
 import { getShelterPublicDisplayName } from "@/lib/shelter-display-name";
+import {
+  countryMapViewportContains,
+  createBufferedCountryMapViewport,
+} from "@/lib/maps/country-map-viewport";
 
 const MapContainer = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
@@ -21,6 +30,7 @@ const MapContainer = dynamic(
 );
 const ResilientMapTileLayer = dynamic(() => import("@/components/ResilientMapTileLayer"), { ssr: false });
 const MapViewportEvents = dynamic(() => import("./map-viewport-events"), { ssr: false });
+const ServerClusterLayer = dynamic(() => import("./server-cluster-layer"), { ssr: false });
 const MarkerClusterGroup = dynamic(
   () => import("@/components/MarkerClusterGroup").then((mod) => mod.default),
   { ssr: false },
@@ -88,14 +98,18 @@ type MarkerLoadState =
   | { status: "error" }
   | {
       status: "loaded";
-      shelters: CountryMapShelterMarker[];
+      features: CountryMapFeature[];
       generatedAt: string;
-      count: number;
+      featureCount: number;
+      markerCount: number;
+      clusterCount: number;
       availableCount: number;
       truncated: boolean;
+      refreshing: boolean;
+      refreshError: boolean;
     };
 
-type CountryMapViewport = NonNullable<CountryShelterMarkersResponse["viewport"]>;
+const noFeatures: CountryMapFeature[] = [];
 
 export default function CountryMap() {
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
@@ -110,6 +124,15 @@ export default function CountryMap() {
   const [markerRetryKey, setMarkerRetryKey] = useState(0);
   const [tileStatus, setTileStatus] = useState<MapTileStatus>("loading");
   const [tileRetryKey, setTileRetryKey] = useState(0);
+  const features = markerState.status === "loaded" ? markerState.features : noFeatures;
+  const shelters = useMemo(
+    () => features.filter((feature) => feature.kind === "marker"),
+    [features],
+  );
+  const serverClusters = useMemo(
+    () => features.filter((feature) => feature.kind === "cluster"),
+    [features],
+  );
 
   useEffect(() => {
     ensureLeafletPopupStyles();
@@ -150,7 +173,6 @@ export default function CountryMap() {
 
     cg.clearLayers();
 
-    const shelters = markerState.shelters;
     if (shelters.length === 0) {
       return () => {
         cancelled = true;
@@ -206,7 +228,7 @@ export default function CountryMap() {
       if (rafId !== null) window.cancelAnimationFrame(rafId);
       cg.clearLayers();
     };
-  }, [markerState, shelterMarkerIcon, clusterReady, anvendelseskoder]);
+  }, [markerState.status, shelters, shelterMarkerIcon, clusterReady, anvendelseskoder]);
 
   useEffect(() => {
     if (!viewport) return;
@@ -214,6 +236,7 @@ export default function CountryMap() {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       const search = new URLSearchParams({
+        format: "features",
         north: String(viewport.north),
         south: String(viewport.south),
         east: String(viewport.east),
@@ -223,8 +246,9 @@ export default function CountryMap() {
 
       const loadMarkers = async () => {
         try {
-          setMarkerState({ status: "loading" });
-          setMarkerChunkReady(false);
+          setMarkerState((current) => current.status === "loaded"
+            ? { ...current, refreshing: true, refreshError: false }
+            : { status: "loading" });
           const response = await fetch(`/api/country-shelters?${search.toString()}`, {
             signal: controller.signal,
             headers: { Accept: "application/json" },
@@ -234,21 +258,32 @@ export default function CountryMap() {
             throw new Error(`Marker endpoint failed with ${response.status}`);
           }
 
-          const payload = (await response.json()) as CountryShelterMarkersResponse;
+          const payload = (await response.json()) as CountryMapFeaturesResponse;
+
+          if (payload.contract !== "country-map-features-v1" || !Array.isArray(payload.features)) {
+            throw new Error("Marker endpoint returned an invalid contract");
+          }
 
           if (cancelled) return;
+          setMarkerChunkReady(false);
           setMarkerState({
             status: "loaded",
-            shelters: payload.shelters,
+            features: payload.features,
             generatedAt: payload.generatedAt,
-            count: payload.count,
+            featureCount: payload.featureCount,
+            markerCount: payload.markerCount,
+            clusterCount: payload.clusterCount,
             availableCount: payload.availableCount,
             truncated: payload.truncated,
+            refreshing: false,
+            refreshError: false,
           });
         } catch (error) {
           if (cancelled) return;
           if (error instanceof DOMException && error.name === "AbortError") return;
-          setMarkerState({ status: "error" });
+          setMarkerState((current) => current.status === "loaded"
+            ? { ...current, refreshing: false, refreshError: true }
+            : { status: "error" });
         }
       };
 
@@ -264,17 +299,10 @@ export default function CountryMap() {
 
   const handleViewportChange = useCallback((nextViewport: CountryMapViewport) => {
     setViewport((current) => {
-      if (
-        current &&
-        current.north === nextViewport.north &&
-        current.south === nextViewport.south &&
-        current.east === nextViewport.east &&
-        current.west === nextViewport.west &&
-        current.zoom === nextViewport.zoom
-      ) {
+      if (current && countryMapViewportContains(current, nextViewport)) {
         return current;
       }
-      return nextViewport;
+      return createBufferedCountryMapViewport(nextViewport);
     });
   }, []);
 
@@ -341,14 +369,14 @@ export default function CountryMap() {
     return <MapLoadingSkeleton />;
   }
 
-  const markersReady = markerState.status === "loaded" && (markerChunkReady || markerState.shelters.length === 0);
+  const markersReady = markerState.status === "loaded" && (markerChunkReady || markerState.markerCount === 0);
 
   return (
     <div
       className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
       aria-label="Kort over BBR-registreringer af sikringsrumspladser i Danmark. Zoom og klik på klynger for at se enkeltsteder."
     >
-      {!markersReady ? (
+      {!markersReady || (markerState.status === "loaded" && markerState.refreshing) ? (
         <div
           className="pointer-events-none absolute bottom-4 left-4 z-[5000] max-w-[min(100%,18rem)] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
           role="status"
@@ -357,13 +385,27 @@ export default function CountryMap() {
           Indlæser steder på kortet…
         </div>
       ) : null}
-      {markerState.status === "loaded" && markerState.truncated ? (
+      {markerState.status === "loaded" && markerState.refreshError ? (
+        <div
+          className="absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-amber-300/30 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
+          role="alert"
+        >
+          <p>Området kunne ikke opdateres. De senest hentede kortdata vises stadig.</p>
+          <button
+            type="button"
+            className="mt-2 min-h-[44px] rounded-lg bg-white/10 px-3 py-2 font-semibold text-white hover:bg-white/15"
+            onClick={() => setMarkerRetryKey((key) => key + 1)}
+          >
+            Prøv igen
+          </button>
+        </div>
+      ) : markerState.status === "loaded" && markerState.truncated ? (
         <div
           className="pointer-events-none absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
           role="status"
           aria-live="polite"
         >
-          Viser {markerState.count.toLocaleString("da-DK")} af {markerState.availableCount.toLocaleString("da-DK")} markører i området. Zoom ind for flere.
+          Området indeholder {markerState.availableCount.toLocaleString("da-DK")} registreringer. Zoom ind for at se alle adresser.
         </div>
       ) : null}
       <MapContainer
@@ -378,6 +420,7 @@ export default function CountryMap() {
       >
         <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
         <MapViewportEvents onViewportChange={handleViewportChange} />
+        <ServerClusterLayer clusters={serverClusters} />
 
         <MarkerClusterGroup
           ref={(instance) => {

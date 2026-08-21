@@ -10,17 +10,52 @@ export type CountryMapShelterMarker = {
   longitude: number;
 };
 
+export type CountryMapMarkerFeature = CountryMapShelterMarker & {
+  kind: "marker";
+};
+
+export type CountryMapClusterFeature = {
+  kind: "cluster";
+  id: string;
+  latitude: number;
+  longitude: number;
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+  count: number;
+  capacity: number;
+};
+
+export type CountryMapFeature = CountryMapMarkerFeature | CountryMapClusterFeature;
+
+export type CountryMapViewport = {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+  zoom: number;
+};
+
 export type CountryShelterMarkersResponse = {
   shelters: CountryMapShelterMarker[];
   generatedAt: string;
   count: number;
   availableCount: number;
   truncated: boolean;
-  viewport?: {
-    north: number;
-    south: number;
-    east: number;
-    west: number;
-    zoom: number;
-  };
+  viewport?: CountryMapViewport;
+};
+
+export type CountryMapFeaturesResponse = {
+  contract: "country-map-features-v1";
+  features: CountryMapFeature[];
+  generatedAt: string;
+  mode: "clusters" | "markers";
+  availableCount: number;
+  featureCount: number;
+  markerCount: number;
+  clusterCount: number;
+  clusteredRegistrationCount: number;
+  truncated: boolean;
+  viewport: CountryMapViewport;
 };
