@@ -51,7 +51,7 @@ const countryMapClustersMigrationUrl = new URL(
   import.meta.url,
 );
 const releaseOneDataIntegrityMigrationUrl = new URL(
-  "../supabase/migrations/20260821200032_release_1_data_integrity.sql",
+  "../supabase/migrations/20260821203117_release_1_data_integrity.sql",
   import.meta.url,
 );
 
