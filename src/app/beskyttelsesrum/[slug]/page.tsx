@@ -6,6 +6,7 @@ import GlobalFooter from "@/components/GlobalFooter";
 import BackLinkButton from "@/components/BackLinkButton";
 import RegistrationNotice, { RegistrationStatusLabels } from "@/components/RegistrationNotice";
 import ReportShelterIssue from "@/components/ReportShelterIssue";
+import ProductMetricView from "@/components/ProductMetricView";
 import ShelterOsmEmbedMap from "@/components/ShelterOsmEmbedMap";
 import { ui } from "@/components/ui-classes";
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from "@/lib/anvendelseskoder";
@@ -161,6 +162,7 @@ export default async function ShelterDetailPage({ params }: Props) {
 
   return (
     <main id="main-content" tabIndex={-1} className={ui.page}>
+      <ProductMetricView eventName="detail_opened" />
       <script
         type="application/ld+json"
         suppressHydrationWarning

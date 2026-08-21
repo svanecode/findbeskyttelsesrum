@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { ui } from './ui-classes'
 
 import { shelterReportTypes, type ShelterReportType } from '@/lib/reporting/shelter-report'
+import { trackProductMetric } from '@/lib/analytics/product-metrics'
 
 type Props = {
   shelterId: string
@@ -23,6 +24,7 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
   const openForm = () => {
     setOpen(true)
     setError(null)
+    trackProductMetric('report_started')
     window.requestAnimationFrame(() => typeRef.current?.focus())
   }
 
@@ -60,8 +62,10 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
       }
 
       setSubmitState('success')
+      trackProductMetric('report_submitted')
     } catch (submitError) {
       setSubmitState('idle')
+      trackProductMetric('report_error')
       setError(submitError instanceof Error ? submitError.message : 'Rapporten kunne ikke gemmes. Prøv igen senere.')
     }
   }

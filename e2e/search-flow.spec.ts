@@ -15,6 +15,11 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 
 test("adresseflowet viser resultater uden steddata i URL'en", async ({ page }) => {
+  const metricPayloads: Array<Record<string, unknown>> = [];
+  await page.route("**/api/metrics", async (route) => {
+    metricPayloads.push(route.request().postDataJSON() as Record<string, unknown>);
+    await route.fulfill({ status: 202 });
+  });
   await mockDawa(page);
   await mockNearby(page);
 
@@ -41,6 +46,18 @@ test("adresseflowet viser resultater uden steddata i URL'en", async ({ page }) =
     lng: 12.5683,
     limit: 10,
   });
+  await expect.poll(() => metricPayloads.map((payload) => payload.eventName)).toContain("nearby_results_loaded");
+  expect(metricPayloads.map((payload) => payload.eventName)).toEqual(expect.arrayContaining([
+    "address_search_started",
+    "address_selected",
+    "nearby_results_loaded",
+  ]));
+  for (const payload of metricPayloads) {
+    expect(Object.keys(payload).sort()).toEqual(
+      payload.durationMs === undefined ? ["eventName"] : ["durationMs", "eventName"],
+    );
+    expect(JSON.stringify(payload)).not.toMatch(/Rådhuspladsen|København|55\.6761|12\.5683|"(latitude|longitude|userId|url|query)"/i);
+  }
 });
 
 test("gamle links renses straks for adresse og koordinater", async ({ page }) => {

@@ -5,6 +5,10 @@ import {
   countryMapViewportContains,
   createBufferedCountryMapViewport,
 } from "../src/lib/maps/country-map-viewport";
+import {
+  denmarkGeographicBounds,
+  isWithinDenmarkMapBounds,
+} from "../src/lib/maps/denmark-bounds";
 
 test("country map requests use a quantized buffer around the visible viewport", () => {
   const visible = {
@@ -67,4 +71,9 @@ test("buffered country map coordinates stay within valid world bounds", () => {
     west: -180,
     zoom: 6,
   });
+});
+
+test("the national bounds include eastern Bornholm", () => {
+  assert.equal(isWithinDenmarkMapBounds(55.14, 15.15), true);
+  assert.ok(denmarkGeographicBounds.east >= 15.3);
 });

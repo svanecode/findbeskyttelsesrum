@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { consumeDistributedRateLimit } from '@/lib/distributed-rate-limit'
 import { rateLimit } from '@/lib/rate-limit'
+import { recordProductMetricServer } from '@/lib/analytics/product-metrics-server'
 
 export const runtime = 'nodejs'
 
@@ -145,6 +146,7 @@ export async function POST(request: NextRequest) {
     })
 
     await forwardToWebhook(errorReport)
+    await recordProductMetricServer('client_error')
 
     return NextResponse.json({ success: true }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {

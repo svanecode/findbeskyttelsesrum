@@ -17,6 +17,7 @@ import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
 import { setupLeafletDefaults } from '@/lib/leaflet/setup-defaults'
 import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
+import { trackProductMetric } from '@/lib/analytics/product-metrics'
 import type { Anvendelseskode } from '@/types/anvendelseskode'
 import { NearbyFitBounds } from './nearby-fit-bounds'
 
@@ -159,6 +160,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
     let isMounted = true
 
     async function loadData() {
+      const startedAt = performance.now()
       try {
         setIsLoading(true)
         setLoadError(null)
@@ -169,12 +171,17 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         if (isMounted) {
           setShelters(shelterData)
           setAnvendelseskoder(codeData)
+          trackProductMetric(
+            shelterData.length > 0 ? 'nearby_results_loaded' : 'nearby_no_results',
+            performance.now() - startedAt,
+          )
         }
       } catch {
         if (isMounted) {
           setShelters([])
           setAnvendelseskoder([])
           setLoadError('Vi kunne ikke hente BBR-registreringerne lige nu. Prøv igen om lidt.')
+          trackProductMetric('nearby_error', performance.now() - startedAt)
         }
       } finally {
         if (isMounted) setIsLoading(false)
@@ -195,6 +202,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
 
   const selectMobileView = useCallback((view: MobileView, moveFocus = false) => {
     setMobileView(view)
+    if (view === 'map') trackProductMetric('map_opened')
     if (!moveFocus) return
     requestAnimationFrame(() => {
       if (view === 'list') listTabRef.current?.focus()
@@ -205,6 +213,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const showShelterOnMap = useCallback((shelter: NearbyResultShelter) => {
     setSelectedShelterId(shelter.id)
     setMobileView('map')
+    trackProductMetric('map_opened')
     setSrMapSelection(`${getAddressLine(shelter)} er valgt og vist på kortet.`)
     requestAnimationFrame(() => {
       mapTabRef.current?.focus()

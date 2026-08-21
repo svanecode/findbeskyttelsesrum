@@ -122,7 +122,8 @@ const checks = [
         format: "features",
         north: "58",
         south: "54",
-        east: "15",
+        // Eastern Bornholm reaches roughly 15.15°E.
+        east: "15.3",
         west: "8",
         zoom: "7",
       });
@@ -182,6 +183,20 @@ const checks = [
         throw new Error(`Rapporterings-API'et skulle afvise testdata med 400, men svarede ${response.status}.`);
       }
       return "Ugyldig rapport blev afvist uden skrivning";
+    },
+  },
+  {
+    name: "Anonym målingskanal",
+    run: async () => {
+      const response = await request(`${baseUrl}/api/metrics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventName: "monitor_heartbeat" }),
+      });
+      if (response.status !== 202) {
+        throw new Error(`Målingskanalen skulle svare 202, men svarede ${response.status}.`);
+      }
+      return "Privat, stedfri heartbeat blev registreret";
     },
   },
 ];

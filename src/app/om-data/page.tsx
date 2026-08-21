@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
+import ProductMetricView from "@/components/ProductMetricView";
 import { ui } from "@/components/ui-classes";
 import {
   getAppV2MunicipalitySummaries,
@@ -89,6 +90,7 @@ export default async function DataPage() {
 
   return (
     <main id="main-content" tabIndex={-1} className={ui.page}>
+      <ProductMetricView eventName="data_explanation_opened" />
       <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <header className="mb-10 max-w-3xl space-y-5">
           <p className={ui.eyebrow}>Data</p>

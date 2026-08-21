@@ -2,6 +2,8 @@
 
 Landskortet er et gratis, orienterende kort over den samme publicerede BBR-læsemodel som resten af siden. Kortet bruger fortsat OpenStreetMaps offentlige standardtiles ansvarligt og har kommuneoversigten som fallback, hvis kortbaggrunden ikke kan hentes.
 
+Den nationale afgrænsning går til 15,3° øst, så hele Bornholm indgår. Registreringer øst for 15° er gyldige danske data og må ikke filtreres fra som koordinatafvigelser.
+
 ## Kortobjekter efter zoom
 
 `GET /api/country-shelters?format=features&north=…&south=…&east=…&west=…&zoom=…` er den aktive kortkontrakt.

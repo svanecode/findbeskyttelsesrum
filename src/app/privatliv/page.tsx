@@ -43,6 +43,12 @@ export default function PrivacyPage() {
               queryparametre og fragmenter, så adresse og koordinater ikke følger med. I tekniske fejlrapporter fjernes
               queryparametre fra URL&apos;er, og strukturerede lokationsfelter redigeres.
             </p>
+            <p className="mt-3 text-sm leading-6 text-gray-400">
+              Tjenestens egne driftsmålinger gemmes kun som timevise tællere for en fast liste af handlinger, for eksempel
+              at en søgning er startet, eller at et resultat er indlæst. De indeholder ikke IP-adresse, bruger-id, adresse,
+              koordinater, søgetekst eller fuld URL. Indlæsningstid afrundes til intervaller på 250 millisekunder, og
+              tællerne slettes automatisk efter senest 90 dage.
+            </p>
           </section>
 
           <section className="border-t border-white/10 py-6 sm:py-8">
