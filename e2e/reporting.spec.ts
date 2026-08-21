@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { isolateRateLimit, knownShelterSlug, quietThirdPartyRequests } from "./support";
+import { isolateRateLimit, knownShelterSlug, quietThirdPartyRequests, rateLimitTestAddress } from "./support";
 
 test.beforeEach(async ({ page }, testInfo) => {
   await isolateRateLimit(page, testInfo);
@@ -33,10 +33,10 @@ test("fejlrapportering ender i moderationskø uden en rigtig skrivning", async (
   });
 });
 
-test("rapporterings-API afviser ugyldige data uden databaseskrivning", async ({ request }) => {
+test("rapporterings-API afviser ugyldige data uden databaseskrivning", async ({ request }, testInfo) => {
   const response = await request.post("/api/app-v2/shelter-reports", {
     headers: {
-      "x-forwarded-for": "e2e-reporting-api-validation",
+      "x-forwarded-for": rateLimitTestAddress(testInfo),
     },
     data: {
       shelterId: "ikke-et-uuid",

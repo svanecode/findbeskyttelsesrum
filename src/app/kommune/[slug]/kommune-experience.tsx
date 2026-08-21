@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { ui } from '@/components/ui-classes'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
 
 const KommuneMap = dynamic(() => import('./kommune-map'), { ssr: false })
@@ -52,17 +53,17 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
 
   if (groups.length === 0) {
     return (
-      <div className="rounded-xl border border-white/10 bg-white/5 p-6 sm:p-8" role="status">
+      <div className={`${ui.panel} p-6 sm:p-8`} role="status">
         <h2 className="text-xl font-semibold text-white">Ingen viste BBR-registreringer i {municipalityName}</h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-300">
           Der er ingen registreringer fra denne kommune i den offentlige oversigt lige nu. Det dokumenterer ikke, at
           kommunen er uden sikringsrum eller offentlige beskyttelsesrum.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
-          <Link href="/kommune" className="inline-flex min-h-[44px] items-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-gray-200">
+          <Link href="/kommune" className={ui.primaryAction}>
             Se andre kommuner
           </Link>
-          <Link href="/" className="inline-flex min-h-[44px] items-center rounded-lg px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
+          <Link href="/" className={ui.quietAction}>
             Søg efter en adresse
           </Link>
         </div>
@@ -91,14 +92,14 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
             setVisibleCount(30)
           }}
           placeholder="Adresse, postnummer eller by"
-          className="mt-2 min-h-[48px] w-full rounded-lg border border-white/15 bg-white/5 px-4 text-base text-white placeholder:text-gray-400 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30"
+          className={`mt-2 ${ui.input}`}
         />
         <p className="mt-2 text-sm text-gray-400" role="status" aria-live="polite">
           {filteredGroups.length.toLocaleString('da-DK')} {filteredGroups.length === 1 ? 'adresse' : 'adresser'}
         </p>
 
         {filteredGroups.length === 0 ? (
-          <div className="mt-4 rounded-lg border border-white/10 bg-white/5 p-5">
+          <div className={`mt-4 ${ui.panelInset} p-5`}>
             <p className="font-medium text-white">Ingen adresser matcher din søgning</p>
             <button type="button" onClick={() => setQuery('')} className="mt-3 inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-semibold text-white underline underline-offset-4 hover:bg-white/10">
               Ryd søgningen
@@ -110,11 +111,11 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
               <li
                 id={`kommune-group-${group.primarySlug}`}
                 key={group.groupKey}
-                className={`rounded-lg border p-4 [content-visibility:auto] [contain-intrinsic-size:0_220px] ${selectedGroupKey === group.groupKey ? 'border-orange-400/60 bg-orange-500/10' : 'border-white/10 bg-white/5'}`}
+                className={`rounded-xl border p-4 [content-visibility:auto] [contain-intrinsic-size:0_220px] ${selectedGroupKey === group.groupKey ? 'border-orange-400/60 bg-orange-500/10' : 'border-white/10 bg-[var(--surface-elevated)]'}`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold text-white">{group.addressLine1}</h3>
+                <div className="flex min-w-0 flex-col items-start gap-2 md:flex-row md:justify-between md:gap-3">
+                  <div className="min-w-0">
+                    <h3 className="break-safe font-semibold text-white">{group.addressLine1}</h3>
                     <p className="mt-1 text-sm text-gray-300">{group.postalCode} {group.city}</p>
                   </div>
                   {group.latitude != null && group.longitude != null ? (
@@ -127,7 +128,7 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
                           document.getElementById('municipality-map')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                         }
                       }}
-                      className="inline-flex min-h-[44px] shrink-0 items-center rounded-lg px-3 text-sm font-medium text-white hover:bg-white/10"
+                      className={`${ui.quietAction} shrink-0`}
                       aria-label={`Vis ${group.addressLine1} på kortet`}
                     >
                       Vis på kort
@@ -145,10 +146,10 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
                     <li key={shelter.id}>
                       <Link
                         href={`/beskyttelsesrum/${shelter.slug}`}
-                        className="flex min-h-[44px] items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70"
+                        className="flex min-h-[44px] min-w-0 items-center justify-between gap-3 rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white transition-colors hover:bg-white/[0.08]"
                       >
                         <span>{group.shelters.length === 1 ? 'Se detaljer' : `Registrering ${index + 1}`}</span>
-                        <span className="text-gray-300">{shelter.capacity.toLocaleString('da-DK')} {shelter.capacity === 1 ? 'plads' : 'pladser'}</span>
+                        <span className="shrink-0 text-gray-300">{shelter.capacity.toLocaleString('da-DK')} {shelter.capacity === 1 ? 'plads' : 'pladser'}</span>
                       </Link>
                     </li>
                   ))}
@@ -162,7 +163,7 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
           <button
             type="button"
             onClick={() => setVisibleCount((count) => count + 30)}
-            className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center rounded-lg border border-white/15 bg-white/5 px-4 text-sm font-semibold text-white hover:bg-white/10"
+            className={`${ui.secondaryAction} mt-5 min-h-[48px] w-full`}
           >
             Vis flere adresser
           </button>
@@ -186,10 +187,10 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
             }}
           />
         ) : (
-          <div className="flex h-full items-center justify-center rounded-xl border border-white/10 bg-white/5 p-6 text-center" role="status">
+          <div className={`flex h-full items-center justify-center p-6 text-center ${ui.panel}`} role="status">
             <div className="max-w-sm">
               <p className="text-sm leading-6 text-gray-300">Kortet indlæses først, når det nærmer sig skærmen.</p>
-              <button type="button" onClick={() => setMapActivated(true)} className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">
+              <button type="button" onClick={() => setMapActivated(true)} className={`${ui.secondaryAction} mt-4`}>
                 Indlæs kort
               </button>
             </div>

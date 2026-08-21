@@ -350,7 +350,7 @@ export default function CountryMap() {
     >
       {!markersReady ? (
         <div
-          className="pointer-events-none absolute bottom-4 left-4 z-[5000] max-w-[min(100%,18rem)] rounded-lg border border-white/15 bg-black/75 px-3 py-2 text-sm text-gray-100 shadow-lg backdrop-blur-sm"
+          className="pointer-events-none absolute bottom-4 left-4 z-[5000] max-w-[min(100%,18rem)] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
           role="status"
           aria-live="polite"
         >
@@ -359,7 +359,7 @@ export default function CountryMap() {
       ) : null}
       {markerState.status === "loaded" && markerState.truncated ? (
         <div
-          className="pointer-events-none absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-white/15 bg-black/80 px-3 py-2 text-sm text-gray-100 shadow-lg backdrop-blur-sm"
+          className="pointer-events-none absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
           role="status"
           aria-live="polite"
         >

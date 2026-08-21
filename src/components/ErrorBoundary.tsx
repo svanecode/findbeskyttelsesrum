@@ -1,6 +1,7 @@
 'use client'
 
 import React, { Component, ErrorInfo, ReactNode } from 'react'
+import { ui } from './ui-classes'
 
 interface Props {
   children: ReactNode
@@ -76,7 +77,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="space-y-4">
               <button
                 onClick={() => window.location.reload()}
-                className="btn-primary w-full py-3 px-6 rounded-full font-medium transition-colors touch-target focus-visible btn-interactive"
+                className={`${ui.primaryAction} touch-target w-full`}
                 aria-label="Genindlæs siden for at prøve igen"
               >
                 Genindlæs siden
@@ -84,7 +85,7 @@ export class ErrorBoundary extends Component<Props, State> {
               
               <button
                 onClick={() => window.history.back()}
-                className="w-full bg-white/10 hover:bg-white/20 text-white py-3 px-6 rounded-full font-medium transition-colors touch-target focus-visible btn-interactive"
+                className={`${ui.secondaryAction} touch-target w-full`}
                 aria-label="Gå tilbage til forrige side"
               >
                 Gå tilbage

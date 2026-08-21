@@ -20,7 +20,7 @@ export default function MapUnavailableNotice({
 }: Props) {
   return (
     <div
-      className="absolute inset-0 z-[1000] flex items-center justify-center bg-[#111]/95 p-5 text-center backdrop-blur-sm"
+      className="absolute inset-0 z-[1000] flex items-center justify-center bg-[var(--surface-inset)]/95 p-5 text-center"
       role="alert"
       aria-live="assertive"
     >

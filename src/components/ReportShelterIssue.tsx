@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { ui } from './ui-classes'
 
 import { shelterReportTypes, type ShelterReportType } from '@/lib/reporting/shelter-report'
 
@@ -84,7 +85,7 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
         aria-expanded={open}
         aria-controls="shelter-report-form"
         onClick={open ? closeForm : openForm}
-        className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-4 py-3 text-sm font-semibold text-gray-100 hover:bg-white/5"
+        className={ui.secondaryAction}
       >
         {open ? 'Luk rapportformular' : 'Rapportér fejl ved registreringen'}
       </button>
@@ -93,11 +94,11 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
         <form
           id="shelter-report-form"
           onSubmit={handleSubmit}
-          className="mt-4 space-y-4 rounded-lg border border-white/10 bg-[#111] p-4 sm:p-5"
+          className={`mt-4 space-y-4 p-4 sm:p-5 ${ui.panelInset}`}
         >
           <div>
             <h3 className="font-semibold text-white">Rapportér en mulig fejl</h3>
-            <p className="mt-1 text-sm leading-6 text-gray-300">Registrering ved {shelterAddress}</p>
+            <p className="break-safe mt-1 text-sm leading-6 text-gray-300">Registrering ved {shelterAddress}</p>
           </div>
 
           <div>
@@ -110,7 +111,7 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
               name="reportType"
               required
               defaultValue=""
-              className="mt-2 min-h-[48px] w-full rounded-lg border border-white/15 bg-[#1a1a1a] px-3 text-white focus:border-orange-400"
+              className={`mt-2 ${ui.input}`}
             >
               <option value="" disabled>Vælg fejltype</option>
               {shelterReportTypes.map(({ value, label }) => (
@@ -134,7 +135,7 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
               maxLength={1500}
               rows={5}
               onChange={(event) => setMessageLength(event.target.value.length)}
-              className="mt-2 w-full rounded-lg border border-white/15 bg-[#1a1a1a] px-3 py-3 text-white placeholder:text-gray-400 focus:border-orange-400"
+              className={`${ui.input} mt-2 min-h-32 py-3`}
               placeholder="Skriv kun oplysninger, der er relevante for registreringen."
             />
           </div>
@@ -149,7 +150,7 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
               type="email"
               autoComplete="email"
               maxLength={254}
-              className="mt-2 min-h-[48px] w-full rounded-lg border border-white/15 bg-[#1a1a1a] px-3 text-white placeholder:text-gray-400 focus:border-orange-400"
+              className={`mt-2 ${ui.input}`}
               placeholder="Hvis vi må kontakte dig om rapporten"
             />
           </div>
@@ -168,7 +169,7 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
           <button
             type="submit"
             disabled={submitState === 'submitting'}
-            className="inline-flex min-h-[48px] items-center justify-center rounded-lg bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-[#0a0a0a] hover:bg-[var(--accent-hover)] disabled:cursor-wait disabled:opacity-60"
+            className={`${ui.primaryAction} min-h-[48px] disabled:cursor-wait disabled:opacity-60`}
           >
             {submitState === 'submitting' ? 'Sender rapport …' : 'Send rapport'}
           </button>

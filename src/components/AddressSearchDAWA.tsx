@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import LoadingSpinner from './LoadingSpinner'
+import { ui } from './ui-classes'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
   fetchAddressSuggestions,
@@ -270,11 +271,11 @@ export default function AddressSearchDAWA() {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-5">
       <button
         type="button"
         onClick={handleLocationClick}
-        className="btn-primary btn-interactive focus-visible touch-target flex w-full items-center justify-center gap-3 rounded-full px-6 py-4 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        className={`${ui.primaryAction} touch-target w-full gap-3 py-4 disabled:opacity-60`}
         disabled={gpsLoading}
         aria-label="Brug min placering til at se registreringer i nærheden"
       >
@@ -286,7 +287,7 @@ export default function AddressSearchDAWA() {
         )}
       </button>
 
-      <p className="text-center text-xs text-gray-300 sm:text-sm">
+      <p className="text-center text-xs leading-5 text-gray-400 sm:text-sm">
         Din placering bruges kun til denne søgning og gemmes ikke i linket.
       </p>
 
@@ -296,7 +297,11 @@ export default function AddressSearchDAWA() {
         </div>
       ) : null}
 
-      <div className="text-center text-gray-400 text-sm sm:text-base font-medium">eller</div>
+      <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-[0.12em] text-gray-400" aria-hidden="true">
+        <span className="h-px flex-1 bg-white/10" />
+        <span>eller</span>
+        <span className="h-px flex-1 bg-white/10" />
+      </div>
 
       <div ref={containerRef} className="relative w-full">
         {hasFailed && (
@@ -338,7 +343,7 @@ export default function AddressSearchDAWA() {
                 type="text"
                 id="adresse"
                 placeholder="Skriv vejnavn, by eller postnummer"
-                className="input-interactive touch-target w-full rounded-lg border border-white/20 bg-[var(--surface-input)] py-3 pl-12 pr-11 text-base text-white transition-colors placeholder:text-gray-400 focus:border-[color:var(--accent)] focus:bg-[var(--surface-input-focus)] focus:outline-none focus-visible disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12"
+                className={`${ui.input} touch-target py-3 pl-12 pr-11 transition-colors disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12`}
                 disabled={hasFailed}
                 aria-describedby={hasFailed ? 'dawa-error' : hasNoResults ? 'dawa-no-results' : undefined}
                 role="combobox"
@@ -378,7 +383,7 @@ export default function AddressSearchDAWA() {
               {isOpen && suggestions.length > 0 && (
                 <div
                   id={DAWA_LISTBOX_ID}
-                  className="absolute left-0 right-0 top-full z-[9999] mt-1 max-h-[min(18rem,50vh)] overflow-y-auto rounded-md border-2 border-white/30 bg-[var(--surface-elevated)] shadow-[0_8px_16px_rgba(0,0,0,0.6),0_0_15px_rgba(255,255,255,0.1)]"
+                  className="absolute left-0 right-0 top-full z-[9999] mt-1 max-h-[min(18rem,50vh)] overflow-y-auto rounded-lg border border-white/15 bg-[var(--surface-elevated)] shadow-[0_12px_30px_rgba(0,0,0,0.38)]"
                   role="listbox"
                   aria-label="Adresseforslag"
                 >
@@ -413,7 +418,7 @@ export default function AddressSearchDAWA() {
             <button
               type="submit"
               disabled={!canSubmit}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-lg bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-[#0a0a0a] transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-400 sm:min-w-28"
+              className={`${ui.primaryAction} min-h-[48px] sm:min-w-28`}
             >
               Søg
             </button>

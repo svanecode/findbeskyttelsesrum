@@ -2,6 +2,7 @@ import type { Page, TestInfo } from "@playwright/test";
 
 export const knownShelterSlug = "kobenhavn-radhuspladsen-14-e317aa299d35";
 export const selectedAddressLabel = "Rådhuspladsen 1, 1550 København V";
+const testRunNonce = `${Date.now().toString(36)}-${process.pid}`;
 
 export const nearbyResponse = {
   results: [
@@ -51,10 +52,14 @@ export const nearbyResponse = {
   },
 };
 
-export async function isolateRateLimit(page: Page, testInfo: TestInfo) {
+export function rateLimitTestAddress(testInfo: TestInfo) {
   const testKey = testInfo.testId.replace(/[^a-z0-9-]/gi, "-").slice(0, 180);
+  return `e2e-${testRunNonce}-${testInfo.retry}-${testKey}`;
+}
+
+export async function isolateRateLimit(page: Page, testInfo: TestInfo) {
   await page.setExtraHTTPHeaders({
-    "x-forwarded-for": `e2e-${testKey}`,
+    "x-forwarded-for": rateLimitTestAddress(testInfo),
   });
 }
 

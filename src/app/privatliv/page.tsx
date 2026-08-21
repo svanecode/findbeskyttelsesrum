@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import GlobalFooter from '@/components/GlobalFooter'
+import { ui } from '@/components/ui-classes'
 
 export const metadata: Metadata = {
   title: 'Privatliv',
@@ -11,19 +12,19 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
-      <div className="mx-auto min-h-screen w-full max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+    <main id="main-content" tabIndex={-1} className={ui.page}>
+      <div className="mx-auto min-h-screen w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <header className="max-w-2xl space-y-4">
-          <p className="text-sm uppercase tracking-wide text-gray-400">Om tjenesten</p>
-          <h1 className="text-3xl font-bold leading-tight sm:text-4xl">Privatliv</h1>
+          <p className={ui.eyebrow}>Om tjenesten</p>
+          <h1 className={ui.pageTitle}>Privatliv</h1>
           <p className="text-lg leading-8 text-gray-300">
             Du behøver ikke en konto for at bruge Find Beskyttelsesrum. Her kan du se, hvilke oplysninger de enkelte
             funktioner behandler.
           </p>
         </header>
 
-        <div className="mt-8 grid gap-5">
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+        <div className="mt-10 border-b border-white/10">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold">Adresse og placering</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Når du søger, bruges koordinater til at beregne registreringer i nærheden. Adresseteksten og koordinaterne
@@ -35,7 +36,7 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold">Analyse og tekniske fejl</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Analyse måler brug af sidens overordnede sider. Før en sideadresse sendes til analyse, fjernes
@@ -44,7 +45,7 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold">Netforbindelse og lokal lagring</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Tjenesten er en almindelig hjemmeside og kræver netforbindelse. Den tilbyder ikke en offlinekopi af
@@ -52,7 +53,7 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold">Fejlrapporter</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               En fejlrapport indeholder den valgte kategori, din beskrivelse og kun en e-mailadresse, hvis du selv vælger
@@ -67,7 +68,7 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold">Læs mere</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               <Link href="/om-data" className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-white underline underline-offset-4 hover:bg-white/5">

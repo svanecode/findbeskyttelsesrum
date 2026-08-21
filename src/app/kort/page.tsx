@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
+import { ui } from "@/components/ui-classes";
 import { getAppV2PublicDataStats } from "@/lib/supabase/app-v2-queries";
 import { siteUrl } from "@/lib/seo/site";
 
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-white/5 bg-white/[0.03] p-4 shadow-[0_6px_18px_rgb(0,0,0,0.12)] backdrop-blur-sm">
+    <div className={`${ui.panel} p-4`}>
       <p className="text-xs font-medium tracking-wide text-gray-400">{label}</p>
       <p className="mt-1 text-lg font-semibold text-gray-100">{value}</p>
     </div>
@@ -35,16 +36,11 @@ export default async function CountryMapPage() {
   const stats = await getAppV2PublicDataStats();
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-[#0a0a0a]" />
-        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
-      </div>
-
-      <div className="mx-auto flex w-full max-w-6xl flex-col px-4 py-8 sm:px-6 lg:px-8">
+    <main id="main-content" tabIndex={-1} className={ui.page}>
+      <div className="mx-auto flex w-full max-w-6xl flex-col px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <header className="mb-8 max-w-3xl space-y-4">
-          <p className="text-sm uppercase tracking-wide text-gray-400">Hele landet</p>
-          <h1 className="font-space-grotesk text-3xl font-bold leading-tight text-white sm:text-4xl">
+          <p className={ui.eyebrow}>Hele landet</p>
+          <h1 className={ui.pageTitle}>
             Landskort
           </h1>
         </header>

@@ -24,7 +24,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0a0a0a",
+  themeColor: "#0b0c0e",
 };
 
 export const metadata: Metadata = {
@@ -114,7 +114,6 @@ export default function RootLayout({
   return (
     <html lang="da" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <head>
-        <link rel="preload" href="/grid.svg" as="image" />
         <script
           type="application/ld+json"
           suppressHydrationWarning
@@ -125,7 +124,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <a
             href="#main-content"
-            className="fixed left-[max(1rem,env(safe-area-inset-left,0px))] top-[env(safe-area-inset-top,0px)] z-[100] -translate-y-full rounded-b-lg bg-white px-4 py-3 text-sm font-semibold text-black shadow-md outline-none transition-transform focus:translate-y-0 focus:ring-2 focus:ring-orange-400/60 focus:ring-offset-2 focus:ring-offset-[#0a0a0a]"
+            className="fixed left-[max(1rem,env(safe-area-inset-left,0px))] top-[env(safe-area-inset-top,0px)] z-[100] -translate-y-full rounded-b-lg bg-white px-4 py-3 text-sm font-semibold text-black shadow-md outline-none transition-transform focus:translate-y-0"
           >
             Spring til indhold
           </a>
