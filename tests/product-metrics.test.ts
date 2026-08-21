@@ -8,7 +8,7 @@ import {
 } from "../src/lib/analytics/product-metrics";
 
 const migrationUrl = new URL(
-  "../supabase/migrations/20260821170725_free_release_observability.sql",
+  "../supabase/migrations/20260821171911_free_release_observability.sql",
   import.meta.url,
 );
 const routeUrl = new URL("../src/app/api/metrics/route.ts", import.meta.url);
