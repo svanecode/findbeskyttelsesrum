@@ -1,6 +1,8 @@
 name: Datafordeler importer
 
 on:
+  schedule:
+    - cron: "0 4 * * *"
   pull_request:
     paths:
       - ".github/workflows/datafordeler-import.yml"
@@ -71,8 +73,8 @@ jobs:
           uv run python -m build
 
   import:
-    name: Kør manuel Datafordeler-import
-    if: github.event_name == 'workflow_dispatch'
+    name: Kør Datafordeler-import
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -84,10 +86,10 @@ jobs:
       SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-      DRY_RUN: ${{ inputs.dry_run }}
-      MAX_PAGES: ${{ inputs.max_pages }}
-      RESUME_LATEST: ${{ inputs.resume_latest }}
-      PRODUCTION_CONFIRMATION: ${{ inputs.production_confirmation }}
+      DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || inputs.dry_run }}
+      MAX_PAGES: ${{ github.event_name == 'schedule' && '' || inputs.max_pages }}
+      RESUME_LATEST: ${{ github.event_name == 'schedule' && 'false' || inputs.resume_latest }}
+      PRODUCTION_CONFIRMATION: ${{ github.event_name == 'schedule' && 'SKRIV_PRODUKTION' || inputs.production_confirmation }}
       SUMMARY_PATH: import-summary.json
     steps:
       - name: Hent kode
@@ -127,15 +129,9 @@ jobs:
           fi
 
       - name: Kontrollér at den gamle importer ikke kører
-        if: inputs.dry_run == false
+        if: github.event_name == 'schedule' || inputs.dry_run == false
         shell: bash
         run: |
-          current_hour="$((10#$(date -u +%H)))"
-          if (( current_hour < 8 || current_hour >= 22 )); then
-            echo "Skrivekørsler må kun startes 08:00-21:59 UTC, så de ikke overlapper den gamle kørsel kl. 04:00 UTC." >&2
-            exit 1
-          fi
-
           for state in in_progress queued; do
             total="$(curl --fail --silent --show-error \
               "https://api.github.com/repos/svanecode/Shelter-updater/actions/workflows/shelter-sync-graphql.yml/runs?status=${state}&per_page=1" \
@@ -162,19 +158,19 @@ jobs:
           uv run python sync_shelters_graphql.py "${args[@]}"
 
       - name: Brug Node.js 24 til efterkontrol
-        if: inputs.dry_run == false
+        if: github.event_name == 'schedule' || inputs.dry_run == false
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
 
       - name: Installér webprojektets låste afhængigheder
-        if: inputs.dry_run == false
+        if: github.event_name == 'schedule' || inputs.dry_run == false
         working-directory: .
         run: npm ci
 
       - name: Kontrollér database og website efter skrivning
-        if: inputs.dry_run == false
+        if: github.event_name == 'schedule' || inputs.dry_run == false
         working-directory: .
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
