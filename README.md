@@ -38,10 +38,10 @@ Server-side importer/sanity scripts additionally require a secret key. Never exp
 SUPABASE_SECRET_KEY=...
 ```
 
-BBR/DAR-importerens nye hjem er `tools/datafordeler-importer`. Dens
-Python-afhængigheder er låst separat. Den eksisterende daglige kørsel bliver i
-det tidligere updater-repository, og den nye GitHub-arbejdsgang er manuel,
-indtil overtagelsen er verificeret.
+Den autoritative BBR/DAR-importer ligger i `tools/datafordeler-importer`, og
+dens Python-afhængigheder er låst separat. Projektets egen GitHub-arbejdsgang
+kører dagligt. Data skrives først til privat staging, kvalitetskontrolleres og
+publiceres derefter atomisk. Den gamle updater er ikke længere en driftsafhængighed.
 
 Run the development server:
 
@@ -73,9 +73,12 @@ uv run pytest
 
 Before releasing database-dependent changes, apply every pending file in `supabase/migrations` with `supabase db push`.
 
-## Modernization Status
+## Operations
 
-This repo is under active modernization. The current work is focused on removing legacy cache, search, and data-access abstractions before larger product or architecture changes.
+The MFA-protected `/admin/drift` page shows import runs, quality-gate results,
+the active dataset, and retained versions. The owner can atomically restore a
+retained version. Scheduled failures create a free GitHub issue alert; the next
+successful run closes it.
 
 ## Documentation
 

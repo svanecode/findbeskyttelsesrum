@@ -8,7 +8,6 @@ from dataclasses import dataclass
 BBR_GRAPHQL_URL = "https://graphql.datafordeler.dk/BBR/v3"
 DAR_GRAPHQL_URL = "https://graphql.datafordeler.dk/DAR/v3"
 CANONICAL_SOURCE_NAME = "datafordeler-bbr-dar"
-SOURCE_DISPLAY_NAME = "Datafordeler BBR + DAR"
 SOURCE_DOCS_URL = "https://datafordeler.dk/dataoversigt/bygnings-og-boligregistret-bbr/bbr-graphql/"
 
 
@@ -46,7 +45,6 @@ class ImportConfig:
     max_request_attempts: int = 4
     retry_base_seconds: float = 1.0
     supabase_batch_size: int = 200
-    supabase_write_workers: int = 12
 
     @classmethod
     def from_env(cls, *, require_database: bool) -> ImportConfig:
@@ -84,5 +82,4 @@ class ImportConfig:
             max_request_attempts=_positive_int("MAX_REQUEST_ATTEMPTS", 4, maximum=10),
             retry_base_seconds=_positive_float("RETRY_BASE_SECONDS", 1.0),
             supabase_batch_size=_positive_int("SUPABASE_BATCH_SIZE", 200, maximum=500),
-            supabase_write_workers=_positive_int("SUPABASE_WRITE_WORKERS", 12, maximum=32),
         )

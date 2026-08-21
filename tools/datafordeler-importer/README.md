@@ -1,17 +1,17 @@
 # Datafordeler-importer
 
-Denne mappe indeholder den produktionsafprøvede BBR/DAR-importer, som blev
-flyttet fra `svanecode/Shelter-updater` ved commit `4bdaedc`. Den skriver kun
-importørens grunddata til det eksisterende `app_v2`-skema; redaktionelle
-rettelser og offentlig synlighed håndteres fortsat separat af hovedprojektet.
+Denne mappe indeholder projektets autoritative BBR/DAR-importer. Den lægger
+først en hel kørsel i privat staging. Databasen publicerer kun datasættet, hvis
+de samlede kvalitetskontroller består; redaktionelle rettelser og eksklusioner
+håndteres fortsat separat.
 
 ## Sikkerhedsregler
 
 - En manuel kørsel er som standard en tørkørsel uden databaseadgang.
-- Kun en frisk, komplet og ucappet kørsel må markere poster som manglende.
-- Genoptagne, afkortede og fejlede kørsler markerer aldrig poster som manglende.
-- Den atomiske afslutningsfunktion er kun tilgængelig for `service_role` og
-  ligger i hovedprojektets migrationshistorik.
+- Kun en komplet, ucappet stagingkørsel kan publiceres eller markere poster som manglende.
+- Genoptagne kørsler kopierer det tidligere checkpointede stagingsæt og valideres samlet.
+- Afkortede, fejlede og afviste kørsler ændrer aldrig det offentlige datasæt.
+- Publiceringsfunktionen er kun tilgængelig for `service_role`.
 - Privilegerede nøgler må aldrig ligge i `NEXT_PUBLIC_*`, i git eller i
   logoutput.
 
@@ -38,9 +38,8 @@ En kort, skrivebeskyttet kontrol mod Datafordeler:
 uv run python sync_shelters_graphql.py --dry-run --max-pages 1 --summary import-summary.json
 ```
 
-På GitHub ligger den nye arbejdsgang som en manuel overtagelseskandidat. Den
-gamle daglige kørsel skal først slås fra, når en fuld tørkørsel og én godkendt
-produktionskørsel fra hovedprojektet er kontrolleret.
+GitHub-arbejdsgangen kører automatisk hver dag og kan også startes manuelt som
+tørkørsel eller bekræftet produktionskørsel.
 
 ## Miljøvariabler
 
@@ -50,4 +49,4 @@ produktionskørsel fra hovedprojektet er kontrolleret.
   Supabase-nøgle.
 
 Databasen skal have alle filer i `supabase/migrations` anvendt, herunder
-`*_datafordeler_import_finalizer.sql`, før skrivning aktiveres.
+`*_versioned_import_publishing.sql`, før skrivning aktiveres.

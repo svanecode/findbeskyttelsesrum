@@ -38,6 +38,10 @@ const moderatorWorkflowMigrationUrl = new URL(
   "../supabase/migrations/20260820105609_moderator_workflow.sql",
   import.meta.url,
 );
+const versionedImportMigrationUrl = new URL(
+  "../supabase/migrations/20260821153717_versioned_import_publishing.sql",
+  import.meta.url,
+);
 
 test("security migration closes exclusion RPC and bounds anonymous nearby work", async () => {
   const sql = (await readFile(migrationUrl, "utf8")).toLowerCase();
@@ -208,4 +212,40 @@ test("report contact details have a hard retention boundary", async () => {
   assert.match(sql, /report\.status in \('resolved', 'rejected'\)/);
   assert.match(sql, /cron\.schedule/);
   assert.match(sql, /app-v2-redact-expired-report-contacts/);
+});
+
+test("import candidates stay private until an atomic quality-gated publication", async () => {
+  const sql = (await readFile(versionedImportMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /create table if not exists app_v2\.import_shelter_candidates/);
+  assert.match(sql, /create table if not exists app_v2\.dataset_publications/);
+  assert.match(sql, /create table if not exists app_v2\.dataset_publication_shelters/);
+  assert.match(sql, /alter table app_v2\.import_shelter_candidates enable row level security/);
+  assert.match(
+    sql,
+    /revoke all on table app_v2\.import_shelter_candidates from public, anon, authenticated/,
+  );
+  assert.match(sql, /create or replace function app_v2\.publish_datafordeler_import_v2/);
+  assert.match(sql, /pg_advisory_xact_lock/);
+  assert.match(sql, /candidate_count <> p_records_seen/);
+  assert.match(sql, /quality_gate_passed = false/);
+  assert.match(sql, /grant execute on function app_v2\.publish_datafordeler_import_v2[\s\S]+to service_role/);
+  assert.doesNotMatch(
+    sql,
+    /grant execute on function app_v2\.publish_datafordeler_import_v2\([^;]+to (anon|authenticated)/,
+  );
+});
+
+test("dataset rollback requires an aal2 owner and writes an audit event", async () => {
+  const sql = (await readFile(versionedImportMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /create or replace function app_v2\.rollback_dataset_publication_v1/);
+  assert.match(sql, /current_moderator_account_id_v1\(true\)/);
+  assert.match(sql, /account\.role = 'owner'/);
+  assert.match(sql, /'dataset_publication_rolled_back'/);
+  assert.match(sql, /grant execute on function app_v2\.rollback_dataset_publication_v1\(uuid\)\s+to authenticated/);
+  assert.doesNotMatch(
+    sql,
+    /grant execute on function app_v2\.rollback_dataset_publication_v1\(uuid\)\s+to anon/,
+  );
 });

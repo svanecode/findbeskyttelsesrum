@@ -36,19 +36,21 @@ class Store:
         self.events.append("running")
         return {"id": "run-1"}
 
-    def preload(self) -> None:
-        self.events.append("preload")
-
-    def upsert_records(self, records: list[Any], imported_at: str, run_id: str) -> int:
-        self.events.append("upsert")
+    def stage_records(self, records: list[Any], run_id: str) -> int:
+        self.events.append("stage")
         return len(records)
 
     def checkpoint_import_run(self, run_id: str, **kwargs: Any) -> None:
         self.events.append("checkpoint")
 
-    def finalize_full_import(self, run_id: str, **kwargs: Any) -> int:
-        self.events.append("finalize")
-        return 0
+    def publish_full_import(self, run_id: str, **kwargs: Any) -> dict[str, Any]:
+        self.events.append("publish")
+        return {
+            "status": "published",
+            "publicationId": "publication-1",
+            "qualityGatePassed": True,
+            "qualityMetrics": {"recordCount": 1},
+        }
 
     def succeed_without_missing(self, run_id: str, **kwargs: Any) -> None:
         self.events.append("succeeded_without_missing")
@@ -70,14 +72,16 @@ def importer(source: Source, store: Store) -> Importer:
     )
 
 
-def test_full_success_atomically_applies_missing_and_succeeds() -> None:
+def test_full_success_stages_then_atomically_publishes() -> None:
     store = Store()
     summary = importer(Source([page()]), store).run(
         dry_run=False, max_pages=None, resume_latest=False
     )
     assert summary.status == "succeeded"
     assert summary.missing_transitions_applied is True
-    assert store.events == ["running", "preload", "upsert", "checkpoint", "finalize"]
+    assert summary.publication_status == "published"
+    assert summary.publication_id == "publication-1"
+    assert store.events == ["running", "stage", "checkpoint", "publish"]
 
 
 def test_capped_run_never_marks_missing() -> None:
@@ -86,11 +90,11 @@ def test_capped_run_never_marks_missing() -> None:
         dry_run=False, max_pages=1, resume_latest=False
     )
     assert summary.missing_transitions_applied is False
-    assert "finalize" not in store.events
+    assert "publish" not in store.events
     assert store.events[-1] == "succeeded_without_missing"
 
 
-def test_resume_uses_original_snapshot_and_never_marks_missing() -> None:
+def test_resume_uses_original_snapshot_and_can_publish_complete_staging() -> None:
     resumed = {
         "id": "failed-1",
         "started_at": "2026-07-01T01:02:03Z",
@@ -106,8 +110,8 @@ def test_resume_uses_original_snapshot_and_never_marks_missing() -> None:
     assert source.args["snapshot_at"] == resumed["snapshot_at"]
     assert source.args["after"] == "old-cursor"
     assert summary.records_seen == 11
-    assert "finalize" not in store.events
-    assert store.events[-1] == "succeeded_without_missing"
+    assert summary.publication_status == "published"
+    assert store.events[-1] == "publish"
 
 
 def test_failure_after_partial_page_does_not_apply_missing_and_marks_failed() -> None:
@@ -117,7 +121,7 @@ def test_failure_after_partial_page_does_not_apply_missing_and_marks_failed() ->
             dry_run=False, max_pages=None, resume_latest=False
         )
     assert "failed" in store.events
-    assert "finalize" not in store.events
+    assert "publish" not in store.events
 
 
 def test_interrupted_import_marks_run_failed_without_missing_transition() -> None:
@@ -126,7 +130,7 @@ def test_interrupted_import_marks_run_failed_without_missing_transition() -> Non
         importer(Source([], KeyboardInterrupt()), store).run(
             dry_run=False, max_pages=None, resume_latest=False
         )
-    assert store.events == ["running", "preload", "failed"]
+    assert store.events == ["running", "failed"]
 
 
 def test_dry_run_has_no_database_writes_and_reports_mapping() -> None:

@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from .config import ImportConfig
 from .importer import Importer
-from .supabase import AppV2Store, safe_error_summary
+from .supabase import AppV2Store, PublicationRejectedError, safe_error_summary
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -70,6 +70,23 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
         return 130
+    except PublicationRejectedError as exc:
+        error_summary = safe_error_summary(str(exc))
+        logging.getLogger("shelter_importer").error("Importer failed: %s", error_summary)
+        _write_summary(
+            summary_path,
+            {
+                "dry_run": args.dry_run,
+                "source_name": "datafordeler-bbr-dar",
+                "status": "failed",
+                "publication_status": "rejected",
+                "quality_gate_passed": False,
+                "quality_gate_reasons": exc.reasons,
+                "quality_metrics": exc.result.get("qualityMetrics", {}),
+                "error_summary": error_summary,
+            },
+        )
+        return 1
     except Exception as exc:
         error_summary = safe_error_summary(str(exc) or type(exc).__name__)
         logging.getLogger("shelter_importer").error(

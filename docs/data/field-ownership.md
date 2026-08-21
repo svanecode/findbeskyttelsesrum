@@ -1,7 +1,7 @@
 # Field Ownership
 
 ## Purpose
-Define which future `app_v2` fields belong to the importer, manual operations, or read-time derivation.
+Define which active `app_v2` fields belong to the importer, manual operations, or read-time derivation.
 
 ## Ownership Types
 - `official import owned`: written by the importer from approved official sources.

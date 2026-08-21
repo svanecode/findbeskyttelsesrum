@@ -56,6 +56,11 @@ class ImportSummary:
     missing_transitions_applied: bool = False
     missing_transitions_skipped_reason: str | None = None
     import_run_id: str | None = None
+    publication_status: str = "not_published"
+    publication_id: str | None = None
+    quality_gate_passed: bool | None = None
+    quality_gate_reasons: list[str] = field(default_factory=list)
+    quality_metrics: dict[str, Any] = field(default_factory=dict)
     status: str = "running"
 
     def to_dict(self) -> dict[str, Any]:
