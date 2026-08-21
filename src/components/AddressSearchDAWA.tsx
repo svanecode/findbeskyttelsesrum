@@ -191,7 +191,9 @@ export default function AddressSearchDAWA() {
         ? Number((error as { code?: unknown }).code)
         : null
       trackProductMetric(errorCode === 1 ? 'geolocation_denied' : 'geolocation_error')
-      handleError(error instanceof Error ? error : new Error('Failed to get location'), 'Geolocation failed')
+      if (errorCode !== 1) {
+        handleError(error instanceof Error ? error : new Error('Failed to get location'), 'Geolocation failed')
+      }
     } finally {
       setGpsLoading(false)
     }
