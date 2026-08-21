@@ -1157,20 +1157,63 @@ function normalizeCountryShelterMarker(row: CountryShelterMarkerRow): AppV2Count
 /**
  * Paginated read of public map markers (national map / sanity), from `country_marker_public`.
  */
-export async function getAppV2CountryShelterMarkers(): Promise<AppV2CountryShelterMarker[]> {
+export type AppV2CountryShelterMarkerBounds = {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+};
+
+async function readAppV2CountryShelterMarkers(
+  bounds?: AppV2CountryShelterMarkerBounds,
+): Promise<{ markers: AppV2CountryShelterMarker[]; totalCount: number }> {
   const supabase = createAppV2PublicClient();
   const out: AppV2CountryShelterMarker[] = [];
   let from = 0;
 
+  const countResult = bounds
+    ? await supabase
+        .from("country_marker_public_v2")
+        .select("id", { count: "exact", head: true })
+        .gte("latitude", bounds.south)
+        .lte("latitude", bounds.north)
+        .gte("longitude", bounds.west)
+        .lte("longitude", bounds.east)
+    : await supabase
+        .from("country_marker_public_v2")
+        .select("id", { count: "exact", head: true });
+
+  if (countResult.error) {
+    throw new Error(`Could not count app_v2 country shelter markers: ${countResult.error.message}`);
+  }
+
   while (true) {
     const to = from + sitemapShelterPageSize - 1;
-    const { data, error } = await supabase
-      .from("country_marker_public_v2")
-      .select(
-        "id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, source_application_code",
-      )
-      .order("slug", { ascending: true })
-      .range(from, to);
+    const pageResult = bounds
+      ? await supabase
+          .from("country_marker_public_v2")
+          .select(
+            "id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, source_application_code",
+          )
+          .order("latitude", { ascending: true })
+          .order("longitude", { ascending: true })
+          .order("slug", { ascending: true })
+          .gte("latitude", bounds.south)
+          .lte("latitude", bounds.north)
+          .gte("longitude", bounds.west)
+          .lte("longitude", bounds.east)
+          .range(from, to)
+      : await supabase
+          .from("country_marker_public_v2")
+          .select(
+            "id, slug, name, address_line1, postal_code, city, latitude, longitude, capacity, source_application_code",
+          )
+          .order("latitude", { ascending: true })
+          .order("longitude", { ascending: true })
+          .order("slug", { ascending: true })
+          .range(from, to);
+
+    const { data, error } = pageResult;
 
     if (error) {
       throw new Error(`Could not load app_v2 country shelter markers: ${error.message}`);
@@ -1190,12 +1233,22 @@ export async function getAppV2CountryShelterMarkers(): Promise<AppV2CountryShelt
     from += sitemapShelterPageSize;
   }
 
-  return out;
+  return { markers: out, totalCount: countResult.count ?? out.length };
+}
+
+export async function getAppV2CountryShelterMarkers(): Promise<AppV2CountryShelterMarker[]> {
+  return (await readAppV2CountryShelterMarkers()).markers;
 }
 
 /** Same as {@link getAppV2CountryShelterMarkers} (`country_marker_public`). */
 export async function getAppV2PublicCountryShelterMarkers(): Promise<AppV2CountryShelterMarker[]> {
   return getAppV2CountryShelterMarkers();
+}
+
+export async function getAppV2PublicCountryShelterMarkersInBounds(
+  bounds: AppV2CountryShelterMarkerBounds,
+): Promise<{ markers: AppV2CountryShelterMarker[]; totalCount: number }> {
+  return readAppV2CountryShelterMarkers(bounds);
 }
 
 export type AppV2SitemapShelterRow = {

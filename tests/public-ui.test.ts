@@ -22,6 +22,10 @@ const healthApiUrl = new URL("../src/app/api/health/route.ts", import.meta.url);
 const manifestUrl = new URL("../public/site.webmanifest", import.meta.url);
 const layoutUrl = new URL("../src/app/layout.tsx", import.meta.url);
 const nextConfigUrl = new URL("../next.config.js", import.meta.url);
+const mapProviderUrl = new URL("../src/lib/maps/provider.js", import.meta.url);
+const mapFallbackUrl = new URL("../src/components/MapUnavailableNotice.tsx", import.meta.url);
+const countryMarkerApiUrl = new URL("../src/app/api/country-shelters/route.ts", import.meta.url);
+const municipalityExperienceUrl = new URL("../src/app/kommune/[slug]/kommune-experience.tsx", import.meta.url);
 const adminPageUrl = new URL("../src/app/admin/page.tsx", import.meta.url);
 const adminActionsUrl = new URL("../src/app/admin/actions.ts", import.meta.url);
 const adminAuthUrl = new URL("../src/lib/moderation/auth.ts", import.meta.url);
@@ -161,8 +165,10 @@ test("the site is explicitly a browser-based online service rather than an offli
 
 test("production CSP keeps only the free OSM tile host and required public services", async () => {
   const config = await readFile(nextConfigUrl, "utf8");
+  const mapProvider = await readFile(mapProviderUrl, "utf8");
 
-  assert.match(config, /https:\/\/tile\.openstreetmap\.org/);
+  assert.match(config, /osmTileOrigin/);
+  assert.match(mapProvider, /https:\/\/tile\.openstreetmap\.org/);
   assert.match(config, /developmentConnections = environment === 'development'/);
   assert.match(config, /script-src-attr 'none'/);
   assert.doesNotMatch(config, /https:\/\/\*\.vercel\.app/);
@@ -171,14 +177,44 @@ test("production CSP keeps only the free OSM tile host and required public servi
 });
 
 test("all Leaflet maps use the current non-subdomain OpenStreetMap tile URL", async () => {
-  const mapSources = [
+  const mapProvider = await readFile(mapProviderUrl, "utf8");
+  const mapSourceFiles = [
     await readFile(nearbyPageUrl, "utf8"),
     await readFile(countryMapUrl, "utf8"),
     await readFile(municipalityMapUrl, "utf8"),
-  ].join("\n");
+  ];
+  const mapSources = mapSourceFiles.join("\n");
 
   assert.doesNotMatch(mapSources, /\{s\}\.tile\.openstreetmap\.org/);
-  assert.equal(mapSources.match(/https:\/\/tile\.openstreetmap\.org\/\{z\}\/\{x\}\/\{y\}\.png/g)?.length, 3);
+  assert.doesNotMatch(mapSources, /https:\/\/tile\.openstreetmap\.org/);
+  for (const source of mapSourceFiles) assert.match(source, /<ResilientMapTileLayer/);
+  assert.match(mapProvider, /https:\/\/tile\.openstreetmap\.org/);
+  assert.match(mapProvider, /OpenStreetMap<\/a> contributors/);
+});
+
+test("zero-cost maps defer tile requests and keep a list fallback", async () => {
+  const nearbyPage = await readFile(nearbyPageUrl, "utf8");
+  const municipalityExperience = await readFile(municipalityExperienceUrl, "utf8");
+  const fallback = await readFile(mapFallbackUrl, "utf8");
+
+  assert.match(nearbyPage, /shouldRenderMap/);
+  assert.match(nearbyPage, /mobileView === 'map' \|\| isDesktopMap/);
+  assert.match(municipalityExperience, /IntersectionObserver/);
+  assert.match(municipalityExperience, /mapActivated/);
+  assert.match(fallback, /Kortbaggrunden er ikke tilgængelig/);
+  assert.match(fallback, /Adresser og registreringer virker stadig/);
+});
+
+test("the national map requests bounded markers and discloses low-zoom sampling", async () => {
+  const countryMap = await readFile(countryMapUrl, "utf8");
+  const markerApi = await readFile(countryMarkerApiUrl, "utf8");
+
+  assert.match(countryMap, /MapViewportEvents/);
+  assert.match(countryMap, /north: String\(viewport\.north\)/);
+  assert.match(countryMap, /Zoom ind for flere/);
+  assert.match(markerApi, /getAppV2PublicCountryShelterMarkersInBounds/);
+  assert.match(markerApi, /if \(zoom <= 7\) return 3_000/);
+  assert.match(markerApi, /INVALID_COUNTRY_MAP_VIEWPORT/);
 });
 
 test("the national map page loads aggregate stats instead of all markers", async () => {

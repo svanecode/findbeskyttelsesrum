@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { osmTileOrigin } from "./src/lib/maps/provider.js";
 
 const siteBuildTimestamp = process.env.SITE_BUILD_TIMESTAMP || new Date().toISOString();
 
@@ -40,7 +41,7 @@ export function contentSecurityPolicyValue({
     `script-src ${scriptSrc}`,
     "script-src-attr 'none'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://tile.openstreetmap.org",
+    `img-src 'self' data: blob: ${osmTileOrigin}`,
     "font-src 'self' data:",
     `connect-src ${connectSrc.join(' ')}`,
     "frame-src https://www.openstreetmap.org",

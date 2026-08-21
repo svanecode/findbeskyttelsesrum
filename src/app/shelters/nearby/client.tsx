@@ -8,7 +8,9 @@ import 'leaflet/dist/leaflet.css'
 import '@/styles/leaflet-overrides.css'
 
 import GlobalFooter from '@/components/GlobalFooter'
+import MapUnavailableNotice from '@/components/MapUnavailableNotice'
 import RegistrationNotice from '@/components/RegistrationNotice'
+import type { MapTileStatus } from '@/components/ResilientMapTileLayer'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
@@ -20,9 +22,9 @@ import { NearbyFitBounds } from './nearby-fit-bounds'
 setupLeafletDefaults(L)
 
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then((mod) => mod.Popup), { ssr: false })
+const ResilientMapTileLayer = dynamic(() => import('@/components/ResilientMapTileLayer'), { ssr: false })
 
 const nearbyResultLimit = 10
 const nearbyRadiusKm = 50
@@ -111,6 +113,9 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [selectedShelterId, setSelectedShelterId] = useState<string | null>(null)
   const [mobileView, setMobileView] = useState<MobileView>('list')
+  const [isDesktopMap, setIsDesktopMap] = useState(false)
+  const [tileStatus, setTileStatus] = useState<MapTileStatus>('loading')
+  const [tileRetryKey, setTileRetryKey] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [srMapSelection, setSrMapSelection] = useState('')
@@ -127,6 +132,14 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
 
   useEffect(() => {
     ensureLeafletPopupStyles()
+  }, [])
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1024px)')
+    const update = () => setIsDesktopMap(mediaQuery.matches)
+    update()
+    mediaQuery.addEventListener('change', update)
+    return () => mediaQuery.removeEventListener('change', update)
   }, [])
 
   useEffect(() => {
@@ -210,6 +223,17 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
     event.preventDefault()
     selectMobileView(event.currentTarget.id === 'nearby-list-tab' ? 'map' : 'list', true)
   }
+
+  const handleTileStatusChange = useCallback((status: MapTileStatus) => {
+    setTileStatus(status)
+  }, [])
+
+  const retryTiles = useCallback(() => {
+    setTileStatus('loading')
+    setTileRetryKey((key) => key + 1)
+  }, [])
+
+  const shouldRenderMap = mobileView === 'map' || isDesktopMap
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
@@ -358,38 +382,51 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             <p id="nearby-map-keyboard-hint" className="sr-only">Brug resultatlisten til at vælge et sted eller åbne en detaljeside med tastatur.</p>
             <div className="relative h-[calc(100dvh-13rem)] min-h-[30rem] lg:sticky lg:top-24 lg:h-[min(600px,calc(100vh-8rem))] lg:min-h-[min(600px,calc(100vh-8rem))]" aria-describedby="nearby-map-keyboard-hint">
               <div className="absolute inset-0 overflow-hidden rounded-lg border border-white/10">
-                <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom>
-                  <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' />
-                  <Marker position={[lat, lng]} icon={userLocationIcon} title="Din placering" alt="Din placering på kortet" />
-                  {shelters.map((shelter) => shelter.location ? (
-                    <Marker
-                      key={shelter.id}
-                      position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
-                      icon={selectedShelterId === shelter.id ? selectedShelterIcon : shelterIcon}
-                      title={getAddressLine(shelter)}
-                      alt={`BBR-registrering ved ${getAddressLine(shelter)}`}
-                      eventHandlers={{
-                        click: () => {
-                          setSelectedShelterId(shelter.id)
-                          setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
-                          if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                        },
-                      }}
-                    >
-                      <Popup className="fb-popup">
-                        <div dangerouslySetInnerHTML={{ __html: buildLeafletPopupHtml({
-                          title: getAddressLine(shelter),
-                          usageLine: formatBuildingUse(shelter, anvendelseskoder) ?? '',
-                          postalLine: getPostalLine(shelter),
-                          capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
-                          href: getDetailSlug(shelter) ? `/beskyttelsesrum/${getDetailSlug(shelter)}` : null,
-                          linkLabel: 'Se detaljer',
-                        }) }} />
-                      </Popup>
-                    </Marker>
-                  ) : null)}
-                  <NearbyFitBounds userLocation={[lat, lng]} shelters={shelters} />
-                </MapContainer>
+                {shouldRenderMap ? (
+                  <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom>
+                    <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
+                    <Marker position={[lat, lng]} icon={userLocationIcon} title="Din placering" alt="Din placering på kortet" />
+                    {shelters.map((shelter) => shelter.location ? (
+                      <Marker
+                        key={shelter.id}
+                        position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
+                        icon={selectedShelterId === shelter.id ? selectedShelterIcon : shelterIcon}
+                        title={getAddressLine(shelter)}
+                        alt={`BBR-registrering ved ${getAddressLine(shelter)}`}
+                        eventHandlers={{
+                          click: () => {
+                            setSelectedShelterId(shelter.id)
+                            setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
+                            if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                          },
+                        }}
+                      >
+                        <Popup className="fb-popup">
+                          <div dangerouslySetInnerHTML={{ __html: buildLeafletPopupHtml({
+                            title: getAddressLine(shelter),
+                            usageLine: formatBuildingUse(shelter, anvendelseskoder) ?? '',
+                            postalLine: getPostalLine(shelter),
+                            capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
+                            href: getDetailSlug(shelter) ? `/beskyttelsesrum/${getDetailSlug(shelter)}` : null,
+                            linkLabel: 'Se detaljer',
+                          }) }} />
+                        </Popup>
+                      </Marker>
+                    ) : null)}
+                    <NearbyFitBounds userLocation={[lat, lng]} shelters={shelters} />
+                  </MapContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center bg-[var(--surface-elevated)] p-6 text-center" role="status">
+                    <p className="max-w-sm text-sm leading-6 text-gray-300">Kortet indlæses først, når du vælger kortvisningen.</p>
+                  </div>
+                )}
+                {shouldRenderMap && tileStatus === 'error' ? (
+                  <MapUnavailableNotice
+                    onRetry={retryTiles}
+                    fallbackLabel="Til listen"
+                    onFallback={() => selectMobileView('list', true)}
+                  />
+                ) : null}
               </div>
 
               {selectedShelter ? (

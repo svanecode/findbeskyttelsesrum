@@ -71,3 +71,20 @@ for (const status of [429, 502, 504]) {
     ).toBeVisible();
   });
 }
+
+test("kortfejl bevarer resultatlisten som fallback", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Kortfallback kontrolleres i mobilprojektet.");
+  await installNearbySearchContext(page);
+  await mockNearby(page);
+  await page.route("https://tile.openstreetmap.org/**", async (route) => {
+    await route.fulfill({ status: 503, contentType: "text/plain", body: "tile unavailable" });
+  });
+
+  await page.goto("/shelters/nearby");
+  await page.getByRole("button", { name: "Vis på kort" }).click();
+
+  const mapError = page.getByRole("alert").filter({ hasText: "Kortbaggrunden er ikke tilgængelig" });
+  await expect(mapError).toBeVisible();
+  await mapError.getByRole("button", { name: "Til listen" }).click();
+  await expect(page.locator("#nearby-list-panel").getByText("Rådhuspladsen 1", { exact: true })).toBeVisible();
+});

@@ -1,21 +1,65 @@
 import { NextResponse } from "next/server";
 
-import { getAppV2PublicCountryShelterMarkers } from "@/lib/supabase/app-v2-queries";
+import {
+  getAppV2PublicCountryShelterMarkers,
+  getAppV2PublicCountryShelterMarkersInBounds,
+  type AppV2CountryShelterMarker,
+} from "@/lib/supabase/app-v2-queries";
 import type { CountryShelterMarkersResponse } from "@/types/country-map";
 
-/** ISR for this GET handler; Cache-Control below drives CDN caching. */
+/** Viewport query parameters make this request-specific; the CDN header below caches each URL. */
+export const dynamic = "force-dynamic";
 export const revalidate = 86400;
 export const runtime = "nodejs";
 
-export async function GET() {
+type Viewport = NonNullable<CountryShelterMarkersResponse["viewport"]>;
+
+function parseViewport(request: Request): Viewport | null {
+  const search = new URL(request.url).searchParams;
+  const keys = ["north", "south", "east", "west", "zoom"] as const;
+  const present = keys.filter((key) => search.has(key));
+  if (present.length === 0) return null;
+  if (present.length !== keys.length) throw new RangeError("Alle viewportfelter er påkrævet.");
+
+  const viewport = Object.fromEntries(keys.map((key) => [key, Number(search.get(key))])) as Viewport;
+  if (!Object.values(viewport).every(Number.isFinite)) throw new RangeError("Viewportfelter skal være tal.");
+  if (viewport.north <= viewport.south || viewport.east <= viewport.west) throw new RangeError("Viewportgrænserne er ugyldige.");
+  if (viewport.south < -90 || viewport.north > 90 || viewport.west < -180 || viewport.east > 180) throw new RangeError("Viewportgrænserne ligger uden for kortet.");
+  if (viewport.zoom < 5 || viewport.zoom > 18) throw new RangeError("Zoomniveauet er ugyldigt.");
+  return viewport;
+}
+
+function markerLimitForZoom(zoom: number) {
+  if (zoom <= 7) return 3_000;
+  if (zoom <= 9) return 6_000;
+  return 12_000;
+}
+
+function evenlySample(markers: AppV2CountryShelterMarker[], limit: number) {
+  if (markers.length <= limit) return markers;
+  return Array.from({ length: limit }, (_, index) => markers[Math.floor((index * markers.length) / limit)]!);
+}
+
+export async function GET(request: Request) {
   try {
-    const shelters = await getAppV2PublicCountryShelterMarkers();
+    const viewport = parseViewport(request);
+    const result = viewport
+      ? await getAppV2PublicCountryShelterMarkersInBounds(viewport)
+      : {
+          markers: await getAppV2PublicCountryShelterMarkers(),
+          totalCount: 0,
+        };
+    const availableCount = viewport ? result.totalCount : result.markers.length;
+    const shelters = viewport ? evenlySample(result.markers, markerLimitForZoom(viewport.zoom)) : result.markers;
     const generatedAt = new Date().toISOString();
 
     const payload: CountryShelterMarkersResponse = {
       shelters,
       generatedAt,
       count: shelters.length,
+      availableCount,
+      truncated: shelters.length < availableCount,
+      ...(viewport ? { viewport } : {}),
     };
 
     return NextResponse.json(payload, {
@@ -24,6 +68,12 @@ export async function GET() {
       },
     });
   } catch (err) {
+    if (err instanceof RangeError) {
+      return NextResponse.json(
+        { error: err.message, code: "INVALID_COUNTRY_MAP_VIEWPORT" },
+        { status: 400 },
+      );
+    }
     console.error("[country-shelters] Failed to load markers:", err);
     return NextResponse.json(
       {
