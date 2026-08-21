@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
 import {
+  getAppV2PublicCountryMapFeatures,
   getAppV2PublicCountryShelterMarkers,
   getAppV2PublicCountryShelterMarkersInBounds,
   type AppV2CountryShelterMarker,
 } from "@/lib/supabase/app-v2-queries";
-import type { CountryShelterMarkersResponse } from "@/types/country-map";
+import type { CountryMapFeaturesResponse, CountryShelterMarkersResponse } from "@/types/country-map";
 
 /** Viewport query parameters make this request-specific; the CDN header below caches each URL. */
 export const dynamic = "force-dynamic";
@@ -42,7 +43,40 @@ function evenlySample(markers: AppV2CountryShelterMarker[], limit: number) {
 
 export async function GET(request: Request) {
   try {
+    const search = new URL(request.url).searchParams;
+    const format = search.get("format");
+    if (format !== null && format !== "features") {
+      throw new RangeError("Det valgte kortformat understøttes ikke.");
+    }
+
     const viewport = parseViewport(request);
+    if (format === "features") {
+      if (!viewport) {
+        throw new RangeError("Viewportfelter er påkrævet for det optimerede kortformat.");
+      }
+
+      const result = await getAppV2PublicCountryMapFeatures({ ...viewport, limit: 5000 });
+      const payload: CountryMapFeaturesResponse = {
+        contract: "country-map-features-v1",
+        features: result.features,
+        generatedAt: new Date().toISOString(),
+        mode: result.mode,
+        availableCount: result.availableCount,
+        featureCount: result.featureCount,
+        markerCount: result.markerCount,
+        clusterCount: result.clusterCount,
+        clusteredRegistrationCount: result.clusteredRegistrationCount,
+        truncated: result.truncated,
+        viewport,
+      };
+
+      return NextResponse.json(payload, {
+        headers: {
+          "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+        },
+      });
+    }
+
     const result = viewport
       ? await getAppV2PublicCountryShelterMarkersInBounds(viewport)
       : {
@@ -64,7 +98,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(payload, {
       headers: {
-        "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=86400",
+        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
       },
     });
   } catch (err) {

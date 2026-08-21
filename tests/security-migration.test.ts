@@ -46,6 +46,10 @@ const versionedImportIndexesMigrationUrl = new URL(
   "../supabase/migrations/20260821160508_index_versioned_import_foreign_keys.sql",
   import.meta.url,
 );
+const countryMapClustersMigrationUrl = new URL(
+  "../supabase/migrations/20260821163427_country_map_feature_clusters.sql",
+  import.meta.url,
+);
 
 test("security migration closes exclusion RPC and bounds anonymous nearby work", async () => {
   const sql = (await readFile(migrationUrl, "utf8")).toLowerCase();
@@ -260,4 +264,17 @@ test("versioned import foreign keys have covering indexes", async () => {
   assert.match(sql, /on app_v2\.dataset_publications \(previous_publication_id\)/);
   assert.match(sql, /on app_v2\.dataset_publications \(rollback_of_publication_id\)/);
   assert.match(sql, /on app_v2\.import_runs \(publication_id\)/);
+});
+
+test("country map clustering is bounded, public-read-only and least privilege", async () => {
+  const sql = (await readFile(countryMapClustersMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /create or replace function app_v2\.get_country_map_features_public_v1/);
+  assert.match(sql, /security invoker/);
+  assert.match(sql, /from app_v2\.country_marker_public_v2/);
+  assert.match(sql, /p_limit > 5000/);
+  assert.match(sql, /limit p_limit/);
+  assert.match(sql, /revoke all on function app_v2\.get_country_map_features_public_v1[\s\S]+from public/);
+  assert.match(sql, /grant execute on function app_v2\.get_country_map_features_public_v1[\s\S]+to anon, authenticated, service_role/);
+  assert.doesNotMatch(sql, /security definer/);
 });

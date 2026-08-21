@@ -207,15 +207,17 @@ test("zero-cost maps defer tile requests and keep a list fallback", async () => 
   assert.match(fallback, /Adresser og registreringer virker stadig/);
 });
 
-test("the national map requests bounded markers and discloses low-zoom sampling", async () => {
+test("the national map requests bounded server clusters without low-zoom sampling", async () => {
   const countryMap = await readFile(countryMapUrl, "utf8");
   const markerApi = await readFile(countryMarkerApiUrl, "utf8");
 
   assert.match(countryMap, /MapViewportEvents/);
+  assert.match(countryMap, /format: "features"/);
   assert.match(countryMap, /north: String\(viewport\.north\)/);
-  assert.match(countryMap, /Zoom ind for flere/);
-  assert.match(markerApi, /getAppV2PublicCountryShelterMarkersInBounds/);
-  assert.match(markerApi, /if \(zoom <= 7\) return 3_000/);
+  assert.match(countryMap, /ServerClusterLayer/);
+  assert.match(countryMap, /createBufferedCountryMapViewport/);
+  assert.match(markerApi, /getAppV2PublicCountryMapFeatures/);
+  assert.match(markerApi, /format === "features"/);
   assert.match(markerApi, /INVALID_COUNTRY_MAP_VIEWPORT/);
 });
 

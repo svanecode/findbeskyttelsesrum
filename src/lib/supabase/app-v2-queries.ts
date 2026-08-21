@@ -1112,6 +1112,36 @@ export type AppV2CountryShelterMarker = {
   longitude: number;
 };
 
+export type AppV2CountryMapCluster = {
+  kind: "cluster";
+  id: string;
+  latitude: number;
+  longitude: number;
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+  count: number;
+  capacity: number;
+};
+
+export type AppV2CountryMapMarkerFeature = AppV2CountryShelterMarker & {
+  kind: "marker";
+};
+
+export type AppV2CountryMapFeature = AppV2CountryMapMarkerFeature | AppV2CountryMapCluster;
+
+export type AppV2CountryMapFeatureResult = {
+  features: AppV2CountryMapFeature[];
+  mode: "clusters" | "markers";
+  availableCount: number;
+  featureCount: number;
+  markerCount: number;
+  clusterCount: number;
+  clusteredRegistrationCount: number;
+  truncated: boolean;
+};
+
 type CountryShelterMarkerRow = {
   id: string;
   slug: string;
@@ -1163,6 +1193,94 @@ export type AppV2CountryShelterMarkerBounds = {
   east: number;
   west: number;
 };
+
+export type AppV2CountryMapFeatureRequest = AppV2CountryShelterMarkerBounds & {
+  zoom: number;
+  limit?: number;
+};
+
+function normalizeCountryMapFeature(value: unknown): AppV2CountryMapFeature {
+  if (!isRecord(value)) {
+    throw new Error("Country map RPC returned an invalid feature.");
+  }
+
+  if (value.kind === "cluster") {
+    return {
+      kind: "cluster",
+      id: getString(value.id, "country-map cluster id"),
+      latitude: getNumber(value.latitude, "country-map cluster latitude"),
+      longitude: getNumber(value.longitude, "country-map cluster longitude"),
+      north: getNumber(value.north, "country-map cluster north"),
+      south: getNumber(value.south, "country-map cluster south"),
+      east: getNumber(value.east, "country-map cluster east"),
+      west: getNumber(value.west, "country-map cluster west"),
+      count: getInteger(value.count, "country-map cluster count"),
+      capacity: getInteger(value.capacity, "country-map cluster capacity"),
+    };
+  }
+
+  if (value.kind !== "marker") {
+    throw new Error("Country map RPC returned an unknown feature kind.");
+  }
+
+  return {
+    kind: "marker",
+    slug: getString(value.slug, "country-map marker slug"),
+    name: getString(value.name, "country-map marker name"),
+    addressLine1: getString(value.addressLine1, "country-map marker addressLine1"),
+    postalCode: getString(value.postalCode, "country-map marker postalCode"),
+    city: getString(value.city, "country-map marker city"),
+    capacity: getInteger(value.capacity, "country-map marker capacity"),
+    sourceApplicationCode: getNullableString(
+      value.sourceApplicationCode,
+      "country-map marker sourceApplicationCode",
+    ),
+    latitude: getNumber(value.latitude, "country-map marker latitude"),
+    longitude: getNumber(value.longitude, "country-map marker longitude"),
+  };
+}
+
+export async function getAppV2PublicCountryMapFeatures(
+  request: AppV2CountryMapFeatureRequest,
+): Promise<AppV2CountryMapFeatureResult> {
+  const supabase = createAppV2PublicClient();
+  const { data, error } = await supabase.rpc("get_country_map_features_public_v1", {
+    p_north: request.north,
+    p_south: request.south,
+    p_east: request.east,
+    p_west: request.west,
+    p_zoom: request.zoom,
+    p_limit: request.limit ?? 5000,
+  });
+
+  if (error) {
+    throw new Error(`Could not load app_v2 country map features: ${error.message}`);
+  }
+
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!isRecord(row) || !Array.isArray(row.features) || !isRecord(row.diagnostics)) {
+    throw new Error("Country map RPC returned an invalid response.");
+  }
+
+  const mode = row.diagnostics.mode;
+  if (mode !== "clusters" && mode !== "markers") {
+    throw new Error("Country map RPC returned an invalid mode.");
+  }
+
+  return {
+    features: row.features.map(normalizeCountryMapFeature),
+    mode,
+    availableCount: getInteger(row.diagnostics.availableCount, "country-map availableCount"),
+    featureCount: getInteger(row.diagnostics.featureCount, "country-map featureCount"),
+    markerCount: getInteger(row.diagnostics.markerCount, "country-map markerCount"),
+    clusterCount: getInteger(row.diagnostics.clusterCount, "country-map clusterCount"),
+    clusteredRegistrationCount: getInteger(
+      row.diagnostics.clusteredRegistrationCount,
+      "country-map clusteredRegistrationCount",
+    ),
+    truncated: getBoolean(row.diagnostics.truncated, "country-map truncated"),
+  };
+}
 
 async function readAppV2CountryShelterMarkers(
   bounds?: AppV2CountryShelterMarkerBounds,
