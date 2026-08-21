@@ -14,6 +14,16 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 
 test("afvist placering viser en konkret vej videre", async ({ page }) => {
+  const errorReports: unknown[] = [];
+  const metricEvents: unknown[] = [];
+  await page.route("**/api/errors", async (route) => {
+    errorReports.push(route.request().postDataJSON());
+    await route.fulfill({ status: 204 });
+  });
+  await page.route("**/api/metrics", async (route) => {
+    metricEvents.push(route.request().postDataJSON());
+    await route.fulfill({ status: 202 });
+  });
   await page.addInitScript(() => {
     Object.defineProperty(window.navigator, "geolocation", {
       configurable: true,
@@ -31,6 +41,9 @@ test("afvist placering viser en konkret vej videre", async ({ page }) => {
 
   await expect(page.getByRole("alert").filter({ hasText: "Du har afvist adgang til din placering" })).toBeVisible();
   await expect(page).toHaveURL((url) => url.pathname === "/" && url.search === "");
+  await expect.poll(() => metricEvents).toContainEqual({ eventName: "geolocation_denied" });
+  await page.waitForTimeout(100);
+  expect(errorReports).toHaveLength(0);
 });
 
 test("DAWA-fejl efterlader GPS som tydeligt alternativ", async ({ page }) => {
