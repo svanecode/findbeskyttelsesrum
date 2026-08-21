@@ -13,6 +13,7 @@ const migrationUrl = new URL(
 );
 const routeUrl = new URL("../src/app/api/metrics/route.ts", import.meta.url);
 const clientUrl = new URL("../src/lib/analytics/product-metrics.ts", import.meta.url);
+const monitorUrl = new URL("../scripts/monitor/product-metrics-health.mjs", import.meta.url);
 
 test("product metric payloads accept only a fixed privacy-safe contract", () => {
   assert.deepEqual(parseProductMetricPayload({ eventName: "address_selected" }), {
@@ -32,10 +33,11 @@ test("product metric payloads accept only a fixed privacy-safe contract", () => 
 });
 
 test("metrics stay private, aggregated and service-only", async () => {
-  const [migration, route, client] = await Promise.all([
+  const [migration, route, client, monitor] = await Promise.all([
     readFile(migrationUrl, "utf8"),
     readFile(routeUrl, "utf8"),
     readFile(clientUrl, "utf8"),
+    readFile(monitorUrl, "utf8"),
   ]);
   const lowerSql = migration.toLowerCase();
 
@@ -51,4 +53,5 @@ test("metrics stay private, aggregated and service-only", async () => {
   assert.match(route, /isSameOrigin/);
   assert.match(client, /credentials: "omit"/);
   assert.match(client, /keepalive: true/);
+  assert.match(monitor, /"Content-Profile": "app_v2"/);
 });

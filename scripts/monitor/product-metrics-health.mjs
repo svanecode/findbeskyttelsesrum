@@ -19,6 +19,7 @@ const response = await fetch(`${supabaseUrl}/rest/v1/rpc/get_product_metrics_hea
     apikey: secretKey,
     Authorization: `Bearer ${secretKey}`,
     "Content-Type": "application/json",
+    "Content-Profile": "app_v2",
     "User-Agent": "findbeskyttelsesrum-metrics-monitor/1.0",
   },
   body: JSON.stringify({ p_hours: windowHours }),
