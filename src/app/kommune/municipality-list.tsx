@@ -50,6 +50,7 @@ export default function MunicipalityList({ municipalities }: { municipalities: A
             <li key={municipality.id} className="[content-visibility:auto] [contain-intrinsic-size:0_80px]">
               <Link
                 href={`/kommune/${municipality.slug}`}
+                prefetch={false}
                 className="flex min-h-[64px] min-w-0 flex-col gap-2 px-5 py-4 transition-colors hover:bg-white/[0.04] sm:flex-row sm:items-center sm:justify-between sm:px-6"
                 aria-label={`${municipality.name}, ${municipality.activeShelterCount.toLocaleString('da-DK')} BBR-registreringer, ${municipality.activeShelterTotalCapacity.toLocaleString('da-DK')} BBR-registrerede pladser`}
               >
