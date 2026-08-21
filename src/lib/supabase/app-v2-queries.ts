@@ -9,13 +9,18 @@ export type AppV2ImportState = "active" | "missing_from_source" | "suppressed";
 export type AppV2NearbyEligibilityMode = "source_application_code_v1" | "none";
 type AppV2ImportRunStatus = "running" | "succeeded" | "failed";
 
-type MunicipalityRow = {
-  id: string;
+type MunicipalitySummaryRow = {
+  municipality_id: string;
   code: string | null;
   slug: string;
   name: string;
   description: string | null;
   region_name: string | null;
+  public_registration_count: number | string | null;
+  public_capacity: number | string | null;
+  mapped_registration_count: number | string | null;
+  mapped_capacity: number | string | null;
+  latest_public_import_at: string | null;
 };
 
 type ShelterRow = {
@@ -90,20 +95,6 @@ export type AppV2MunicipalitySummary = {
 
 export type AppV2MunicipalityDetail = AppV2MunicipalitySummary & {
   description: string | null;
-};
-
-export type AppV2MunicipalityShelterStats = {
-  activeShelterCount: number;
-  totalCapacity: number;
-  postalAreaCount: number;
-  largestCapacity: number | null;
-  latestSeenAt: string | null;
-  postalAreas: Array<{
-    postalCode: string;
-    city: string;
-    activeShelterCount: number;
-    totalCapacity: number;
-  }>;
 };
 
 export type AppV2ShelterDetail = {
@@ -259,7 +250,6 @@ type AppV2NearbyRpcPayload = {
 };
 
 const shelterCapacityPageSize = 1000;
-const municipalityStatsPageSize = 1000;
 const defaultNearbyRadiusMeters = 50_000;
 const defaultNearbyLimit = 10;
 const defaultNearbyCandidateLimit = 500;
@@ -270,24 +260,23 @@ const sourceApplicationCodeRuleSource = "app_v2.application_code_eligibility";
 const allowedImportStates: AppV2ImportState[] = ["active", "missing_from_source", "suppressed"];
 
 function normalizeMunicipality(
-  row: MunicipalityRow,
-  stats: { activeShelterCount: number; activeShelterTotalCapacity: number },
+  row: MunicipalitySummaryRow,
 ): AppV2MunicipalityDetail {
   const display = normalizeMunicipalityDisplay({
-    id: row.id,
+    id: row.municipality_id,
     slug: row.slug,
     name: row.name,
   });
 
   return {
-    id: row.id,
+    id: row.municipality_id,
     code: row.code,
     slug: display.slug,
     name: display.name,
     description: row.description,
     regionName: row.region_name,
-    activeShelterCount: stats.activeShelterCount,
-    activeShelterTotalCapacity: stats.activeShelterTotalCapacity,
+    activeShelterCount: normalizePublicStat(row.public_registration_count),
+    activeShelterTotalCapacity: normalizePublicStat(row.public_capacity),
   };
 }
 
@@ -641,80 +630,6 @@ function groupNearbyRows(
     .slice(0, limit);
 }
 
-type PublicShelterMunicipalityAggregate = {
-  activeShelterCount: number;
-  totalCapacity: number;
-};
-
-async function getPublicShelterAggregatesByMunicipalityId(): Promise<
-  Map<string, PublicShelterMunicipalityAggregate>
-> {
-  const supabase = createAppV2PublicClient();
-  const aggregates = new Map<string, PublicShelterMunicipalityAggregate>();
-  let from = 0;
-
-  while (true) {
-    const to = from + municipalityStatsPageSize - 1;
-    const { data, error } = await supabase
-      .from("shelter_public_v2")
-      .select("municipality_id, capacity")
-      .order("id", { ascending: true })
-      .range(from, to);
-
-    if (error) {
-      throw new Error(`Could not load app_v2 public shelter aggregates: ${error.message}`);
-    }
-
-    const rows = (data ?? []) as Array<{ municipality_id: string; capacity: number | null }>;
-
-    for (const row of rows) {
-      const current = aggregates.get(row.municipality_id) ?? {
-        activeShelterCount: 0,
-        totalCapacity: 0,
-      };
-      current.activeShelterCount += 1;
-      current.totalCapacity += row.capacity ?? 0;
-      aggregates.set(row.municipality_id, current);
-    }
-
-    if (rows.length < municipalityStatsPageSize) {
-      break;
-    }
-
-    from += municipalityStatsPageSize;
-  }
-
-  return aggregates;
-}
-
-function getPublicShelterStatsForMunicipality(
-  aggregates: Map<string, PublicShelterMunicipalityAggregate>,
-  municipalityId: string,
-) {
-  const stats = aggregates.get(municipalityId);
-  return {
-    activeShelterCount: stats?.activeShelterCount ?? 0,
-    activeShelterTotalCapacity: stats?.totalCapacity ?? 0,
-  };
-}
-
-async function getActiveShelterCountByMunicipalityId(municipalityId: string) {
-  const supabase = createAppV2PublicClient();
-  const { count, error } = await supabase
-    .from("shelter_public_v2")
-    .select("id", { count: "exact", head: true })
-    .eq("municipality_id", municipalityId);
-
-  if (error) {
-    console.warn(
-      `Could not count public app_v2 shelters for municipality "${municipalityId}": ${error.message}`,
-    );
-    return 0;
-  }
-
-  return count ?? 0;
-}
-
 export async function getAppV2ShelterCount(options: ShelterCountOptions = {}) {
   const supabase = createAppV2AdminClient();
   const query = supabase.from("shelters").select("id", { count: "exact", head: true });
@@ -770,6 +685,19 @@ export type AppV2CurrentDatasetPublication = {
   publishedByType: DatasetPublicationRow["published_by_type"];
   importFinishedAt: string | null;
   isConsistent: boolean;
+};
+
+type PublicDataRevisionRow = {
+  revision: number | string;
+  publication_id: string | null;
+  changed_at: string;
+};
+
+export type AppV2PublicDataRevision = {
+  revision: string;
+  publicationId: string | null;
+  changedAt: string;
+  cacheKey: string;
 };
 
 type PublicDataFunnelRow = {
@@ -885,6 +813,28 @@ export async function getAppV2CurrentDatasetPublication(): Promise<AppV2CurrentD
       && importRun.status === "succeeded"
       && publicationLinkIsValid,
     ),
+  };
+}
+
+export async function getAppV2PublicDataRevision(): Promise<AppV2PublicDataRevision> {
+  const admin = createAppV2AdminClient();
+  const { data, error } = await admin
+    .from("public_data_revisions")
+    .select("revision, publication_id, changed_at")
+    .eq("scope", "public")
+    .single();
+
+  if (error) {
+    throw new Error(`Could not load public app_v2 data revision: ${error.message}`);
+  }
+
+  const row = data as PublicDataRevisionRow;
+  const revision = String(row.revision);
+  return {
+    revision,
+    publicationId: row.publication_id,
+    changedAt: row.changed_at,
+    cacheKey: `${row.publication_id ?? "unpublished"}:${revision}`,
   };
 }
 
@@ -1127,36 +1077,44 @@ export async function getAppV2GroupedNearbySheltersWithDiagnostics(
 export async function getAppV2MunicipalitySummaries() {
   const supabase = createAppV2PublicClient();
   const { data, error } = await supabase
-    .from("municipality_public_v2")
-    .select("id, code, slug, name, description, region_name")
+    .from("municipality_summary_public_v1")
+    .select(
+      "municipality_id, code, slug, name, description, region_name, public_registration_count, public_capacity, mapped_registration_count, mapped_capacity, latest_public_import_at",
+    )
     .order("name", { ascending: true });
 
   if (error) {
     throw new Error("Could not load app_v2 municipalities.");
   }
 
-  const rows = (data ?? []) as MunicipalityRow[];
-  const aggregates = await getPublicShelterAggregatesByMunicipalityId();
-
-  return rows.map((row) => normalizeMunicipality(row, getPublicShelterStatsForMunicipality(aggregates, row.id)));
+  return ((data ?? []) as MunicipalitySummaryRow[]).map(normalizeMunicipality);
 }
 
 export async function getAppV2MunicipalitySlugs() {
   const supabase = createAppV2PublicClient();
   const { data, error } = await supabase
-    .from("municipality_public_v2")
-    .select("id, code, slug, name, description, region_name")
-    .order("name", { ascending: true });
+    .from("municipality_summary_public_v1")
+    .select("slug")
+    .order("slug", { ascending: true });
 
   if (error) {
     throw new Error("Could not load app_v2 municipality slugs.");
   }
 
-  const rows = (data ?? []) as MunicipalityRow[];
+  return ((data ?? []) as Array<{ slug: string }>).map((row) => row.slug);
+}
 
-  return rows.map((row) =>
-    normalizeMunicipality(row, { activeShelterCount: 0, activeShelterTotalCapacity: 0 }).slug,
-  );
+export async function getAppV2PublicMunicipalitySummaryCount() {
+  const supabase = createAppV2PublicClient();
+  const { count, error } = await supabase
+    .from("municipality_summary_public_v1")
+    .select("municipality_id", { count: "exact", head: true });
+
+  if (error) {
+    throw new Error(`Could not count app_v2 public municipality summaries: ${error.message}`);
+  }
+
+  return count ?? 0;
 }
 
 const sitemapShelterPageSize = 1000;
@@ -1476,8 +1434,10 @@ export const getAppV2MunicipalityBySlug = cache(async function getAppV2Municipal
   const supabase = createAppV2PublicClient();
   const slugCandidates = getMunicipalitySlugCandidates(slug);
   const { data, error } = await supabase
-    .from("municipality_public_v2")
-    .select("id, code, slug, name, description, region_name")
+    .from("municipality_summary_public_v1")
+    .select(
+      "municipality_id, code, slug, name, description, region_name, public_registration_count, public_capacity, mapped_registration_count, mapped_capacity, latest_public_import_at",
+    )
     .in("slug", slugCandidates)
     .limit(1)
     .maybeSingle();
@@ -1490,107 +1450,8 @@ export const getAppV2MunicipalityBySlug = cache(async function getAppV2Municipal
     return null;
   }
 
-  const row = data as MunicipalityRow;
-  const stats = await getAppV2PublicMunicipalityShelterStats(row.id);
-
-  return normalizeMunicipality(row, {
-    activeShelterCount: stats.activeShelterCount,
-    activeShelterTotalCapacity: stats.totalCapacity,
-  });
+  return normalizeMunicipality(data as MunicipalitySummaryRow);
 });
-
-type MunicipalityShelterStatsRow = {
-  address_line1: string | null;
-  postal_code: string | null;
-  city: string | null;
-  capacity: number | null;
-  last_seen_at: string | null;
-};
-
-export async function getAppV2PublicMunicipalityShelterStats(
-  municipalityId: string,
-): Promise<AppV2MunicipalityShelterStats> {
-  const supabase = createAppV2PublicClient();
-  const postalAreas = new Map<
-    string,
-    {
-      postalCode: string;
-      city: string;
-      activeShelterCount: number;
-      totalCapacity: number;
-    }
-  >();
-  let activeShelterCount = 0;
-  let totalCapacity = 0;
-  let largestCapacity: number | null = null;
-  let latestSeenAt: string | null = null;
-  let from = 0;
-
-  while (true) {
-    const to = from + municipalityStatsPageSize - 1;
-    const { data, error } = await supabase
-      .from("shelter_public_v2")
-      .select("address_line1, postal_code, city, capacity, last_seen_at")
-      .eq("municipality_id", municipalityId)
-      .order("id", { ascending: true })
-      .range(from, to);
-
-    if (error) {
-      throw new Error(`Could not load app_v2 municipality shelter stats for "${municipalityId}".`);
-    }
-
-    const rows = (data ?? []) as MunicipalityShelterStatsRow[];
-
-    for (const row of rows) {
-      const capacity = row.capacity ?? 0;
-      const postalCode = (row.postal_code ?? "").trim();
-      const city = (row.city ?? "").trim();
-
-      activeShelterCount += 1;
-      totalCapacity += capacity;
-      largestCapacity = largestCapacity === null ? capacity : Math.max(largestCapacity, capacity);
-
-      if (row.last_seen_at && (!latestSeenAt || row.last_seen_at > latestSeenAt)) {
-        latestSeenAt = row.last_seen_at;
-      }
-
-      const postalKey = `${postalCode}|${city}`;
-      const postalArea = postalAreas.get(postalKey) ?? {
-        postalCode,
-        city,
-        activeShelterCount: 0,
-        totalCapacity: 0,
-      };
-
-      postalArea.activeShelterCount += 1;
-      postalArea.totalCapacity += capacity;
-      postalAreas.set(postalKey, postalArea);
-    }
-
-    if (rows.length < municipalityStatsPageSize) {
-      break;
-    }
-
-    from += municipalityStatsPageSize;
-  }
-
-  return {
-    activeShelterCount,
-    totalCapacity,
-    postalAreaCount: postalAreas.size,
-    largestCapacity,
-    latestSeenAt,
-    postalAreas: Array.from(postalAreas.values())
-      .sort(
-        (a, b) =>
-          b.activeShelterCount - a.activeShelterCount ||
-          b.totalCapacity - a.totalCapacity ||
-          a.postalCode.localeCompare(b.postalCode, "da-DK") ||
-          a.city.localeCompare(b.city, "da-DK"),
-      )
-      .slice(0, 4),
-  };
-}
 
 // ─── Municipality shelter list + grouping (Sprint 5) ────────────────────────
 
@@ -1782,20 +1643,18 @@ export async function getAppV2ShelterBySlug(slug: string) {
 
   const shelter = shelterData as ShelterRow;
   const { data: municipalityData, error: municipalityError } = await supabase
-    .from("municipalities")
-    .select("id, code, slug, name, description, region_name")
-    .eq("id", shelter.municipality_id)
+    .from("municipality_summary_public_v1")
+    .select(
+      "municipality_id, code, slug, name, description, region_name, public_registration_count, public_capacity, mapped_registration_count, mapped_capacity, latest_public_import_at",
+    )
+    .eq("municipality_id", shelter.municipality_id)
     .single();
 
   if (municipalityError || !municipalityData) {
     throw new Error(`Could not load app_v2 municipality for shelter "${slug}".`);
   }
 
-  const stats = await getAppV2PublicMunicipalityShelterStats(shelter.municipality_id);
-  const municipality = normalizeMunicipality(municipalityData as MunicipalityRow, {
-    activeShelterCount: stats.activeShelterCount,
-    activeShelterTotalCapacity: stats.totalCapacity,
-  });
+  const municipality = normalizeMunicipality(municipalityData as MunicipalitySummaryRow);
 
   return normalizeShelter(shelter, municipality);
 }
@@ -1820,20 +1679,18 @@ export const getAppV2PublicShelterBySlug = cache(async function getAppV2PublicSh
 
   const shelter = shelterData as PublicShelterRow;
   const { data: municipalityData, error: municipalityError } = await pub
-    .from("municipality_public_v2")
-    .select("id, code, slug, name, description, region_name")
-    .eq("id", shelter.municipality_id)
+    .from("municipality_summary_public_v1")
+    .select(
+      "municipality_id, code, slug, name, description, region_name, public_registration_count, public_capacity, mapped_registration_count, mapped_capacity, latest_public_import_at",
+    )
+    .eq("municipality_id", shelter.municipality_id)
     .single();
 
   if (municipalityError || !municipalityData) {
     throw new Error(`Could not load app_v2 municipality for shelter "${slug}".`);
   }
 
-  const stats = await getAppV2PublicMunicipalityShelterStats(shelter.municipality_id);
-  const municipality = normalizeMunicipality(municipalityData as MunicipalityRow, {
-    activeShelterCount: stats.activeShelterCount,
-    activeShelterTotalCapacity: stats.totalCapacity,
-  });
+  const municipality = normalizeMunicipality(municipalityData as MunicipalitySummaryRow);
 
   return normalizePublicShelter(shelter, municipality);
 });

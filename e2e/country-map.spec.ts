@@ -53,7 +53,8 @@ test("landskortet skifter fra serverklynge til konkret markør ved zoom", async 
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        contract: "country-map-features-v1",
+        contract: "country-map-features-v2",
+        datasetRevision: url.searchParams.get("revision"),
         features,
         generatedAt: "2026-08-21T00:00:00.000Z",
         mode: zoom >= 10 ? "markers" : "clusters",
@@ -100,7 +101,8 @@ test("landskortet beholder seneste data hvis en områdeopdatering fejler", async
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        contract: "country-map-features-v1",
+        contract: "country-map-features-v2",
+        datasetRevision: url.searchParams.get("revision"),
         features: [{
           kind: "cluster",
           id: `${zoom}:test`,

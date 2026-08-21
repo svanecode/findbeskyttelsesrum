@@ -2,7 +2,6 @@ import { createHmac } from "node:crypto";
 import type { NextRequest } from "next/server";
 
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
-import { getSupabaseWriteEnv } from "@/lib/supabase/env";
 
 type DistributedRateLimitConfig = {
   maxRequests: number;
@@ -39,6 +38,19 @@ function unavailableDecision(windowMs: number): DistributedRateLimitDecision {
   };
 }
 
+function getRateLimitHashSecret() {
+  const secret = process.env.RATE_LIMIT_HASH_SECRET?.trim();
+  if (secret && secret.length >= 32) return secret;
+
+  const isProduction = process.env.VERCEL_ENV === "production"
+    || (!process.env.VERCEL_ENV && process.env.NODE_ENV === "production");
+  if (isProduction) {
+    throw new Error("RATE_LIMIT_HASH_SECRET must contain at least 32 characters in production.");
+  }
+
+  return `findbeskyttelsesrum-non-production-rate-limit-secret-v1:${process.env.VERCEL_DEPLOYMENT_ID ?? "local"}`;
+}
+
 /**
  * Shared database-backed limiter for expensive or write-oriented API routes.
  * It fails open to the existing in-process limiter if Supabase is unavailable.
@@ -55,8 +67,7 @@ export async function consumeDistributedRateLimit(
   const maxRequests = Math.max(1, Math.min(10_000, Math.trunc(config.maxRequests)));
 
   try {
-    const { secretKey } = getSupabaseWriteEnv();
-    const keyHash = createHmac("sha256", secretKey)
+    const keyHash = createHmac("sha256", getRateLimitHashSecret())
       .update(`findbeskyttelsesrum:rate-limit:v1:${namespace}:${clientAddress}`)
       .digest("hex");
 

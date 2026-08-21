@@ -24,19 +24,33 @@ function ceilToStep(value: number, step: number) {
   return Number((Math.ceil(value / step) * step).toFixed(6));
 }
 
+/** Canonical server cache boundary for a validated viewport. */
+export function quantizeCountryMapViewport(viewport: CountryMapViewport): CountryMapViewport {
+  const zoom = Math.round(viewport.zoom);
+  const step = coordinateStepForZoom(zoom);
+
+  return {
+    north: clamp(ceilToStep(viewport.north, step), latitudeRange.min, latitudeRange.max),
+    south: clamp(floorToStep(viewport.south, step), latitudeRange.min, latitudeRange.max),
+    east: clamp(ceilToStep(viewport.east, step), longitudeRange.min, longitudeRange.max),
+    west: clamp(floorToStep(viewport.west, step), longitudeRange.min, longitudeRange.max),
+    zoom,
+  };
+}
+
 export function createBufferedCountryMapViewport(viewport: CountryMapViewport): CountryMapViewport {
   const zoom = Math.round(viewport.zoom);
   const step = coordinateStepForZoom(zoom);
   const latitudePadding = Math.max((viewport.north - viewport.south) * 0.2, step);
   const longitudePadding = Math.max((viewport.east - viewport.west) * 0.2, step);
 
-  return {
+  return quantizeCountryMapViewport({
     north: clamp(ceilToStep(viewport.north + latitudePadding, step), latitudeRange.min, latitudeRange.max),
     south: clamp(floorToStep(viewport.south - latitudePadding, step), latitudeRange.min, latitudeRange.max),
     east: clamp(ceilToStep(viewport.east + longitudePadding, step), longitudeRange.min, longitudeRange.max),
     west: clamp(floorToStep(viewport.west - longitudePadding, step), longitudeRange.min, longitudeRange.max),
     zoom,
-  };
+  });
 }
 
 export function countryMapViewportContains(

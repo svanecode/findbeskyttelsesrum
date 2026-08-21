@@ -15,6 +15,7 @@ En registrering er ikke en garanti for offentlig adgang, klargøring eller aktue
 - privat fejlrapportering med moderationskø;
 - GitHub-login, tilladelsesliste og MFA til administration;
 - daglig BBR/DAR-import med staging, kvalitetskontrol, atomisk publicering og rollback;
+- transaktionelt opdaterede kommuneaggregater og versionsbundet kortcache;
 - verificerbar produktions- og dataversion via `/api/health`;
 - gratis produktionskontrol og privatlivsvenlige, aggregerede driftstællere.
 
@@ -66,7 +67,7 @@ NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 ```
 
-`SUPABASE_SECRET_KEY` er kun til server-, import- og driftsopgaver. Den må aldrig få præfikset `NEXT_PUBLIC_`, bruges i browserkode, skrives i logoutput eller lægges i Git. Se alle sikre pladsholdere i [`.env.example`](.env.example).
+`SUPABASE_SECRET_KEY` er kun til server-, import- og driftsopgaver. `RATE_LIMIT_HASH_SECRET` er en separat serverhemmelighed til anonyme forbrugsgrænser og skal indeholde mindst 32 tilfældige tegn. Ingen af dem må få præfikset `NEXT_PUBLIC_`, bruges i browserkode, skrives i logoutput eller lægges i Git. Se alle sikre pladsholdere i [`.env.example`](.env.example).
 
 ## Kvalitetskontrol
 
@@ -116,7 +117,7 @@ Kør ikke migrationsfiler direkte én efter én uden migrationshistorik. Kontrol
 - `/admin` er den beskyttede indgang til moderation og drift.
 - Administratorer logger ind gennem GitHub OAuth, skal være på tilladelseslisten og skal gennemføre MFA.
 - `/admin/drift` viser importer, kvalitetskontroller, aktivt datasæt, rollback og 30 dages aggregerede driftstal.
-- `/api/health` viser deployet Git SHA, deployment-ID, byggetid, publication-ID, import-run-ID og dataalder. Gamle eller inkonsistente data giver `503 degraded`.
+- `/api/health` viser deployet Git SHA, deployment-ID, byggetid, publication-ID, offentlig datarevision, import-run-ID og dataalder. Gamle eller inkonsistente data giver `503 degraded`.
 - Produktionsflowet kontrolleres automatisk to gange i timen. Fejl opretter en GitHub-issue; næste succes lukker den igen.
 - De egne driftstællere indeholder ikke IP-adresse, bruger-id, adresse, koordinater, søgetekst eller fuld URL og slettes senest efter 90 dage.
 
@@ -125,8 +126,9 @@ Kør ikke migrationsfiler direkte én efter én uden migrationshistorik. Kontrol
 1. Opret en feature branch og en pull request.
 2. Lad de obligatoriske kvalitetskontroller bestå.
 3. Anvend og verificér eventuelle Supabase-migrations før kode, der afhænger af dem, frigives.
-4. Merge til `main`; Vercel bygger og udgiver produktionsversionen.
-5. Kontrollér den automatiske browserhistorie og produktionskontrol.
+4. Merge til `main`.
+5. Byg og udgiv fra det linkede Vercel-projekt; projektet er ikke afhængigt af automatisk Git-deploy.
+6. Kontrollér browserhistorien og produktionskontrollen mod det deployede Git-SHA.
 
 ## Struktur
 

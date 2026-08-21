@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { parseProductMetricPayload } from "@/lib/analytics/product-metrics";
 import { recordProductMetricServer } from "@/lib/analytics/product-metrics-server";
+import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -31,8 +32,23 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  const sharedLimit = await consumeDistributedRateLimit(
+    request,
+    { maxRequests: 60, windowMs: 60_000 },
+    "product-metrics",
+  );
+  if (!sharedLimit.allowed) {
+    return new NextResponse(null, {
+      status: 429,
+      headers: {
+        "Retry-After": String(sharedLimit.retryAfterSeconds),
+        "Cache-Control": "private, no-store",
+      },
+    });
+  }
+
   const rawBody = await request.text();
-  if (rawBody.length > maximumBodyLength) {
+  if (new TextEncoder().encode(rawBody).byteLength > maximumBodyLength) {
     return new NextResponse(null, { status: 413, headers: { "Cache-Control": "private, no-store" } });
   }
 

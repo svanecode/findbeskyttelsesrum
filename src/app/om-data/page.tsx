@@ -5,7 +5,7 @@ import GlobalFooter from "@/components/GlobalFooter";
 import ProductMetricView from "@/components/ProductMetricView";
 import { ui } from "@/components/ui-classes";
 import {
-  getAppV2MunicipalitySummaries,
+  getAppV2PublicMunicipalitySummaryCount,
   getAppV2PublicDataFunnel,
   getAppV2PublicDataStats,
   type AppV2PublicDataFunnel,
@@ -46,15 +46,15 @@ type DataOverview =
 
 async function getDataOverview(): Promise<DataOverview> {
   try {
-    const [municipalities, stats, funnel] = await Promise.all([
-      getAppV2MunicipalitySummaries(),
+    const [municipalityCount, stats, funnel] = await Promise.all([
+      getAppV2PublicMunicipalitySummaryCount(),
       getAppV2PublicDataStats(),
       getAppV2PublicDataFunnel(),
     ]);
 
     return {
       ok: true,
-      municipalityCount: municipalities.length,
+      municipalityCount,
       stats,
       funnel,
     };

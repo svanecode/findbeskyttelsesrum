@@ -6,9 +6,7 @@ import { getAppV2MunicipalitySummaries } from "@/lib/supabase/app-v2-queries";
 import { siteUrl } from "@/lib/seo/site";
 import MunicipalityList from "./municipality-list";
 
-export const revalidate = 86400;
-/** Requires the versioned public read model. Keep deployment builds independent of database rollout order. */
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Kommuneoversigt",

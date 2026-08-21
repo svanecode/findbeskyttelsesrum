@@ -21,10 +21,12 @@ The live application and importer use `app_v2`. Anonymous reads are limited to e
 - `application_code_eligibility`: explicit BBR usage-code allowlist.
 - `rate_limit_buckets`: short-lived HMAC-keyed API rate limits without raw client addresses.
 - `product_metrics_hourly`: private hourly counters for a fixed event allowlist, without user or location fields.
+- `municipality_summary_public_v1`: small RLS-protected aggregate refreshed in the same transaction as public-data changes.
+- `public_data_revisions`: private monotonic cache revision linked to the current dataset publication.
 
 ## Public reads
 
-The app reads `shelter_public_v2`, `country_marker_public_v2`, `sitemap_shelter_public_v2`, `municipality_public_v2`, the public statistics view, and the bounded nearby RPC. Public shelter rows must be active, published, capacity-eligible, application-code eligible, and not excluded. Active manual overrides take precedence at read time.
+The app reads `shelter_public_v2`, `country_marker_public_v2`, `sitemap_shelter_public_v2`, `municipality_summary_public_v1`, the public statistics view, and bounded nearby/map RPCs. Public shelter rows must be active, published, capacity-eligible, application-code eligible, and not excluded. Active manual overrides take precedence at read time. Municipality and global public totals are served from the 98-row aggregate rather than rescanning all registrations on each request.
 
 ## Publication and operations functions
 
@@ -40,4 +42,4 @@ The app reads `shelter_public_v2`, `country_marker_public_v2`, `sitemap_shelter_
 
 ## Access boundary
 
-`SUPABASE_SECRET_KEY` is server-only. Public clients use the publishable/anonymous key and explicit views. The Next.js admin uses the signed-in user's Supabase session; every private RPC repeats authorization in the database.
+`SUPABASE_SECRET_KEY` and `RATE_LIMIT_HASH_SECRET` are separate server-only values. Public clients use the publishable/anonymous key and explicit views. The Next.js admin uses the signed-in user's Supabase session; every private RPC repeats authorization in the database.

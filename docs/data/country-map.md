@@ -6,7 +6,7 @@ Den nationale afgrænsning går til 15,3° øst, så hele Bornholm indgår. Regi
 
 ## Kortobjekter efter zoom
 
-`GET /api/country-shelters?format=features&north=…&south=…&east=…&west=…&zoom=…` er den aktive kortkontrakt.
+`GET /api/country-shelters?format=features&revision=…&north=…&south=…&east=…&west=…&zoom=…` er den eneste aktive kortkontrakt.
 
 - Zoom 5–9: Postgres samler alle registreringer i deterministiske geografiske celler. Celler med flere registreringer returneres som klynger med antal, samlet kapacitet og grænser.
 - Zoom 10–18: Postgres returnerer de konkrete offentlige registreringer i det synlige område.
@@ -22,14 +22,17 @@ Browseren henter et afrundet bufferområde omkring det synlige kort. Små panore
 1. Forespørgslen forsinkes kort, så afsluttede kortbevægelser samles.
 2. En forældet forespørgsel afbrydes.
 3. De eksisterende kortobjekter bliver stående, mens det nye område hentes.
-4. CDN-cachen genbruger samme afrundede område i op til en time og kan servere et ældre svar, mens det opdateres.
+4. Serveren afrunder området igen og genbruger kun cacheposter med samme offentlige datarevision.
+5. Hvis revisionen er ændret efter sidens indlæsning, svarer API'et med den nye revision, og browseren prøver automatisk igen.
 
 ## Sikkerhed og drift
 
 - Databasefunktionen er `security invoker` og læser kun `app_v2.country_marker_public_v2`.
 - Basetabellen er fortsat utilgængelig for anonyme brugere.
 - Funktionen validerer koordinater, zoom og maksimumstørrelse i databasen.
-- Den historiske markørliste uden `format=features` bevares midlertidigt for bagudkompatibilitet, men bruges ikke af landskortet eller produktionsovervågningen.
+- Ukendte queryparametre, manglende viewport, manglende revision og det historiske fulde markørformat afvises.
+- HTTP-svaret er `private, no-store`; den interne servercache er nøglet på afrundet viewport og den monotone datarevision. En ny import, korrektion, eksklusion eller rollback skifter revisionen.
+- En lokal og delt databasebaseret rate limit beskytter endpointet uden en betalt cachetjeneste.
 - Den syntetiske produktionskontrol kræver, at landsvisningen returnerer klynger med konsistente totaler.
 
 ## Lokal integrationsmåling

@@ -1,120 +1,189 @@
-import { NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
+import { NextRequest, NextResponse } from "next/server";
 
+import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
+import { quantizeCountryMapViewport } from "@/lib/maps/country-map-viewport";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   getAppV2PublicCountryMapFeatures,
-  getAppV2PublicCountryShelterMarkers,
-  getAppV2PublicCountryShelterMarkersInBounds,
-  type AppV2CountryShelterMarker,
+  getAppV2PublicDataRevision,
 } from "@/lib/supabase/app-v2-queries";
-import type { CountryMapFeaturesResponse, CountryShelterMarkersResponse } from "@/types/country-map";
+import type { CountryMapFeaturesResponse, CountryMapViewport } from "@/types/country-map";
 
-/** Viewport query parameters make this request-specific; the CDN header below caches each URL. */
 export const dynamic = "force-dynamic";
-export const revalidate = 86400;
 export const runtime = "nodejs";
 
-type Viewport = NonNullable<CountryShelterMarkersResponse["viewport"]>;
+const allowedQueryParameters = new Set([
+  "format",
+  "revision",
+  "north",
+  "south",
+  "east",
+  "west",
+  "zoom",
+]);
+const viewportKeys = ["north", "south", "east", "west", "zoom"] as const;
 
-function parseViewport(request: Request): Viewport | null {
-  const search = new URL(request.url).searchParams;
-  const keys = ["north", "south", "east", "west", "zoom"] as const;
-  const present = keys.filter((key) => search.has(key));
-  if (present.length === 0) return null;
-  if (present.length !== keys.length) throw new RangeError("Alle viewportfelter er påkrævet.");
+const readCachedCountryMapFeatures = unstable_cache(
+  async (
+    dataRevision: string,
+    north: number,
+    south: number,
+    east: number,
+    west: number,
+    zoom: number,
+  ) => {
+    if (!dataRevision) throw new Error("Country map cache requires a public data revision.");
+    return getAppV2PublicCountryMapFeatures({ north, south, east, west, zoom, limit: 5000 });
+  },
+  ["country-map-features-v2"],
+  { revalidate: 3600 },
+);
 
-  const viewport = Object.fromEntries(keys.map((key) => [key, Number(search.get(key))])) as Viewport;
-  if (!Object.values(viewport).every(Number.isFinite)) throw new RangeError("Viewportfelter skal være tal.");
-  if (viewport.north <= viewport.south || viewport.east <= viewport.west) throw new RangeError("Viewportgrænserne er ugyldige.");
-  if (viewport.south < -90 || viewport.north > 90 || viewport.west < -180 || viewport.east > 180) throw new RangeError("Viewportgrænserne ligger uden for kortet.");
-  if (viewport.zoom < 5 || viewport.zoom > 18) throw new RangeError("Zoomniveauet er ugyldigt.");
-  return viewport;
+function noStoreHeaders(revision?: string) {
+  return {
+    "Cache-Control": "private, no-store",
+    ...(revision ? { "X-Public-Data-Revision": revision } : {}),
+  };
 }
 
-function markerLimitForZoom(zoom: number) {
-  if (zoom <= 7) return 3_000;
-  if (zoom <= 9) return 6_000;
-  return 12_000;
+function parseRequest(request: NextRequest) {
+  const search = request.nextUrl.searchParams;
+  for (const key of search.keys()) {
+    if (!allowedQueryParameters.has(key)) {
+      throw new RangeError(`Ukendt queryparameter: ${key}.`);
+    }
+  }
+
+  for (const key of allowedQueryParameters) {
+    if (search.getAll(key).length > 1) {
+      throw new RangeError(`Queryparameteren ${key} må kun angives én gang.`);
+    }
+  }
+
+  if (search.get("format") !== "features") {
+    throw new RangeError("Kortformatet skal være features.");
+  }
+
+  const revision = search.get("revision")?.trim() ?? "";
+  if (!revision || revision.length > 128 || !/^[a-z0-9:-]+$/i.test(revision)) {
+    throw new RangeError("En gyldig datarevision er påkrævet.");
+  }
+
+  if (viewportKeys.some((key) => !search.has(key))) {
+    throw new RangeError("Alle viewportfelter er påkrævet.");
+  }
+
+  const viewport = Object.fromEntries(
+    viewportKeys.map((key) => [key, Number(search.get(key))]),
+  ) as CountryMapViewport;
+  if (!Object.values(viewport).every(Number.isFinite)) {
+    throw new RangeError("Viewportfelter skal være tal.");
+  }
+  if (viewport.north <= viewport.south || viewport.east <= viewport.west) {
+    throw new RangeError("Viewportgrænserne er ugyldige.");
+  }
+  if (
+    viewport.south < -90
+    || viewport.north > 90
+    || viewport.west < -180
+    || viewport.east > 180
+  ) {
+    throw new RangeError("Viewportgrænserne ligger uden for kortet.");
+  }
+  if (!Number.isInteger(viewport.zoom) || viewport.zoom < 5 || viewport.zoom > 18) {
+    throw new RangeError("Zoomniveauet er ugyldigt.");
+  }
+
+  return {
+    requestedRevision: revision,
+    viewport: quantizeCountryMapViewport(viewport),
+  };
 }
 
-function evenlySample(markers: AppV2CountryShelterMarker[], limit: number) {
-  if (markers.length <= limit) return markers;
-  return Array.from({ length: limit }, (_, index) => markers[Math.floor((index * markers.length) / limit)]!);
+function rateLimitedResponse(retryAfterSeconds: number) {
+  return NextResponse.json(
+    { error: "For mange kortforespørgsler. Vent et øjeblik, og prøv igen.", code: "RATE_LIMITED" },
+    {
+      status: 429,
+      headers: {
+        ...noStoreHeaders(),
+        "Retry-After": String(retryAfterSeconds),
+      },
+    },
+  );
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  if (!rateLimit(request, { maxRequests: 120, windowMs: 60_000 }, "country-map")) {
+    return rateLimitedResponse(60);
+  }
+
   try {
-    const search = new URL(request.url).searchParams;
-    const format = search.get("format");
-    if (format !== null && format !== "features") {
-      throw new RangeError("Det valgte kortformat understøttes ikke.");
+    const parsed = parseRequest(request);
+    const sharedLimit = await consumeDistributedRateLimit(
+      request,
+      { maxRequests: 120, windowMs: 60_000 },
+      "country-map",
+    );
+    if (!sharedLimit.allowed) {
+      return rateLimitedResponse(sharedLimit.retryAfterSeconds);
     }
 
-    const viewport = parseViewport(request);
-    if (format === "features") {
-      if (!viewport) {
-        throw new RangeError("Viewportfelter er påkrævet for det optimerede kortformat.");
-      }
-
-      const result = await getAppV2PublicCountryMapFeatures({ ...viewport, limit: 5000 });
-      const payload: CountryMapFeaturesResponse = {
-        contract: "country-map-features-v1",
-        features: result.features,
-        generatedAt: new Date().toISOString(),
-        mode: result.mode,
-        availableCount: result.availableCount,
-        featureCount: result.featureCount,
-        markerCount: result.markerCount,
-        clusterCount: result.clusterCount,
-        clusteredRegistrationCount: result.clusteredRegistrationCount,
-        truncated: result.truncated,
-        viewport,
-      };
-
-      return NextResponse.json(payload, {
-        headers: {
-          "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+    const currentRevision = await getAppV2PublicDataRevision();
+    if (parsed.requestedRevision !== currentRevision.cacheKey) {
+      return NextResponse.json(
+        {
+          error: "Kortets dataversion er ændret. Hent kortet igen med den aktuelle revision.",
+          code: "COUNTRY_MAP_REVISION_CHANGED",
+          currentRevision: currentRevision.cacheKey,
         },
-      });
+        { status: 409, headers: noStoreHeaders(currentRevision.cacheKey) },
+      );
     }
 
-    const result = viewport
-      ? await getAppV2PublicCountryShelterMarkersInBounds(viewport)
-      : {
-          markers: await getAppV2PublicCountryShelterMarkers(),
-          totalCount: 0,
-        };
-    const availableCount = viewport ? result.totalCount : result.markers.length;
-    const shelters = viewport ? evenlySample(result.markers, markerLimitForZoom(viewport.zoom)) : result.markers;
-    const generatedAt = new Date().toISOString();
-
-    const payload: CountryShelterMarkersResponse = {
-      shelters,
-      generatedAt,
-      count: shelters.length,
-      availableCount,
-      truncated: shelters.length < availableCount,
-      ...(viewport ? { viewport } : {}),
+    const { viewport } = parsed;
+    const result = await readCachedCountryMapFeatures(
+      currentRevision.cacheKey,
+      viewport.north,
+      viewport.south,
+      viewport.east,
+      viewport.west,
+      viewport.zoom,
+    );
+    const payload: CountryMapFeaturesResponse = {
+      contract: "country-map-features-v2",
+      datasetRevision: currentRevision.cacheKey,
+      features: result.features,
+      generatedAt: new Date().toISOString(),
+      mode: result.mode,
+      availableCount: result.availableCount,
+      featureCount: result.featureCount,
+      markerCount: result.markerCount,
+      clusterCount: result.clusterCount,
+      clusteredRegistrationCount: result.clusteredRegistrationCount,
+      truncated: result.truncated,
+      viewport,
     };
 
     return NextResponse.json(payload, {
-      headers: {
-        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
-      },
+      headers: noStoreHeaders(currentRevision.cacheKey),
     });
-  } catch (err) {
-    if (err instanceof RangeError) {
+  } catch (error) {
+    if (error instanceof RangeError) {
       return NextResponse.json(
-        { error: err.message, code: "INVALID_COUNTRY_MAP_VIEWPORT" },
-        { status: 400 },
+        { error: error.message, code: "INVALID_COUNTRY_MAP_REQUEST" },
+        { status: 400, headers: noStoreHeaders() },
       );
     }
-    console.error("[country-shelters] Failed to load markers:", err);
+
+    console.error("[country-shelters] Failed to load map features:", error);
     return NextResponse.json(
       {
         error: "Kunne ikke hente kortmarkører lige nu.",
         code: "COUNTRY_SHELTERS_FETCH_FAILED",
       },
-      { status: 502 },
+      { status: 502, headers: noStoreHeaders() },
     );
   }
 }
