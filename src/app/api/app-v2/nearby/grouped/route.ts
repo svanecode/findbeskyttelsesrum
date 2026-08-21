@@ -43,11 +43,7 @@ const parameterBounds = {
 const capabilities = {
   nativeAppV2Shape: true,
   groupedAppV2Shape: true,
-  groupedLegacyShape: false,
-  legacyCapacityThreshold: true,
-  legacyAnvendelseSemantics: false,
   sourceApplicationCodeEligibility: true,
-  fullLegacyExclusionsParity: false,
   databaseSideDistanceOrdering: true,
   postgisSpatialIndex: false,
 };
@@ -61,15 +57,12 @@ const exclusionMode = {
   importStates: activeImportStates,
   appV2ShelterExclusions:
     "active shelter_id, canonical source identity, and exact app_v2 address/postal matches",
-  legacyExcludedShelters: "not read by this API",
 };
 const limitations = [
   "Groups app_v2 shelter rows by exact address_line1, postal_code, and city after deterministic normalization.",
   "Always applies source-backed application-code eligibility (capacity >= 40 + eligible source_application_code) before grouping.",
-  "Does not include legacy anvendelse/type display semantics.",
-  "Does not mirror legacy public.excluded_shelters bygning_id or split-address matching.",
   "Uses database-side bounding-box filtering and Haversine distance ordering, not a PostGIS spatial index.",
-  "Used by the revamp /shelters/nearby UI when the source contract resolves to app_v2.",
+  "Used by the public /shelters/nearby UI.",
 ];
 
 type ValidationResult =

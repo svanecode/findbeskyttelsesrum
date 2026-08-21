@@ -1,4 +1,4 @@
-import { getLegacyPublicSupabase } from "@/lib/supabase/legacy-public-client";
+import { createAppV2PublicClient } from '@/lib/app-v2-public'
 import { Anvendelseskode } from '@/types/anvendelseskode'
 import { normalizePublicApplicationLabel } from '@/lib/public-labels'
 
@@ -9,17 +9,20 @@ export async function getAnvendelseskoder(): Promise<Anvendelseskode[]> {
     return anvendelseskoderCache
   }
 
-  const { data, error } = await getLegacyPublicSupabase()
-    .from('anvendelseskoder')
-    .select('*')
-    .order('beskrivelse')
+  const { data, error } = await createAppV2PublicClient()
+    .from('application_code_public')
+    .select('application_code, label')
+    .order('label')
 
   if (error) {
-    console.error('Error fetching anvendelseskoder:', error)
+    console.error('Error fetching app_v2 application codes:', error)
     return []
   }
 
-  anvendelseskoderCache = data as Anvendelseskode[]
+  anvendelseskoderCache = (data ?? []).map((row) => ({
+    kode: row.application_code,
+    beskrivelse: normalizePublicApplicationLabel(row.label || row.application_code),
+  }))
   return anvendelseskoderCache
 }
 

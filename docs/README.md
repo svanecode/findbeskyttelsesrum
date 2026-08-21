@@ -1,6 +1,6 @@
 # Dokumentation
 
-Denne mappe skelner mellem aktiv dokumentation og historiske planer. Den aktive kode, migrationshistorikken, GitHub Actions-filerne og [projektets README](../README.md) er altid autoritative, hvis et historisk dokument siger noget andet.
+Denne mappe samler projektets aktive data-, kvalitets- og driftsaftaler. Den aktive kode, migrationshistorikken, GitHub Actions-filerne og [projektets README](../README.md) er autoritative.
 
 ## Data og import
 
@@ -23,7 +23,3 @@ Den konkrete Python-opsætning og lokale kommandoer findes i [importerens README
 - [`qa/free-observability.md`](qa/free-observability.md) beskriver gratis produktionskontrol, privatlivsvenlige målinger og de accepterede databaseadvarsler.
 
 Den korte release- og driftsprocedure står i [hoved-README'en](../README.md#drift-og-administration).
-
-## Historisk arkiv
-
-[`archive/cutover-2025`](archive/cutover-2025/README.md) indeholder audits, planer og statusbilleder fra overgangen til den nuværende løsning. Materialet bevares som beslutningsspor, men må ikke bruges som aktuel driftsvejledning eller statusliste.

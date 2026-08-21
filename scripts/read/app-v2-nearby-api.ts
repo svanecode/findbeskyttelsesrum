@@ -142,12 +142,6 @@ function getResultSummary(payload: unknown) {
   const record = payload as Record<string, unknown>;
   const meta = typeof record.meta === "object" && record.meta !== null ? (record.meta as Record<string, unknown>) : {};
   const results = Array.isArray(record.results) ? record.results : [];
-  const legacyResults = Array.isArray(record.legacyResults) ? record.legacyResults : [];
-  const appV2Results = Array.isArray(record.appV2Results) ? record.appV2Results : [];
-  const comparison =
-    typeof record.comparison === "object" && record.comparison !== null
-      ? (record.comparison as Record<string, unknown>)
-      : null;
   const diagnostics =
     typeof meta.diagnostics === "object" && meta.diagnostics !== null
       ? (meta.diagnostics as Record<string, unknown>)
@@ -163,23 +157,18 @@ function getResultSummary(payload: unknown) {
       : undefined;
 
   return {
-    status: "results" in record || "comparison" in record ? "ok" : "error",
+    status: "results" in record ? "ok" : "error",
     requestId: meta.requestId,
     contract: meta.contract,
     mode: meta.mode,
     query: meta.query,
     resultCount: meta.resultCount ?? appV2ResultCount ?? results.length,
-    legacy: meta.legacy,
-    appV2: meta.appV2,
     capabilities: meta.capabilities,
     eligibility: meta.eligibility,
     exclusionMode: meta.exclusionMode,
     diagnostics,
-    comparison,
     limitations: meta.limitations,
     firstResults: results.slice(0, 5),
-    firstLegacyResults: legacyResults.slice(0, 5),
-    firstAppV2Results: appV2Results.slice(0, 5),
     error: record.error,
   };
 }

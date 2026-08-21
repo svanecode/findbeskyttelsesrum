@@ -137,6 +137,6 @@ Kør ikke migrationsfiler direkte én efter én uden migrationshistorik. Kontrol
 | `tests` | Enheds- og sikkerhedstests. |
 | `e2e` | Playwright-tests af hele brugerrejsen. |
 | `scripts` | Aktive drifts-, parity- og verifikationsværktøjer. |
-| `docs` | Aktiv dokumentation og et tydeligt markeret historisk arkiv. |
+| `docs` | Aktive data-, kvalitets- og driftsaftaler. |
 
-Se [dokumentationsoversigten](docs/README.md) for dataaftaler, kvalitet, drift og historiske cutover-noter.
+Se [dokumentationsoversigten](docs/README.md) for dataaftaler, kvalitet og drift.
