@@ -2,11 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { adaptAppV2Grouped } from "../src/lib/nearby/app-v2-adapter";
-import {
-  getAppV2NearbyAddressKey,
-  getLegacyNearbyAddressKey,
-  normalizeNearbyAddressText,
-} from "../src/lib/nearby/address-normalization";
 import { parseNearbySearchParams } from "../src/lib/nearby/parse-nearby-search-params";
 import {
   createNearbySearchContext,
@@ -24,18 +19,6 @@ test("nearby coordinates reject missing, non-finite and out-of-range input", () 
     lat: "55.67",
     lng: "12.56",
   });
-});
-
-test("legacy and app_v2 addresses normalize to the same deterministic key", () => {
-  const legacy = getLegacyNearbyAddressKey({
-    vejnavn: "Rådhuspladsen",
-    husnummer: "1",
-    postnummer: "1550",
-  });
-  const appV2 = getAppV2NearbyAddressKey({ addressLine1: " Rådhuspladsen  1, ", postalCode: "1550" });
-
-  assert.equal(legacy, appV2);
-  assert.equal(normalizeNearbyAddressText("  A,  B "), "a b");
 });
 
 test("nearby search context validates coordinates and expires tab-local searches", () => {

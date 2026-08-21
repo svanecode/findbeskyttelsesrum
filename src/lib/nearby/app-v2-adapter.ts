@@ -28,28 +28,17 @@ export type NearbyResultShelter = {
   postnummer: string | null
   city: string | null
   kommunekode: string | null
-  anvendelse: string | null
   typeLabel?: string | null
   shelter_count?: number
   total_capacity?: number
   distance: number
   address: string | null
-  source: 'legacy' | 'app_v2'
   representativeSlug?: string | null
   registrations?: NearbyShelterRegistration[]
-  // Legacy-only fields — absent for app_v2 results
-  created_at?: string
-  bygning_id?: string | null
-  shelter_capacity?: number | null
-  deleted?: string | null
-  last_checked?: string | null
-  anvendelseskoder?: { kode: string; beskrivelse: string; skal_med: boolean }
 }
 
 /**
- * Translates grouped app_v2 nearby API results into the legacy-shaped UI contract.
- * app_v2 does not expose a legacy `anvendelse` code here, so the legacy Type card
- * stays hidden until a dedicated app_v2 type-display contract is added.
+ * Translates grouped app_v2 nearby API results into the nearby UI contract.
  */
 export function adaptAppV2Grouped(rows: ApiGroupedResult[]): NearbyResultShelter[] {
   return rows.map((row) => {
@@ -71,13 +60,11 @@ export function adaptAppV2Grouped(rows: ApiGroupedResult[]): NearbyResultShelter
       postnummer: row.address.postalCode,
       city: row.address.city,
       kommunekode: row.municipality?.code ?? null,
-      anvendelse: null,
       typeLabel: row.applicationCodeLabel,
       shelter_count: row.shelterCount,
       total_capacity: row.totalCapacity,
       distance: row.distanceMeters / 1000,
       address: `${row.address.line1}, ${row.address.postalCode} ${row.address.city}`,
-      source: 'app_v2',
       representativeSlug: row.representativeShelter?.slug ?? row.shelterSlugs?.[0] ?? null,
       registrations: row.shelters ?? [],
     }

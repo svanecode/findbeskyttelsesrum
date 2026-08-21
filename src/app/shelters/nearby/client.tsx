@@ -12,13 +12,11 @@ import MapUnavailableNotice from '@/components/MapUnavailableNotice'
 import RegistrationNotice from '@/components/RegistrationNotice'
 import type { MapTileStatus } from '@/components/ResilientMapTileLayer'
 import { ui } from '@/components/ui-classes'
-import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
 import { setupLeafletDefaults } from '@/lib/leaflet/setup-defaults'
 import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
 import { trackProductMetric } from '@/lib/analytics/product-metrics'
-import type { Anvendelseskode } from '@/types/anvendelseskode'
 import { NearbyFitBounds } from './nearby-fit-bounds'
 
 setupLeafletDefaults(L)
@@ -64,11 +62,8 @@ function formatDistanceKm(distanceKm: number) {
   return `${distanceKm.toFixed(1).replace('.', ',')} km`
 }
 
-function formatBuildingUse(shelter: NearbyResultShelter, codes: Anvendelseskode[]) {
-  const fromAppV2 = shelter.typeLabel?.trim()
-  if (fromAppV2) return fromAppV2
-  if (!shelter.anvendelse) return null
-  return getAnvendelseskodeBeskrivelse(shelter.anvendelse, codes).trim() || null
+function formatBuildingUse(shelter: NearbyResultShelter) {
+  return shelter.typeLabel?.trim() || null
 }
 
 function getDetailSlug(shelter: NearbyResultShelter) {
@@ -112,7 +107,6 @@ type MobileView = 'list' | 'map'
 
 export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const [shelters, setShelters] = useState<NearbyResultShelter[]>([])
-  const [anvendelseskoder, setAnvendelseskoder] = useState<Anvendelseskode[]>([])
   const [selectedShelterId, setSelectedShelterId] = useState<string | null>(null)
   const [mobileView, setMobileView] = useState<MobileView>('list')
   const [isDesktopMap, setIsDesktopMap] = useState(false)
@@ -164,13 +158,9 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
       try {
         setIsLoading(true)
         setLoadError(null)
-        const [shelterData, codeData] = await Promise.all([
-          fetchAppV2GroupedShelters(lat, lng),
-          getAnvendelseskoder(),
-        ])
+        const shelterData = await fetchAppV2GroupedShelters(lat, lng)
         if (isMounted) {
           setShelters(shelterData)
-          setAnvendelseskoder(codeData)
           trackProductMetric(
             shelterData.length > 0 ? 'nearby_results_loaded' : 'nearby_no_results',
             performance.now() - startedAt,
@@ -179,7 +169,6 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
       } catch {
         if (isMounted) {
           setShelters([])
-          setAnvendelseskoder([])
           setLoadError('Vi kunne ikke hente BBR-registreringerne lige nu. Prøv igen om lidt.')
           trackProductMetric('nearby_error', performance.now() - startedAt)
         }
@@ -332,7 +321,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                 <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{srMapSelection}</div>
                 {shelters.map((shelter) => {
                   const detailSlug = getDetailSlug(shelter)
-                  const buildingUse = formatBuildingUse(shelter, anvendelseskoder)
+                  const buildingUse = formatBuildingUse(shelter)
                   const registrations = shelter.registrations ?? []
                   const hasExtraDetails = Boolean(buildingUse) || registrations.length > 1
 
@@ -414,7 +403,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                         <Popup className="fb-popup">
                           <div dangerouslySetInnerHTML={{ __html: buildLeafletPopupHtml({
                             title: getAddressLine(shelter),
-                            usageLine: formatBuildingUse(shelter, anvendelseskoder) ?? '',
+                            usageLine: formatBuildingUse(shelter) ?? '',
                             postalLine: getPostalLine(shelter),
                             capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
                             href: getDetailSlug(shelter) ? `/beskyttelsesrum/${getDetailSlug(shelter)}` : null,

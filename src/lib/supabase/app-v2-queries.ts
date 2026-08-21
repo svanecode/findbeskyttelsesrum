@@ -6,7 +6,7 @@ import { normalizePublicApplicationLabel } from "@/lib/public-labels";
 
 export type AppV2ShelterStatus = "active" | "temporarily_closed" | "under_review";
 export type AppV2ImportState = "active" | "missing_from_source" | "suppressed";
-export type AppV2NearbyEligibilityMode = "legacy_capacity_v1" | "source_application_code_v1" | "none";
+export type AppV2NearbyEligibilityMode = "source_application_code_v1" | "none";
 type AppV2ImportRunStatus = "running" | "succeeded" | "failed";
 
 type MunicipalityRow = {
@@ -183,7 +183,6 @@ export type AppV2NearbyDiagnostics = {
   importStates: AppV2ImportState[];
   eligibilityMode?: AppV2NearbyEligibilityMode;
   minimumCapacity?: number;
-  legacyAnvendelseSemantics?: "unresolved" | "modeled_by_source_application_code";
   sourceApplicationCodeSemantics?: "available" | "unpopulated" | "not_requested";
   sourceApplicationCodeRuleSource?: string;
   sourceApplicationCodeRows?: number;
@@ -199,7 +198,6 @@ export type AppV2NearbyDiagnostics = {
   distanceStrategy?: string;
   spatialIndex?: boolean;
   groupedAppV2Shape?: boolean;
-  groupedLegacyShape?: boolean;
   groupingKey?: string;
   sourceReturnedRows?: number;
   groupedRows?: number;
@@ -249,10 +247,9 @@ export type AppV2NearbySheltersOptions = {
 export type AppV2NearbyEligibilitySummary = {
   mode: AppV2NearbyEligibilityMode;
   minimumCapacity: number | null;
-  legacyCapacityThreshold: boolean;
+  minimumCapacityRequired: boolean;
   sourceApplicationCodeRequired: boolean;
   sourceApplicationCodeSemantics: "available" | "unpopulated" | "not_requested";
-  legacyAnvendelseSemantics: "unresolved" | "modeled_by_source_application_code";
   note: string;
 };
 
@@ -268,7 +265,7 @@ const defaultNearbyLimit = 10;
 const defaultNearbyCandidateLimit = 500;
 const defaultNearbyImportStates: AppV2ImportState[] = ["active"];
 const defaultNearbyEligibilityMode: AppV2NearbyEligibilityMode = "source_application_code_v1";
-const legacyNearbyMinimumCapacity = 40;
+const nearbyMinimumCapacity = 40;
 const sourceApplicationCodeRuleSource = "app_v2.application_code_eligibility";
 const allowedImportStates: AppV2ImportState[] = ["active", "missing_from_source", "suppressed"];
 
@@ -396,34 +393,20 @@ export function getAppV2NearbyEligibilitySummary(
     return {
       mode,
       minimumCapacity: null,
-      legacyCapacityThreshold: false,
+      minimumCapacityRequired: false,
       sourceApplicationCodeRequired: false,
       sourceApplicationCodeSemantics: "not_requested",
-      legacyAnvendelseSemantics: "unresolved",
       note: "No app_v2 nearby eligibility filtering is applied beyond import_state, coordinates, radius, and active app_v2 exclusions.",
-    };
-  }
-
-  if (mode === "source_application_code_v1") {
-    return {
-      mode,
-      minimumCapacity: legacyNearbyMinimumCapacity,
-      legacyCapacityThreshold: true,
-      sourceApplicationCodeRequired: true,
-      sourceApplicationCodeSemantics: "available",
-      legacyAnvendelseSemantics: "modeled_by_source_application_code",
-      note: "Applies capacity >= 40 and requires a source-backed application code that app_v2.application_code_eligibility marks as nearby eligible. Rows without source_application_code are excluded in this mode.",
     };
   }
 
   return {
     mode,
-    minimumCapacity: legacyNearbyMinimumCapacity,
-    legacyCapacityThreshold: true,
-    sourceApplicationCodeRequired: false,
-    sourceApplicationCodeSemantics: "not_requested",
-    legacyAnvendelseSemantics: "unresolved",
-    note: "Applies the legacy nearby capacity threshold of capacity >= 40 before grouping. Legacy anvendelseskoder.skal_med is not modeled yet.",
+    minimumCapacity: nearbyMinimumCapacity,
+    minimumCapacityRequired: true,
+    sourceApplicationCodeRequired: true,
+    sourceApplicationCodeSemantics: "available",
+    note: "Applies capacity >= 40 and requires a source-backed application code that app_v2.application_code_eligibility marks as nearby eligible. Rows without source_application_code are excluded in this mode.",
   };
 }
 
@@ -540,13 +523,6 @@ function normalizeNearbyDiagnostics(value: unknown): AppV2NearbyDiagnostics {
       value.minimumCapacity === undefined
         ? undefined
         : getInteger(value.minimumCapacity, "diagnostics.minimumCapacity"),
-    legacyAnvendelseSemantics:
-      value.legacyAnvendelseSemantics === undefined
-        ? undefined
-        : (getString(
-            value.legacyAnvendelseSemantics,
-            "diagnostics.legacyAnvendelseSemantics",
-          ) as "unresolved" | "modeled_by_source_application_code"),
     sourceApplicationCodeSemantics:
       value.sourceApplicationCodeSemantics === undefined
         ? undefined
@@ -591,16 +567,12 @@ function normalizeNearbyDiagnostics(value: unknown): AppV2NearbyDiagnostics {
       value.groupedAppV2Shape === undefined
         ? undefined
         : getBoolean(value.groupedAppV2Shape, "diagnostics.groupedAppV2Shape"),
-    groupedLegacyShape:
-      value.groupedLegacyShape === undefined
-        ? undefined
-        : getBoolean(value.groupedLegacyShape, "diagnostics.groupedLegacyShape"),
   };
 }
 
 /** Source-application-code eligibility (capacity + eligible code), matching DB view rules. */
 function applySourceApplicationCodeNearbyEligibility(rows: AppV2NearbyShelter[]) {
-  const capacityEligibleRows = rows.filter((row) => row.capacity >= legacyNearbyMinimumCapacity);
+  const capacityEligibleRows = rows.filter((row) => row.capacity >= nearbyMinimumCapacity);
   const sourceApplicationCodeRows = rows.filter((row) => row.sourceApplicationCode).length;
   const eligibleRows = capacityEligibleRows.filter((row) => row.sourceApplicationCodeNearbyEligible === true);
   const sourceApplicationCodeUnknownRows = capacityEligibleRows.filter(
@@ -609,7 +581,7 @@ function applySourceApplicationCodeNearbyEligibility(rows: AppV2NearbyShelter[])
 
   return {
     rows: eligibleRows,
-    minimumCapacity: legacyNearbyMinimumCapacity,
+    minimumCapacity: nearbyMinimumCapacity,
     filteredByEligibility: rows.length - eligibleRows.length,
     sourceApplicationCodeRows,
     sourceApplicationCodeEligibleRows: eligibleRows.length,
@@ -982,8 +954,6 @@ async function getAppV2NearbySheltersWithDiagnostics(
   const eligibility = applySourceApplicationCodeNearbyEligibility(sourceRows);
   const rows = eligibility.rows.slice(0, limit);
   const baseDiagnostics = normalizeNearbyDiagnostics(payload.diagnostics);
-  const eligibilitySummary = getAppV2NearbyEligibilitySummary(eligibilityMode);
-
   return {
     rows,
     diagnostics: {
@@ -992,7 +962,6 @@ async function getAppV2NearbySheltersWithDiagnostics(
       returnedRows: rows.length,
       eligibilityMode,
       minimumCapacity: eligibility.minimumCapacity ?? undefined,
-      legacyAnvendelseSemantics: eligibilitySummary.legacyAnvendelseSemantics,
       sourceApplicationCodeSemantics: eligibility.sourceApplicationCodeSemantics,
       sourceApplicationCodeRuleSource,
       sourceApplicationCodeRows: eligibility.sourceApplicationCodeRows,
@@ -1054,7 +1023,6 @@ export async function getAppV2GroupedNearbySheltersWithDiagnostics(
       limit: groupLimit,
       returnedRows: groupedRows.length,
       groupedAppV2Shape: true,
-      groupedLegacyShape: false,
       groupingKey: "address_line1 + postal_code + city",
       sourceReturnedRows: rowResult.diagnostics.sourceReturnedRows ?? rowResult.rows.length,
       eligibleRows: rowResult.rows.length,
