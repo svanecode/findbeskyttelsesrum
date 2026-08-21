@@ -7,6 +7,7 @@ import BackLinkButton from "@/components/BackLinkButton";
 import RegistrationNotice, { RegistrationStatusLabels } from "@/components/RegistrationNotice";
 import ReportShelterIssue from "@/components/ReportShelterIssue";
 import ShelterOsmEmbedMap from "@/components/ShelterOsmEmbedMap";
+import { ui } from "@/components/ui-classes";
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from "@/lib/anvendelseskoder";
 import { getBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
 import { siteUrl } from "@/lib/seo/site";
@@ -159,7 +160,7 @@ export default async function ShelterDetailPage({ params }: Props) {
   }).catch(() => []);
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
+    <main id="main-content" tabIndex={-1} className={ui.page}>
       <script
         type="application/ld+json"
         suppressHydrationWarning
@@ -174,12 +175,7 @@ export default async function ShelterDetailPage({ params }: Props) {
           __html: serializeJsonLd(breadcrumbJsonLd),
         }}
       />
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-[#0a0a0a]" />
-        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
-      </div>
-
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <article className="space-y-8">
           <nav aria-label="Brødkrummer">
             <ol className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400">
@@ -198,7 +194,7 @@ export default async function ShelterDetailPage({ params }: Props) {
                 </Link>
               </li>
               <li aria-hidden="true">/</li>
-              <li className="min-w-0 text-gray-200" aria-current="page">
+              <li className="break-safe min-w-0 text-gray-200" aria-current="page">
                 Registrering ved {shelter.addressLine1}
               </li>
             </ol>
@@ -214,7 +210,7 @@ export default async function ShelterDetailPage({ params }: Props) {
 
           <header className="space-y-4">
             <p className="text-sm uppercase tracking-wide text-gray-300">BBR-registrering</p>
-            <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">
+            <h1 className={ui.pageTitle}>
               Registrering ved {shelter.addressLine1}
             </h1>
             <p className="text-lg text-gray-300">
@@ -225,33 +221,33 @@ export default async function ShelterDetailPage({ params }: Props) {
 
           <RegistrationNotice />
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className={`${ui.panel} p-5 sm:p-6`}>
             <h2 className="text-lg font-semibold text-white">Registrerede oplysninger</h2>
 
             <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
+              <div className={`${ui.panelInset} p-4`}>
                 <dt className="text-sm text-gray-300">Registrerede pladser</dt>
                 <dd className="mt-1 text-base font-medium text-white">
                   {shelter.capacity.toLocaleString("da-DK")} pladser
                 </dd>
               </div>
-              <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
+              <div className={`${ui.panelInset} p-4`}>
                 <dt className="text-sm text-gray-300">Bygningens registrerede anvendelse</dt>
                 <dd className="mt-1 text-base font-medium text-white">{anvendelseLabel ?? "Ikke oplyst"}</dd>
               </div>
-              <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
+              <div className={`${ui.panelInset} p-4`}>
                 <dt className="text-sm text-gray-300">Datakilde</dt>
                 <dd className="mt-1 text-base font-medium text-white">BBR og DAR via Datafordeler</dd>
               </div>
-              <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
+              <div className={`${ui.panelInset} p-4`}>
                 <dt className="text-sm text-gray-300">Seneste dataimport</dt>
                 <dd className="mt-1 text-base font-medium text-white">{formatDataDate(shelter.lastImportedAt)}</dd>
               </div>
-              <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
+              <div className={`${ui.panelInset} p-4`}>
                 <dt className="text-sm text-gray-300">Offentlig adgang</dt>
                 <dd className="mt-1 text-base font-medium text-white">Ikke oplyst i datasættet</dd>
               </div>
-              <div className="rounded-lg border border-white/10 bg-[#0f0f0f]/40 p-4">
+              <div className={`${ui.panelInset} p-4`}>
                 <dt className="text-sm text-gray-300">Aktuel fysisk stand</dt>
                 <dd className="mt-1 text-base font-medium text-white">Ikke verificeret</dd>
               </div>
@@ -261,7 +257,7 @@ export default async function ShelterDetailPage({ params }: Props) {
               {hasCoords ? (
                 <a
                   href="#registrering-kort"
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[#0a0a0a] hover:bg-[var(--accent-hover)]"
+                  className={ui.primaryAction}
                 >
                   Vis på kort
                 </a>
@@ -271,7 +267,7 @@ export default async function ShelterDetailPage({ params }: Props) {
                   href={mapHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className={ui.secondaryAction}
                   aria-label="Se adressen i Google Maps"
                 >
                   Se adressen i kort
@@ -281,13 +277,13 @@ export default async function ShelterDetailPage({ params }: Props) {
                 href={municipalityContactUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-4 py-3 text-sm font-semibold text-gray-100 hover:bg-white/5"
+                className={ui.secondaryAction}
               >
                 Find kontakt til {getMunicipalityAuthorityName(shelter.municipality.name)}
               </a>
               <Link
                 href={`/kommune/${shelter.municipality.slug}`}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-lg px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/5 hover:text-white"
+                className={ui.quietAction}
               >
                 Se andre registreringer i {shelter.municipality.name}
               </Link>
@@ -295,7 +291,7 @@ export default async function ShelterDetailPage({ params }: Props) {
           </section>
 
           {hasCoords ? (
-            <section id="registrering-kort" className="scroll-mt-24 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <section id="registrering-kort" className={`scroll-mt-24 p-5 sm:p-6 ${ui.panel}`}>
               <h2 className="text-lg font-semibold text-white">Kort</h2>
               <div className="mt-4">
                 <ShelterOsmEmbedMap
@@ -306,7 +302,7 @@ export default async function ShelterDetailPage({ params }: Props) {
               </div>
             </section>
           ) : (
-            <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <section className={`${ui.panel} p-5 sm:p-6`}>
               <h2 className="text-lg font-semibold text-white">Kort</h2>
               <p className="mt-2 text-sm text-gray-300">
                 Der er ingen koordinater til denne registrering i det viste datasæt.
@@ -314,7 +310,7 @@ export default async function ShelterDetailPage({ params }: Props) {
             </section>
           )}
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className={`${ui.panel} p-5 sm:p-6`}>
             <h2 className="text-lg font-semibold text-white">Er noget forkert?</h2>
             <p className="mt-2 text-sm leading-6 text-gray-300">
               Send en observation til moderationskøen. Rapporten ændrer ikke registreringen automatisk.
@@ -325,7 +321,7 @@ export default async function ShelterDetailPage({ params }: Props) {
           </section>
 
           {relatedShelters.length > 0 ? (
-            <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+            <section className={`${ui.panel} p-5 sm:p-6`}>
               <h2 className="text-lg font-semibold text-white">Andre registreringer i nærheden</h2>
               <ul className="mt-4 divide-y divide-white/10 border-y border-white/10">
                 {relatedShelters.map((related) => (
@@ -335,7 +331,7 @@ export default async function ShelterDetailPage({ params }: Props) {
                       className="flex min-h-[64px] items-center justify-between gap-4 py-3 text-sm hover:text-orange-200"
                     >
                       <span>
-                        <span className="block font-medium text-white">{related.addressLine1}</span>
+                        <span className="break-safe block font-medium text-white">{related.addressLine1}</span>
                         <span className="mt-1 block text-gray-400">{related.postalCode} {related.city}</span>
                       </span>
                       <span className="shrink-0 text-right text-gray-300">

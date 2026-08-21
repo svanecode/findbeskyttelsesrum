@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
+import { ui } from "@/components/ui-classes";
 import {
   getAppV2MunicipalitySummaries,
   getAppV2PublicDataFunnel,
@@ -75,7 +76,7 @@ function formatDataDate(value: string | null) {
 
 function StatCard({ label, value, note }: { label: string; value: string; note: string }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-5">
+    <div className={`${ui.panel} p-5`}>
       <p className="text-sm text-gray-400">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
       <p className="mt-2 text-sm leading-6 text-gray-400">{note}</p>
@@ -87,16 +88,11 @@ export default async function DataPage() {
   const overview = await getDataOverview();
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-[#0a0a0a]" />
-        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
-      </div>
-
-      <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-8 sm:px-6 lg:px-8">
+    <main id="main-content" tabIndex={-1} className={ui.page}>
+      <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <header className="mb-10 max-w-3xl space-y-5">
-          <p className="text-sm uppercase tracking-wide text-gray-400">Data</p>
-          <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl">Datagrundlag</h1>
+          <p className={ui.eyebrow}>Data</p>
+          <h1 className={ui.pageTitle}>Datagrundlag</h1>
           <p className="text-lg leading-8 text-gray-300">
             Find Beskyttelsesrum er et uafhængigt orienteringsværktøj baseret på BBR-registreringer af
             sikringsrumspladser og adresser fra DAR. Siden er ikke en myndighedstjeneste.
@@ -168,8 +164,8 @@ export default async function DataPage() {
           </section>
         )}
 
-        <div className="grid gap-6">
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+        <div className="border-b border-white/10">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold text-white">Hvor kommer data fra?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Oplysninger om bygninger og kapacitet kommer fra{" "}
@@ -184,7 +180,7 @@ export default async function DataPage() {
             </p>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold text-white">Hvilke registreringer vises?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Oversigten viser publicerede BBR-registreringer med mindst 40 registrerede pladser og en
@@ -256,7 +252,7 @@ export default async function DataPage() {
             ) : null}
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold text-white">Hvorfor er tallet ikke en national total?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Den officielle opgørelse fra 2024 omfattede cirka 3,681 millioner pladser på tværs af sikringsrum,
@@ -279,7 +275,7 @@ export default async function DataPage() {
             </p>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold text-white">Sikringsrum og offentlige beskyttelsesrum</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Sikringsrum er som udgangspunkt knyttet til personer, der bor, arbejder eller har ærinde i ejendommen.
@@ -298,7 +294,7 @@ export default async function DataPage() {
             </p>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold text-white">Hvor ofte opdateres data?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Datagrundlaget importeres løbende. Datoen ovenfor viser den seneste dataimport i det aktuelt viste datasæt.
@@ -306,7 +302,7 @@ export default async function DataPage() {
             </p>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold text-white">Hvad siden ikke lover</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               En BBR-registrering og dens kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse
@@ -314,7 +310,7 @@ export default async function DataPage() {
             </p>
           </section>
 
-          <section id="rapportering" className="scroll-mt-24 rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section id="rapportering" className="scroll-mt-24 border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold text-white">Rapportér en mulig fejl</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Åbn detaljesiden for den konkrete registrering og vælg “Rapportér fejl ved registreringen”. Rapporten
@@ -331,7 +327,7 @@ export default async function DataPage() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-white/5 p-5 sm:p-6">
+          <section className="border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold text-white">Næste skridt</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Brug forsiden til adresse- eller placeringssøgning, eller gå via kommuneoversigten, hvis du vil orientere dig

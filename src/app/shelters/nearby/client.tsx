@@ -11,6 +11,7 @@ import GlobalFooter from '@/components/GlobalFooter'
 import MapUnavailableNotice from '@/components/MapUnavailableNotice'
 import RegistrationNotice from '@/components/RegistrationNotice'
 import type { MapTileStatus } from '@/components/ResilientMapTileLayer'
+import { ui } from '@/components/ui-classes'
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from '@/lib/anvendelseskoder'
 import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
@@ -236,16 +237,16 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const shouldRenderMap = mobileView === 'map' || isDesktopMap
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
-      <div className="mx-auto max-w-7xl p-4">
+    <main id="main-content" tabIndex={-1} className={ui.page}>
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-5">
           <div className="flex items-center gap-2 sm:gap-3">
-            <Link href="/" className="-ml-2 touch-target rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-800/50 hover:text-white" aria-label="Tilbage til forsiden">
+            <Link href="/" className="-ml-2 inline-flex touch-target items-center justify-center rounded-lg p-2 text-gray-400 transition-colors hover:bg-white/[0.05] hover:text-white" aria-label="Tilbage til forsiden">
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </Link>
-            <h1 className="text-xl font-bold sm:text-2xl">Registrerede sikringsrumspladser i nærheden</h1>
+            <h1 className="break-safe font-space-grotesk text-xl font-semibold tracking-tight sm:text-2xl">Registrerede sikringsrumspladser i nærheden</h1>
           </div>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-400 sm:text-base">
             Viser op til {nearbyResultLimit} adresser inden for {nearbyRadiusKm} km, sorteret efter afstand i luftlinje.
@@ -258,7 +259,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
 
         <RegistrationNotice className="mb-4" />
 
-        <div className="sticky top-2 z-30 mb-4 grid grid-cols-2 rounded-lg border border-white/10 bg-[#111] p-1 shadow-lg lg:hidden" role="tablist" aria-label="Vælg resultatvisning">
+        <div className="sticky top-[calc(4.5rem+env(safe-area-inset-top,0px))] z-30 mb-4 grid grid-cols-2 rounded-lg border border-white/10 bg-[var(--surface-inset)] p-1 lg:hidden" role="tablist" aria-label="Vælg resultatvisning">
           <button
             ref={listTabRef}
             id="nearby-list-tab"
@@ -294,13 +295,13 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             <h2 id="nearby-results-heading" className="sr-only">Resultater sorteret efter afstand</h2>
 
             {loadError ? (
-              <div className="rounded-lg bg-[var(--surface-row-hover)] p-4 sm:p-5" role="alert">
+              <div className={`${ui.panel} p-4 sm:p-5`} role="alert">
                 <p className="text-gray-200">{loadError}</p>
                 <p className="mt-2 text-sm text-gray-400">Du kan prøve igen eller gå til forsiden.</p>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                  <button type="button" onClick={() => window.location.reload()} className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-gray-200">Genindlæs siden</button>
-                  <Link href="/" className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/10 px-4 py-3 text-sm font-medium text-white hover:bg-white/15">Til forsiden</Link>
-                  <Link href="/kommune" className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white hover:bg-white/10">Kommuneoversigt</Link>
+                  <button type="button" onClick={() => window.location.reload()} className={ui.primaryAction}>Genindlæs siden</button>
+                  <Link href="/" className={ui.secondaryAction}>Til forsiden</Link>
+                  <Link href="/kommune" className={ui.quietAction}>Kommuneoversigt</Link>
                 </div>
               </div>
             ) : isLoading ? (
@@ -309,12 +310,12 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                 {[0, 1, 2].map((index) => <div key={index} className="h-40 animate-pulse rounded-lg border border-white/5 bg-white/[0.06] motion-reduce:animate-none" aria-hidden="true" />)}
               </div>
             ) : shelters.length === 0 ? (
-              <div className="rounded-lg bg-[var(--surface-row-hover)] p-4" role="status" aria-live="polite">
+              <div className={`${ui.panel} p-4`} role="status" aria-live="polite">
                 <p className="text-lg font-semibold text-white">Ingen registreringer i resultatet</p>
                 <p className="mt-2 text-gray-300">Prøv en anden adresse. Du kan også gennemse pr. kommune. Følg altid myndighedernes anvisninger.</p>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                  <Link href="/" className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-gray-200">Søg igen</Link>
-                  <Link href="/kommune" className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white/5 px-4 py-3 text-sm font-medium text-white hover:bg-white/10">Kommuneoversigt</Link>
+                  <Link href="/" className={ui.primaryAction}>Søg igen</Link>
+                  <Link href="/kommune" className={ui.secondaryAction}>Kommuneoversigt</Link>
                 </div>
               </div>
             ) : (
@@ -330,13 +331,13 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                     <article
                       key={shelter.id}
                       ref={(element) => { shelterRefs.current[shelter.id] = element }}
-                      className={`rounded-lg border bg-[var(--surface-row)] p-4 ${selectedShelterId === shelter.id ? 'border-orange-500/50' : 'border-white/5'}`}
+                      className={`min-w-0 rounded-xl border bg-[var(--surface-row)] p-4 sm:p-5 ${selectedShelterId === shelter.id ? 'border-orange-500/60' : 'border-white/10'}`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-sm font-semibold text-orange-300">{formatDistanceKm(shelter.distance)} i luftlinje</span>
                         {typeof shelter.shelter_count === 'number' && shelter.shelter_count > 1 ? <span className="rounded-md bg-white/5 px-2 py-1 text-xs text-gray-300">{shelter.shelter_count} registreringer</span> : null}
                       </div>
-                      <h3 className="mt-2 text-lg font-semibold text-white">{getAddressLine(shelter)}</h3>
+                      <h3 className="break-safe mt-2 text-lg font-semibold text-white">{getAddressLine(shelter)}</h3>
                       <p className="mt-1 text-sm text-gray-300">{getPostalLine(shelter)}</p>
                       <p className="mt-3 text-lg font-semibold text-white">
                         {formatCapacity(shelter.total_capacity)}
@@ -365,11 +366,11 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
 
                       <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-4 sm:flex-row">
                         {detailSlug ? (
-                          <Link href={`/beskyttelsesrum/${detailSlug}`} className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[#0a0a0a] hover:bg-[var(--accent-hover)]">Se detaljer</Link>
+                          <Link href={`/beskyttelsesrum/${detailSlug}`} className={`${ui.primaryAction} flex-1`}>Se detaljer</Link>
                         ) : (
                           <span className="inline-flex min-h-[44px] flex-1 items-center text-sm text-gray-400">Detaljeside er ikke tilgængelig</span>
                         )}
-                        {shelter.location ? <button type="button" onClick={() => showShelterOnMap(shelter)} className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10">Vis på kort</button> : null}
+                        {shelter.location ? <button type="button" onClick={() => showShelterOnMap(shelter)} className={`${ui.secondaryAction} flex-1`}>Vis på kort</button> : null}
                       </div>
                     </article>
                   )
@@ -430,16 +431,16 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
               </div>
 
               {selectedShelter ? (
-                <aside className="absolute inset-x-2 bottom-2 z-[700] rounded-lg border border-white/15 bg-[#111] p-4 shadow-xl lg:hidden" aria-label="Valgt registrering">
-                  <h2 className="text-base font-semibold text-white">{getAddressLine(selectedShelter)}</h2>
+                <aside className="absolute inset-x-2 bottom-2 z-[700] max-h-[min(55dvh,24rem)] overflow-y-auto rounded-xl border border-white/15 bg-[var(--surface-elevated)] p-4 shadow-xl lg:hidden" aria-label="Valgt registrering">
+                  <h2 className="break-safe text-base font-semibold text-white">{getAddressLine(selectedShelter)}</h2>
                   <p className="mt-1 text-sm text-gray-300">{getPostalLine(selectedShelter)}</p>
                   <p className="mt-2 font-semibold text-white">
                     {formatCapacity(selectedShelter.total_capacity)}
                   </p>
                   <p className="mt-1 text-xs leading-5 text-gray-400">Adgang ikke bekræftet · Stand ikke verificeret</p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => selectMobileView('list', true)} className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-3 text-sm font-semibold text-white hover:bg-white/5">Til listen</button>
-                    {getDetailSlug(selectedShelter) ? <Link href={`/beskyttelsesrum/${getDetailSlug(selectedShelter)}`} className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[var(--accent)] px-3 text-sm font-semibold text-[#0a0a0a] hover:bg-[var(--accent-hover)]">Se detaljer</Link> : null}
+                    <button type="button" onClick={() => selectMobileView('list', true)} className={ui.secondaryAction}>Til listen</button>
+                    {getDetailSlug(selectedShelter) ? <Link href={`/beskyttelsesrum/${getDetailSlug(selectedShelter)}`} className={ui.primaryAction}>Se detaljer</Link> : null}
                   </div>
                 </aside>
               ) : null}

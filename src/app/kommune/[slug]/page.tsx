@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import GlobalFooter from '@/components/GlobalFooter'
+import { ui } from '@/components/ui-classes'
 import {
   getAppV2MunicipalityBySlug,
   getAppV2PublicMunicipalityShelters,
@@ -103,7 +104,7 @@ export default async function KommunePage({ params }: Props) {
   const kommuneJsonLd = buildKommunePageJsonLd(municipality, shelters)
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
+    <main id="main-content" tabIndex={-1} className={ui.page}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -111,13 +112,7 @@ export default async function KommunePage({ params }: Props) {
         }}
         suppressHydrationWarning
       />
-      {/* Background grid */}
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-[#0a0a0a]" />
-        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
-      </div>
-
-      <div className="border-b border-white/10 bg-black/30 backdrop-blur-sm">
+      <div className="border-b border-white/10 bg-[var(--surface-inset)]">
         <div className="mx-auto max-w-7xl px-4 py-3 text-sm text-gray-400 sm:px-6 lg:px-8">
           <Link href="/kommune" className="transition-colors hover:text-white">
             Kommuneoversigt
@@ -131,10 +126,10 @@ export default async function KommunePage({ params }: Props) {
 
       {/* Header */}
       <header className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-        <p className="text-xs font-medium uppercase tracking-widest text-gray-400">
+        <p className={ui.eyebrow}>
           Kommune
         </p>
-        <h1 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
+        <h1 className={`mt-2 ${ui.pageTitle}`}>
           BBR-registreringer i {municipality.name}
         </h1>
 

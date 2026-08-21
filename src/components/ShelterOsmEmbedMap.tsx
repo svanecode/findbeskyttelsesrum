@@ -15,7 +15,7 @@ export default function ShelterOsmEmbedMap({ latitude, longitude, title }: Props
   const src = osmEmbedSrc(latitude, longitude);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0f0f0f]/40">
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-[color:var(--surface-inset)]">
       <iframe
         title={title}
         src={src}
