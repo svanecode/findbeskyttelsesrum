@@ -39,7 +39,7 @@ const moderatorWorkflowMigrationUrl = new URL(
   import.meta.url,
 );
 const versionedImportMigrationUrl = new URL(
-  "../supabase/migrations/20260821153717_versioned_import_publishing.sql",
+  "../supabase/migrations/20260821160328_versioned_import_publishing.sql",
   import.meta.url,
 );
 
