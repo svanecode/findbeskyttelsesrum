@@ -10,8 +10,10 @@ håndteres fortsat separat.
 - En manuel kørsel er som standard en tørkørsel uden databaseadgang.
 - Kun en komplet, ucappet stagingkørsel kan publiceres eller markere poster som manglende.
 - Genoptagne kørsler kopierer det tidligere checkpointede stagingsæt og valideres samlet.
+- Kun teknisk fejlede kørsler med et reelt stagingsæt kan genoptages; kvalitetsafviste kørsler kan ikke vælges.
 - Afkortede, fejlede og afviste kørsler ændrer aldrig det offentlige datasæt.
-- Publiceringsfunktionen er kun tilgængelig for `service_role`.
+- Nye kilderækker starter `withheld` og publiceres kun eksplicit efter bestået BBR/DAR-kvalitetsgate.
+- Publiceringsfunktion v3 er kun tilgængelig for `service_role`; den interne v2-implementering kan ikke kaldes direkte.
 - Privilegerede nøgler må aldrig ligge i `NEXT_PUBLIC_*`, i git eller i
   logoutput.
 
@@ -54,7 +56,7 @@ arbejdsgangen viser.
   Secrets. De må ikke indgå i `import-summary.json`.
 
 Databasen skal have alle filer i `supabase/migrations` anvendt, herunder
-`*_versioned_import_publishing.sql`, før skrivning aktiveres.
+`*_versioned_import_publishing.sql` og `*_release_1_data_integrity.sql`, før skrivning aktiveres.
 
 Se [projektets dokumentationsoversigt](../../docs/README.md) for den samlede
 importmodel, feltansvar og driftskontrol.

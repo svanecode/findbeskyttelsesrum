@@ -745,6 +745,33 @@ export type AppV2PublicDataStats = {
   latestPublicImportAt: string | null;
 };
 
+type DatasetPublicationRow = {
+  id: string;
+  import_run_id: string | null;
+  rollback_of_publication_id: string | null;
+  published_at: string;
+  published_by_type: "migration" | "importer" | "moderator_rollback";
+  record_count: number | string;
+};
+
+type DatasetImportRunRow = {
+  id: string;
+  status: "running" | "succeeded" | "failed";
+  publication_status: "legacy" | "staging" | "published" | "rejected" | "not_published";
+  publication_id: string | null;
+  finished_at: string | null;
+};
+
+export type AppV2CurrentDatasetPublication = {
+  publicationId: string;
+  importRunId: string | null;
+  publishedAt: string;
+  sourceRecordCount: number;
+  publishedByType: DatasetPublicationRow["published_by_type"];
+  importFinishedAt: string | null;
+  isConsistent: boolean;
+};
+
 type PublicDataFunnelRow = {
   active_source_registrations: number | string | null;
   active_source_capacity: number | string | null;
@@ -792,6 +819,72 @@ export async function getAppV2PublicDataStats(): Promise<AppV2PublicDataStats> {
     mappedRegistrations: normalizePublicStat(row.mapped_registrations),
     mappedCapacity: normalizePublicStat(row.mapped_capacity),
     latestPublicImportAt: row.latest_public_import_at,
+  };
+}
+
+export async function getAppV2CurrentDatasetPublication(): Promise<AppV2CurrentDatasetPublication | null> {
+  const admin = createAppV2AdminClient();
+  const { data, error } = await admin
+    .from("dataset_publications")
+    .select(
+      "id, import_run_id, rollback_of_publication_id, published_at, published_by_type, record_count",
+    )
+    .eq("source_name", "datafordeler-bbr-dar")
+    .eq("is_current", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Could not load current dataset publication: ${error.message}`);
+  }
+  if (!data) return null;
+
+  const publication = data as DatasetPublicationRow;
+  let importRunId = publication.import_run_id;
+  if (!importRunId && publication.rollback_of_publication_id) {
+    const { data: rollbackSource, error: rollbackError } = await admin
+      .from("dataset_publications")
+      .select("import_run_id")
+      .eq("id", publication.rollback_of_publication_id)
+      .limit(1)
+      .maybeSingle();
+    if (rollbackError) {
+      throw new Error(`Could not load rollback source publication: ${rollbackError.message}`);
+    }
+    importRunId = (rollbackSource as { import_run_id: string | null } | null)?.import_run_id ?? null;
+  }
+
+  let importRun: DatasetImportRunRow | null = null;
+  if (importRunId) {
+    const { data: runData, error: runError } = await admin
+      .from("import_runs")
+      .select("id, status, publication_status, publication_id, finished_at")
+      .eq("id", importRunId)
+      .limit(1)
+      .maybeSingle();
+    if (runError) {
+      throw new Error(`Could not load publication import run: ${runError.message}`);
+    }
+    importRun = runData as DatasetImportRunRow | null;
+  }
+
+  const publicationLinkIsValid = publication.published_by_type === "migration"
+    || publication.published_by_type === "moderator_rollback"
+    || importRun?.publication_id === publication.id;
+
+  return {
+    publicationId: publication.id,
+    importRunId,
+    publishedAt: publication.published_at,
+    sourceRecordCount: normalizePublicStat(publication.record_count),
+    publishedByType: publication.published_by_type,
+    importFinishedAt: importRun?.finished_at ?? null,
+    isConsistent: Boolean(
+      importRun
+      && importRun.id === importRunId
+      && importRun.status === "succeeded"
+      && publicationLinkIsValid,
+    ),
   };
 }
 

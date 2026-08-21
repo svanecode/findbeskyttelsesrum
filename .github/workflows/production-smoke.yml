@@ -26,6 +26,8 @@ jobs:
         with:
           node-version: 24
       - name: Kør syntetiske kontroller
+        env:
+          SMOKE_EXPECTED_GIT_SHA: ${{ github.sha }}
         run: node scripts/monitor/production-smoke.mjs
       - name: Kontrollér anonyme driftstal
         env:

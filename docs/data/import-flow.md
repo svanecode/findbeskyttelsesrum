@@ -10,17 +10,17 @@ The authoritative importer lives in `tools/datafordeler-importer` and runs every
 2. Fetch a stable Datafordeler snapshot page by page.
 3. Upsert normalized rows into the private `app_v2.import_shelter_candidates` table.
 4. Persist the cursor and counters only after each complete staging batch succeeds.
-5. For a complete uncapped traversal, call `app_v2.publish_datafordeler_import_v2(...)`.
+5. For a complete uncapped traversal, call `app_v2.publish_datafordeler_import_v3(...)` with both the raw BBR/DAR counters and the staged-row count.
 6. In one database transaction, the publication function:
    - serializes publication with an advisory transaction lock;
-   - verifies unique row counts and source counters;
+   - verifies unique row counts, source counters, and the BBR-to-DAR mapping ratio;
    - compares record count, total capacity, coordinate coverage, and municipality coverage with the current known-good publication;
    - rejects suspicious data without touching `app_v2.shelters`;
    - otherwise promotes the complete candidate set, reconciles missing rows, records provenance, creates a retained snapshot, and advances the publication ledger.
 7. Delete staging rows after publication, rejection, or an intentionally capped run.
 8. Run public read-model, parity, and production smoke checks.
 
-Failed and interrupted runs never change the public shelter baseline. Failed staging rows are retained temporarily so `--resume-latest` can copy the checkpointed candidate set into a continuation run. A completed continuation is safe to publish because the database validates the accumulated staging set as a whole.
+Failed and interrupted technical runs never change the public shelter baseline. Their staging rows are retained temporarily so `--resume-latest` can copy the checkpointed candidate set into a continuation run. A quality-rejected run is marked `rejected`, has its staging rows deleted, and cannot be selected as a resume source. A completed continuation is safe to publish because the database validates the accumulated staging set as a whole.
 
 Failed staging sets expire after 14 days and are pruned when a new run starts, keeping storage bounded on the free database plan.
 
@@ -29,6 +29,10 @@ Failed staging sets expire after 14 days and are pruned when a new run starts, k
 A publication is rejected when any of these conditions fail:
 
 - staged unique rows must equal the importer's source counter;
+- linked DAR rows must equal the staged source counter;
+- fetched, eligible, linked, missing, failed, and warning counters must be internally consistent;
+- at least 98% of eligible BBR rows must link to DAR;
+- after the first v3 publication, mapping coverage may not fall more than one percentage point and can never fall below 98%;
 - at least 500 rows and at least 80% of the current record count;
 - at least 80% of the current total capacity;
 - at least 35% coordinate coverage and no drop above five percentage points;
@@ -38,7 +42,7 @@ The rejected run, metrics, and Danish rejection reasons remain available in the 
 
 ## Rollback
 
-The three latest snapshots are retained in `app_v2.dataset_publication_shelters`. An allowlisted owner with MFA can restore a retained version from `/admin/drift`. The restore is atomic, rechecks owner authorization in the database, preserves editorial overrides and exclusions, creates a new publication entry, and writes an audit event.
+The three latest imported-baseline snapshots are retained in `app_v2.dataset_publication_shelters`. An allowlisted owner with MFA can restore a retained imported source baseline from `/admin/drift`. The restore is atomic, rechecks owner authorization in the database, preserves editorial overrides and exclusions, creates a new publication entry, and writes an audit event.
 
 ## CLI
 

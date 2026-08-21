@@ -157,20 +157,14 @@ function QueueCard({ report }: { report: ModerationReport }) {
             />
 
             <details className="mt-4 rounded-lg border border-white/10 bg-black/20 p-4">
-              <summary className="cursor-pointer font-medium text-gray-200">Ret adresse eller kapacitet</summary>
+              <summary className="cursor-pointer font-medium text-gray-200">Ret registreret kapacitet</summary>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-400">
+                En adresse kan først rettes, når nye koordinater og korrekt kommune er valideret samlet. Ekskludér registreringen ved en adressefejl, indtil kilden er rettet.
+              </p>
+              <input type="hidden" name="addressLine1" value={report.shelter.addressLine1} />
+              <input type="hidden" name="postalCode" value={report.shelter.postalCode} />
+              <input type="hidden" name="city" value={report.shelter.city} />
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <label className="text-sm text-gray-300 sm:col-span-2">
-                  Adresse
-                  <input name="addressLine1" defaultValue={report.shelter.addressLine1} maxLength={200} className="mt-1 min-h-[44px] w-full rounded-lg border border-white/20 bg-black/30 px-3 text-white outline-none focus:border-orange-400" />
-                </label>
-                <label className="text-sm text-gray-300">
-                  Postnummer
-                  <input name="postalCode" defaultValue={report.shelter.postalCode} inputMode="numeric" pattern="[0-9]{4}" maxLength={4} className="mt-1 min-h-[44px] w-full rounded-lg border border-white/20 bg-black/30 px-3 text-white outline-none focus:border-orange-400" />
-                </label>
-                <label className="text-sm text-gray-300">
-                  By
-                  <input name="city" defaultValue={report.shelter.city} maxLength={100} className="mt-1 min-h-[44px] w-full rounded-lg border border-white/20 bg-black/30 px-3 text-white outline-none focus:border-orange-400" />
-                </label>
                 <label className="text-sm text-gray-300">
                   Registrerede pladser
                   <input name="capacity" defaultValue={report.shelter.capacity} type="number" min={0} max={2000000} className="mt-1 min-h-[44px] w-full rounded-lg border border-white/20 bg-black/30 px-3 text-white outline-none focus:border-orange-400" />
@@ -182,7 +176,7 @@ function QueueCard({ report }: { report: ModerationReport }) {
                 value="correct"
                 className="mt-4 inline-flex min-h-[44px] items-center rounded-lg bg-orange-500 px-4 text-sm font-semibold text-[#0a0a0a] hover:bg-orange-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
               >
-                Gem rettelse og afslut
+                Gem kapacitet og afslut
               </button>
             </details>
 

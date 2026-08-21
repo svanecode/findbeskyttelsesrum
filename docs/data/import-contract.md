@@ -22,10 +22,14 @@ Each `ShelterRecord` must contain:
 - Latitude and longitude must either both be present or both be absent.
 - Only `service_role` can read or write candidate and snapshot tables.
 - Only `service_role` can invoke the publication function.
+- New shelter rows default to `withheld`; only the mapping-gated publisher can explicitly release new source rows.
+- The private v2 implementation cannot be invoked directly by `service_role`.
+- An existing `withheld` decision survives a later source upsert.
+- Active manual overrides cannot change address, postcode, or city until the full location tuple can be validated and changed atomically.
 - Browser roles cannot invoke the retired direct-write finalizer.
 - Private operational reads require an allowlisted MFA moderator.
 - Dataset rollback additionally requires the owner role.
 
 ## Run result
 
-The secret-free JSON summary includes run status, publication status, publication ID, source counters, quality-gate result, rejection reasons, and quality metrics. Credentials, authorization headers, and query strings are redacted from failures.
+The secret-free JSON summary includes run status, publication status, publication ID, BBR fetched and eligible counts, DAR linked and missing counts, mapping failures, warnings, mapping ratio, quality-gate result, rejection reasons, and quality metrics. Credentials, authorization headers, and query strings are redacted from failures.

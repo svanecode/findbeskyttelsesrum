@@ -60,7 +60,13 @@ class Store:
 
 
 def page(has_next: bool = False) -> PageResult:
-    return PageResult([shelter()], "cursor-1", has_next, 1)
+    return PageResult(
+        [shelter()],
+        "cursor-1",
+        has_next,
+        1,
+        eligible_bbr_records=1,
+    )
 
 
 def importer(source: Source, store: Store) -> Importer:
@@ -101,6 +107,12 @@ def test_resume_uses_original_snapshot_and_can_publish_complete_staging() -> Non
         "snapshot_at": "2026-06-30T23:59:00Z",
         "records_seen": 10,
         "records_upserted": 10,
+        "bbr_fetched_count": 20,
+        "bbr_eligible_count": 10,
+        "dar_linked_count": 10,
+        "dar_missing_count": 0,
+        "mapping_failure_count": 0,
+        "warning_count": 0,
         "pages_fetched": 2,
         "last_successful_cursor": "old-cursor",
     }
@@ -110,6 +122,9 @@ def test_resume_uses_original_snapshot_and_can_publish_complete_staging() -> Non
     assert source.args["snapshot_at"] == resumed["snapshot_at"]
     assert source.args["after"] == "old-cursor"
     assert summary.records_seen == 11
+    assert summary.bbr_records_fetched == 21
+    assert summary.bbr_eligible == 11
+    assert summary.bbr_dar_linked == 11
     assert summary.publication_status == "published"
     assert store.events[-1] == "publish"
 
@@ -138,5 +153,7 @@ def test_dry_run_has_no_database_writes_and_reports_mapping() -> None:
     summary = importer(Source([page()]), store).run(dry_run=True, max_pages=1, resume_latest=False)
     assert summary.status == "succeeded"
     assert summary.records_seen == 1
+    assert summary.bbr_eligible == 1
     assert summary.bbr_dar_linked == 1
+    assert summary.to_dict()["mapping_ratio"] == 1
     assert store.events == []

@@ -15,6 +15,7 @@ En registrering er ikke en garanti for offentlig adgang, klargøring eller aktue
 - privat fejlrapportering med moderationskø;
 - GitHub-login, tilladelsesliste og MFA til administration;
 - daglig BBR/DAR-import med staging, kvalitetskontrol, atomisk publicering og rollback;
+- verificerbar produktions- og dataversion via `/api/health`;
 - gratis produktionskontrol og privatlivsvenlige, aggregerede driftstællere.
 
 Tjenesten skal forblive gratis for brugeren. Kortet må ikke få en obligatorisk betalt kortleverandør, og driften er indrettet til at bruge leverandørernes gratis muligheder og tydelige forbrugsgrænser. OpenStreetMaps offentlige standardtiles bruges ansvarligt med listevisninger som fallback.
@@ -74,12 +75,13 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 | `npm run lint` | Kontrollerer kodekvalitet. |
 | `npm run typecheck` | Kontrollerer TypeScript-typer. |
 | `npm test` | Kører enheds- og sikkerhedstests. |
+| `npm run test:db` | Kører databaseinvarianter mod lokal Supabase. |
 | `npm run build` | Bygger produktionsversionen. |
 | `npm run test:e2e` | Bygger og kører Playwright i en browser. |
 | `npm run test:release` | Kører den samlede lokale releasekontrol. |
 | `npm run monitor:production` | Kontrollerer den live brugerrejse og dataalder. |
 
-Pull requests skal bestå lint, typekontrol og tests. Efter merge til `main` køres desuden produktionsbuild og hele browserhistorien.
+Pull requests skal bestå lint, typekontrol, kode- og databaseinvarianter. Efter merge til `main` køres desuden produktionsbuild og hele browserhistorien.
 
 ## Dataimport
 
@@ -114,6 +116,7 @@ Kør ikke migrationsfiler direkte én efter én uden migrationshistorik. Kontrol
 - `/admin` er den beskyttede indgang til moderation og drift.
 - Administratorer logger ind gennem GitHub OAuth, skal være på tilladelseslisten og skal gennemføre MFA.
 - `/admin/drift` viser importer, kvalitetskontroller, aktivt datasæt, rollback og 30 dages aggregerede driftstal.
+- `/api/health` viser deployet Git SHA, deployment-ID, byggetid, publication-ID, import-run-ID og dataalder. Gamle eller inkonsistente data giver `503 degraded`.
 - Produktionsflowet kontrolleres automatisk to gange i timen. Fejl opretter en GitHub-issue; næste succes lukker den igen.
 - De egne driftstællere indeholder ikke IP-adresse, bruger-id, adresse, koordinater, søgetekst eller fuld URL og slettes senest efter 90 dage.
 

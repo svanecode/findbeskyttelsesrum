@@ -28,3 +28,22 @@ def test_versioned_import_publication_is_atomic_and_coverage_guarded() -> None:
     assert "pg_advisory_xact_lock" in sql
     assert "revoke all" in sql
     assert "to service_role" in sql
+
+
+def test_release_one_adds_mapping_gate_and_fail_closed_resume() -> None:
+    migrations = list(
+        (REPOSITORY_ROOT / "supabase" / "migrations").glob(
+            "*_release_1_data_integrity.sql"
+        )
+    )
+    assert len(migrations) == 1
+    sql = migrations[0].read_text(encoding="utf-8")
+
+    assert "alter column publication_state set default 'withheld'" in sql
+    assert "publish_datafordeler_import_v3" in sql
+    assert "p_bbr_eligible_count" in sql
+    assert "p_dar_linked_count" in sql
+    assert "minimum_mapping_ratio numeric := 0.98" in sql
+    assert "parent.publication_status = 'staging'" in sql
+    assert "parent.quality_gate_passed is null" in sql
+    assert "Import resume copied no staging candidates" in sql
