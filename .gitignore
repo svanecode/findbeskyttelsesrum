@@ -38,6 +38,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local agent worktrees must never become repository submodules
+/.claude/worktrees/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
