@@ -38,10 +38,37 @@ jobs:
           npm run typecheck
           npm test
 
+  database-quality:
+    name: Frisk database og integritetsregler
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Hent kode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Brug Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Opret frisk lokal database fra migrationshistorikken
+        run: >-
+          npx --yes supabase@2.115.0 start
+          --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Kør databaseinvarianter
+        run: npx --yes supabase@2.115.0 test db supabase/tests/release_1_data_integrity.sql --local
+
+      - name: Stop lokal database
+        if: always()
+        run: npx --yes supabase@2.115.0 stop --no-backup
+
   release-story:
     name: Byg og gennemfør browserhistorien
     if: github.event_name != 'pull_request'
-    needs: code-quality
+    needs:
+      - code-quality
+      - database-quality
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:

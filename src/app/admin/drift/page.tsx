@@ -47,6 +47,16 @@ function runState(run: ImportRun) {
   return { label: "Kontrolkørsel", className: "border-white/15 bg-white/5 text-gray-200" };
 }
 
+function metricNumber(metrics: Record<string, unknown>, key: string) {
+  const value = Number(metrics[key]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function mappingCoverage(metrics: Record<string, unknown>) {
+  const ratio = metricNumber(metrics, "mappingRatio");
+  return ratio === null ? null : Math.round(ratio * 100_000) / 1_000;
+}
+
 export default async function AdminOperationsPage({
   searchParams,
 }: {
@@ -62,6 +72,7 @@ export default async function AdminOperationsPage({
   const coordinateCoverage = current && current.recordCount > 0
     ? Math.round((current.coordinateCount / current.recordCount) * 1000) / 10
     : 0;
+  const currentMappingCoverage = current ? mappingCoverage(current.qualityMetrics) : null;
   const metricCounts = new Map(productMetrics.map((metric) => [metric.eventName, metric.eventCount]));
   const metricCount = (eventName: (typeof productMetrics)[number]["eventName"]) => metricCounts.get(eventName) ?? 0;
   const searchesStarted = metricCount("address_search_started") + metricCount("geolocation_requested");
@@ -118,11 +129,12 @@ export default async function AdminOperationsPage({
               Kendt god version
             </span>
           </div>
-          <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Registreringer</dt><dd className="mt-1 text-2xl font-semibold">{countFormat.format(current?.recordCount ?? 0)}</dd></div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Samlet kapacitet</dt><dd className="mt-1 text-2xl font-semibold">{countFormat.format(current?.totalCapacity ?? 0)}</dd></div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Koordinatdækning</dt><dd className="mt-1 text-2xl font-semibold">{coordinateCoverage.toLocaleString("da-DK")}%</dd></div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Kommuner</dt><dd className="mt-1 text-2xl font-semibold">{countFormat.format(current?.municipalityCount ?? 0)}</dd></div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">BBR→DAR-kobling</dt><dd className="mt-1 text-2xl font-semibold">{currentMappingCoverage === null ? "—" : `${currentMappingCoverage.toLocaleString("da-DK", { maximumFractionDigits: 3 })}%`}</dd></div>
           </dl>
           <p className="mt-4 text-xs leading-5 text-gray-500">Driften bruger kun den eksisterende Supabase-database og GitHub Actions; der er ikke tilføjet en betalt tjeneste.</p>
         </section>
@@ -155,12 +167,13 @@ export default async function AdminOperationsPage({
           <div className="mt-4 grid gap-4">
             {operations.runs.length ? operations.runs.map((run) => {
               const state = runState(run);
+              const runMappingCoverage = mappingCoverage(run.qualityMetrics);
               return (
                 <article key={run.id} className="rounded-xl border border-white/10 bg-white/[0.04] p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="font-medium">{formatDate(run.startedAt)}</p>
-                      <p className="mt-1 text-sm text-gray-400">{countFormat.format(run.recordsSeen)} poster · {countFormat.format(run.pagesFetched)} kildesider</p>
+                      <p className="mt-1 text-sm text-gray-400">{countFormat.format(run.recordsSeen)} poster · {countFormat.format(run.pagesFetched)} kildesider{runMappingCoverage === null ? "" : ` · ${runMappingCoverage.toLocaleString("da-DK", { maximumFractionDigits: 3 })}% BBR→DAR`}</p>
                     </div>
                     <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${state.className}`}>{state.label}</span>
                   </div>

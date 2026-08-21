@@ -15,55 +15,23 @@ comment on function public.get_total_shelter_capacity() is
 
 -- This orphaned trigger function has no trigger dependencies. Retain the
 -- definition for migration compatibility, but expose it to no API role.
-alter function public.set_user_columns()
-  set search_path = pg_catalog, public, pg_temp;
+do $$
+begin
+  if to_regprocedure('public.set_user_columns()') is not null then
+    execute 'alter function public.set_user_columns() set search_path = pg_catalog, public, pg_temp';
+    execute 'revoke all on function public.set_user_columns() from public, anon, authenticated, service_role';
+    execute $sql$comment on function public.set_user_columns() is
+      'Legacy trigger helper with no active trigger dependencies. Not exposed through the API.'$sql$;
+  end if;
 
-revoke all on function public.set_user_columns()
-  from public, anon, authenticated, service_role;
-
-comment on function public.set_user_columns() is
-  'Legacy trigger helper with no active trigger dependencies. Not exposed through the API.';
-
-alter function public.update_shelter_location(
-  text,
-  text,
-  text,
-  text,
-  text,
-  double precision,
-  double precision
-)
-  set search_path = pg_catalog, public, extensions, pg_temp;
-
-revoke all on function public.update_shelter_location(
-  text,
-  text,
-  text,
-  text,
-  text,
-  double precision,
-  double precision
-)
-  from public, anon, authenticated;
-
-grant execute on function public.update_shelter_location(
-  text,
-  text,
-  text,
-  text,
-  text,
-  double precision,
-  double precision
-)
-  to service_role;
-
-comment on function public.update_shelter_location(
-  text,
-  text,
-  text,
-  text,
-  text,
-  double precision,
-  double precision
-) is
-  'Legacy sheltersv2 update helper. Restricted to service_role for import and rollback tooling.';
+  if to_regprocedure(
+    'public.update_shelter_location(text,text,text,text,text,double precision,double precision)'
+  ) is not null then
+    execute 'alter function public.update_shelter_location(text,text,text,text,text,double precision,double precision) set search_path = pg_catalog, public, extensions, pg_temp';
+    execute 'revoke all on function public.update_shelter_location(text,text,text,text,text,double precision,double precision) from public, anon, authenticated';
+    execute 'grant execute on function public.update_shelter_location(text,text,text,text,text,double precision,double precision) to service_role';
+    execute $sql$comment on function public.update_shelter_location(text,text,text,text,text,double precision,double precision) is
+      'Legacy sheltersv2 update helper. Restricted to service_role for import and rollback tooling.'$sql$;
+  end if;
+end;
+$$;

@@ -5,14 +5,19 @@ No paid analytics, map or error-tracking product is required.
 
 ## Pull request and release checks
 
-`.github/workflows/application-quality.yml` runs linting, TypeScript and unit/security contract tests on every pull
-request without credentials. Pushes to `main` additionally build the production app and run the complete Playwright
-browser story using existing GitHub repository secrets.
+`.github/workflows/application-quality.yml` runs linting, TypeScript, unit/security contract tests, a fresh migration
+replay, and database integrity tests on every pull request without production credentials. Pushes to `main` additionally
+build the production app and run the complete Playwright browser story using existing GitHub repository secrets.
 
 `.github/workflows/production-smoke.yml` checks the live homepage, public data health, DAWA, nearby results, the full
 national map boundary including Bornholm, municipality pages, detail pages and reporting validation twice per hour.
 It also reads a service-only two-hour metrics aggregate. A failed scheduled run creates or updates one GitHub issue
 labelled `production-alert`; the next successful run closes it.
+
+`/api/health` returns the deployed Git SHA, deployment ID, build timestamp, current publication ID, originating import
+run ID, public record count, and data age. It returns `503 degraded` when data is older than 48 hours, the public count
+falls below the safety floor, publication provenance is inconsistent, or required production identity is missing. The
+production smoke compares the endpoint's SHA with the workflow's expected commit.
 
 The public smoke posts one fixed `monitor_heartbeat` event before the private aggregate check. This verifies the complete
 ingest path without sending a location, URL or user value; a missing heartbeat fails the scheduled check.

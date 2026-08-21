@@ -16,6 +16,10 @@ $$;
 
 create table if not exists app_v2.municipalities (
   id uuid primary key default gen_random_uuid(),
+  -- Municipality code was present in production before it was recorded in a
+  -- later reconciliation migration. Include it in the fresh-schema baseline
+  -- so earlier public views can be replayed deterministically.
+  code text,
   slug text not null unique,
   name text not null,
   description text,

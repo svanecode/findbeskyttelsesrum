@@ -1,6 +1,7 @@
 const baseUrl = (process.env.SMOKE_BASE_URL ?? "https://findbeskyttelsesrum.dk").replace(/\/$/, "");
 const maximumImportAgeHours = Number(process.env.SMOKE_MAX_IMPORT_AGE_HOURS ?? "72");
 const requestTimeoutMs = Number(process.env.SMOKE_REQUEST_TIMEOUT_MS ?? "15000");
+const expectedGitSha = process.env.SMOKE_EXPECTED_GIT_SHA?.trim() || null;
 
 if (!Number.isFinite(maximumImportAgeHours) || maximumImportAgeHours <= 0) {
   throw new Error("SMOKE_MAX_IMPORT_AGE_HOURS skal være et positivt tal.");
@@ -80,7 +81,20 @@ const checks = [
       if (age > maximumImportAgeHours) {
         throw new Error(`Seneste dataimport er ${age} timer gammel; grænsen er ${maximumImportAgeHours}.`);
       }
-      return `${count.toLocaleString("da-DK")} registreringer, dataalder ${age} timer`;
+      if (!payload?.dataset?.publicationId || !payload?.dataset?.importRunId || payload?.dataset?.isConsistent !== true) {
+        throw new Error("Sundhedstjekket mangler en konsistent publication/import-kobling.");
+      }
+      const deployedGitSha = payload?.application?.gitSha;
+      if (!deployedGitSha) {
+        throw new Error("Sundhedstjekket mangler produktionens Git SHA.");
+      }
+      if (expectedGitSha && deployedGitSha !== expectedGitSha) {
+        throw new Error(`Produktion kører ${deployedGitSha.slice(0, 7)}, men ${expectedGitSha.slice(0, 7)} var forventet.`);
+      }
+      if (!payload?.application?.deploymentId || !payload?.application?.builtAt) {
+        throw new Error("Sundhedstjekket mangler deployment-ID eller byggetidspunkt.");
+      }
+      return `${count.toLocaleString("da-DK")} registreringer, ${deployedGitSha.slice(0, 7)}, dataalder ${age} timer`;
     },
   },
   {

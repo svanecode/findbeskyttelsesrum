@@ -263,12 +263,17 @@ class DatafordelerSource:
             # BBR v3 cannot filter on byg069. Group sparse candidates so DAR relation
             # lookups remain batched, while the checkpoint still advances atomically.
             if eligible_count >= self.config.dar_batch_size or source_exhausted or cap_reached:
-                records, warnings = self._map_bbr_page(grouped_nodes, snapshot_at)
+                records, warnings, dar_missing_count, mapping_failure_count = (
+                    self._map_bbr_page(grouped_nodes, snapshot_at)
+                )
                 yield PageResult(
                     records=records,
                     end_cursor=info.get("endCursor"),
                     has_next_page=bool(info.get("hasNextPage")),
                     fetched_bbr_records=len(grouped_nodes),
+                    eligible_bbr_records=eligible_count,
+                    dar_missing_records=dar_missing_count,
+                    mapping_failure_records=mapping_failure_count,
                     warnings=warnings,
                     source_pages=grouped_source_pages,
                 )
@@ -284,8 +289,10 @@ class DatafordelerSource:
 
     def _map_bbr_page(
         self, nodes: list[dict[str, Any]], snapshot_at: str
-    ) -> tuple[list[ShelterRecord], list[str]]:
+    ) -> tuple[list[ShelterRecord], list[str], int, int]:
         warnings: list[str] = []
+        dar_missing_count = 0
+        mapping_failure_count = 0
         eligible = [node for node in nodes if _eligible_bbr_node(node)]
 
         house_ids = _unique(str(node["husnummer"]) for node in eligible)
@@ -323,6 +330,7 @@ class DatafordelerSource:
             house = houses.get(str(node["husnummer"]))
             if not house or house.get("status") != DAR_STATUS_CURRENT:
                 warnings.append(f"{reference}: no current DAR house number")
+                dar_missing_count += 1
                 continue
             road = roads.get(str(house.get("navngivenVej")))
             postal = postals.get(str(house.get("postnummer")))
@@ -334,6 +342,7 @@ class DatafordelerSource:
             capacity = _positive_int(node.get("byg069Sikringsrumpladser"))
             if not all((road_name, house_number, postal_code, city, municipality_code, capacity)):
                 warnings.append(f"{reference}: incomplete BBR/DAR mapping")
+                mapping_failure_count += 1
                 continue
             assert capacity is not None
             address = f"{road_name} {house_number}"
@@ -360,7 +369,7 @@ class DatafordelerSource:
                     ),
                 )
             )
-        return records, warnings
+        return records, warnings, dar_missing_count, mapping_failure_count
 
     def _lookup(
         self,

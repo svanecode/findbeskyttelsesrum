@@ -17,9 +17,9 @@ Define which active `app_v2` fields belong to the importer, manual operations, o
 | `slug` | internal operational | yes | Generated from normalized source data. |
 | `municipality_id` | official import owned | yes | Resolved from municipality code/metadata. |
 | `name` | admin override owned | yes | Baseline can later be overridden. |
-| `address_line1` | admin override owned | yes | Baseline can later be overridden. |
-| `postal_code` | admin override owned | yes | Baseline can later be overridden. |
-| `city` | admin override owned | yes | Baseline can later be overridden. |
+| `address_line1` | official import owned | yes | Active manual override is blocked until address, coordinates, and municipality can change atomically. |
+| `postal_code` | official import owned | yes | Active manual override is blocked with the rest of the location tuple. |
+| `city` | official import owned | yes | Active manual override is blocked with the rest of the location tuple. |
 | `latitude` | official import owned | yes | No first-pass override model. |
 | `longitude` | official import owned | yes | No first-pass override model. |
 | `capacity` | admin override owned | yes | Baseline can later be overridden. |
@@ -56,7 +56,7 @@ Define which active `app_v2` fields belong to the importer, manual operations, o
 | `notes` | admin-only enrichment / future derived | no | Keep sparse until trust-copy model is clearer. |
 
 ## Override Fields
-The importer must not write `app_v2.shelter_overrides`. Future read logic can apply active overrides first for name, address, capacity, status, accessibility notes, and summary.
+The importer must not write `app_v2.shelter_overrides`. Active overrides can correct non-location values such as capacity. Address, postcode, and city are stripped from active overrides by a database trigger until a DAWA-validated flow can also update coordinates and municipality in the same confirmed operation.
 
 ## Current Live App
 These ownership rules describe the `app_v2` target model. The live app still uses its current data layer until a later cutover phase.

@@ -144,19 +144,42 @@ class AppV2Store:
             params={
                 "select": (
                     "id,started_at,records_seen,records_upserted,pages_fetched,"
-                    "last_successful_page,last_successful_cursor,resumed_from_import_run_id"
+                    "last_successful_page,last_successful_cursor,resumed_from_import_run_id,"
+                    "publication_status,quality_gate_passed,bbr_fetched_count,"
+                    "bbr_eligible_count,dar_linked_count,dar_missing_count,"
+                    "mapping_failure_count,warning_count"
                 ),
                 "source_name": f"eq.{CANONICAL_SOURCE_NAME}",
                 "status": "eq.failed",
+                "publication_status": "eq.staging",
+                "quality_gate_passed": "is.null",
                 "last_successful_page": "not.is.null",
                 "finished_at": f"gte.{resume_cutoff}",
                 "order": "started_at.desc",
-                "limit": "1",
+                "limit": "10",
             },
         )
-        if not isinstance(rows, list) or not rows or not isinstance(rows[0], dict):
+        if not isinstance(rows, list) or not rows:
             return None
-        failed = rows[0]
+        failed: dict[str, Any] | None = None
+        for candidate in rows:
+            if not isinstance(candidate, dict) or not candidate.get("id"):
+                continue
+            staged = self._request(
+                "GET",
+                "import_shelter_candidates",
+                operation="verify resume staging candidates",
+                params={
+                    "select": "import_run_id",
+                    "import_run_id": f"eq.{candidate['id']}",
+                    "limit": "1",
+                },
+            )
+            if isinstance(staged, list) and staged:
+                failed = candidate
+                break
+        if failed is None:
+            return None
         root_started_at = failed.get("started_at")
         parent_id = failed.get("resumed_from_import_run_id")
         visited = {str(failed.get("id"))}
@@ -208,6 +231,12 @@ class AppV2Store:
             "quality_gate_passed": None,
             "quality_gate_reasons": [],
             "quality_metrics": {},
+            "bbr_fetched_count": int(inherited.get("bbr_fetched_count") or 0),
+            "bbr_eligible_count": int(inherited.get("bbr_eligible_count") or 0),
+            "dar_linked_count": int(inherited.get("dar_linked_count") or 0),
+            "dar_missing_count": int(inherited.get("dar_missing_count") or 0),
+            "mapping_failure_count": int(inherited.get("mapping_failure_count") or 0),
+            "warning_count": int(inherited.get("warning_count") or 0),
         }
         rows = self._request(
             "POST",
@@ -241,6 +270,12 @@ class AppV2Store:
         records_upserted: int,
         pages_fetched: int,
         cursor: str | None,
+        bbr_fetched_count: int,
+        bbr_eligible_count: int,
+        dar_linked_count: int,
+        dar_missing_count: int,
+        mapping_failure_count: int,
+        warning_count: int,
     ) -> None:
         self._request(
             "PATCH",
@@ -253,6 +288,12 @@ class AppV2Store:
                 "pages_fetched": pages_fetched,
                 "last_successful_page": pages_fetched,
                 "last_successful_cursor": cursor,
+                "bbr_fetched_count": bbr_fetched_count,
+                "bbr_eligible_count": bbr_eligible_count,
+                "dar_linked_count": dar_linked_count,
+                "dar_missing_count": dar_missing_count,
+                "mapping_failure_count": mapping_failure_count,
+                "warning_count": warning_count,
             },
             prefer="return=minimal",
         )
@@ -267,6 +308,12 @@ class AppV2Store:
         pages_fetched: int,
         cursor: str | None,
         finished_at: str,
+        bbr_fetched_count: int,
+        bbr_eligible_count: int,
+        dar_linked_count: int,
+        dar_missing_count: int,
+        mapping_failure_count: int,
+        warning_count: int,
     ) -> None:
         self._request(
             "PATCH",
@@ -284,6 +331,12 @@ class AppV2Store:
                 "last_successful_cursor": cursor,
                 "missing_transitions_applied": False,
                 "missing_transitions_skipped_reason": "run failed before full success",
+                "bbr_fetched_count": bbr_fetched_count,
+                "bbr_eligible_count": bbr_eligible_count,
+                "dar_linked_count": dar_linked_count,
+                "dar_missing_count": dar_missing_count,
+                "mapping_failure_count": mapping_failure_count,
+                "warning_count": warning_count,
             },
             prefer="return=minimal",
         )
@@ -298,6 +351,12 @@ class AppV2Store:
         cursor: str | None,
         finished_at: str,
         reason: str,
+        bbr_fetched_count: int,
+        bbr_eligible_count: int,
+        dar_linked_count: int,
+        dar_missing_count: int,
+        mapping_failure_count: int,
+        warning_count: int,
     ) -> None:
         self._request(
             "PATCH",
@@ -317,6 +376,12 @@ class AppV2Store:
                 "missing_transitions_skipped_reason": reason,
                 "publication_status": "not_published",
                 "quality_gate_passed": None,
+                "bbr_fetched_count": bbr_fetched_count,
+                "bbr_eligible_count": bbr_eligible_count,
+                "dar_linked_count": dar_linked_count,
+                "dar_missing_count": dar_missing_count,
+                "mapping_failure_count": mapping_failure_count,
+                "warning_count": warning_count,
             },
             prefer="return=minimal",
         )
@@ -337,10 +402,16 @@ class AppV2Store:
         pages_fetched: int,
         cursor: str | None,
         finished_at: str,
+        bbr_fetched_count: int,
+        bbr_eligible_count: int,
+        dar_linked_count: int,
+        dar_missing_count: int,
+        mapping_failure_count: int,
+        warning_count: int,
     ) -> dict[str, Any]:
         result = self._request(
             "POST",
-            "rpc/publish_datafordeler_import_v2",
+            "rpc/publish_datafordeler_import_v3",
             operation="validate and atomically publish full import",
             payload={
                 "p_import_run_id": run_id,
@@ -350,6 +421,12 @@ class AppV2Store:
                 "p_pages_fetched": pages_fetched,
                 "p_last_successful_cursor": cursor,
                 "p_finished_at": finished_at,
+                "p_bbr_fetched_count": bbr_fetched_count,
+                "p_bbr_eligible_count": bbr_eligible_count,
+                "p_dar_linked_count": dar_linked_count,
+                "p_dar_missing_count": dar_missing_count,
+                "p_mapping_failure_count": mapping_failure_count,
+                "p_warning_count": warning_count,
             },
         )
         if not isinstance(result, dict) or result.get("status") not in {"published", "rejected"}:

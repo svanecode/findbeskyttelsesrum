@@ -63,8 +63,14 @@ class Importer:
             dry_run=dry_run,
             source_name=CANONICAL_SOURCE_NAME,
             pages_fetched=int((resumed or {}).get("pages_fetched") or 0),
+            bbr_records_fetched=int((resumed or {}).get("bbr_fetched_count") or 0),
+            bbr_eligible=int((resumed or {}).get("bbr_eligible_count") or 0),
             records_seen=int((resumed or {}).get("records_seen") or 0),
             records_upserted=int((resumed or {}).get("records_upserted") or 0),
+            bbr_dar_linked=int((resumed or {}).get("dar_linked_count") or 0),
+            dar_missing_count=int((resumed or {}).get("dar_missing_count") or 0),
+            mapping_failure_count=int((resumed or {}).get("mapping_failure_count") or 0),
+            warnings_count=int((resumed or {}).get("warning_count") or 0),
             resumed_from_import_run_id=(str(resumed["id"]) if resumed else None),
             last_successful_cursor=(resumed or {}).get("last_successful_cursor"),
             import_run_id=(str(run["id"]) if run else None),
@@ -82,6 +88,14 @@ class Importer:
                 next_upserted = summary.records_upserted
                 next_pages = summary.pages_fetched + page.source_pages
                 next_cursor = page.end_cursor
+                next_bbr_fetched = summary.bbr_records_fetched + page.fetched_bbr_records
+                next_bbr_eligible = summary.bbr_eligible + page.eligible_bbr_records
+                next_dar_linked = summary.bbr_dar_linked + len(page.records)
+                next_dar_missing = summary.dar_missing_count + page.dar_missing_records
+                next_mapping_failures = (
+                    summary.mapping_failure_count + page.mapping_failure_records
+                )
+                next_warnings = summary.warnings_count + len(page.warnings)
 
                 if dry_run:
                     next_upserted = 0
@@ -95,15 +109,24 @@ class Importer:
                         records_upserted=next_upserted,
                         pages_fetched=next_pages,
                         cursor=next_cursor,
+                        bbr_fetched_count=next_bbr_fetched,
+                        bbr_eligible_count=next_bbr_eligible,
+                        dar_linked_count=next_dar_linked,
+                        dar_missing_count=next_dar_missing,
+                        mapping_failure_count=next_mapping_failures,
+                        warning_count=next_warnings,
                     )
 
                 summary.records_seen = next_seen
                 summary.records_upserted = next_upserted
                 summary.pages_fetched = next_pages
                 summary.last_successful_cursor = next_cursor
-                summary.bbr_records_fetched += page.fetched_bbr_records
-                summary.bbr_dar_linked += len(page.records)
-                summary.warnings_count += len(page.warnings)
+                summary.bbr_records_fetched = next_bbr_fetched
+                summary.bbr_eligible = next_bbr_eligible
+                summary.bbr_dar_linked = next_dar_linked
+                summary.dar_missing_count = next_dar_missing
+                summary.mapping_failure_count = next_mapping_failures
+                summary.warnings_count = next_warnings
                 last_page_had_next = page.has_next_page
                 logger.info(
                     "Checkpoint through BBR page %s: BBR=%s linked=%s totalLinked=%s hasNext=%s",
@@ -135,6 +158,12 @@ class Importer:
                     pages_fetched=summary.pages_fetched,
                     cursor=summary.last_successful_cursor,
                     finished_at=finished_at,
+                    bbr_fetched_count=summary.bbr_records_fetched,
+                    bbr_eligible_count=summary.bbr_eligible,
+                    dar_linked_count=summary.bbr_dar_linked,
+                    dar_missing_count=summary.dar_missing_count,
+                    mapping_failure_count=summary.mapping_failure_count,
+                    warning_count=summary.warnings_count,
                 )
                 summary.missing_transitions_applied = True
                 summary.publication_status = "published"
@@ -153,6 +182,12 @@ class Importer:
                     cursor=summary.last_successful_cursor,
                     finished_at=finished_at,
                     reason=reason,
+                    bbr_fetched_count=summary.bbr_records_fetched,
+                    bbr_eligible_count=summary.bbr_eligible,
+                    dar_linked_count=summary.bbr_dar_linked,
+                    dar_missing_count=summary.dar_missing_count,
+                    mapping_failure_count=summary.mapping_failure_count,
+                    warning_count=summary.warnings_count,
                 )
                 summary.missing_transitions_skipped_reason = reason
                 summary.publication_status = "not_published"
@@ -177,6 +212,12 @@ class Importer:
                         pages_fetched=summary.pages_fetched,
                         cursor=summary.last_successful_cursor,
                         finished_at=self.clock(),
+                        bbr_fetched_count=summary.bbr_records_fetched,
+                        bbr_eligible_count=summary.bbr_eligible,
+                        dar_linked_count=summary.bbr_dar_linked,
+                        dar_missing_count=summary.dar_missing_count,
+                        mapping_failure_count=summary.mapping_failure_count,
+                        warning_count=summary.warnings_count,
                     )
                 except Exception as lifecycle_error:
                     logger.error(

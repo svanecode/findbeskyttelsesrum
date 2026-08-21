@@ -229,11 +229,16 @@ test("the national map page loads aggregate stats instead of all markers", async
   assert.doesNotMatch(mapPage, /markers\.reduce/);
 });
 
-test("the health endpoint checks only the public read model", async () => {
+test("the health endpoint exposes verifiable deployment and publication identity", async () => {
   const healthApi = await readFile(healthApiUrl, "utf8");
 
   assert.match(healthApi, /getAppV2PublicDataStats/);
-  assert.doesNotMatch(healthApi, /createAppV2AdminClient/);
+  assert.match(healthApi, /getAppV2CurrentDatasetPublication/);
+  assert.match(healthApi, /VERCEL_GIT_COMMIT_SHA/);
+  assert.match(healthApi, /VERCEL_DEPLOYMENT_ID/);
+  assert.match(healthApi, /SITE_BUILD_TIMESTAMP/);
+  assert.match(healthApi, /public_data_is_stale/);
+  assert.match(healthApi, /publication_import_link_is_inconsistent/);
   assert.doesNotMatch(healthApi, /SUPABASE_SECRET_KEY/);
   assert.match(healthApi, /Cache-Control/);
   assert.match(healthApi, /no-store/);

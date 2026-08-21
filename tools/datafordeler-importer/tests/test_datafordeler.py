@@ -140,6 +140,49 @@ def test_graphql_mapping_links_bbr_dar_and_maps_coordinates_and_application_code
     assert record.source_application_code == "390"
     assert record.status == "under_review"
     assert record.latitude is not None and record.longitude is not None
+    assert page.fetched_bbr_records == 1
+    assert page.eligible_bbr_records == 1
+    assert page.dar_missing_records == 0
+    assert page.mapping_failure_records == 0
+
+
+def test_mapping_counters_include_eligible_bbr_rows_without_current_dar_address() -> None:
+    bbr = FakeClient(
+        {
+            "FetchBbrShelters": [
+                connection(
+                    "BBR_Bygning",
+                    [
+                        {
+                            "id_lokalId": "building-without-address",
+                            "kommunekode": "0101",
+                            "status": "6",
+                            "husnummer": "missing-house",
+                            "byg021BygningensAnvendelse": "390",
+                            "byg069Sikringsrumpladser": 42,
+                            "byg404Koordinat": None,
+                        }
+                    ],
+                )
+            ]
+        }
+    )
+    dar = FakeClient(
+        {
+            "FetchDarHouseNumbers": [connection("DAR_Husnummer", [])],
+            "FetchDarRoads": [],
+            "FetchDarPostalCodes": [],
+        }
+    )
+    source = DatafordelerSource(config(), bbr_client=bbr, dar_client=dar)  # type: ignore[arg-type]
+
+    page = next(source.pages(snapshot_at="2026-07-13T12:00:00Z"))
+
+    assert page.records == []
+    assert page.eligible_bbr_records == 1
+    assert page.dar_missing_records == 1
+    assert page.mapping_failure_records == 0
+    assert len(page.warnings) == 1
 
 
 def test_bbr_cursor_pagination_is_deterministic() -> None:

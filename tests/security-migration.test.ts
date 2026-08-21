@@ -50,6 +50,10 @@ const countryMapClustersMigrationUrl = new URL(
   "../supabase/migrations/20260821165231_country_map_feature_clusters.sql",
   import.meta.url,
 );
+const releaseOneDataIntegrityMigrationUrl = new URL(
+  "../supabase/migrations/20260821200032_release_1_data_integrity.sql",
+  import.meta.url,
+);
 
 test("security migration closes exclusion RPC and bounds anonymous nearby work", async () => {
   const sql = (await readFile(migrationUrl, "utf8")).toLowerCase();
@@ -123,7 +127,12 @@ test("remaining legacy helpers use pinned schemas and explicit role allowlists",
   assert.doesNotMatch(sql, /security definer/);
   assert.match(
     sql,
-    /alter function public\.get_nearby_shelters_v3\([\s\S]+set search_path = pg_catalog, public, extensions, pg_temp/,
+    /'public\.get_nearby_shelters_v3\(double precision,double precision,integer\)'/,
+  );
+  assert.match(sql, /to_regprocedure\(function_signature\) is not null/);
+  assert.match(
+    sql,
+    /'alter function %s set search_path = pg_catalog, public, extensions, pg_temp'/,
   );
   assert.match(
     sql,
@@ -255,6 +264,33 @@ test("dataset rollback requires an aal2 owner and writes an audit event", async 
   assert.doesNotMatch(
     sql,
     /grant execute on function app_v2\.rollback_dataset_publication_v1\(uuid\)\s+to anon/,
+  );
+});
+
+test("release one publication and resume paths fail closed", async () => {
+  const sql = (await readFile(releaseOneDataIntegrityMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /alter column publication_state set default 'withheld'/);
+  assert.match(sql, /current_setting\('app_v2\.quality_gate_passed', true\) = 'true'/);
+  assert.match(sql, /create or replace function app_v2\.publish_datafordeler_import_v3/);
+  assert.match(sql, /publish_datafordeler_import_v3[\s\S]+security definer/);
+  assert.match(
+    sql,
+    /revoke all on function app_v2\.publish_datafordeler_import_internal_v2[\s\S]+from public, anon, authenticated, service_role/,
+  );
+  assert.match(sql, /p_bbr_eligible_count <> p_dar_linked_count \+ p_dar_missing_count \+ p_mapping_failure_count/);
+  assert.match(sql, /minimum_mapping_ratio numeric := 0\.98/);
+  assert.match(sql, /previous_mapping_ratio - 0\.01/);
+  assert.match(sql, /publication v2 is retired/);
+  assert.match(sql, /parent\.publication_status = 'staging'/);
+  assert.match(sql, /parent\.quality_gate_passed is null/);
+  assert.match(sql, /exists \([\s\S]+from app_v2\.import_shelter_candidates candidate/);
+  assert.match(sql, /app_v2_shelter_overrides_active_location_check/);
+  assert.match(sql, /new\.address_line1 := null/);
+  assert.match(sql, /revoke all on function app_v2\.publish_datafordeler_import_v3[\s\S]+from public, anon, authenticated/);
+  assert.doesNotMatch(
+    sql,
+    /grant execute on function app_v2\.publish_datafordeler_import_v3\([^;]+to (anon|authenticated)/,
   );
 });
 

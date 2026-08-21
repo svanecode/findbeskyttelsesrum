@@ -75,6 +75,56 @@ def test_resumed_run_prunes_stale_staging_and_copies_checkpointed_candidates() -
     }
 
 
+def test_resume_only_selects_technical_staging_failures_with_candidates() -> None:
+    session = QueueSession(
+        [
+            Response(
+                200,
+                [
+                    {
+                        "id": "technical-run",
+                        "started_at": "2026-08-21T12:00:00Z",
+                        "records_seen": 5,
+                        "records_upserted": 5,
+                        "pages_fetched": 2,
+                        "last_successful_page": 2,
+                        "last_successful_cursor": "cursor-2",
+                        "resumed_from_import_run_id": None,
+                        "publication_status": "staging",
+                        "quality_gate_passed": None,
+                        "bbr_fetched_count": 100,
+                        "bbr_eligible_count": 6,
+                        "dar_linked_count": 5,
+                        "dar_missing_count": 1,
+                        "mapping_failure_count": 0,
+                        "warning_count": 1,
+                    }
+                ],
+            ),
+            Response(200, [{"import_run_id": "technical-run"}]),
+        ]
+    )
+    store = store_with_session(session)
+
+    resumed = store.latest_failed_run()
+
+    assert resumed is not None and resumed["id"] == "technical-run"
+    query = session.calls[0]["params"]
+    assert query["publication_status"] == "eq.staging"
+    assert query["quality_gate_passed"] == "is.null"
+    assert session.calls[1]["url"].endswith("/import_shelter_candidates")
+
+
+def test_quality_rejected_run_is_not_a_resume_candidate() -> None:
+    session = QueueSession([Response(200, [])])
+    store = store_with_session(session)
+
+    assert store.latest_failed_run() is None
+    query = session.calls[0]["params"]
+    assert query["publication_status"] == "eq.staging"
+    assert query["quality_gate_passed"] == "is.null"
+
+
 def test_quality_gate_rejection_is_a_failed_publication() -> None:
     session = QueueSession(
         [
@@ -99,7 +149,16 @@ def test_quality_gate_rejection_is_a_failed_publication() -> None:
             pages_fetched=1,
             cursor="cursor-1",
             finished_at="2026-08-21T12:00:00Z",
+            bbr_fetched_count=100,
+            bbr_eligible_count=10,
+            dar_linked_count=10,
+            dar_missing_count=0,
+            mapping_failure_count=0,
+            warning_count=0,
         )
+
+    assert session.calls[0]["url"].endswith("/rpc/publish_datafordeler_import_v3")
+    assert session.calls[0]["json"]["p_bbr_eligible_count"] == 10
 
 
 def test_error_summary_redacts_query_credentials() -> None:

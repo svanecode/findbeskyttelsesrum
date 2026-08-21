@@ -36,6 +36,9 @@ class PageResult:
     end_cursor: str | None
     has_next_page: bool
     fetched_bbr_records: int
+    eligible_bbr_records: int = 0
+    dar_missing_records: int = 0
+    mapping_failure_records: int = 0
     warnings: list[str] = field(default_factory=list)
     source_pages: int = 1
 
@@ -47,9 +50,12 @@ class ImportSummary:
     http_statuses: set[int] = field(default_factory=set)
     pages_fetched: int = 0
     bbr_records_fetched: int = 0
+    bbr_eligible: int = 0
     records_seen: int = 0
     records_upserted: int = 0
     bbr_dar_linked: int = 0
+    dar_missing_count: int = 0
+    mapping_failure_count: int = 0
     warnings_count: int = 0
     resumed_from_import_run_id: str | None = None
     last_successful_cursor: str | None = None
@@ -66,4 +72,9 @@ class ImportSummary:
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["http_statuses"] = sorted(self.http_statuses)
+        payload["mapping_ratio"] = (
+            round(self.bbr_dar_linked / self.bbr_eligible, 6)
+            if self.bbr_eligible > 0
+            else 0
+        )
         return payload
