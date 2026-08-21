@@ -20,6 +20,7 @@ The live application and importer use `app_v2`. Anonymous reads are limited to e
 - `audit_events`: append-only operational audit trail.
 - `application_code_eligibility`: explicit BBR usage-code allowlist.
 - `rate_limit_buckets`: short-lived HMAC-keyed API rate limits without raw client addresses.
+- `product_metrics_hourly`: private hourly counters for a fixed event allowlist, without user or location fields.
 
 ## Public reads
 
@@ -31,6 +32,9 @@ The app reads `shelter_public_v2`, `country_marker_public_v2`, `sitemap_shelter_
 - `copy_datafordeler_import_candidates_v1`: service-role-only safe resume helper.
 - `get_import_operations_v1`: minimal MFA-protected operational overview.
 - `rollback_dataset_publication_v1`: MFA owner-only atomic restore with audit event.
+- `record_product_metric_v1`: service-only atomic increment of a privacy-safe hourly counter.
+- `get_product_metrics_summary_v1`: service-only aggregate for the MFA-protected operations view.
+- `get_product_metrics_health_v1`: service-only short-window aggregate for scheduled alerts.
 - `finalize_datafordeler_import`: retained as a denied legacy compatibility signature that always raises.
 
 ## Access boundary

@@ -18,6 +18,7 @@ import { setupLeafletDefaults } from "@/lib/leaflet/setup-defaults";
 import { getAnvendelseskodeBeskrivelse, getAnvendelseskoder } from "@/lib/anvendelseskoder";
 import type { Anvendelseskode } from "@/types/anvendelseskode";
 import { buildLeafletPopupHtml } from "@/lib/leaflet/popup-html";
+import { denmarkMaxBounds } from "@/lib/maps/denmark-bounds";
 import { getShelterPublicDisplayName } from "@/lib/shelter-display-name";
 import {
   countryMapViewportContains,
@@ -82,11 +83,6 @@ function MapLoadingSkeleton() {
     </div>
   );
 }
-
-const denmarkMaxBounds: [[number, number], [number, number]] = [
-  [54, 8],
-  [58, 15],
-];
 
 type MarkerClusterLike = {
   clearLayers(): void;

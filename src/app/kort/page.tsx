@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
+import ProductMetricView from "@/components/ProductMetricView";
 import { ui } from "@/components/ui-classes";
 import { getAppV2PublicDataStats } from "@/lib/supabase/app-v2-queries";
 import { siteUrl } from "@/lib/seo/site";
@@ -37,6 +38,7 @@ export default async function CountryMapPage() {
 
   return (
     <main id="main-content" tabIndex={-1} className={ui.page}>
+      <ProductMetricView eventName="map_opened" />
       <div className="mx-auto flex w-full max-w-6xl flex-col px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <header className="mb-8 max-w-3xl space-y-4">
           <p className={ui.eyebrow}>Hele landet</p>

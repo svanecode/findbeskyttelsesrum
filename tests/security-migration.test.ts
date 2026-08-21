@@ -47,7 +47,7 @@ const versionedImportIndexesMigrationUrl = new URL(
   import.meta.url,
 );
 const countryMapClustersMigrationUrl = new URL(
-  "../supabase/migrations/20260821163427_country_map_feature_clusters.sql",
+  "../supabase/migrations/20260821165231_country_map_feature_clusters.sql",
   import.meta.url,
 );
 

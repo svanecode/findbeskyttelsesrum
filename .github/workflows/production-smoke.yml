@@ -11,6 +11,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   smoke:
@@ -19,10 +20,45 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Hent kode
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Brug Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
       - name: Kør syntetiske kontroller
         run: node scripts/monitor/production-smoke.mjs
+      - name: Kontrollér anonyme driftstal
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: node scripts/monitor/product-metrics-health.mjs
+
+      - name: Opret gratis driftsalarm ved fejl
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          gh label create production-alert --color B60205 --description "Automatisk alarm for produktionskontrol" --force
+          alert_url="$(gh issue list --label production-alert --state open --limit 1 --json url --jq '.[0].url' 2>/dev/null || true)"
+          if [[ -z "$alert_url" ]]; then
+            gh issue create \
+              --title "Produktionskontrollen kræver opmærksomhed" \
+              --label production-alert \
+              --body "Den automatiske kontrol af website, data eller anonyme driftstal fejlede. Se kørslen: $RUN_URL"
+          else
+            gh issue comment "$alert_url" --body "Produktionskontrollen fejlede igen. Se kørslen: $RUN_URL"
+          fi
+
+      - name: Luk driftsalarm efter næste succes
+        if: success() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          alert_url="$(gh issue list --label production-alert --state open --limit 1 --json url --jq '.[0].url' 2>/dev/null || true)"
+          if [[ -n "$alert_url" ]]; then
+            gh issue close "$alert_url" --comment "Den næste produktionskontrol bestod. Se kørslen: $RUN_URL"
+          fi

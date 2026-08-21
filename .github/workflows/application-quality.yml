@@ -1,0 +1,81 @@
+name: Application quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: application-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  code-quality:
+    name: Kode, typer og sikkerhedsregler
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Hent kode
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Brug Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Installér låste afhængigheder
+        run: npm ci
+
+      - name: Kør obligatoriske pull request-kontroller
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+
+  release-story:
+    name: Byg og gennemfør browserhistorien
+    if: github.event_name != 'pull_request'
+    needs: code-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Hent kode
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Brug Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Installér låste afhængigheder
+        run: npm ci
+
+      - name: Installér testbrowser
+        run: npx playwright install --with-deps chromium
+
+      - name: Byg produktionsversionen
+        run: npm run build
+
+      - name: Gennemfør hele browserhistorien
+        run: npx playwright test
+
+      - name: Gem browserrapport ved fejl
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14

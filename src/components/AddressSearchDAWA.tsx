@@ -11,6 +11,7 @@ import {
   type DawaSuggestion,
 } from '@/lib/dawa/autocomplete'
 import { saveNearbySearchContext } from '@/lib/nearby/search-context'
+import { trackProductMetric, type ProductMetricEventName } from '@/lib/analytics/product-metrics'
 
 const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'
 
@@ -59,7 +60,7 @@ export default function AddressSearchDAWA() {
   const cursorPosRef = useRef(0)
 
   const navigateToNearby = useCallback(
-    (search: SelectedAddress) => {
+    (search: SelectedAddress, successMetric: ProductMetricEventName) => {
       const saved = saveNearbySearchContext({
         latitude: search.latitude,
         longitude: search.longitude,
@@ -72,6 +73,7 @@ export default function AddressSearchDAWA() {
       }
 
       setSearchError(null)
+      trackProductMetric(successMetric)
       router.push('/shelters/nearby')
     },
     [router],
@@ -135,6 +137,7 @@ export default function AddressSearchDAWA() {
 
         syncCaretFromInput()
         try {
+          trackProductMetric('address_search_started')
           setIsLoading(true)
           const results = await fetchAddressSuggestions(query, {
             limit: 5,
@@ -145,6 +148,7 @@ export default function AddressSearchDAWA() {
           setActiveIndex(results.length > 0 ? 0 : null)
           setHasNoResults(results.length === 0)
         } catch (error) {
+          trackProductMetric('address_search_error')
           handleError(error instanceof Error ? error : new Error('DAWA autocomplete failed'), 'DAWA Autocomplete failed')
         } finally {
           setIsLoading(false)
@@ -152,14 +156,19 @@ export default function AddressSearchDAWA() {
         return
       }
 
-      if (selectedAddress) navigateToNearby(selectedAddress)
+      if (selectedAddress) {
+        trackProductMetric('address_search_started')
+        navigateToNearby(selectedAddress, 'address_selected')
+      }
     },
     [canSubmit, handleError, navigateToNearby, query, selectedAddress, syncCaretFromInput],
   )
 
   const handleLocationClick = async () => {
+    trackProductMetric('geolocation_requested')
     if (!navigator.geolocation) {
       setGpsError('Denne browser understøtter ikke placering. Søg efter en adresse i stedet.')
+      trackProductMetric('geolocation_error')
       handleError(new Error('Geolocation not supported'), 'Geolocation API not available')
       return
     }
@@ -175,9 +184,13 @@ export default function AddressSearchDAWA() {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         label: 'Din placering',
-      })
+      }, 'geolocation_succeeded')
     } catch (error) {
       setGpsError(getGeolocationErrorMessage(error))
+      const errorCode = error && typeof error === 'object' && 'code' in error
+        ? Number((error as { code?: unknown }).code)
+        : null
+      trackProductMetric(errorCode === 1 ? 'geolocation_denied' : 'geolocation_error')
       handleError(error instanceof Error ? error : new Error('Failed to get location'), 'Geolocation failed')
     } finally {
       setGpsLoading(false)
@@ -210,6 +223,7 @@ export default function AddressSearchDAWA() {
         setHasNoResults(results.length === 0)
       } catch (error) {
         if (!isAbortError(error)) {
+          trackProductMetric('address_search_error')
           setHasFailed(true)
           setHasNoResults(false)
           handleError(
