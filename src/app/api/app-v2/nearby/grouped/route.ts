@@ -172,6 +172,7 @@ function toApiGroup(row: AppV2GroupedNearbyShelter) {
     shelterCount: row.shelterCount,
     totalCapacity: row.totalCapacity,
     applicationCodeLabel: row.applicationCodeLabel,
+    applicationCodeLabels: row.applicationCodeLabels,
     municipality: {
       id: row.municipality.id,
       slug: row.municipality.slug,

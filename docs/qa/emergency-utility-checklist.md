@@ -71,7 +71,7 @@ For hver side: tjek at den er sekundær og linker tydeligt tilbage til forsiden.
 ## H. Automatiske releasekontroller
 
 - [ ] `npm run test:release` består mod en produktionsbygning
-- [ ] Playwright består i desktop- og mobilprofil
+- [ ] Playwright består i desktop Chromium, mobil Chromium og iPhone/WebKit
 - [ ] Axe finder ingen automatiserbart registrerbare WCAG A/AA-fejl på nøglesiderne
 - [ ] Afvist placering, DAWA-fejl samt nearby-fejl 429, 502 og 504 giver brugbare danske fejltilstande
 - [ ] Adresseflowet forlader ikke adresse eller koordinater i resultat-URL'en

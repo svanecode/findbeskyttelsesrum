@@ -82,7 +82,6 @@ export const metadata: Metadata = {
     title: "Find Beskyttelsesrum | Se BBR-registreringer nær dig",
     description:
       "Orientér dig i BBR-registreringer af sikringsrumspladser. Adgang, klargøring og fysisk stand er ikke bekræftet.",
-    creator: '@beskyttelsesrum',
   },
   robots: {
     index: true,

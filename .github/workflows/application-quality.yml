@@ -56,8 +56,8 @@ jobs:
           npx --yes supabase@2.115.0 start
           --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
-      - name: Kør databaseinvarianter
-        run: npx --yes supabase@2.115.0 test db supabase/tests/release_1_data_integrity.sql --local
+      - name: Kør alle databaseinvarianter
+        run: npx --yes supabase@2.115.0 test db supabase/tests --local
 
       - name: Stop lokal database
         if: always()
@@ -65,17 +65,17 @@ jobs:
 
   release-story:
     name: Byg og gennemfør browserhistorien
-    if: github.event_name != 'pull_request'
     needs:
       - code-quality
       - database-quality
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       NEXT_TELEMETRY_DISABLED: "1"
+      PLAYWRIGHT_HTTP_ORIGIN: "1"
     steps:
       - name: Hent kode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -89,8 +89,8 @@ jobs:
       - name: Installér låste afhængigheder
         run: npm ci
 
-      - name: Installér testbrowser
-        run: npx playwright install --with-deps chromium
+      - name: Installér Chromium og WebKit
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Byg produktionsversionen
         run: npm run build

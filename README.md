@@ -17,6 +17,7 @@ En registrering er ikke en garanti for offentlig adgang, klargøring eller aktue
 - GitHub-login, tilladelsesliste og MFA til administration;
 - daglig BBR/DAR-import med staging, kvalitetskontrol, atomisk publicering og rollback;
 - transaktionelt opdaterede kommuneaggregater og versionsbundet kortcache;
+- permanente registreringslinks med serverstyret redirecthistorik;
 - verificerbar produktions- og dataversion via `/api/health`;
 - gratis produktionskontrol, uafhængig uptime-kontrol og privatlivsvenlige, aggregerede driftstællere.
 
@@ -79,11 +80,11 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 | `npm test` | Kører enheds- og sikkerhedstests. |
 | `npm run test:db` | Kører databaseinvarianter mod lokal Supabase. |
 | `npm run build` | Bygger produktionsversionen. |
-| `npm run test:e2e` | Bygger og kører Playwright i en browser. |
+| `npm run test:e2e` | Bygger og kører Playwright i desktop Chromium, mobil Chromium og mobil WebKit. |
 | `npm run test:release` | Kører den samlede lokale releasekontrol. |
 | `npm run monitor:production` | Kontrollerer den live brugerrejse og dataalder. |
 
-Pull requests skal bestå lint, typekontrol, kode- og databaseinvarianter. Efter merge til `main` køres desuden produktionsbuild og hele browserhistorien.
+Pull requests skal bestå lint, typekontrol, kode- og databaseinvarianter, produktionsbuild og hele browserhistorien i Chromium og WebKit. De samme kontroller gentages ved push til `main`.
 
 ## Dataimport
 

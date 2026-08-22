@@ -3,6 +3,7 @@ import { createAppV2PublicClient } from "@/lib/app-v2-public";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 import { cache } from "react";
 import { normalizePublicApplicationLabel } from "@/lib/public-labels";
+import { getStableShelterSlug } from "@/lib/shelter-public-url";
 
 export type AppV2ShelterStatus = "active" | "temporarily_closed" | "under_review";
 export type AppV2ImportState = "active" | "missing_from_source" | "suppressed";
@@ -164,6 +165,7 @@ export type AppV2GroupedNearbyShelter = {
   shelters: AppV2NearbyShelter[];
   municipality: AppV2MunicipalitySummary;
   applicationCodeLabel: string | null;
+  applicationCodeLabels: string[];
 };
 
 export type AppV2NearbyDiagnostics = {
@@ -608,7 +610,11 @@ function groupNearbyRows(
         throw new Error("app_v2 nearby grouping received an empty group.");
       }
 
-      const dominantCode = representativeShelter.sourceApplicationCode;
+      const applicationCodeLabels = Array.from(new Set(
+        sortedRows
+          .map((row) => row.sourceApplicationCode ? (labelByCode.get(row.sourceApplicationCode) ?? null) : null)
+          .filter((label): label is string => Boolean(label)),
+      )).sort((a, b) => a.localeCompare(b, "da-DK"));
 
       return {
         groupKey,
@@ -623,7 +629,10 @@ function groupNearbyRows(
         representativeShelter,
         shelters: sortedRows,
         municipality: representativeShelter.municipality,
-        applicationCodeLabel: dominantCode ? (labelByCode.get(dominantCode) ?? null) : null,
+        applicationCodeLabel: applicationCodeLabels.length > 1
+          ? "Flere registrerede bygningsanvendelser"
+          : (applicationCodeLabels[0] ?? null),
+        applicationCodeLabels,
       };
     })
     .sort((a, b) => a.distanceMeters - b.distanceMeters || a.groupKey.localeCompare(b.groupKey))
@@ -1481,6 +1490,7 @@ export type AppV2MunicipalityShelterGroup = {
   slugs: string[];
   primarySlug: string;
   applicationCodeLabel: string | null;
+  applicationCodeLabels: string[];
   shelters: Array<Pick<AppV2MunicipalityShelter, "id" | "slug" | "name" | "capacity">>;
 };
 
@@ -1580,24 +1590,11 @@ export function groupMunicipalityShelters(
       // Primary shelter = highest capacity (already sorted desc from query)
       const primary = [...groupShelters].sort((a, b) => b.capacity - a.capacity)[0]!;
 
-      // Most frequent applicationCodeLabel
-      const labelCounts = new Map<string, number>();
-      for (const s of groupShelters) {
-        if (s.applicationCodeLabel) {
-          labelCounts.set(
-            s.applicationCodeLabel,
-            (labelCounts.get(s.applicationCodeLabel) ?? 0) + 1,
-          );
-        }
-      }
-      let dominantLabel: string | null = null;
-      let maxCount = 0;
-      Array.from(labelCounts.entries()).forEach(([label, count]) => {
-        if (count > maxCount) {
-          dominantLabel = label;
-          maxCount = count;
-        }
-      });
+      const applicationCodeLabels = Array.from(new Set(
+        groupShelters
+          .map((shelter) => shelter.applicationCodeLabel)
+          .filter((label): label is string => Boolean(label)),
+      )).sort((a, b) => a.localeCompare(b, "da-DK"));
 
       return {
         groupKey,
@@ -1610,7 +1607,10 @@ export function groupMunicipalityShelters(
         totalCapacity: groupShelters.reduce((sum, s) => sum + s.capacity, 0),
         slugs: groupShelters.map((s) => s.slug),
         primarySlug: primary.slug,
-        applicationCodeLabel: dominantLabel,
+        applicationCodeLabel: applicationCodeLabels.length > 1
+          ? "Flere registrerede bygningsanvendelser"
+          : (applicationCodeLabels[0] ?? null),
+        applicationCodeLabels,
         shelters: groupShelters.map(({ id, slug, name, capacity }) => ({ id, slug, name, capacity })),
       };
     })
@@ -1693,6 +1693,43 @@ export const getAppV2PublicShelterBySlug = cache(async function getAppV2PublicSh
   const municipality = normalizeMunicipality(municipalityData as MunicipalitySummaryRow);
 
   return normalizePublicShelter(shelter, municipality);
+});
+
+type ShelterSlugAliasRow = {
+  shelter_id: string;
+};
+
+export const resolveAppV2PublicShelter = cache(async function resolveAppV2PublicShelter(slug: string) {
+  const directShelter = await getAppV2PublicShelterBySlug(slug);
+  if (directShelter) {
+    return {
+      shelter: directShelter,
+      isAlias: false,
+    };
+  }
+
+  const admin = createAppV2AdminClient();
+  const { data: aliasData, error: aliasError } = await admin
+    .from("shelter_slug_aliases")
+    .select("shelter_id")
+    .eq("alias_slug", slug)
+    .maybeSingle();
+
+  if (aliasError) {
+    if (aliasError.code === "PGRST205" || aliasError.code === "42P01") return null;
+    throw new Error(`Could not resolve public app_v2 shelter alias "${slug}".`);
+  }
+
+  if (!aliasData) return null;
+
+  const canonicalSlug = getStableShelterSlug((aliasData as ShelterSlugAliasRow).shelter_id);
+  const shelter = await getAppV2PublicShelterBySlug(canonicalSlug);
+  if (!shelter) return null;
+
+  return {
+    shelter,
+    isAlias: true,
+  };
 });
 
 type RelatedShelterRow = {

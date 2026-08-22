@@ -7,6 +7,7 @@ type ApiGroupedResult = {
   shelterCount: number
   totalCapacity: number
   applicationCodeLabel: string | null
+  applicationCodeLabels?: string[]
   municipality: { code: string | null; name: string; slug: string; id: string }
   representativeShelter?: { slug: string; name?: string; capacity?: number }
   shelters?: Array<{ id: string; slug: string; name: string; capacity: number }>
@@ -29,6 +30,7 @@ export type NearbyResultShelter = {
   city: string | null
   kommunekode: string | null
   typeLabel?: string | null
+  typeLabels?: string[]
   shelter_count?: number
   total_capacity?: number
   distance: number
@@ -61,6 +63,7 @@ export function adaptAppV2Grouped(rows: ApiGroupedResult[]): NearbyResultShelter
       city: row.address.city,
       kommunekode: row.municipality?.code ?? null,
       typeLabel: row.applicationCodeLabel,
+      typeLabels: row.applicationCodeLabels ?? (row.applicationCodeLabel ? [row.applicationCodeLabel] : []),
       shelter_count: row.shelterCount,
       total_capacity: row.totalCapacity,
       distance: row.distanceMeters / 1000,

@@ -80,7 +80,7 @@ test("direkte resultatlink uden fanesøgning forklarer privatlivsvalget", async 
 });
 
 test("mobilvisningen skifter mellem liste og kort", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Mobilkontrol køres kun i mobilprojektet.");
+  test.skip(!testInfo.project.name.startsWith("mobile-"), "Mobilkontrol køres kun i mobilprojekterne.");
   const tileRequests: string[] = [];
   page.on("request", (request) => {
     if (request.url().startsWith("https://tile.openstreetmap.org/")) tileRequests.push(request.url());
@@ -98,6 +98,7 @@ test("mobilvisningen skifter mellem liste og kort", async ({ page }, testInfo) =
   await expect(mapTab).toHaveAttribute("aria-selected", "true");
   await expect.poll(() => tileRequests.length).toBeGreaterThan(0);
   await expect(page.getByLabel("Valgt registrering")).toContainText("Rådhuspladsen 1");
-  await page.getByRole("button", { name: "Til listen" }).click();
-  await expect(listTab).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "Luk oplysninger" }).click();
+  await expect(page.getByLabel("Valgt registrering")).toBeHidden();
+  await expect(mapTab).toBeFocused();
 });

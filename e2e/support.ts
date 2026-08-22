@@ -21,6 +21,7 @@ export const nearbyResponse = {
       shelterCount: 1,
       totalCapacity: 120,
       applicationCodeLabel: "Bygning til kontor",
+      applicationCodeLabels: ["Bygning til kontor"],
       municipality: {
         id: "8f4a4b9f-fbc8-4c5c-9b1c-4b344f4f7401",
         code: "0101",

@@ -86,7 +86,7 @@ for (const status of [429, 502, 504]) {
 }
 
 test("kortfejl bevarer resultatlisten som fallback", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Kortfallback kontrolleres i mobilprojektet.");
+  test.skip(!testInfo.project.name.startsWith("mobile-"), "Kortfallback kontrolleres i mobilprojekterne.");
   await installNearbySearchContext(page);
   await mockNearby(page);
   await page.route("https://tile.openstreetmap.org/**", async (route) => {

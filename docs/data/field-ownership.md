@@ -14,7 +14,7 @@ Define which active `app_v2` fields belong to the importer, manual operations, o
 | Field | Owner | Importer may write | Notes |
 | --- | --- | --- | --- |
 | `id` | internal operational | no | Stable database identity. |
-| `slug` | internal operational | yes | Generated from normalized source data. |
+| `slug` | internal operational | no | Permanent `registrering-{uuid}` route key enforced by the database; importer candidate slugs never replace it. |
 | `municipality_id` | official import owned | yes | Resolved from municipality code/metadata. |
 | `name` | admin override owned | yes | Baseline can later be overridden. |
 | `address_line1` | official import owned | yes | Active manual override is blocked until address, coordinates, and municipality can change atomically. |

@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -13,9 +13,10 @@ import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from "@/lib/anvend
 import { getBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
 import { siteUrl } from "@/lib/seo/site";
 import { getShelterPublicDisplayName } from "@/lib/shelter-display-name";
+import { getShelterPublicPath } from "@/lib/shelter-public-url";
 import {
   getAppV2PublicRelatedShelters,
-  getAppV2PublicShelterBySlug,
+  resolveAppV2PublicShelter,
   type AppV2PublicShelterDetail,
 } from "@/lib/supabase/app-v2-queries";
 
@@ -32,16 +33,12 @@ function getShelterAddress(shelter: AppV2PublicShelterDetail) {
 }
 
 function getShelterCanonicalPath(slug: string) {
-  return `/beskyttelsesrum/${slug}`;
+  return getShelterPublicPath(slug);
 }
 
 function getGoogleMapsPlaceHref(shelter: AppV2PublicShelterDetail) {
   if (shelter.latitude === null || shelter.longitude === null) return null;
   return `https://www.google.com/maps/search/?api=1&query=${shelter.latitude},${shelter.longitude}`;
-}
-
-function getMunicipalityAuthorityName(name: string) {
-  return /kommune$/i.test(name.trim()) ? name.trim() : `${name.trim()} Kommune`;
 }
 
 function formatDataDate(value: string | null) {
@@ -92,12 +89,17 @@ function getJsonLd(shelter: AppV2PublicShelterDetail, displayName: string) {
     };
   }
 
+  if (shelter.lastImportedAt) {
+    jsonLd.dateModified = shelter.lastImportedAt;
+  }
+
   return jsonLd;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const shelter = await getAppV2PublicShelterBySlug(slug);
+  const resolution = await resolveAppV2PublicShelter(slug);
+  const shelter = resolution?.shelter ?? null;
 
   if (!shelter) {
     return {
@@ -127,13 +129,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ShelterDetailPage({ params }: Props) {
   const { slug } = await params;
-  const [shelter, anvendelseskoder] = await Promise.all([
-    getAppV2PublicShelterBySlug(slug),
+  const [resolution, anvendelseskoder] = await Promise.all([
+    resolveAppV2PublicShelter(slug),
     getAnvendelseskoder(),
   ]);
 
-  if (!shelter) {
+  if (!resolution) {
     notFound();
+  }
+
+  const { shelter } = resolution;
+  if (resolution.isAlias) {
+    permanentRedirect(getShelterCanonicalPath(shelter.slug));
   }
 
   const displayName = getShelterPublicDisplayName(shelter.name, shelter.addressLine1);
@@ -281,7 +288,7 @@ export default async function ShelterDetailPage({ params }: Props) {
                 rel="noopener noreferrer"
                 className={ui.secondaryAction}
               >
-                Find kontakt til {getMunicipalityAuthorityName(shelter.municipality.name)}
+                Find kommunen på Borger.dk
               </a>
               <Link
                 href={`/kommune/${shelter.municipality.slug}`}
@@ -324,7 +331,7 @@ export default async function ShelterDetailPage({ params }: Props) {
 
           {relatedShelters.length > 0 ? (
             <section className={`${ui.panel} p-5 sm:p-6`}>
-              <h2 className="text-lg font-semibold text-white">Andre registreringer i nærheden</h2>
+              <h2 className="text-lg font-semibold text-white">Andre registreringer i samme område</h2>
               <ul className="mt-4 divide-y divide-white/10 border-y border-white/10">
                 {relatedShelters.map((related) => (
                   <li key={related.id}>

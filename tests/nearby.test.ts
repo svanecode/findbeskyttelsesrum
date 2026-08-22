@@ -64,7 +64,8 @@ test("grouped API rows preserve aggregate capacity and every detail link without
       distanceMeters: 1250,
       shelterCount: 2,
       totalCapacity: 80,
-      applicationCodeLabel: "Sikringsrum",
+      applicationCodeLabel: "Flere registrerede bygningsanvendelser",
+      applicationCodeLabels: ["Bygning til kontor", "Sikringsrum"],
       municipality: { id: "m1", code: "0101", name: "København", slug: "koebenhavn" },
       representativeShelter: { slug: "testvej-4", capacity: 30 },
       shelters: [
@@ -77,6 +78,8 @@ test("grouped API rows preserve aggregate capacity and every detail link without
   assert.equal(result?.distance, 1.25);
   assert.equal(result?.total_capacity, 80);
   assert.equal(result?.representativeSlug, "testvej-4");
+  assert.equal(result?.typeLabel, "Flere registrerede bygningsanvendelser");
+  assert.deepEqual(result?.typeLabels, ["Bygning til kontor", "Sikringsrum"]);
   assert.deepEqual(result?.registrations?.map(({ slug, capacity }) => ({ slug, capacity })), [
     { slug: "testvej-4", capacity: 30 },
     { slug: "testvej-4-b", capacity: 50 },

@@ -34,6 +34,10 @@ export default defineConfig({
       name: "mobile-chromium",
       use: { ...devices["Pixel 7"] },
     },
+    {
+      name: "mobile-webkit",
+      use: { ...devices["iPhone 15"] },
+    },
   ],
   webServer: startsLocalServer
     ? {
@@ -46,6 +50,7 @@ export default defineConfig({
         env: {
           ...process.env,
           NEXT_TELEMETRY_DISABLED: "1",
+          PLAYWRIGHT_HTTP_ORIGIN: "1",
         },
       }
     : undefined,

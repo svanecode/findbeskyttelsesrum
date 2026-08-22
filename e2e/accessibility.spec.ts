@@ -57,7 +57,7 @@ test("resultatsiden består automatiske WCAG A/AA-kontroller", async ({ page }, 
 });
 
 test("mobilmenuen består kontrollen i åben tilstand", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium", "Mobilmenuen findes kun i mobilprofilen.");
+  test.skip(!testInfo.project.name.startsWith("mobile-"), "Mobilmenuen findes kun i mobilprofilerne.");
   await page.goto("/");
   await page.getByRole("button", { name: "Åbn menu" }).click();
   await expect(page.getByRole("navigation", { name: "Hovednavigation" })).toBeVisible();
