@@ -54,6 +54,10 @@ const releaseOneDataIntegrityMigrationUrl = new URL(
   "../supabase/migrations/20260821203117_release_1_data_integrity.sql",
   import.meta.url,
 );
+const privacyContactPortalMigrationUrl = new URL(
+  "../supabase/migrations/20260822080025_privacy_contact_portal.sql",
+  import.meta.url,
+);
 
 test("security migration closes exclusion RPC and bounds anonymous nearby work", async () => {
   const sql = (await readFile(migrationUrl, "utf8")).toLowerCase();
@@ -217,6 +221,36 @@ test("moderator actions are atomic, audited and never granted to anonymous users
     /grant execute on function app_v2\.moderate_shelter_report_v1\([^;]+to anon\s*;/,
   );
   assert.match(sql, /coalesce\(override_row\.capacity, shelter\.capacity\) as capacity/);
+});
+
+test("mail-free privacy contact cases are private, key-bound and retention-limited", async () => {
+  const sql = (await readFile(privacyContactPortalMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(sql, /create table app_v2\.privacy_contact_cases/);
+  assert.match(sql, /create table app_v2\.privacy_contact_messages/);
+  assert.match(sql, /access_token_hash text not null/);
+  assert.match(sql, /access_token_hash ~ '\^\[0-9a-f\]\{64\}\$'/);
+  assert.match(sql, /alter table app_v2\.privacy_contact_cases force row level security/);
+  assert.match(sql, /revoke all on table app_v2\.privacy_contact_cases from public, anon, authenticated/);
+  assert.match(sql, /revoke all on table app_v2\.privacy_contact_messages from public, anon, authenticated/);
+  assert.match(sql, /create or replace function app_v2\.submit_privacy_contact_case_v1/);
+  assert.match(sql, /create or replace function app_v2\.get_privacy_contact_case_v1/);
+  assert.match(sql, /contact_case\.access_token_hash = lower/);
+  assert.match(sql, /grant execute on function app_v2\.submit_privacy_contact_case_v1[\s\S]+to service_role/);
+  assert.match(sql, /create or replace function app_v2\.list_privacy_contact_cases_for_moderation_v1/);
+  assert.match(sql, /current_moderator_account_id_v1\(true\)/);
+  assert.match(sql, /create or replace function app_v2\.moderate_privacy_contact_case_v1/);
+  assert.match(sql, /create or replace function app_v2\.delete_privacy_contact_case_v1/);
+  assert.match(sql, /contact case deletion confirmation did not match/);
+  assert.match(sql, /only closed contact cases can be deleted/);
+  assert.match(sql, /delete from app_v2\.privacy_contact_cases/);
+  assert.match(sql, /'privacycontactcasesdeleted'/);
+  const auditWrites = sql.match(/insert into app_v2\.audit_events[\s\S]*?\n  \);/g) ?? [];
+  assert.ok(auditWrites.length >= 3);
+  for (const auditWrite of auditWrites) {
+    assert.doesNotMatch(auditWrite, /'message'\s*,|'subject'\s*,|'access_token_hash'\s*,|p_subject|normalized_subject/);
+  }
+  assert.doesNotMatch(sql, /grant execute[^;]+privacy_contact[^;]+to anon/);
 });
 
 test("report contact details have a hard retention boundary", async () => {

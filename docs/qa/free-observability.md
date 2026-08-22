@@ -15,7 +15,7 @@ It also reads a service-only two-hour metrics aggregate. A failed scheduled run 
 labelled `production-alert`; the next successful run closes it.
 
 `/api/health` returns the deployed Git SHA, deployment ID, build timestamp, current publication ID, monotonic public-data
-revision, originating import run ID, public record count, and data age. It returns `503 degraded` when data is older than 48 hours, the public count
+revision, originating import run ID, public record count, data age, and the latest trusted operational heartbeat. It returns `503 degraded` when data is older than 48 hours, the public count
 falls below the safety floor, publication provenance is inconsistent, or required production identity is missing. The
 production smoke compares the endpoint's SHA with the workflow's expected commit.
 
@@ -23,8 +23,14 @@ Nearby accepts coordinates only in a bounded POST body. The landskort accepts on
 data revision. Landskort, nearby, reports, errors and anonymous metrics use the shared database limiter; its HMAC key is
 derived from the dedicated server-only `RATE_LIMIT_HASH_SECRET`, never the Supabase service key.
 
-The public smoke posts one fixed `monitor_heartbeat` event before the private aggregate check. This verifies the complete
-ingest path without sending a location, URL or user value; a missing heartbeat fails the scheduled check.
+Only a successful server-side production smoke writes `app_v2.operational_heartbeats`. Browser metrics cannot write this
+table or use `monitor_heartbeat`. The next run may tolerate only an old or missing operational heartbeat while it performs
+the public recovery checks; every other degraded reason still fails. The new heartbeat is written only after those checks
+pass, so a failed run cannot report itself healthy.
+
+An external free HTTP monitor checks `/api/health` independently of GitHub. Because the endpoint includes heartbeat age,
+the monitor also detects a scheduled workflow that never starts. Setup and recovery are documented in
+[`../operations/external-monitoring.md`](../operations/external-monitoring.md).
 
 ## Privacy boundary
 

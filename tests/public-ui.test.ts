@@ -35,6 +35,8 @@ const adminOperationsActionsUrl = new URL("../src/app/admin/drift/actions.ts", i
 const adminAuthUrl = new URL("../src/lib/moderation/auth.ts", import.meta.url);
 const adminMfaUrl = new URL("../src/app/admin/mfa/mfa-panel.tsx", import.meta.url);
 const authCallbackUrl = new URL("../src/app/auth/callback/route.ts", import.meta.url);
+const searchContextUrl = new URL("../src/lib/nearby/search-context.ts", import.meta.url);
+const errorSanitizerUrl = new URL("../src/lib/errors/sanitize-client-error.ts", import.meta.url);
 
 test("public shelter pages do not display internal review statuses", async () => {
   const publicUi = `${await readFile(detailPageUrl, "utf8")}\n${await readFile(nearbyPageUrl, "utf8")}`;
@@ -159,7 +161,40 @@ test("the compact footer links to accurate privacy and reporting guidance", asyn
   assert.match(privacyPage, /privat moderationskø/);
   assert.match(privacyPage, /kræver netforbindelse/);
   assert.match(privacyPage, /tilbyder ikke en offlinekopi/);
+  assert.match(privacyPage, /Dataansvarlig og kontakt/);
+  assert.match(privacyPage, /Retsgrundlaget/);
+  assert.match(privacyPage, /Dine rettigheder/);
+  assert.match(privacyPage, /24 måneder/);
+  assert.match(privacyPage, /5 år/);
   assert.match(dataPage, /id="rapportering"/);
+});
+
+test("search context is short-lived and has a memory-only storage fallback", async () => {
+  const source = await readFile(searchContextUrl, "utf8");
+
+  assert.match(source, /60 \* 60 \* 1000/);
+  assert.match(source, /volatileNearbySearchContext/);
+  assert.match(source, /sessionStorage\.setItem/);
+  assert.match(source, /parseNearbySearchContext\(volatileNearbySearchContext\)/);
+  assert.doesNotMatch(source, /12 \* 60 \* 60/);
+});
+
+test("client errors enforce origin, body and location privacy boundaries", async () => {
+  const [route, sanitizer] = await Promise.all([
+    readFile(clientErrorApiUrl, "utf8"),
+    readFile(errorSanitizerUrl, "utf8"),
+  ]);
+
+  assert.match(route, /isSameOrigin/);
+  assert.match(route, /maximumBodyBytes/);
+  assert.match(route, /new TextEncoder\(\)\.encode\(rawText\)\.byteLength/);
+  assert.match(route, /parseAndSanitizeClientErrorReport/);
+  assert.doesNotMatch(route, /userAgent|userId|ERROR_WEBHOOK/);
+  assert.match(sanitizer, /allowedReportKeys/);
+  assert.match(sanitizer, /allowedContextKeys/);
+  assert.match(sanitizer, /danishCoordinatePairPattern/);
+  assert.match(sanitizer, /danishAddressPattern/);
+  assert.match(sanitizer, /maximumStackLines/);
 });
 
 test("the site is explicitly a browser-based online service rather than an offline PWA", async () => {
@@ -275,6 +310,8 @@ test("the health endpoint exposes verifiable deployment and publication identity
   assert.match(healthApi, /SITE_BUILD_TIMESTAMP/);
   assert.match(healthApi, /public_data_is_stale/);
   assert.match(healthApi, /publication_import_link_is_inconsistent/);
+  assert.match(healthApi, /getOperationalHealth/);
+  assert.match(healthApi, /trusted_operational_heartbeat_is_stale/);
   assert.doesNotMatch(healthApi, /SUPABASE_SECRET_KEY/);
   assert.match(healthApi, /Cache-Control/);
   assert.match(healthApi, /no-store/);
@@ -314,9 +351,14 @@ test("private data operations reauthorize rollback and require owner confirmatio
   assert.doesNotMatch(operationsPage, /SUPABASE_SECRET_KEY/);
 });
 
-test("privacy copy documents automatic contact deletion", async () => {
+test("privacy copy documents mail-free contact and bounded retention", async () => {
   const privacyPage = await readFile(privacyPageUrl, "utf8");
 
-  assert.match(privacyPage, /kontaktmail slettes automatisk/);
-  assert.match(privacyPage, /senest efter 90 dage/);
+  assert.match(privacyPage, /Der indsamles ikke navn eller e-mailadresse/);
+  assert.match(privacyPage, /sagsnummer og en tilfældig adgangskode/);
+  assert.match(privacyPage, /SHA-256-kontrolværdi/);
+  assert.match(privacyPage, /højst 12 måneder efter lukningen/);
+  assert.match(privacyPage, /fritekstnote redigeres senest 24 måneder/);
+  assert.match(privacyPage, /auditspor slettes efter 5 år/);
+  assert.doesNotMatch(privacyPage, /mailto:/);
 });

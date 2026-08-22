@@ -67,6 +67,14 @@ export function buildCoreSitemapRoutes(
     ),
     withLastModified(
       {
+        url: `${baseUrl}/kontakt`,
+        changeFrequency: "monthly",
+        priority: 0.55,
+      },
+      dates.staticLastModified,
+    ),
+    withLastModified(
+      {
         url: `${baseUrl}/kommune`,
         changeFrequency: "weekly",
         priority: 0.82,

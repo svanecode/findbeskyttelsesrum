@@ -13,11 +13,12 @@ En registrering er ikke en garanti for offentlig adgang, klargøring eller aktue
 - landskort og lokale kort med Leaflet og OpenStreetMap;
 - kommune- og registreringssider med forklaring af datagrundlaget;
 - privat fejlrapportering med moderationskø;
+- mailfri kontakt- og svarportal med privat sagskø og engangsvisning af adgangskode;
 - GitHub-login, tilladelsesliste og MFA til administration;
 - daglig BBR/DAR-import med staging, kvalitetskontrol, atomisk publicering og rollback;
 - transaktionelt opdaterede kommuneaggregater og versionsbundet kortcache;
 - verificerbar produktions- og dataversion via `/api/health`;
-- gratis produktionskontrol og privatlivsvenlige, aggregerede driftstællere.
+- gratis produktionskontrol, uafhængig uptime-kontrol og privatlivsvenlige, aggregerede driftstællere.
 
 Tjenesten skal forblive gratis for brugeren. Kortet må ikke få en obligatorisk betalt kortleverandør, og driften er indrettet til at bruge leverandørernes gratis muligheder og tydelige forbrugsgrænser. OpenStreetMaps offentlige standardtiles bruges ansvarligt med listevisninger som fallback.
 
@@ -115,11 +116,15 @@ Kør ikke migrationsfiler direkte én efter én uden migrationshistorik. Kontrol
 ## Drift og administration
 
 - `/admin` er den beskyttede indgang til moderation og drift.
+- `/admin/kontakt` er den private kø til kontakt- og persondatahenvendelser; svar læses med sagsnummer og adgangskode uden e-mail.
 - Administratorer logger ind gennem GitHub OAuth, skal være på tilladelseslisten og skal gennemføre MFA.
 - `/admin/drift` viser importer, kvalitetskontroller, aktivt datasæt, rollback og 30 dages aggregerede driftstal.
 - `/api/health` viser deployet Git SHA, deployment-ID, byggetid, publication-ID, offentlig datarevision, import-run-ID og dataalder. Gamle eller inkonsistente data giver `503 degraded`.
 - Produktionsflowet kontrolleres automatisk to gange i timen. Fejl opretter en GitHub-issue; næste succes lukker den igen.
+- Et service-only heartbeat kobler health-status til den seneste gennemførte produktionskontrol. En gratis ekstern monitor kan derfor også opdage, hvis GitHub-workflowet slet ikke starter.
 - De egne driftstællere indeholder ikke IP-adresse, bruger-id, adresse, koordinater, søgetekst eller fuld URL og slettes senest efter 90 dage.
+- Rapportfritekst og identificerende auditfelter redigeres efter 24 måneder; struktureret audit slettes efter 5 år. Se [`docs/privacy/retention.md`](docs/privacy/retention.md).
+- Recovery og nøgleudskiftning er dokumenteret i [`docs/operations/mfa-recovery-and-secret-rotation.md`](docs/operations/mfa-recovery-and-secret-rotation.md).
 
 ## Release
 

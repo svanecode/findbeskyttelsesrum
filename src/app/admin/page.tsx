@@ -94,8 +94,8 @@ function QueueCard({ report }: { report: ModerationReport }) {
           <dd className="mt-1 text-gray-200">{formatDate(report.createdAt)}</dd>
         </div>
         <div>
-          <dt className="font-medium text-gray-400">Kontaktmail</dt>
-          <dd className="mt-1 break-all text-gray-200">{report.contactEmail ?? "Ikke oplyst eller slettet"}</dd>
+          <dt className="font-medium text-gray-400">Ældre kontaktmail</dt>
+          <dd className="mt-1 break-all text-gray-200">{report.contactEmail ?? "Ikke indsamlet eller allerede slettet"}</dd>
         </div>
         <div className="sm:col-span-2">
           <dt className="font-medium text-gray-400">Borgerens beskrivelse</dt>
@@ -224,6 +224,9 @@ export default async function AdminPage({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link href="/admin/kontakt" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
+              Kontaktkø
+            </Link>
             <Link href="/admin/drift" className="inline-flex min-h-[44px] items-center rounded-lg border border-orange-400/30 bg-orange-500/10 px-4 text-sm font-medium text-orange-100 hover:bg-orange-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
               Datadrift
             </Link>

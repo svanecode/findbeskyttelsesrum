@@ -79,3 +79,10 @@ test("kommuneoversigten består automatiske WCAG A/AA-kontroller", async ({ page
   await expect(page.getByRole("heading", { name: "Kommuneoversigt" })).toBeVisible();
   await expectNoAccessibilityViolations(page, testInfo);
 });
+
+test("kontaktformularen består automatiske WCAG A/AA-kontroller", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Kontaktformularen kontrolleres i én browserprofil.");
+  await page.goto("/kontakt");
+  await expect(page.getByRole("heading", { name: "Kontakt uden e-mail" })).toBeVisible();
+  await expectNoAccessibilityViolations(page, testInfo);
+});

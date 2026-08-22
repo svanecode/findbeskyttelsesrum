@@ -36,7 +36,8 @@ test("nearby search context validates coordinates and expires tab-local searches
     createdAt: now,
   });
   assert.deepEqual(parseNearbySearchContext(context, now + 1_000), context);
-  assert.equal(parseNearbySearchContext(context, now + 13 * 60 * 60 * 1_000), null);
+  assert.deepEqual(parseNearbySearchContext(context, now + 59 * 60 * 1_000), context);
+  assert.equal(parseNearbySearchContext(context, now + 61 * 60 * 1_000), null);
   assert.equal(createNearbySearchContext({ latitude: 91, longitude: 12.56 }, now), null);
 });
 

@@ -45,6 +45,7 @@ test("sitemap dates are stable inputs instead of request-time timestamps", async
   assert.equal(latest?.toISOString(), importDate);
   assert.equal(routes[0].lastModified?.toString(), new Date(importDate).toString());
   assert.equal(routes.find((route) => route.url.endsWith("/privatliv"))?.lastModified?.toString(), new Date(buildDate).toString());
+  assert.equal(routes.find((route) => route.url.endsWith("/kontakt"))?.lastModified?.toString(), new Date(buildDate).toString());
   assert.deepEqual(
     municipalityRoutes.map((route) => route.url),
     [

@@ -31,3 +31,13 @@ test("datadrift sender en anonym bruger til privat login", async ({ page }, test
   await expect(page.getByRole("heading", { name: "Moderatorlogin" })).toBeVisible();
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 });
+
+test("kontaktkøen sender en anonym bruger til privat login", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Auth-indgangen kontrolleres i én browserprofil.");
+
+  await page.goto("/admin/kontakt");
+
+  await expect(page).toHaveURL(/\/admin\/login$/);
+  await expect(page.getByRole("heading", { name: "Moderatorlogin" })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+});

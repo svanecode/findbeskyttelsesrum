@@ -3,12 +3,14 @@ import {
   getAppV2PublicDataRevision,
   getAppV2PublicDataStats,
 } from "@/lib/supabase/app-v2-queries";
+import { getOperationalHealth } from "@/lib/operations/operational-health";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const defaultMaximumDataAgeHours = 48;
 const defaultMinimumPublicRegistrations = 500;
+const defaultMaximumOperationalAgeMinutes = 90;
 
 function positiveNumber(value: string | undefined, fallback: number) {
   const parsed = Number(value);
@@ -39,6 +41,10 @@ export async function GET() {
     process.env.HEALTH_MIN_PUBLIC_REGISTRATIONS,
     defaultMinimumPublicRegistrations,
   );
+  const maximumOperationalAgeMinutes = positiveNumber(
+    process.env.HEALTH_MAX_OPERATION_AGE_MINUTES,
+    defaultMaximumOperationalAgeMinutes,
+  );
   const application = {
     gitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
     deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? null,
@@ -47,10 +53,11 @@ export async function GET() {
   };
 
   try {
-    const [stats, publication, dataRevision] = await Promise.all([
+    const [stats, publication, dataRevision, operationalHealth] = await Promise.all([
       getAppV2PublicDataStats(),
       getAppV2CurrentDatasetPublication(),
       getAppV2PublicDataRevision(),
+      getOperationalHealth(maximumOperationalAgeMinutes),
     ]);
     const shelterCount = stats.publicRegistrations;
     const latestImportedAt = stats.latestPublicImportAt;
@@ -73,6 +80,16 @@ export async function GET() {
     }
     if (dataRevision.publicationId !== (publication?.publicationId ?? null)) {
       degradationReasons.push("public_revision_publication_mismatch");
+    }
+    if (!operationalHealth.heartbeatFound) {
+      degradationReasons.push("trusted_operational_heartbeat_missing");
+    } else {
+      if (operationalHealth.status !== "ok") {
+        degradationReasons.push("trusted_operational_heartbeat_not_ok");
+      }
+      if (!operationalHealth.isFresh) {
+        degradationReasons.push("trusted_operational_heartbeat_is_stale");
+      }
     }
     if (application.environment === "production") {
       if (!application.gitSha) degradationReasons.push("production_git_sha_missing");
@@ -105,6 +122,7 @@ export async function GET() {
         latestImportedAt,
         dataAgeHours,
       },
+      operations: operationalHealth,
     };
 
     return healthResponse(body, status === "ok" ? 200 : 503);
