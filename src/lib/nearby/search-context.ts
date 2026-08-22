@@ -1,6 +1,7 @@
 export const nearbySearchStorageKey = "findbeskyttelsesrum.nearby-search.v1";
 
-const nearbySearchMaxAgeMs = 12 * 60 * 60 * 1000;
+const nearbySearchMaxAgeMs = 60 * 60 * 1000;
+let volatileNearbySearchContext: NearbySearchContext | null = null;
 
 export type NearbySearchContext = {
   version: 1;
@@ -81,12 +82,16 @@ export function saveNearbySearchContext(input: NearbySearchInput) {
   const context = createNearbySearchContext(input);
   if (!context) return false;
 
+  // Keeps client-side navigation working when a strict browser blocks storage.
+  // This value exists only in the current JavaScript runtime and is lost on reload.
+  volatileNearbySearchContext = context;
+
   try {
     window.sessionStorage.setItem(nearbySearchStorageKey, JSON.stringify(context));
-    return true;
   } catch {
-    return false;
+    // The volatile fallback above is enough for the immediate result navigation.
   }
+  return true;
 }
 
 export function loadNearbySearchContext() {
@@ -94,14 +99,16 @@ export function loadNearbySearchContext() {
 
   try {
     const raw = window.sessionStorage.getItem(nearbySearchStorageKey);
-    if (!raw) return null;
+    if (!raw) return parseNearbySearchContext(volatileNearbySearchContext);
 
     const parsed = parseNearbySearchContext(JSON.parse(raw));
     if (!parsed) {
       window.sessionStorage.removeItem(nearbySearchStorageKey);
+      return parseNearbySearchContext(volatileNearbySearchContext);
     }
+    volatileNearbySearchContext = parsed;
     return parsed;
   } catch {
-    return null;
+    return parseNearbySearchContext(volatileNearbySearchContext);
   }
 }

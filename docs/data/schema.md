@@ -21,6 +21,7 @@ The live application and importer use `app_v2`. Anonymous reads are limited to e
 - `application_code_eligibility`: explicit BBR usage-code allowlist.
 - `rate_limit_buckets`: short-lived HMAC-keyed API rate limits without raw client addresses.
 - `product_metrics_hourly`: private hourly counters for a fixed event allowlist, without user or location fields.
+- `operational_heartbeats`: private service-written production heartbeats, separated from untrusted browser metrics.
 - `municipality_summary_public_v1`: small RLS-protected aggregate refreshed in the same transaction as public-data changes.
 - `public_data_revisions`: private monotonic cache revision linked to the current dataset publication.
 
@@ -38,6 +39,9 @@ The app reads `shelter_public_v2`, `country_marker_public_v2`, `sitemap_shelter_
 - `record_product_metric_v1`: service-only atomic increment of a privacy-safe hourly counter.
 - `get_product_metrics_summary_v1`: service-only aggregate for the MFA-protected operations view.
 - `get_product_metrics_health_v1`: service-only short-window aggregate for scheduled alerts.
+- `record_operational_heartbeat_v1`: service-only trusted heartbeat writer.
+- `get_operational_health_v1`: service-only semantic heartbeat status for `/api/health`.
+- `redact_expired_personal_data_v1`: daily bounded-retention cleanup for reports, audit, metrics, and heartbeats.
 - `finalize_datafordeler_import`: retained as a denied legacy compatibility signature that always raises.
 
 ## Access boundary

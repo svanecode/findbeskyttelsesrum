@@ -33,23 +33,17 @@ if (!response.ok) {
 const payload = await response.json();
 const eventCount = Number(payload?.eventCount);
 const errorCount = Number(payload?.errorCount);
-const heartbeatCount = Number(payload?.heartbeatCount);
 
 if (
   !Number.isSafeInteger(eventCount)
   || eventCount < 0
   || !Number.isSafeInteger(errorCount)
   || errorCount < 0
-  || !Number.isSafeInteger(heartbeatCount)
-  || heartbeatCount < 0
 ) {
   throw new Error("Den private målingskontrol returnerede en ugyldig kontrakt.");
-}
-if (heartbeatCount < 1) {
-  throw new Error(`Produktionskontrollens heartbeat mangler i det seneste vindue på ${windowHours} timer.`);
 }
 if (errorCount > maximumErrors) {
   throw new Error(`${errorCount} tekniske fejl er registreret på ${windowHours} timer; grænsen er ${maximumErrors}.`);
 }
 
-console.log(`PASS  Anonyme driftstal — ${eventCount} hændelser, ${heartbeatCount} heartbeat og ${errorCount} fejl på ${windowHours} timer.`);
+console.log(`PASS  Ubetroede produktmålinger — ${eventCount} hændelser og ${errorCount} fejl på ${windowHours} timer.`);

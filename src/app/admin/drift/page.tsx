@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { requireModerator } from "@/lib/moderation/auth";
+import { getOperationalHealth } from "@/lib/operations/operational-health";
 import { getImportOperations, type ImportPublication, type ImportRun } from "@/lib/operations/import-operations";
 import { getProductMetricSummary } from "@/lib/analytics/product-metrics-server";
 
@@ -63,9 +64,10 @@ export default async function AdminOperationsPage({
   searchParams: Promise<{ restored?: string; error?: string }>;
 }) {
   const { profile, supabase } = await requireModerator(true);
-  const [operations, productMetrics, params] = await Promise.all([
+  const [operations, productMetrics, operationalHealth, params] = await Promise.all([
     getImportOperations(supabase),
     getProductMetricSummary(30).catch(() => []),
+    getOperationalHealth().catch(() => null),
     searchParams,
   ]);
   const current = operations.currentPublication;
@@ -136,7 +138,28 @@ export default async function AdminOperationsPage({
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Kommuner</dt><dd className="mt-1 text-2xl font-semibold">{countFormat.format(current?.municipalityCount ?? 0)}</dd></div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">BBR→DAR-kobling</dt><dd className="mt-1 text-2xl font-semibold">{currentMappingCoverage === null ? "—" : `${currentMappingCoverage.toLocaleString("da-DK", { maximumFractionDigits: 3 })}%`}</dd></div>
           </dl>
-          <p className="mt-4 text-xs leading-5 text-gray-500">Driften bruger kun den eksisterende Supabase-database og GitHub Actions; der er ikke tilføjet en betalt tjeneste.</p>
+          <p className="mt-4 text-xs leading-5 text-gray-500">Driften bruger kun gratis funktioner i den eksisterende Supabase-database, GitHub Actions og den eksterne uptime-kontrol.</p>
+        </section>
+
+        <section className="mt-8 rounded-xl border border-white/10 bg-white/[0.04] p-5 sm:p-6" aria-labelledby="monitoring-heading">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-violet-300">Uafhængig driftskontrol</p>
+              <h2 id="monitoring-heading" className="mt-2 text-2xl font-semibold">Produktionsheartbeat</h2>
+            </div>
+            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${operationalHealth?.isFresh ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100" : "border-amber-400/30 bg-amber-500/10 text-amber-100"}`}>
+              {operationalHealth?.isFresh ? "Aktuelt" : "Kræver opmærksomhed"}
+            </span>
+          </div>
+          <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Seneste kontrol</dt><dd className="mt-1 text-lg font-semibold">{formatDate(operationalHealth?.checkedAt ?? null)}</dd></div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Alder</dt><dd className="mt-1 text-lg font-semibold">{operationalHealth?.ageMinutes === null || operationalHealth?.ageMinutes === undefined ? "—" : `${operationalHealth.ageMinutes.toLocaleString("da-DK", { maximumFractionDigits: 1 })} min.`}</dd></div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Kilde</dt><dd className="mt-1 text-lg font-semibold">{operationalHealth?.source === "github-production-smoke" ? "GitHub produktionskontrol" : operationalHealth?.source === "manual-release" ? "Manuel releasekontrol" : "—"}</dd></div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Git-version</dt><dd className="mt-1 font-mono text-sm font-semibold">{operationalHealth?.gitSha?.slice(0, 12) ?? "—"}</dd></div>
+          </dl>
+          <p className="mt-4 text-xs leading-5 text-gray-500">
+            Kun den betroede serverbaserede produktionskontrol kan oprette heartbeat. Besøgendes produktmålinger kan ikke holde driftsstatus kunstigt grøn.
+          </p>
         </section>
 
         <section className="mt-8 rounded-xl border border-white/10 bg-white/[0.04] p-5 sm:p-6" aria-labelledby="usage-heading">

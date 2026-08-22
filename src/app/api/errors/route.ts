@@ -1,97 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { consumeDistributedRateLimit } from '@/lib/distributed-rate-limit'
+import { parseAndSanitizeClientErrorReport } from '@/lib/errors/sanitize-client-error'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordProductMetricServer } from '@/lib/analytics/product-metrics-server'
 
 export const runtime = 'nodejs'
 
-const MAX_BODY_CHARS = 48_000
-const MAX_MESSAGE = 4_000
-const MAX_STACK = 12_000
-const MAX_URL = 2_048
-const MAX_USER_AGENT = 512
-const MAX_CONTEXT_JSON = 8_000
+const maximumBodyBytes = 48_000
 
-interface ErrorReport {
-  message: string
-  stack?: string
-  url: string
-  userAgent: string
-  timestamp: string
-  userId?: string
-  context?: Record<string, unknown>
-}
+function isSameOrigin(request: NextRequest) {
+  const origin = request.headers.get('origin')
+  if (!origin) return true
 
-function truncate(value: string, max: number) {
-  if (value.length <= max) return value
-  return `${value.slice(0, max)}…[truncated]`
-}
-
-function stripUrlQuery(value: string) {
   try {
-    const url = new URL(value)
-    return `${url.origin}${url.pathname}`
+    return new URL(origin).host === request.nextUrl.host
   } catch {
-    return value.split(/[?#]/, 1)[0] ?? ''
+    return false
   }
 }
 
-function sanitizeReport(raw: ErrorReport): ErrorReport {
-  return {
-    message: truncate(String(raw.message), MAX_MESSAGE),
-    stack: raw.stack !== undefined ? truncate(String(raw.stack), MAX_STACK) : undefined,
-    url: truncate(stripUrlQuery(String(raw.url ?? '')), MAX_URL),
-    userAgent: truncate(String(raw.userAgent ?? ''), MAX_USER_AGENT),
-    timestamp: String(raw.timestamp),
-    userId: raw.userId !== undefined ? truncate(String(raw.userId), 256) : undefined,
-    context: sanitizeContext(raw.context),
-  }
-}
-
-function sanitizeContext(context: Record<string, unknown> | undefined) {
-  if (!context || typeof context !== 'object') return undefined
-  try {
-    const json = JSON.stringify(context, (key, value) => {
-      if (/^(lat|latitude|lng|lon|longitude|coordinates?|location)$/i.test(key)) return '[redacted]'
-      if (typeof value === 'string' && /^https?:\/\//i.test(value)) return stripUrlQuery(value)
-      return value
-    })
-    if (json.length <= MAX_CONTEXT_JSON) {
-      return JSON.parse(json) as Record<string, unknown>
-    }
-    return { _truncated: truncate(json, MAX_CONTEXT_JSON) } as Record<string, unknown>
-  } catch {
-    return { _error: 'context_not_serializable' }
-  }
-}
-
-async function forwardToWebhook(payload: ErrorReport) {
-  const url = process.env.ERROR_WEBHOOK_URL
-  if (!url || typeof url !== 'string') return
-
-  const controller = new AbortController()
-  const t = setTimeout(() => controller.abort(), 5_000)
-  try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
-  } catch {
-    // Avoid throwing from logging path
-  } finally {
-    clearTimeout(t)
-  }
+function privateResponse(body: Record<string, unknown>, status: number) {
+  return NextResponse.json(body, {
+    status,
+    headers: { 'Cache-Control': 'private, no-store' },
+  })
 }
 
 export async function POST(request: NextRequest) {
+  if (!isSameOrigin(request)) {
+    return privateResponse({ error: 'Forbidden' }, 403)
+  }
+
   if (!rateLimit(request, { maxRequests: 40, windowMs: 60_000 }, 'client-errors')) {
-    return NextResponse.json(
-      { error: 'Too many requests' },
-      { status: 429, headers: { 'Retry-After': '60', 'Cache-Control': 'private, no-store' } },
-    )
+    const response = privateResponse({ error: 'Too many requests' }, 429)
+    response.headers.set('Retry-After', '60')
+    return response
   }
 
   const sharedLimit = await consumeDistributedRateLimit(
@@ -100,57 +44,45 @@ export async function POST(request: NextRequest) {
     'client-errors',
   )
   if (!sharedLimit.allowed) {
-    return NextResponse.json(
-      { error: 'For mange fejlrapporter på kort tid' },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': String(sharedLimit.retryAfterSeconds),
-          'Cache-Control': 'private, no-store',
-        },
-      },
-    )
+    const response = privateResponse({ error: 'For mange fejlrapporter på kort tid' }, 429)
+    response.headers.set('Retry-After', String(sharedLimit.retryAfterSeconds))
+    return response
   }
 
   try {
+    const declaredLength = Number(request.headers.get('content-length'))
+    if (Number.isFinite(declaredLength) && declaredLength > maximumBodyBytes) {
+      return privateResponse({ error: 'Payload too large' }, 413)
+    }
+
     const rawText = await request.text()
-    if (rawText.length > MAX_BODY_CHARS) {
-      return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
+    if (new TextEncoder().encode(rawText).byteLength > maximumBodyBytes) {
+      return privateResponse({ error: 'Payload too large' }, 413)
     }
 
     let parsed: unknown
     try {
-      parsed = JSON.parse(rawText) as ErrorReport
+      parsed = JSON.parse(rawText) as unknown
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+      return privateResponse({ error: 'Invalid JSON' }, 400)
     }
 
-    if (!parsed || typeof parsed !== 'object') {
-      return NextResponse.json({ error: 'Invalid error report' }, { status: 400 })
-    }
-
-    const incoming = parsed as ErrorReport
-    if (!incoming.message || !incoming.timestamp) {
-      return NextResponse.json({ error: 'Invalid error report' }, { status: 400 })
-    }
-
-    const errorReport = sanitizeReport(incoming)
+    const errorReport = parseAndSanitizeClientErrorReport(parsed)
+    if (!errorReport) return privateResponse({ error: 'Invalid error report' }, 400)
 
     console.error('[CLIENT_ERROR]', {
       message: errorReport.message,
       url: errorReport.url,
       timestamp: errorReport.timestamp,
-      userAgent: errorReport.userAgent,
       context: errorReport.context,
       stack: errorReport.stack,
     })
 
-    await forwardToWebhook(errorReport)
     await recordProductMetricServer('client_error')
 
-    return NextResponse.json({ success: true }, { headers: { 'Cache-Control': 'private, no-store' } })
+    return privateResponse({ success: true }, 200)
   } catch (error) {
-    console.error('Error in error tracking endpoint:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error in error tracking endpoint:', error instanceof Error ? error.name : 'unknown')
+    return privateResponse({ error: 'Internal server error' }, 500)
   }
 }

@@ -2,6 +2,7 @@ const baseUrl = (process.env.SMOKE_BASE_URL ?? "https://findbeskyttelsesrum.dk")
 const maximumImportAgeHours = Number(process.env.SMOKE_MAX_IMPORT_AGE_HOURS ?? "72");
 const requestTimeoutMs = Number(process.env.SMOKE_REQUEST_TIMEOUT_MS ?? "15000");
 const expectedGitSha = process.env.SMOKE_EXPECTED_GIT_SHA?.trim() || null;
+const allowStaleOperationalHeartbeat = process.env.SMOKE_ALLOW_STALE_OPERATIONAL_HEARTBEAT === "true";
 let currentPublicDataRevision = null;
 
 if (!Number.isFinite(maximumImportAgeHours) || maximumImportAgeHours <= 0) {
@@ -72,11 +73,21 @@ const checks = [
   {
     name: "Database og datafriskhed",
     run: async () => {
-      const response = await requireOk(await request(`${baseUrl}/api/health`), "Sundhedstjekket");
+      const response = await request(`${baseUrl}/api/health`);
+      if (response.status !== 200 && response.status !== 503) {
+        throw new Error(`Sundhedstjekket svarede med HTTP ${response.status}.`);
+      }
       const payload = await response.json();
       const age = payload?.database?.dataAgeHours;
       const count = payload?.database?.shelterCount;
-      if (payload?.status !== "ok" || !Number.isFinite(age) || !Number.isFinite(count) || count < 1) {
+      const degradationReasons = Array.isArray(payload?.degradationReasons)
+        ? payload.degradationReasons.filter((reason) => typeof reason === "string")
+        : [];
+      const onlyOperationalHeartbeatIsDegraded = degradationReasons.length > 0
+        && degradationReasons.every((reason) => reason.startsWith("trusted_operational_heartbeat_"));
+      const acceptedStatus = payload?.status === "ok"
+        || (allowStaleOperationalHeartbeat && payload?.status === "degraded" && onlyOperationalHeartbeatIsDegraded);
+      if (!acceptedStatus || !Number.isFinite(age) || !Number.isFinite(count) || count < 1) {
         throw new Error("Sundhedstjekket returnerede ufuldstændige data.");
       }
       if (age > maximumImportAgeHours) {
@@ -99,7 +110,10 @@ const checks = [
       if (!payload?.application?.deploymentId || !payload?.application?.builtAt) {
         throw new Error("Sundhedstjekket mangler deployment-ID eller byggetidspunkt.");
       }
-      return `${count.toLocaleString("da-DK")} registreringer, ${deployedGitSha.slice(0, 7)}, dataalder ${age} timer`;
+      const operationalDetail = payload?.operations?.isFresh === true
+        ? "betroet heartbeat er frisk"
+        : "betroet heartbeat genoprettes af denne kørsel";
+      return `${count.toLocaleString("da-DK")} registreringer, ${deployedGitSha.slice(0, 7)}, dataalder ${age} timer, ${operationalDetail}`;
     },
   },
   {
@@ -213,15 +227,24 @@ const checks = [
   {
     name: "Anonym målingskanal",
     run: async () => {
-      const response = await request(`${baseUrl}/api/metrics`, {
+      const accepted = await request(`${baseUrl}/api/metrics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventName: "data_explanation_opened" }),
+      });
+      if (accepted.status !== 202) {
+        throw new Error(`Målingskanalen skulle svare 202, men svarede ${accepted.status}.`);
+      }
+
+      const forgedHeartbeat = await request(`${baseUrl}/api/metrics`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventName: "monitor_heartbeat" }),
       });
-      if (response.status !== 202) {
-        throw new Error(`Målingskanalen skulle svare 202, men svarede ${response.status}.`);
+      if (forgedHeartbeat.status !== 400) {
+        throw new Error(`Et klient-heartbeat skulle afvises med 400, men svarede ${forgedHeartbeat.status}.`);
       }
-      return "Privat, stedfri heartbeat blev registreret";
+      return "produktmåling accepteret, klient-heartbeat afvist";
     },
   },
 ];

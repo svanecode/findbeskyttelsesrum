@@ -16,7 +16,6 @@ export const productMetricEventNames = [
   "report_error",
   "client_error",
   "data_explanation_opened",
-  "monitor_heartbeat",
 ] as const;
 
 export type ProductMetricEventName = (typeof productMetricEventNames)[number];

@@ -28,7 +28,16 @@ jobs:
       - name: Kør syntetiske kontroller
         env:
           SMOKE_EXPECTED_GIT_SHA: ${{ github.sha }}
+          SMOKE_ALLOW_STALE_OPERATIONAL_HEARTBEAT: "true"
         run: node scripts/monitor/production-smoke.mjs
+      - name: Registrér betroet driftsheartbeat
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          OPERATION_HEARTBEAT_SOURCE: github-production-smoke
+          OPERATION_HEARTBEAT_RUN_ID: github-${{ github.run_id }}-${{ github.run_attempt }}
+          OPERATION_HEARTBEAT_GIT_SHA: ${{ github.sha }}
+        run: node scripts/monitor/record-trusted-heartbeat.mjs
       - name: Kontrollér anonyme driftstal
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}

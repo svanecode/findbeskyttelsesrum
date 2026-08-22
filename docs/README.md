@@ -21,5 +21,8 @@ Den konkrete Python-opsætning og lokale kommandoer findes i [importerens README
 - [`qa/emergency-utility-checklist.md`](qa/emergency-utility-checklist.md) er den genbrugelige QA-tjekliste.
 - [`qa/emergency-utility-review.md`](qa/emergency-utility-review.md) og [`qa/emergency-hardening-release-summary.md`](qa/emergency-hardening-release-summary.md) dokumenterer den seneste samlede gennemgang.
 - [`qa/free-observability.md`](qa/free-observability.md) beskriver gratis produktionskontrol, privatlivsvenlige målinger og de accepterede databaseadvarsler.
+- [`operations/external-monitoring.md`](operations/external-monitoring.md) beskriver den gratis, uafhængige dead-man monitor.
+- [`operations/mfa-recovery-and-secret-rotation.md`](operations/mfa-recovery-and-secret-rotation.md) er runbook for lockout, kompromittering og nøgleudskiftning.
+- [`privacy/retention.md`](privacy/retention.md) fastlægger de automatiske opbevaringsfrister.
 
 Den korte release- og driftsprocedure står i [hoved-README'en](../README.md#drift-og-administration).

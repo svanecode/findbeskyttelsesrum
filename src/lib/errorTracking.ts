@@ -4,10 +4,8 @@ interface ErrorReport {
   message: string
   stack?: string
   url: string
-  userAgent: string
   timestamp: string
-  userId?: string
-  context?: Record<string, any>
+  context?: Record<string, unknown>
 }
 
 function getPagePath() {
@@ -18,7 +16,7 @@ class ErrorTracker {
   private endpoint = '/api/errors'
   private isProduction = process.env.NODE_ENV === 'production'
 
-  public captureError(error: Error, context?: Record<string, any>) {
+  public captureError(error: Error, context?: Record<string, unknown>) {
     if (!this.isProduction) {
       console.error('Error captured:', error, context)
       return
@@ -28,16 +26,15 @@ class ErrorTracker {
       message: error.message,
       stack: error.stack,
       url: getPagePath(),
-      userAgent: navigator.userAgent,
       timestamp: new Date().toISOString(),
       context
     }
 
     // Send to error tracking service
-    this.sendErrorReport(errorReport)
+    void this.sendErrorReport(errorReport)
   }
 
-  public captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info', context?: Record<string, any>) {
+  public captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info', context?: Record<string, unknown>) {
     if (!this.isProduction && level === 'error') {
       console.error('Message captured:', message, context)
       return
@@ -46,12 +43,11 @@ class ErrorTracker {
     const errorReport: ErrorReport = {
       message: `[${level.toUpperCase()}] ${message}`,
       url: getPagePath(),
-      userAgent: navigator.userAgent,
       timestamp: new Date().toISOString(),
       context
     }
 
-    this.sendErrorReport(errorReport)
+    void this.sendErrorReport(errorReport)
   }
 
   private async sendErrorReport(report: ErrorReport) {
@@ -72,12 +68,6 @@ class ErrorTracker {
     }
   }
 
-  public setContext(context: Record<string, any>) {
-    // Store context for future errors
-    if (typeof window !== 'undefined') {
-      window.__errorContext = { ...window.__errorContext, ...context }
-    }
-  }
 }
 
 // Create global instance
@@ -99,11 +89,4 @@ if (typeof window !== 'undefined') {
       { type: 'unhandledrejection' }
     )
   })
-}
-
-// Extend window type for context
-declare global {
-  interface Window {
-    __errorContext?: Record<string, any>
-  }
 }
