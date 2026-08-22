@@ -50,6 +50,7 @@ export default defineConfig({
         env: {
           ...process.env,
           NEXT_TELEMETRY_DISABLED: "1",
+          PLAYWRIGHT_HTTP_ORIGIN: "1",
         },
       }
     : undefined,
