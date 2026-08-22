@@ -13,6 +13,7 @@ En registrering er ikke en garanti for offentlig adgang, klargøring eller aktue
 - landskort og lokale kort med Leaflet og OpenStreetMap;
 - kommune- og registreringssider med forklaring af datagrundlaget;
 - privat fejlrapportering med moderationskø;
+- mailfri kontakt- og svarportal med privat sagskø og engangsvisning af adgangskode;
 - GitHub-login, tilladelsesliste og MFA til administration;
 - daglig BBR/DAR-import med staging, kvalitetskontrol, atomisk publicering og rollback;
 - transaktionelt opdaterede kommuneaggregater og versionsbundet kortcache;
@@ -115,6 +116,7 @@ Kør ikke migrationsfiler direkte én efter én uden migrationshistorik. Kontrol
 ## Drift og administration
 
 - `/admin` er den beskyttede indgang til moderation og drift.
+- `/admin/kontakt` er den private kø til kontakt- og persondatahenvendelser; svar læses med sagsnummer og adgangskode uden e-mail.
 - Administratorer logger ind gennem GitHub OAuth, skal være på tilladelseslisten og skal gennemføre MFA.
 - `/admin/drift` viser importer, kvalitetskontroller, aktivt datasæt, rollback og 30 dages aggregerede driftstal.
 - `/api/health` viser deployet Git SHA, deployment-ID, byggetid, publication-ID, offentlig datarevision, import-run-ID og dataalder. Gamle eller inkonsistente data giver `503 degraded`.

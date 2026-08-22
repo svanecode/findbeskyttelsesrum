@@ -351,11 +351,14 @@ test("private data operations reauthorize rollback and require owner confirmatio
   assert.doesNotMatch(operationsPage, /SUPABASE_SECRET_KEY/);
 });
 
-test("privacy copy documents bounded report and audit retention", async () => {
+test("privacy copy documents mail-free contact and bounded retention", async () => {
   const privacyPage = await readFile(privacyPageUrl, "utf8");
 
-  assert.match(privacyPage, /Kontaktmail slettes/);
-  assert.match(privacyPage, /senest efter 90 dage/);
+  assert.match(privacyPage, /Der indsamles ikke navn eller e-mailadresse/);
+  assert.match(privacyPage, /sagsnummer og en tilfældig adgangskode/);
+  assert.match(privacyPage, /SHA-256-kontrolværdi/);
+  assert.match(privacyPage, /højst 12 måneder efter lukningen/);
   assert.match(privacyPage, /fritekstnote redigeres senest 24 måneder/);
   assert.match(privacyPage, /auditspor slettes efter 5 år/);
+  assert.doesNotMatch(privacyPage, /mailto:/);
 });

@@ -46,14 +46,13 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
     const form = new FormData(event.currentTarget)
     const reportType = form.get('reportType') as ShelterReportType
     const message = String(form.get('message') ?? '')
-    const contactEmail = String(form.get('contactEmail') ?? '')
     const website = String(form.get('website') ?? '')
 
     try {
       const response = await fetch('/api/app-v2/shelter-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shelterId, reportType, message, contactEmail, website }),
+        body: JSON.stringify({ shelterId, reportType, message, website }),
       })
       const result = (await response.json()) as { success?: boolean; error?: string }
 
@@ -144,28 +143,13 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
             />
           </div>
 
-          <div>
-            <label htmlFor="shelter-report-email" className="block text-sm font-medium text-gray-200">
-              E-mail <span className="font-normal text-gray-400">(valgfri)</span>
-            </label>
-            <input
-              id="shelter-report-email"
-              name="contactEmail"
-              type="email"
-              autoComplete="email"
-              maxLength={254}
-              className={`mt-2 ${ui.input}`}
-              placeholder="Hvis vi må kontakte dig om rapporten"
-            />
-          </div>
-
           <div className="sr-only" aria-hidden="true">
             <label htmlFor="shelter-report-website">Websted</label>
             <input id="shelter-report-website" name="website" tabIndex={-1} autoComplete="off" />
           </div>
 
           <p className="text-xs leading-5 text-gray-400">
-            Undlad CPR-nummer og andre følsomme oplysninger. En rapport ændrer ikke data automatisk.
+            Der indsamles ikke navn eller e-mail. Undlad CPR-nummer og andre følsomme oplysninger. En rapport ændrer ikke data automatisk.
           </p>
 
           {error ? <p className="text-sm text-red-200" role="alert">{error}</p> : null}

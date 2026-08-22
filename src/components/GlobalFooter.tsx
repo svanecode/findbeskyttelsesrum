@@ -3,6 +3,7 @@ import Link from 'next/link'
 const FOOTER_NAV = [
   { href: '/om-data', label: 'Datagrundlag' },
   { href: '/privatliv', label: 'Privatliv' },
+  { href: '/kontakt', label: 'Kontakt' },
   { href: '/om-data#rapportering', label: 'Rapportér fejl' },
 ] as const
 

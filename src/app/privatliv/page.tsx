@@ -47,15 +47,11 @@ export default function PrivacyPage() {
                   <dd>{controller.address}</dd>
                 </>
               ) : null}
-              <dt className="text-gray-400">E-mail</dt>
+              <dt className="text-gray-400">Kontakt</dt>
               <dd>
-                {controller.email ? (
-                  <a className="underline underline-offset-4 hover:text-orange-200" href={`mailto:${controller.email}`}>
-                    {controller.email}
-                  </a>
-                ) : (
-                  <span className="text-gray-400">Kontaktmail vises i produktionsmiljøet.</span>
-                )}
+                <Link className="underline underline-offset-4 hover:text-orange-200" href="/kontakt">
+                  Privat kontakt- og svarportal
+                </Link>
               </dd>
             </dl>
           </section>
@@ -115,12 +111,11 @@ export default function PrivacyPage() {
           <section className={sectionClassName} aria-labelledby="reports-heading">
             <h2 id="reports-heading" className="text-lg font-semibold">Fejlrapporter om registreringer</h2>
             <p className={paragraphClassName}>
-              En rapport indeholder den valgte kategori, din beskrivelse og kun en e-mailadresse, hvis du selv vælger at
-              oplyse den. Rapporten gemmes i en privat moderationskø med auditspor og ændrer aldrig offentlige data
-              automatisk. Undlad CPR-nummer, helbredsoplysninger og andre følsomme oplysninger i friteksten.
+              En rapport indeholder den valgte kategori og din beskrivelse. Der indsamles ikke navn eller e-mailadresse.
+              Rapporten gemmes i en privat moderationskø med auditspor og ændrer aldrig offentlige data automatisk.
+              Undlad CPR-nummer, helbredsoplysninger og andre følsomme oplysninger i friteksten.
             </p>
             <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-gray-400">
-              <li>Kontaktmail slettes ved afslutning eller afvisning og senest efter 90 dage.</li>
               <li>Rapportens fritekst og moderatorens fritekstnote redigeres senest 24 måneder efter indsendelsen.</li>
               <li>Identificerende moderatoroplysninger i auditsporet redigeres efter 24 måneder.</li>
               <li>Det resterende strukturerede auditspor slettes efter 5 år.</li>
@@ -128,6 +123,26 @@ export default function PrivacyPage() {
             <p className={secondaryParagraphClassName}>
               Formålet er at undersøge og dokumentere datakorrektioner. Retsgrundlaget er den dataansvarliges legitime
               interesse i korrekte og ansvarligt modererede oplysninger efter artikel 6, stk. 1, litra f.
+            </p>
+          </section>
+
+          <section className={sectionClassName} aria-labelledby="contact-heading">
+            <h2 id="contact-heading" className="text-lg font-semibold">Kontakt og anmodninger om persondata</h2>
+            <p className={paragraphClassName}>
+              Kontaktformularen gemmer den valgte kategori, emnet og din besked i en privat databasekø. Der indsamles
+              ikke navn eller e-mailadresse. Ved indsendelsen får du et sagsnummer og en tilfældig adgangskode, som du
+              skal gemme for at kunne læse svar og sende opfølgninger.
+            </p>
+            <p className={secondaryParagraphClassName}>
+              Kun en SHA-256-kontrolværdi af adgangskoden gemmes. Den oprindelige adgangskode kan derfor ikke genskabes
+              fra databasen. Sagsindhold slettes senest 24 måneder efter seneste aktivitet. Når en sag lukkes, forkortes
+              fristen til højst 12 måneder efter lukningen. Auditsporet indeholder ikke beskedtekst eller adgangskode.
+            </p>
+            <p className={secondaryParagraphClassName}>
+              Formålet er at besvare henvendelser og håndtere anmodninger om rettigheder. Behandling af almindelige
+              henvendelser bygger på den dataansvarliges legitime interesse i at kunne drive og besvare spørgsmål om
+              tjenesten, jf. artikel 6, stk. 1, litra f. Når en henvendelse vedrører en retlig GDPR-forpligtelse,
+              behandles de nødvendige oplysninger for at overholde denne forpligtelse, jf. artikel 6, stk. 1, litra c.
             </p>
           </section>
 
@@ -144,7 +159,7 @@ export default function PrivacyPage() {
             <h2 id="recipients-heading" className="text-lg font-semibold">Modtagere og eksterne tjenester</h2>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-gray-300">
               <li>Vercel: hosting, sikkerhedslogs, Web Analytics og Speed Insights.</li>
-              <li>Supabase: database, private driftsdata og moderatorlogin/MFA.</li>
+              <li>Supabase: database, private kontakt- og moderationskøer, driftsdata og moderatorlogin/MFA.</li>
               <li>GitHub: kun moderatorlogin, automatiske driftskørsler og kodehosting.</li>
               <li>DAWA/Dataforsyningen: adresseforslag fra din browser.</li>
               <li>OpenStreetMap: kortfelter fra din browser, når et kort aktiveres.</li>
@@ -171,11 +186,9 @@ export default function PrivacyPage() {
               automatiske afgørelser eller profilering med retsvirkning for dig.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {controller.email ? (
-                <a href={`mailto:${controller.email}`} className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-white underline underline-offset-4 hover:bg-white/5">
-                  Kontakt den dataansvarlige
-                </a>
-              ) : null}
+              <Link href="/kontakt" className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-white underline underline-offset-4 hover:bg-white/5">
+                Kontakt den dataansvarlige
+              </Link>
               <a href="https://www.datatilsynet.dk/borger/klage/saadan-klager-du" className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-white underline underline-offset-4 hover:bg-white/5" rel="noreferrer">
                 Sådan klager du til Datatilsynet
               </a>

@@ -105,9 +105,14 @@ export default async function AdminOperationsPage({
               Data hentes først i karantæne og bliver kun publiceret samlet, når alle automatiske kontroller er bestået.
             </p>
           </div>
-          <Link href="/admin" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
-            Moderationskø
-          </Link>
+          <nav className="flex flex-wrap gap-2" aria-label="Administration">
+            <Link href="/admin" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
+              Fejlrapporter
+            </Link>
+            <Link href="/admin/kontakt" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
+              Kontaktkø
+            </Link>
+          </nav>
         </header>
 
         {params.restored ? (
