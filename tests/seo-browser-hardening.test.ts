@@ -88,6 +88,11 @@ test("production CSP narrows scripts and browser capabilities without breaking r
     environment: "development",
     supabaseOrigin: "https://example.supabase.co",
   });
+  const localHttpTest = contentSecurityPolicyValue({
+    environment: "production",
+    supabaseOrigin: "https://example.supabase.co",
+    upgradeInsecureRequests: false,
+  });
 
   assert.match(production, /script-src-attr 'none'/);
   assert.match(production, /media-src 'none'/);
@@ -96,6 +101,8 @@ test("production CSP narrows scripts and browser capabilities without breaking r
   assert.doesNotMatch(production, /https:\/\/\*\.vercel\.app/);
   assert.doesNotMatch(production, /(?:^|\s)wss?:/);
   assert.doesNotMatch(production, /connect-src[^;]*tile\.openstreetmap\.org/);
+  assert.match(production, /upgrade-insecure-requests/);
+  assert.doesNotMatch(localHttpTest, /upgrade-insecure-requests|block-all-mixed-content/);
   assert.match(development, /'unsafe-eval'/);
   assert.match(development, /(?:^|\s)ws:/);
   assert.match(development, /(?:^|\s)wss:/);

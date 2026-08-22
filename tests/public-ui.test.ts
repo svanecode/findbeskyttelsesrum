@@ -37,6 +37,9 @@ const adminMfaUrl = new URL("../src/app/admin/mfa/mfa-panel.tsx", import.meta.ur
 const authCallbackUrl = new URL("../src/app/auth/callback/route.ts", import.meta.url);
 const searchContextUrl = new URL("../src/lib/nearby/search-context.ts", import.meta.url);
 const errorSanitizerUrl = new URL("../src/lib/errors/sanitize-client-error.ts", import.meta.url);
+const publicUrlUrl = new URL("../src/lib/shelter-public-url.ts", import.meta.url);
+const playwrightConfigUrl = new URL("../playwright.config.ts", import.meta.url);
+const applicationQualityWorkflowUrl = new URL("../.github/workflows/application-quality.yml", import.meta.url);
 
 test("public shelter pages do not display internal review statuses", async () => {
   const publicUi = `${await readFile(detailPageUrl, "utf8")}\n${await readFile(nearbyPageUrl, "utf8")}`;
@@ -121,7 +124,9 @@ test("detail pages expose contact, moderated reporting and related registrations
   const reportApi = await readFile(reportApiUrl, "utf8");
 
   assert.match(detailPage, /Vis på kort/);
-  assert.match(detailPage, /Find kontakt til/);
+  assert.match(detailPage, /Find kommunen på Borger\.dk/);
+  assert.match(detailPage, /Andre registreringer i samme område/);
+  assert.doesNotMatch(detailPage, /Andre registreringer i nærheden/);
   assert.match(detailPage, /ReportShelterIssue/);
   assert.match(detailPage, /getAppV2PublicRelatedShelters/);
   assert.match(reportForm, /moderationskø/);
@@ -131,6 +136,44 @@ test("detail pages expose contact, moderated reporting and related registrations
   assert.match(reportApi, /consumeDistributedRateLimit/);
   assert.match(reportApi, /admin\.rpc\("submit_public_shelter_report"/);
   assert.doesNotMatch(reportApi, /\.from\("shelter_reports"\)\.insert/);
+});
+
+test("shelter detail routes resolve old URLs and redirect to one canonical identity", async () => {
+  const [detailPage, queries, publicUrl] = await Promise.all([
+    readFile(detailPageUrl, "utf8"),
+    readFile(appV2QueriesUrl, "utf8"),
+    readFile(publicUrlUrl, "utf8"),
+  ]);
+
+  assert.match(detailPage, /resolveAppV2PublicShelter/);
+  assert.match(detailPage, /permanentRedirect\(getShelterCanonicalPath\(shelter\.slug\)\)/);
+  assert.match(queries, /from\("shelter_slug_aliases"\)/);
+  assert.match(queries, /getStableShelterSlug/);
+  assert.match(publicUrl, /registrering-/);
+  assert.match(publicUrl, /encodeURIComponent\(slug\)/);
+});
+
+test("desktop map focus stays visible and the mobile sheet can close with focus return", async () => {
+  const nearbyPage = await readFile(nearbyPageUrl, "utf8");
+
+  assert.match(nearbyPage, /if \(!isDesktopMap\) mapTabRef\.current\?\.focus\(\)/);
+  assert.match(nearbyPage, /role=\{isDesktopMap \? undefined : 'tabpanel'\}/);
+  assert.match(nearbyPage, /Luk oplysninger/);
+  assert.match(nearbyPage, /closeSelectedShelter/);
+  assert.match(nearbyPage, /scrollWheelZoom=\{false\}/);
+});
+
+test("production build and Safari-compatible browser stories run before merge", async () => {
+  const [config, workflow] = await Promise.all([
+    readFile(playwrightConfigUrl, "utf8"),
+    readFile(applicationQualityWorkflowUrl, "utf8"),
+  ]);
+
+  assert.match(config, /name: "mobile-webkit"/);
+  assert.match(config, /devices\["iPhone 15"\]/);
+  assert.match(workflow, /playwright install --with-deps chromium webkit/);
+  assert.match(workflow, /supabase@2\.115\.0 test db supabase\/tests --local/);
+  assert.doesNotMatch(workflow, /if: github\.event_name != 'pull_request'/);
 });
 
 test("expensive public APIs use shared rate limits without globally limiting page requests", async () => {
@@ -204,6 +247,7 @@ test("the site is explicitly a browser-based online service rather than an offli
   assert.equal(manifest.display, "browser");
   assert.equal("orientation" in manifest, false);
   assert.doesNotMatch(layout, /appleWebApp/);
+  assert.doesNotMatch(layout, /twitter:[\s\S]*creator:/);
 });
 
 test("production CSP keeps only the free OSM tile host and required public services", async () => {

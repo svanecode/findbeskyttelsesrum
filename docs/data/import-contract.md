@@ -18,6 +18,7 @@ Each `ShelterRecord` must contain:
 
 - Candidate identity is unique by import run and canonical source reference.
 - Candidate slug is unique within one run.
+- The candidate slug is import metadata only; a database trigger derives the permanent public slug from the shelter UUID and prevents later source updates or rollbacks from changing it.
 - Municipality codes and Danish postcodes use four digits.
 - Latitude and longitude must either both be present or both be absent.
 - Only `service_role` can read or write candidate and snapshot tables.

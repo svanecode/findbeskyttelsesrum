@@ -17,6 +17,7 @@ function supabaseOriginForCsp() {
 export function contentSecurityPolicyValue({
   environment = process.env.NODE_ENV,
   supabaseOrigin = supabaseOriginForCsp(),
+  upgradeInsecureRequests = process.env.PLAYWRIGHT_HTTP_ORIGIN !== '1',
 } = {}) {
   const developmentConnections = environment === 'development' ? ['ws:', 'wss:'] : []
   const connectSrc = [
@@ -36,6 +37,10 @@ export function contentSecurityPolicyValue({
     'https://*.vercel-insights.com',
   ].join(' ')
 
+  const mixedContentDirectives = upgradeInsecureRequests
+    ? ['block-all-mixed-content', 'upgrade-insecure-requests']
+    : []
+
   return [
     "default-src 'self'",
     `script-src ${scriptSrc}`,
@@ -50,8 +55,7 @@ export function contentSecurityPolicyValue({
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    'block-all-mixed-content',
-    'upgrade-insecure-requests',
+    ...mixedContentDirectives,
     "manifest-src 'self'",
     "worker-src 'self'",
   ]

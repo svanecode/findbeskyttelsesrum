@@ -23,7 +23,7 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
     const normalizedQuery = query.trim().toLocaleLowerCase('da-DK')
     if (!normalizedQuery) return groups
     return groups.filter((group) =>
-      [group.addressLine1, group.postalCode, group.city, group.applicationCodeLabel ?? '']
+      [group.addressLine1, group.postalCode, group.city, ...group.applicationCodeLabels]
         .join(' ')
         .toLocaleLowerCase('da-DK')
         .includes(normalizedQuery),
@@ -140,7 +140,14 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
                   <span className="text-gray-400"> · </span>
                   {group.totalCapacity.toLocaleString('da-DK')} {group.totalCapacity === 1 ? 'registreret plads' : 'registrerede pladser'}
                 </p>
-                {group.applicationCodeLabel ? <p className="mt-1 text-sm text-gray-400">{group.applicationCodeLabel}</p> : null}
+                {group.applicationCodeLabels.length > 1 ? (
+                  <details className="mt-2 text-sm text-gray-400">
+                    <summary className="min-h-[44px] cursor-pointer py-2 font-medium text-gray-300">Flere registrerede bygningsanvendelser</summary>
+                    <ul className="list-disc space-y-1 pl-5">
+                      {group.applicationCodeLabels.map((label) => <li key={label}>{label}</li>)}
+                    </ul>
+                  </details>
+                ) : group.applicationCodeLabel ? <p className="mt-1 text-sm text-gray-400">{group.applicationCodeLabel}</p> : null}
                 <ul className="mt-3 space-y-2">
                   {group.shelters.map((shelter, index) => (
                     <li key={shelter.id}>

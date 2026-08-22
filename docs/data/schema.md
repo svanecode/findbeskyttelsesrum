@@ -8,6 +8,7 @@ The live application and importer use `app_v2`. Anonymous reads are limited to e
 
 - `municipalities`: code-backed municipality identity and public metadata.
 - `shelters`: stable canonical source rows and the current imported baseline.
+- `shelter_slug_aliases`: private redirect history from the address-based URLs that existed before permanent route identities.
 - `shelter_sources`: official provenance and last verification.
 - `import_runs`: checkpoints, BBR/DAR mapping counters, failures, publication result, and quality metrics.
 - `import_shelter_candidates`: private per-run quarantine, deleted after a terminal non-resumable result.
@@ -30,6 +31,8 @@ The live application and importer use `app_v2`. Anonymous reads are limited to e
 ## Public reads
 
 The app reads `shelter_public_v2`, `country_marker_public_v2`, `sitemap_shelter_public_v2`, `municipality_summary_public_v1`, the public statistics view, and bounded nearby/map RPCs. Public shelter rows must be active, published, capacity-eligible, application-code eligible, and not excluded. Active manual overrides take precedence at read time. Municipality and global public totals are served from the 98-row aggregate rather than rescanning all registrations on each request.
+
+Public shelter URLs use the immutable shelter UUID and never change with address or municipality data. The private alias table is resolved only by the server, and a former URL redirects only while its target still passes the public read boundary.
 
 ## Publication and operations functions
 

@@ -66,6 +66,10 @@ function formatBuildingUse(shelter: NearbyResultShelter) {
   return shelter.typeLabel?.trim() || null
 }
 
+function getBuildingUseLabels(shelter: NearbyResultShelter) {
+  return Array.from(new Set((shelter.typeLabels ?? []).map((label) => label.trim()).filter(Boolean)))
+}
+
 function getDetailSlug(shelter: NearbyResultShelter) {
   return shelter.representativeSlug ?? shelter.registrations?.[0]?.slug ?? null
 }
@@ -119,6 +123,8 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const listTabRef = useRef<HTMLButtonElement | null>(null)
   const mapTabRef = useRef<HTMLButtonElement | null>(null)
   const mapRef = useRef<any>(null)
+  const mapPanelRef = useRef<HTMLElement | null>(null)
+  const selectionReturnRef = useRef<HTMLElement | null>(null)
   const srMapSelectionClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const selectedShelter = useMemo(
@@ -199,13 +205,14 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
     })
   }, [])
 
-  const showShelterOnMap = useCallback((shelter: NearbyResultShelter) => {
+  const showShelterOnMap = useCallback((shelter: NearbyResultShelter, trigger: HTMLButtonElement) => {
+    selectionReturnRef.current = isDesktopMap ? trigger : mapTabRef.current
     setSelectedShelterId(shelter.id)
     setMobileView('map')
     trackProductMetric('map_opened')
     setSrMapSelection(`${getAddressLine(shelter)} er valgt og vist på kortet.`)
     requestAnimationFrame(() => {
-      mapTabRef.current?.focus()
+      if (!isDesktopMap) mapTabRef.current?.focus()
       mapRef.current?.invalidateSize({ animate: false })
       if (shelter.location) {
         mapRef.current?.setView(
@@ -215,6 +222,14 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         )
       }
     })
+  }, [isDesktopMap])
+
+  const closeSelectedShelter = useCallback(() => {
+    const selectedMarker = mapPanelRef.current?.querySelector<HTMLElement>('.shelter-marker-selected') ?? null
+    const returnTarget = selectionReturnRef.current ?? selectedMarker ?? mapTabRef.current
+    setSelectedShelterId(null)
+    selectionReturnRef.current = null
+    requestAnimationFrame(() => returnTarget?.focus())
   }, [])
 
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -289,7 +304,12 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         </div>
 
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-6">
-          <section id="nearby-list-panel" role="tabpanel" aria-labelledby="nearby-list-tab" className={`${mobileView === 'list' ? 'block' : 'hidden'} order-1 space-y-3 lg:block`}>
+          <section
+            id="nearby-list-panel"
+            role={isDesktopMap ? undefined : 'tabpanel'}
+            aria-labelledby={isDesktopMap ? undefined : 'nearby-list-tab'}
+            className={`${mobileView === 'list' ? 'block' : 'hidden'} order-1 space-y-3 lg:block`}
+          >
             <h2 id="nearby-results-heading" className="sr-only">Resultater sorteret efter afstand</h2>
 
             {loadError ? (
@@ -322,6 +342,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                 {shelters.map((shelter) => {
                   const detailSlug = getDetailSlug(shelter)
                   const buildingUse = formatBuildingUse(shelter)
+                  const buildingUseLabels = getBuildingUseLabels(shelter)
                   const registrations = shelter.registrations ?? []
                   const hasExtraDetails = Boolean(buildingUse) || registrations.length > 1
 
@@ -346,7 +367,14 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                         <details className="mt-3 border-t border-white/10 pt-3 text-sm">
                           <summary className="min-h-[44px] cursor-pointer py-2 font-medium text-gray-200">Flere registrerede oplysninger</summary>
                           <div className="pb-1 text-gray-300">
-                            {buildingUse ? <p>Bygningens anvendelse: {buildingUse}</p> : null}
+                            {buildingUseLabels.length > 1 ? (
+                              <div>
+                                <p>Flere registrerede bygningsanvendelser:</p>
+                                <ul className="mt-1 list-disc space-y-1 pl-5">
+                                  {buildingUseLabels.map((label) => <li key={label}>{label}</li>)}
+                                </ul>
+                              </div>
+                            ) : buildingUse ? <p>Bygningens anvendelse: {buildingUse}</p> : null}
                             {registrations.length > 1 ? (
                               <ul className="mt-2 space-y-1">
                                 {registrations.map((registration, index) => (
@@ -368,7 +396,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                         ) : (
                           <span className="inline-flex min-h-[44px] flex-1 items-center text-sm text-gray-400">Detaljeside er ikke tilgængelig</span>
                         )}
-                        {shelter.location ? <button type="button" onClick={() => showShelterOnMap(shelter)} className={`${ui.secondaryAction} flex-1`}>Vis på kort</button> : null}
+                        {shelter.location ? <button type="button" onClick={(event) => showShelterOnMap(shelter, event.currentTarget)} className={`${ui.secondaryAction} flex-1`}>Vis på kort</button> : null}
                       </div>
                     </article>
                   )
@@ -377,12 +405,19 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             )}
           </section>
 
-          <section id="nearby-map-panel" role="tabpanel" aria-labelledby="nearby-map-tab" className={`${mobileView === 'map' ? 'block' : 'hidden'} order-2 lg:block`} aria-label="Kort med din placering og BBR-registreringer i nærheden">
+          <section
+            ref={mapPanelRef}
+            id="nearby-map-panel"
+            role={isDesktopMap ? undefined : 'tabpanel'}
+            aria-labelledby={isDesktopMap ? undefined : 'nearby-map-tab'}
+            className={`${mobileView === 'map' ? 'block' : 'hidden'} order-2 lg:block`}
+            aria-label="Kort med din placering og BBR-registreringer i nærheden"
+          >
             <p id="nearby-map-keyboard-hint" className="sr-only">Brug resultatlisten til at vælge et sted eller åbne en detaljeside med tastatur.</p>
             <div className="relative h-[calc(100dvh-13rem)] min-h-[30rem] lg:sticky lg:top-24 lg:h-[min(600px,calc(100vh-8rem))] lg:min-h-[min(600px,calc(100vh-8rem))]" aria-describedby="nearby-map-keyboard-hint">
               <div className="absolute inset-0 overflow-hidden rounded-lg border border-white/10">
                 {shouldRenderMap ? (
-                  <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom>
+                  <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom={false}>
                     <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
                     <Marker position={[lat, lng]} icon={userLocationIcon} title="Din placering" alt="Din placering på kortet" />
                     {shelters.map((shelter) => shelter.location ? (
@@ -394,6 +429,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                         alt={`BBR-registrering ved ${getAddressLine(shelter)}`}
                         eventHandlers={{
                           click: () => {
+                            selectionReturnRef.current = null
                             setSelectedShelterId(shelter.id)
                             setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
                             if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -430,7 +466,12 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
 
               {selectedShelter ? (
                 <aside className="absolute inset-x-2 bottom-2 z-[700] max-h-[min(55dvh,24rem)] overflow-y-auto rounded-xl border border-white/15 bg-[var(--surface-elevated)] p-4 shadow-xl lg:hidden" aria-label="Valgt registrering">
-                  <h2 className="break-safe text-base font-semibold text-white">{getAddressLine(selectedShelter)}</h2>
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="break-safe text-base font-semibold text-white">{getAddressLine(selectedShelter)}</h2>
+                    <button type="button" onClick={closeSelectedShelter} className="-mr-2 -mt-2 inline-flex min-h-[44px] shrink-0 items-center rounded-lg px-2 text-sm font-medium text-gray-200 hover:bg-white/5 hover:text-white">
+                      Luk oplysninger
+                    </button>
+                  </div>
                   <p className="mt-1 text-sm text-gray-300">{getPostalLine(selectedShelter)}</p>
                   <p className="mt-2 font-semibold text-white">
                     {formatCapacity(selectedShelter.total_capacity)}

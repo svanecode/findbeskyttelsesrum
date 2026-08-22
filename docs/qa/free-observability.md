@@ -6,8 +6,9 @@ No paid analytics, map or error-tracking product is required.
 ## Pull request and release checks
 
 `.github/workflows/application-quality.yml` runs linting, TypeScript, unit/security contract tests, a fresh migration
-replay, and database integrity tests on every pull request without production credentials. Pushes to `main` additionally
-build the production app and run the complete Playwright browser story using existing GitHub repository secrets.
+replay, all database integrity tests, a production build and the complete Playwright browser story on every pull request.
+The browser gate covers desktop Chromium, mobile Chromium and iPhone-sized WebKit, and it repeats on pushes to `main`.
+The local HTTP test build disables only CSP's HTTPS-upgrade directives; ordinary production builds retain them.
 
 `.github/workflows/production-smoke.yml` checks the live homepage, public data health, DAWA, nearby results, the full
 national map boundary including Bornholm, municipality pages, detail pages and reporting validation twice per hour.
