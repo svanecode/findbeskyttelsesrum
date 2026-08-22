@@ -20,6 +20,7 @@ const privacyOperationsMigrationUrl = new URL(
 );
 const heartbeatMonitorUrl = new URL("../scripts/monitor/record-trusted-heartbeat.mjs", import.meta.url);
 const smokeWorkflowUrl = new URL("../.github/workflows/production-smoke.yml", import.meta.url);
+const operationalHealthUrl = new URL("../src/lib/operations/operational-health.ts", import.meta.url);
 
 test("product metric payloads accept only a fixed privacy-safe contract", () => {
   assert.deepEqual(parseProductMetricPayload({ eventName: "address_selected" }), {
@@ -40,11 +41,12 @@ test("product metric payloads accept only a fixed privacy-safe contract", () => 
 });
 
 test("trusted operational health is separate from browser product metrics", async () => {
-  const [migration, heartbeatMonitor, smokeWorkflow, client] = await Promise.all([
+  const [migration, heartbeatMonitor, smokeWorkflow, client, operationalHealth] = await Promise.all([
     readFile(privacyOperationsMigrationUrl, "utf8"),
     readFile(heartbeatMonitorUrl, "utf8"),
     readFile(smokeWorkflowUrl, "utf8"),
     readFile(clientUrl, "utf8"),
+    readFile(operationalHealthUrl, "utf8"),
   ]);
   const lowerSql = migration.toLowerCase();
 
@@ -59,6 +61,7 @@ test("trusted operational health is separate from browser product metrics", asyn
   assert.match(heartbeatMonitor, /record_operational_heartbeat_v1/);
   assert.match(smokeWorkflow, /Registrér betroet driftsheartbeat/);
   assert.match(smokeWorkflow, /SMOKE_ALLOW_STALE_OPERATIONAL_HEARTBEAT/);
+  assert.match(operationalHealth, /typeof value !== "number" && typeof value !== "string"/);
 });
 
 test("metrics stay private, aggregated and service-only", async () => {
