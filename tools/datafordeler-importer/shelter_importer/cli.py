@@ -22,6 +22,11 @@ def _parser() -> argparse.ArgumentParser:
         "--dry-run", action="store_true", help="Fetch and map without database access"
     )
     mode.add_argument("--write", action="store_true", help="Enable app_v2 database writes")
+    mode.add_argument(
+        "--finalize-latest",
+        action="store_true",
+        help="Retry publication of the latest durably completed staging run",
+    )
     parser.add_argument("--max-pages", type=int, help="Stop after this total BBR page number")
     parser.add_argument(
         "--resume-latest", action="store_true", help="Resume the latest failed write run"
@@ -46,8 +51,32 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
     try:
-        config = ImportConfig.from_env(require_database=args.write)
-        store = AppV2Store(config) if args.write else None
+        config = ImportConfig.from_env(
+            require_database=args.write or args.finalize_latest,
+            require_source=not args.finalize_latest,
+        )
+        store = AppV2Store(config) if args.write or args.finalize_latest else None
+        if args.finalize_latest:
+            assert store is not None
+            result = store.retry_latest_completed_publication()
+            if result.get("status") == "no_candidate":
+                raise ValueError("No completed failed Datafordeler publication was found")
+            if result.get("status") == "rejected":
+                raise PublicationRejectedError(result)
+            if result.get("status") != "published":
+                raise ValueError("Supabase publication recovery returned an invalid result")
+            payload = {
+                **result,
+                "dry_run": False,
+                "source_name": "datafordeler-bbr-dar",
+                "status": "succeeded",
+                "publication_status": "published",
+                "recovery_status": "published",
+            }
+            output = json.dumps(payload, indent=2, ensure_ascii=False)
+            print(output)
+            _write_summary(summary_path, payload)
+            return 0
         summary = Importer(config, store=store).run(
             dry_run=args.dry_run,
             max_pages=args.max_pages,

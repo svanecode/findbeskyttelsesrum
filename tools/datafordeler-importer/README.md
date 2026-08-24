@@ -10,6 +10,7 @@ håndteres fortsat separat.
 - En manuel kørsel er som standard en tørkørsel uden databaseadgang.
 - Kun en komplet, ucappet stagingkørsel kan publiceres eller markere poster som manglende.
 - Genoptagne kørsler kopierer det tidligere checkpointede stagingsæt og valideres samlet.
+- En fuldført kildescanning markeres eksplicit før publicering. Hvis kun publiceringstrinnet fejler, kan det komplette stagingsæt finaliseres uden en ny Datafordeler-scanning.
 - Kun teknisk fejlede kørsler med et reelt stagingsæt kan genoptages; kvalitetsafviste kørsler kan ikke vælges.
 - Afkortede, fejlede og afviste kørsler ændrer aldrig det offentlige datasæt.
 - Nye kilderækker starter `withheld` og publiceres kun eksplicit efter bestået BBR/DAR-kvalitetsgate.
@@ -46,9 +47,19 @@ GitHub-arbejdsgangen kører automatisk hver dag og kan også startes manuelt som
 tørkørsel. En manuel skrivning kræver den præcise produktionsbekræftelse, som
 arbejdsgangen viser.
 
+Hvis en komplet scanning er bevaret i staging efter en teknisk fejl i den
+atomiske publicering, kan den finaliseres uden Datafordeler-adgang:
+
+```bash
+uv run python sync_shelters_graphql.py --finalize-latest --summary import-summary.json
+```
+
+Kommandoen afviser delvise, kvalitetsafviste og tomme kørsler. I GitHub Actions
+vælges `finalize_latest`, og den normale produktionsbekræftelse kræves stadig.
+
 ## Miljøvariabler
 
-- `DATAFORDELER_API_KEY` kræves altid.
+- `DATAFORDELER_API_KEY` kræves ved tørkørsel, ny import og almindelig genoptagelse, men ikke ved `--finalize-latest`.
 - `SUPABASE_URL` og `SUPABASE_SECRET_KEY` kræves kun ved skrivning.
 - Efterkontrollerne i hovedprojektet bruger også
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.

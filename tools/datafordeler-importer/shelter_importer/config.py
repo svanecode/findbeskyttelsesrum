@@ -47,7 +47,12 @@ class ImportConfig:
     supabase_batch_size: int = 200
 
     @classmethod
-    def from_env(cls, *, require_database: bool) -> ImportConfig:
+    def from_env(
+        cls,
+        *,
+        require_database: bool,
+        require_source: bool = True,
+    ) -> ImportConfig:
         api_key = os.getenv("DATAFORDELER_API_KEY", "").strip()
         supabase_url = os.getenv("SUPABASE_URL", "").strip() or None
         secret_key = os.getenv("SUPABASE_SECRET_KEY", "").strip() or None
@@ -57,7 +62,7 @@ class ImportConfig:
             secret_key = os.getenv("SUPABASE_KEY", "").strip() or None
 
         missing: list[str] = []
-        if not api_key:
+        if require_source and not api_key:
             missing.append("DATAFORDELER_API_KEY")
         if require_database and not supabase_url:
             missing.append("SUPABASE_URL")

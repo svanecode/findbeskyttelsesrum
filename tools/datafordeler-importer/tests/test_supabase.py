@@ -4,7 +4,12 @@ import pytest
 from conftest import QueueSession, Response, shelter
 
 from shelter_importer.config import ImportConfig
-from shelter_importer.supabase import AppV2Store, PublicationRejectedError, safe_error_summary
+from shelter_importer.supabase import (
+    AppV2Store,
+    PublicationRejectedError,
+    SupabaseError,
+    safe_error_summary,
+)
 
 
 def store_with_session(session: QueueSession) -> AppV2Store:
@@ -169,3 +174,70 @@ def test_error_summary_redacts_query_credentials() -> None:
     assert "topsecret" not in value
     assert "standalone-secret" not in value
     assert "BearerX" not in value
+
+
+def test_final_retry_includes_sanitized_postgrest_error() -> None:
+    session = QueueSession(
+        [
+            Response(
+                500,
+                {
+                    "code": "57014",
+                    "message": (
+                        "canceling statement due to statement timeout "
+                        "apiKey=must-not-leak"
+                    ),
+                },
+            )
+            for _ in range(4)
+        ]
+    )
+    store = store_with_session(session)
+
+    with pytest.raises(
+        SupabaseError,
+        match=r"HTTP 500 after 4 attempts \(57014: canceling statement",
+    ) as error:
+        store._request("POST", "rpc/test", operation="test operation", payload={})
+
+    assert "must-not-leak" not in str(error.value)
+    assert len(session.calls) == 4
+
+
+def test_complete_scan_is_persisted_before_publication() -> None:
+    session = QueueSession([Response(204)])
+    store = store_with_session(session)
+
+    store.mark_source_scan_complete("run-1")
+
+    assert session.calls[0]["method"] == "PATCH"
+    assert session.calls[0]["url"].endswith("/import_runs")
+    assert session.calls[0]["params"] == {
+        "id": "eq.run-1",
+        "status": "eq.running",
+    }
+    assert session.calls[0]["json"] == {"source_scan_complete": True}
+
+
+def test_completed_publication_can_be_retried_without_source_access() -> None:
+    session = QueueSession(
+        [
+            Response(
+                200,
+                {
+                    "status": "published",
+                    "publicationId": "publication-1",
+                    "recoveredImportRunId": "run-1",
+                },
+            )
+        ]
+    )
+    store = store_with_session(session)
+
+    result = store.retry_latest_completed_publication()
+
+    assert result["status"] == "published"
+    assert session.calls[0]["url"].endswith(
+        "/rpc/retry_latest_completed_datafordeler_publication_v1"
+    )
+    assert session.calls[0]["json"] == {}
