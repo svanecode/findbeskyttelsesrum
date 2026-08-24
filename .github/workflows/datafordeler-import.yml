@@ -7,14 +7,16 @@ on:
     paths:
       - ".github/workflows/datafordeler-import.yml"
       - "tools/datafordeler-importer/**"
-      - "supabase/migrations/*versioned_import_publishing.sql"
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/datafordeler-import.yml"
       - "tools/datafordeler-importer/**"
-      - "supabase/migrations/*versioned_import_publishing.sql"
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -28,6 +30,11 @@ on:
         type: string
       resume_latest:
         description: "Fortsæt seneste fejlede skrivekørsel uden manglende-markeringer"
+        required: true
+        type: boolean
+        default: false
+      finalize_latest:
+        description: "Publicér et komplet stagingdatasæt efter en teknisk publiceringsfejl"
         required: true
         type: boolean
         default: false
@@ -92,6 +99,7 @@ jobs:
       DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || inputs.dry_run }}
       MAX_PAGES: ${{ github.event_name == 'schedule' && '' || inputs.max_pages }}
       RESUME_LATEST: ${{ github.event_name == 'schedule' && 'false' || inputs.resume_latest }}
+      FINALIZE_LATEST: ${{ github.event_name == 'schedule' && 'false' || inputs.finalize_latest }}
       PRODUCTION_CONFIRMATION: ${{ github.event_name == 'schedule' && 'SKRIV_PRODUKTION' || inputs.production_confirmation }}
       SUMMARY_PATH: import-summary.json
     steps:
@@ -111,12 +119,12 @@ jobs:
       - name: Kontrollér godkendelse og hemmeligheder
         shell: bash
         run: |
-          if [[ -z "$DATAFORDELER_API_KEY" ]]; then
+          if [[ "$FINALIZE_LATEST" != "true" && -z "$DATAFORDELER_API_KEY" ]]; then
             echo "GitHub-hemmeligheden DATAFORDELER_API_KEY mangler." >&2
             exit 1
           fi
 
-          if [[ "$DRY_RUN" != "true" ]]; then
+          if [[ "$DRY_RUN" != "true" || "$FINALIZE_LATEST" == "true" ]]; then
             if [[ "$PRODUCTION_CONFIRMATION" != "SKRIV_PRODUKTION" ]]; then
               echo "Produktionsskrivning kræver den præcise bekræftelse SKRIV_PRODUKTION." >&2
               exit 1
@@ -135,31 +143,35 @@ jobs:
         shell: bash
         run: |
           args=(--write)
-          if [[ "$DRY_RUN" == "true" ]]; then
+          if [[ "$FINALIZE_LATEST" == "true" ]]; then
+            args=(--finalize-latest)
+          elif [[ "$DRY_RUN" == "true" ]]; then
             args=(--dry-run)
           fi
-          if [[ -n "$MAX_PAGES" ]]; then
-            args+=(--max-pages "$MAX_PAGES")
-          fi
-          if [[ "$RESUME_LATEST" == "true" ]]; then
-            args+=(--resume-latest)
+          if [[ "$FINALIZE_LATEST" != "true" ]]; then
+            if [[ -n "$MAX_PAGES" ]]; then
+              args+=(--max-pages "$MAX_PAGES")
+            fi
+            if [[ "$RESUME_LATEST" == "true" ]]; then
+              args+=(--resume-latest)
+            fi
           fi
           uv run python sync_shelters_graphql.py "${args[@]}"
 
       - name: Brug Node.js 24 til efterkontrol
-        if: github.event_name == 'schedule' || inputs.dry_run == false
+        if: github.event_name == 'schedule' || inputs.dry_run == false || inputs.finalize_latest == true
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: npm
 
       - name: Installér webprojektets låste afhængigheder
-        if: github.event_name == 'schedule' || inputs.dry_run == false
+        if: github.event_name == 'schedule' || inputs.dry_run == false || inputs.finalize_latest == true
         working-directory: .
         run: npm ci
 
       - name: Kontrollér database og website efter skrivning
-        if: github.event_name == 'schedule' || inputs.dry_run == false
+        if: github.event_name == 'schedule' || inputs.dry_run == false || inputs.finalize_latest == true
         working-directory: .
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}

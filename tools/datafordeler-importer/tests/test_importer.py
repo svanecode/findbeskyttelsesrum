@@ -43,6 +43,9 @@ class Store:
     def checkpoint_import_run(self, run_id: str, **kwargs: Any) -> None:
         self.events.append("checkpoint")
 
+    def mark_source_scan_complete(self, run_id: str) -> None:
+        self.events.append("scan_complete")
+
     def publish_full_import(self, run_id: str, **kwargs: Any) -> dict[str, Any]:
         self.events.append("publish")
         return {
@@ -87,7 +90,13 @@ def test_full_success_stages_then_atomically_publishes() -> None:
     assert summary.missing_transitions_applied is True
     assert summary.publication_status == "published"
     assert summary.publication_id == "publication-1"
-    assert store.events == ["running", "stage", "checkpoint", "publish"]
+    assert store.events == [
+        "running",
+        "stage",
+        "checkpoint",
+        "scan_complete",
+        "publish",
+    ]
 
 
 def test_capped_run_never_marks_missing() -> None:
@@ -126,6 +135,7 @@ def test_resume_uses_original_snapshot_and_can_publish_complete_staging() -> Non
     assert summary.bbr_eligible == 11
     assert summary.bbr_dar_linked == 11
     assert summary.publication_status == "published"
+    assert store.events[-2] == "scan_complete"
     assert store.events[-1] == "publish"
 
 

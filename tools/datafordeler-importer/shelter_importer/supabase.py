@@ -96,22 +96,20 @@ class AppV2Store:
                 raise SupabaseError(f"Supabase {operation} request failed") from exc
 
             if response.status_code in RETRYABLE_STATUSES:
+                detail = self._safe_response_detail(response)
                 if attempt == self.max_attempts:
                     raise SupabaseError(
                         f"Supabase {operation} returned HTTP {response.status_code} "
-                        f"after {attempt} attempts"
+                        f"after {attempt} attempts{detail}"
                     )
-                self._backoff(operation, attempt, f"HTTP {response.status_code}")
+                self._backoff(
+                    operation,
+                    attempt,
+                    f"HTTP {response.status_code}{detail}",
+                )
                 continue
             if not 200 <= response.status_code < 300:
-                detail = ""
-                try:
-                    body = response.json()
-                    code = str(body.get("code", ""))[:40]
-                    message = str(body.get("message", ""))[:180]
-                    detail = f" ({code}: {message})" if code or message else ""
-                except ValueError:
-                    pass
+                detail = self._safe_response_detail(response)
                 raise SupabaseError(
                     f"Supabase {operation} returned non-retryable HTTP "
                     f"{response.status_code}{detail}"
@@ -123,6 +121,18 @@ class AppV2Store:
             except ValueError as exc:
                 raise SupabaseError(f"Supabase {operation} returned invalid JSON") from exc
         raise AssertionError("unreachable")
+
+    @staticmethod
+    def _safe_response_detail(response: requests.Response) -> str:
+        try:
+            body = response.json()
+        except ValueError:
+            return ""
+        if not isinstance(body, dict):
+            return ""
+        code = str(body.get("code", ""))[:40]
+        message = safe_error_summary(str(body.get("message", "")))[:180]
+        return f" ({code}: {message})" if code or message else ""
 
     def _backoff(self, operation: str, attempt: int, reason: str) -> None:
         delay = self.retry_base_seconds * (2 ** (attempt - 1)) + self.jitter()
@@ -147,7 +157,7 @@ class AppV2Store:
                     "last_successful_page,last_successful_cursor,resumed_from_import_run_id,"
                     "publication_status,quality_gate_passed,bbr_fetched_count,"
                     "bbr_eligible_count,dar_linked_count,dar_missing_count,"
-                    "mapping_failure_count,warning_count"
+                    "mapping_failure_count,warning_count,source_scan_complete"
                 ),
                 "source_name": f"eq.{CANONICAL_SOURCE_NAME}",
                 "status": "eq.failed",
@@ -237,6 +247,7 @@ class AppV2Store:
             "dar_missing_count": int(inherited.get("dar_missing_count") or 0),
             "mapping_failure_count": int(inherited.get("mapping_failure_count") or 0),
             "warning_count": int(inherited.get("warning_count") or 0),
+            "source_scan_complete": bool(inherited.get("source_scan_complete", False)),
         }
         rows = self._request(
             "POST",
@@ -297,6 +308,31 @@ class AppV2Store:
             },
             prefer="return=minimal",
         )
+
+    def mark_source_scan_complete(self, run_id: str) -> None:
+        self._request(
+            "PATCH",
+            "import_runs",
+            operation="mark source scan complete",
+            params={"id": f"eq.{run_id}", "status": "eq.running"},
+            payload={"source_scan_complete": True},
+            prefer="return=minimal",
+        )
+
+    def retry_latest_completed_publication(self) -> dict[str, Any]:
+        result = self._request(
+            "POST",
+            "rpc/retry_latest_completed_datafordeler_publication_v1",
+            operation="retry latest completed publication",
+            payload={},
+        )
+        if not isinstance(result, dict) or result.get("status") not in {
+            "published",
+            "rejected",
+            "no_candidate",
+        }:
+            raise SupabaseError("Supabase publication recovery returned an invalid result")
+        return result
 
     def fail_import_run(
         self,

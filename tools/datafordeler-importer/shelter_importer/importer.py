@@ -151,6 +151,7 @@ class Importer:
             finished_at = self.clock()
             is_complete_scan = max_pages is None and not last_page_had_next
             if is_complete_scan:
+                self.store.mark_source_scan_complete(summary.import_run_id)
                 publication = self.store.publish_full_import(
                     summary.import_run_id,
                     records_seen=summary.records_seen,
