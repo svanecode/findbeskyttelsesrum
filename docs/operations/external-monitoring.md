@@ -27,7 +27,7 @@ Der sendes ingen adresse, koordinater, rapporttekst eller brugeridentifikation t
 
 ## Fejlretning
 
-Ved en alarm læses `/api/health` først. Feltet `reasons` angiver den konkrete årsag. Hvis årsagen begynder med `trusted_operational_heartbeat_`, kontrolleres GitHub-workflowet og repositoryets secrets. En ny succesfuld produktionskontrol opretter et frisk heartbeat og gør endpointet grønt igen.
+Ved en alarm læses `/api/health` først. Feltet `degradationReasons` angiver den konkrete årsag. Hvis årsagen begynder med `trusted_operational_heartbeat_`, kontrolleres GitHub-workflowet og repositoryets secrets. En ny succesfuld produktionskontrol opretter et frisk heartbeat og gør endpointet grønt igen. `/api/health/live` er en billig liveness-kontrol uden databasekald og kan bruges til at skelne en utilgængelig deployment fra en deployment med degraderede data eller driftskontroller; den erstatter ikke den fulde `/api/health`-monitor.
 
 Health-endpointets grænse er som standard 90 minutter. Den kan justeres med `HEALTH_MAX_OPERATION_AGE_MINUTES`, men skal altid være længere end det planlagte workflowinterval og kort nok til at opdage en udeblevet kørsel.
 

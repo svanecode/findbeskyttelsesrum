@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { consumeDistributedRateLimit } from '@/lib/distributed-rate-limit'
 import { parseAndSanitizeClientErrorReport } from '@/lib/errors/sanitize-client-error'
+import { readBoundedRequestText } from '@/lib/http/read-bounded-request-text'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordProductMetricServer } from '@/lib/analytics/product-metrics-server'
 
@@ -50,19 +51,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const declaredLength = Number(request.headers.get('content-length'))
-    if (Number.isFinite(declaredLength) && declaredLength > maximumBodyBytes) {
+    const bodyResult = await readBoundedRequestText(request, maximumBodyBytes)
+    if (!bodyResult.ok && bodyResult.reason === 'too_large') {
       return privateResponse({ error: 'Payload too large' }, 413)
     }
-
-    const rawText = await request.text()
-    if (new TextEncoder().encode(rawText).byteLength > maximumBodyBytes) {
-      return privateResponse({ error: 'Payload too large' }, 413)
+    if (!bodyResult.ok) {
+      return privateResponse({ error: 'Unreadable payload' }, 400)
     }
 
     let parsed: unknown
     try {
-      parsed = JSON.parse(rawText) as unknown
+      parsed = JSON.parse(bodyResult.text) as unknown
     } catch {
       return privateResponse({ error: 'Invalid JSON' }, 400)
     }

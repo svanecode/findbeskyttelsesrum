@@ -1,15 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 
 import GlobalFooter from "@/components/GlobalFooter";
 import { ui } from "@/components/ui-classes";
 import { getPrivacyController } from "@/lib/privacy/controller";
+import { createPageMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "Privatliv og personoplysninger",
   description: "Sådan behandler Find Beskyttelsesrum adresse, placering, tekniske data, målinger og fejlrapporter.",
-  alternates: { canonical: "/privatliv" },
-};
+  path: "/privatliv",
+});
 
 const sectionClassName = "border-t border-white/10 py-6 sm:py-8";
 const paragraphClassName = "mt-3 text-sm leading-6 text-gray-300";
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
             Du behøver ikke en konto for at bruge Find Beskyttelsesrum. Denne side forklarer, hvilke oplysninger de
             enkelte funktioner behandler, hvorfor de behandles, hvem der modtager dem, og hvornår de slettes.
           </p>
-          <p className="text-sm text-gray-500">Senest opdateret 22. august 2026.</p>
+          <p className="text-sm text-gray-500">Senest opdateret 30. august 2026.</p>
         </header>
 
         <div className="mt-10 border-b border-white/10">
@@ -105,6 +105,11 @@ export default function PrivacyPage() {
             <p className={secondaryParagraphClassName}>
               Formålet er at opdage fejl og forbedre tjenesten. Retsgrundlaget er den dataansvarliges legitime interesse
               i stabilitet og produktforbedring efter artikel 6, stk. 1, litra f.
+            </p>
+            <p className={secondaryParagraphClassName}>
+              Vurderingen af analyseopsætningen, den tekniske lagring og et eventuelt samtykkebehov skal dokumenteres og
+              revurderes, når leverandører, målemetoder eller formål ændres. Hvis en ændring kræver samtykke, må den
+              pågældende måling først aktiveres, når en egnet samtykkeløsning er på plads.
             </p>
           </section>
 

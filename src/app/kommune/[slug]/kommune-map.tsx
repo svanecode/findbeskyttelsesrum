@@ -36,6 +36,7 @@ interface Props {
 
 function makeIcon(L: typeof import('leaflet'), selected: boolean) {
   const size = selected ? 36 : 28
+  const targetSize = 44
   const border = selected ? 4 : 3
   const color = 'var(--accent)'
   const shadow = selected
@@ -44,9 +45,9 @@ function makeIcon(L: typeof import('leaflet'), selected: boolean) {
   return L.divIcon({
     className: 'shelter-marker',
     html: `<div style="width:${size}px;height:${size}px;background:${color};border:${border}px solid white;border-radius:50%;box-shadow:${shadow};transition:all .2s;"></div>`,
-    iconSize: [size + 8, size + 8],
-    iconAnchor: [(size + 8) / 2, (size + 8) / 2],
-    popupAnchor: [0, -((size + 8) / 2)],
+    iconSize: [targetSize, targetSize],
+    iconAnchor: [targetSize / 2, targetSize / 2],
+    popupAnchor: [0, -(targetSize / 2)],
   })
 }
 
@@ -169,7 +170,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
             return leaflet.divIcon({
               html: `<div><span class="sr-only">Åbn gruppe med </span><span>${count}</span><span class="sr-only"> adresser</span></div>`,
               className: `marker-cluster ${cls}`,
-              iconSize: leaflet.point(40, 40),
+              iconSize: leaflet.point(44, 44),
             })
           }}
         >

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { Component, ErrorInfo, ReactNode } from 'react'
+import { errorTracker } from '@/lib/errorTracking'
 import { ui } from './ui-classes'
 
 interface Props {
@@ -26,17 +27,16 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo)
+    errorTracker.captureError(error, {
+      component: 'RootErrorBoundary',
+      errorInfo: errorInfo.componentStack ?? undefined,
+    })
     
     // Call custom error handler if provided
     if (this.props.onError) {
       this.props.onError(error, errorInfo)
     }
 
-    // Log to external service in production
-    if (process.env.NODE_ENV === 'production') {
-      // Here you could send to Sentry, LogRocket, etc.
-      console.error('Production error:', { error, errorInfo })
-    }
   }
 
   render() {

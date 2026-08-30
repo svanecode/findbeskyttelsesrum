@@ -1,26 +1,13 @@
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/metadata";
 
-import { siteUrl } from "@/lib/seo/site";
-
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "Registreringer i nærheden",
   description:
     "Orienterende kort og liste over BBR-registrerede sikringsrumspladser i nærheden.",
-  alternates: { canonical: "/shelters/nearby" },
-  robots: {
-    index: false,
-    follow: false,
-  },
-  openGraph: {
-    title: "Registreringer i nærheden",
-    description:
-      "Orienterende kort og liste over BBR-registrerede sikringsrumspladser i nærheden.",
-    type: "website",
-    url: `${siteUrl}/shelters/nearby`,
-    siteName: "Find Beskyttelsesrum",
-    locale: "da_DK",
-  },
-};
+  path: "/shelters/nearby",
+  index: false,
+  follow: false,
+});
 
 export default function NearbyLayout({ children }: { children: React.ReactNode }) {
   return children;

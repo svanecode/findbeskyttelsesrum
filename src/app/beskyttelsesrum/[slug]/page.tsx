@@ -11,6 +11,7 @@ import ShelterOsmEmbedMap from "@/components/ShelterOsmEmbedMap";
 import { ui } from "@/components/ui-classes";
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from "@/lib/anvendelseskoder";
 import { getBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
+import { createPageMetadata } from "@/lib/seo/metadata";
 import { siteUrl } from "@/lib/seo/site";
 import { getShelterPublicDisplayName } from "@/lib/shelter-display-name";
 import { getShelterPublicPath } from "@/lib/shelter-public-url";
@@ -27,6 +28,12 @@ type Props = {
     slug: string;
   }>;
 };
+
+export const revalidate = 3600;
+
+export function generateStaticParams() {
+  return [];
+}
 
 function getShelterAddress(shelter: AppV2PublicShelterDetail) {
   return `${shelter.addressLine1}, ${shelter.postalCode} ${shelter.city}`;
@@ -104,27 +111,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!shelter) {
     return {
       title: "Beskyttelsesrum ikke fundet",
+      robots: { index: false, follow: false },
     };
   }
 
-  const displayName = getShelterPublicDisplayName(shelter.name, shelter.addressLine1);
   const address = getShelterAddress(shelter);
+  const title = `BBR-registrering ved ${shelter.addressLine1}`;
+  const description = `${address}. ${shelter.capacity.toLocaleString("da-DK")} BBR-registrerede sikringsrumspladser. Adgang og fysisk stand er ikke bekræftet.`;
 
-  return {
-    title: `BBR-registrering ved ${shelter.addressLine1}`,
-    description: `${address}. ${shelter.capacity.toLocaleString("da-DK")} BBR-registrerede sikringsrumspladser. Adgang og fysisk stand er ikke bekræftet.`,
-    alternates: {
-      canonical: getShelterCanonicalPath(shelter.slug),
-    },
-    openGraph: {
-      title: `BBR-registrering ved ${shelter.addressLine1}`,
-      description: `${address}. ${shelter.capacity.toLocaleString("da-DK")} BBR-registrerede sikringsrumspladser. Adgang og fysisk stand er ikke bekræftet.`,
-      type: "website",
-      locale: "da_DK",
-      siteName: "Find Beskyttelsesrum",
-      url: `${siteUrl}${getShelterCanonicalPath(shelter.slug)}`,
-    },
-  };
+  return createPageMetadata({
+    title,
+    description,
+    path: getShelterCanonicalPath(shelter.slug),
+  });
 }
 
 export default async function ShelterDetailPage({ params }: Props) {
@@ -277,7 +276,6 @@ export default async function ShelterDetailPage({ params }: Props) {
                   target="_blank"
                   rel="noopener noreferrer"
                   className={ui.secondaryAction}
-                  aria-label="Se adressen i Google Maps"
                 >
                   Se adressen i kort
                 </a>

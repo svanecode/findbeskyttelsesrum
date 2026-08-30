@@ -58,6 +58,31 @@ const privacyContactPortalMigrationUrl = new URL(
   "../supabase/migrations/20260822080025_privacy_contact_portal.sql",
   import.meta.url,
 );
+const completedImportRecoveryMigrationUrl = new URL(
+  "../supabase/migrations/20260824071755_recover_completed_import_publication.sql",
+  import.meta.url,
+);
+const retiredLegacyReadSurfacesMigrationUrl = new URL(
+  "../supabase/migrations/20260830121330_retire_legacy_public_read_surfaces.sql",
+  import.meta.url,
+);
+const publicDataRevisionReadModelMigrationUrl = new URL(
+  "../supabase/migrations/20260830123758_expose_public_data_revision_read_model.sql",
+  import.meta.url,
+);
+const brokenLegacyNearestRpcMigrationUrl = new URL(
+  "../supabase/migrations/20260830132630_drop_broken_legacy_nearest_rpc.sql",
+  import.meta.url,
+);
+const appV2QueriesUrl = new URL("../src/lib/supabase/app-v2-queries.ts", import.meta.url);
+const applicationQualityWorkflowUrl = new URL(
+  "../.github/workflows/application-quality.yml",
+  import.meta.url,
+);
+const datafordelerImportWorkflowUrl = new URL(
+  "../.github/workflows/datafordeler-import.yml",
+  import.meta.url,
+);
 
 test("security migration closes exclusion RPC and bounds anonymous nearby work", async () => {
   const sql = (await readFile(migrationUrl, "utf8")).toLowerCase();
@@ -347,4 +372,152 @@ test("country map clustering is bounded, public-read-only and least privilege", 
   assert.match(sql, /revoke all on function app_v2\.get_country_map_features_public_v1[\s\S]+from public/);
   assert.match(sql, /grant execute on function app_v2\.get_country_map_features_public_v1[\s\S]+to anon, authenticated, service_role/);
   assert.doesNotMatch(sql, /security definer/);
+});
+
+test("completed import recovery is service-only after the guarded migration recovery", async () => {
+  const sql = (await readFile(completedImportRecoveryMigrationUrl, "utf8")).toLowerCase();
+  const oneTimeMigrationCalls =
+    sql.match(/select\s+app_v2\.retry_latest_completed_datafordeler_publication_v1\(\)\s*;/g) ?? [];
+
+  assert.match(
+    sql,
+    /create or replace function app_v2\.retry_latest_completed_datafordeler_publication_v1\(\)/,
+  );
+  assert.match(sql, /security definer/);
+  assert.match(sql, /set search_path = ''/);
+  assert.match(
+    sql,
+    /revoke all on function app_v2\.retry_latest_completed_datafordeler_publication_v1\(\)\s+from public, anon, authenticated/,
+  );
+  assert.match(
+    sql,
+    /grant execute on function app_v2\.retry_latest_completed_datafordeler_publication_v1\(\)\s+to service_role/,
+  );
+  assert.equal(oneTimeMigrationCalls.length, 1);
+  assert.match(
+    sql,
+    /recover an eligible retained incident as part of this migration[\s\S]+select\s+app_v2\.retry_latest_completed_datafordeler_publication_v1\(\)\s*;/,
+  );
+});
+
+test("retired legacy public read surfaces have no API-role grants", async () => {
+  const sql = (await readFile(retiredLegacyReadSurfacesMigrationUrl, "utf8")).toLowerCase();
+
+  for (const view of [
+    "shelter_public",
+    "country_marker_public",
+    "sitemap_shelter_public",
+    "municipality_public",
+  ]) {
+    assert.match(
+      sql,
+      new RegExp(
+        `revoke all on table app_v2\\.${view}\\s+from public, anon, authenticated`,
+      ),
+    );
+  }
+
+  assert.match(
+    sql,
+    /revoke all on function app_v2\.get_nearby_shelters_public\([\s\S]+?\) from public, anon, authenticated/,
+  );
+  assert.doesNotMatch(sql, /grant (select|execute)[^;]+to (public|anon|authenticated)/);
+  assert.match(sql, /public clients must use shelter_public_v2/);
+  assert.match(sql, /public clients must use get_nearby_shelters_public_v2/);
+});
+
+test("public cache revisions use a fixed allowlisted RPC without exposing the private ledger", async () => {
+  const [sql, queries] = await Promise.all([
+    readFile(publicDataRevisionReadModelMigrationUrl, "utf8").then((value) => value.toLowerCase()),
+    readFile(appV2QueriesUrl, "utf8"),
+  ]);
+
+  assert.match(sql, /create or replace function app_v2\.get_public_data_revision_v1\(\)/);
+  assert.match(sql, /security definer/);
+  assert.match(sql, /set search_path = ''/);
+  assert.match(sql, /select\s+ledger\.revision,\s+ledger\.publication_id,\s+ledger\.changed_at/);
+  assert.match(
+    sql,
+    /revoke all on function app_v2\.get_public_data_revision_v1\(\)\s+from public, anon, authenticated/,
+  );
+  assert.match(
+    sql,
+    /grant execute on function app_v2\.get_public_data_revision_v1\(\)\s+to anon, authenticated, service_role/,
+  );
+  assert.doesNotMatch(sql, /select\s+\*/);
+  assert.doesNotMatch(sql, /dataset_publications/);
+
+  assert.match(sql, /create or replace function app_v2\.resolve_public_shelter_slug_alias_v1\(/);
+  assert.match(
+    sql,
+    /inner join app_v2\.shelter_public_v2 public_shelter\s+on public_shelter\.id = slug_alias\.shelter_id/,
+  );
+  assert.match(
+    sql,
+    /grant execute on function app_v2\.resolve_public_shelter_slug_alias_v1\(text\)\s+to anon, authenticated, service_role/,
+  );
+
+  const revisionFunctionStart = queries.indexOf("export async function getAppV2PublicDataRevision");
+  const nextFunctionStart = queries.indexOf("export async function getAppV2PublicDataFunnel", revisionFunctionStart);
+  const revisionFunction = queries.slice(revisionFunctionStart, nextFunctionStart);
+  assert.match(revisionFunction, /createAppV2PublicClient\(\)/);
+  assert.match(revisionFunction, /\.rpc\("get_public_data_revision_v1"\)/);
+  assert.match(revisionFunction, /if \(!isMissingPublicRpcError\(error\)\)/);
+  assert.doesNotMatch(revisionFunction, /createAppV2AdminClient|public_data_revisions/);
+
+  const aliasResolverStart = queries.indexOf("export const resolveAppV2PublicShelter");
+  const aliasResolverEnd = queries.indexOf("export async function getAppV2PublicRelatedShelters", aliasResolverStart);
+  const aliasResolver = queries.slice(aliasResolverStart, aliasResolverEnd);
+  assert.match(aliasResolver, /createAppV2PublicClient\(\)/);
+  assert.match(aliasResolver, /\.rpc\("resolve_public_shelter_slug_alias_v1"/);
+});
+
+test("the broken legacy nearest-shelter RPC is removed", async () => {
+  const sql = (await readFile(brokenLegacyNearestRpcMigrationUrl, "utf8")).toLowerCase();
+
+  assert.match(
+    sql,
+    /drop function if exists public\.find_nearest_shelters\([\s\S]+double precision,[\s\S]+double precision,[\s\S]+integer[\s\S]+\)/,
+  );
+  assert.doesNotMatch(sql, /cascade/);
+});
+
+test("pull request quality gates never receive the Supabase write secret", async () => {
+  const workflow = await readFile(applicationQualityWorkflowUrl, "utf8");
+
+  assert.match(workflow, /on:\n\s+pull_request:/);
+  assert.match(workflow, /npm run build/);
+  assert.match(workflow, /npx playwright test/);
+  assert.match(
+    workflow,
+    /NEXT_PUBLIC_SUPABASE_URL: \$\{\{ vars\.NEXT_PUBLIC_SUPABASE_URL \|\| secrets\.NEXT_PUBLIC_SUPABASE_URL \}\}/,
+  );
+  assert.match(
+    workflow,
+    /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: \$\{\{ vars\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \|\| secrets\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \}\}/,
+  );
+  assert.match(workflow, /Konfigurér repository variable NEXT_PUBLIC_SUPABASE_URL for fork-PR'er/);
+  assert.doesNotMatch(workflow, /SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(workflow, /SUPABASE_SECRET_KEY\s*:/);
+  assert.doesNotMatch(workflow, /secrets\.SUPABASE_SECRET_KEY/);
+});
+
+test("the importer reuses public repository variables without weakening write-secret isolation", async () => {
+  const workflow = await readFile(datafordelerImportWorkflowUrl, "utf8");
+
+  assert.match(
+    workflow,
+    /SUPABASE_URL: \$\{\{ vars\.NEXT_PUBLIC_SUPABASE_URL \|\| secrets\.NEXT_PUBLIC_SUPABASE_URL \}\}/,
+  );
+  assert.match(
+    workflow,
+    /SUPABASE_PUBLISHABLE_KEY: \$\{\{ vars\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \|\| secrets\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \}\}/,
+  );
+  assert.match(
+    workflow,
+    /NEXT_PUBLIC_SUPABASE_ANON_KEY: \$\{\{ vars\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \|\| secrets\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \}\}/,
+  );
+  assert.match(workflow, /SUPABASE_SECRET_KEY: \$\{\{ secrets\.SUPABASE_SECRET_KEY \}\}/);
+  assert.match(workflow, /SMOKE_ALLOW_STALE_OPERATIONAL_HEARTBEAT: "true"/);
+  assert.doesNotMatch(workflow, /vars\.SUPABASE_SECRET_KEY/);
 });

@@ -6,6 +6,7 @@ const startsLocalServer = !process.env.PLAYWRIGHT_BASE_URL;
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
@@ -29,6 +30,14 @@ export default defineConfig({
     {
       name: "desktop-chromium",
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "desktop-firefox",
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      name: "desktop-webkit",
+      use: { ...devices["Desktop Safari"] },
     },
     {
       name: "mobile-chromium",

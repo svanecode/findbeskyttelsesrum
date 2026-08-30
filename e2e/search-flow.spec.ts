@@ -98,6 +98,15 @@ test("mobilvisningen skifter mellem liste og kort", async ({ page }, testInfo) =
   await expect(mapTab).toHaveAttribute("aria-selected", "true");
   await expect.poll(() => tileRequests.length).toBeGreaterThan(0);
   await expect(page.getByLabel("Valgt registrering")).toContainText("Rådhuspladsen 1");
+
+  const mapTargets = page.locator(".nearby-map .leaflet-control-zoom a, .nearby-map .leaflet-marker-icon");
+  await expect(mapTargets).toHaveCount(4);
+  for (let index = 0; index < 4; index += 1) {
+    const targetBox = await mapTargets.nth(index).boundingBox();
+    expect(targetBox?.width).toBeGreaterThanOrEqual(44);
+    expect(targetBox?.height).toBeGreaterThanOrEqual(44);
+  }
+
   await page.getByRole("button", { name: "Luk oplysninger" }).click();
   await expect(page.getByLabel("Valgt registrering")).toBeHidden();
   await expect(mapTab).toBeFocused();

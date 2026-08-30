@@ -3,6 +3,8 @@ const maximumImportAgeHours = Number(process.env.SMOKE_MAX_IMPORT_AGE_HOURS ?? "
 const requestTimeoutMs = Number(process.env.SMOKE_REQUEST_TIMEOUT_MS ?? "15000");
 const expectedGitSha = process.env.SMOKE_EXPECTED_GIT_SHA?.trim() || null;
 const allowStaleOperationalHeartbeat = process.env.SMOKE_ALLOW_STALE_OPERATIONAL_HEARTBEAT === "true";
+const transientRetryAttempts = positiveInteger(process.env.SMOKE_TRANSIENT_RETRY_ATTEMPTS, 6);
+const transientRetryDelayMs = positiveInteger(process.env.SMOKE_TRANSIENT_RETRY_DELAY_MS, 5_000);
 let currentPublicDataRevision = null;
 
 if (!Number.isFinite(maximumImportAgeHours) || maximumImportAgeHours <= 0) {
@@ -26,6 +28,35 @@ async function requireOk(response, label) {
     throw new Error(`${label} svarede med HTTP ${response.status}.`);
   }
   return response;
+}
+
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function wait(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function retryTransient(label, operation) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= transientRetryAttempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt === transientRetryAttempts) break;
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `RETRY ${label} (${attempt}/${transientRetryAttempts}) — ${message}`,
+      );
+      await wait(transientRetryDelayMs);
+    }
+  }
+
+  throw lastError;
 }
 
 const checks = [
@@ -72,7 +103,7 @@ const checks = [
   },
   {
     name: "Database og datafriskhed",
-    run: async () => {
+    run: async () => retryTransient("Database og datafriskhed", async () => {
       const response = await request(`${baseUrl}/api/health`);
       if (response.status !== 200 && response.status !== 503) {
         throw new Error(`Sundhedstjekket svarede med HTTP ${response.status}.`);
@@ -114,7 +145,7 @@ const checks = [
         ? "betroet heartbeat er frisk"
         : "betroet heartbeat genoprettes af denne kørsel";
       return `${count.toLocaleString("da-DK")} registreringer, ${deployedGitSha.slice(0, 7)}, dataalder ${age} timer, ${operationalDetail}`;
-    },
+    }),
   },
   {
     name: "DAWA-adressesøgning",
@@ -154,7 +185,7 @@ const checks = [
   },
   {
     name: "Landskortets marker-endpoint",
-    run: async () => {
+    run: async () => retryTransient("Landskortets marker-endpoint", async () => {
       const query = new URLSearchParams({
         format: "features",
         revision: currentPublicDataRevision ?? "missing",
@@ -165,10 +196,15 @@ const checks = [
         west: "8",
         zoom: "7",
       });
-      const response = await requireOk(
-        await request(`${baseUrl}/api/country-shelters?${query}`),
-        "Marker-endpointet",
-      );
+      const response = await request(`${baseUrl}/api/country-shelters?${query}`);
+      if (response.status === 409) {
+        const conflict = await response.json().catch(() => null);
+        if (typeof conflict?.currentRevision === "string" && conflict.currentRevision.length <= 200) {
+          currentPublicDataRevision = conflict.currentRevision;
+        }
+        throw new Error("Marker-endpointets datarevision skiftede under kontrollen.");
+      }
+      await requireOk(response, "Marker-endpointet");
       const payload = await response.json();
       if (
         payload?.contract !== "country-map-features-v2"
@@ -182,7 +218,7 @@ const checks = [
         throw new Error("Marker-endpointets klyngekontrakt eller optælling er ugyldig.");
       }
       return `${payload.availableCount.toLocaleString("da-DK")} registreringer som ${payload.featureCount.toLocaleString("da-DK")} kortobjekter`;
-    },
+    }),
   },
   {
     name: "Kommune",

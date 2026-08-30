@@ -6,17 +6,13 @@ import Link from 'next/link'
 import type { AppV2MunicipalitySummary } from '@/lib/supabase/app-v2-queries'
 import { ui } from '@/components/ui-classes'
 
-const pageSize = 25
-
 export default function MunicipalityList({ municipalities }: { municipalities: AppV2MunicipalitySummary[] }) {
   const [query, setQuery] = useState('')
-  const [visibleCount, setVisibleCount] = useState(pageSize)
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('da-DK')
     if (!normalized) return municipalities
     return municipalities.filter((municipality) => municipality.name.toLocaleLowerCase('da-DK').includes(normalized))
   }, [municipalities, query])
-  const visible = filtered.slice(0, visibleCount)
 
   return (
     <section className={`${ui.panel} overflow-hidden`} aria-labelledby="municipality-overview-heading">
@@ -27,10 +23,7 @@ export default function MunicipalityList({ municipalities }: { municipalities: A
           id="municipality-search"
           type="search"
           value={query}
-          onChange={(event) => {
-            setQuery(event.target.value)
-            setVisibleCount(pageSize)
-          }}
+          onChange={(event) => setQuery(event.target.value)}
           className={`mt-2 ${ui.input}`}
           placeholder="Eksempelvis København"
         />
@@ -46,7 +39,7 @@ export default function MunicipalityList({ municipalities }: { municipalities: A
         </div>
       ) : (
         <ul className="divide-y divide-white/10">
-          {visible.map((municipality) => (
+          {filtered.map((municipality) => (
             <li key={municipality.id} className="[content-visibility:auto] [contain-intrinsic-size:0_80px]">
               <Link
                 href={`/kommune/${municipality.slug}`}
@@ -64,14 +57,6 @@ export default function MunicipalityList({ municipalities }: { municipalities: A
           ))}
         </ul>
       )}
-
-      {visible.length < filtered.length ? (
-        <div className="border-t border-white/10 p-4 sm:px-6">
-          <button type="button" onClick={() => setVisibleCount((count) => count + pageSize)} className={`${ui.secondaryAction} min-h-[48px] w-full`}>
-            Vis flere kommuner
-          </button>
-        </div>
-      ) : null}
     </section>
   )
 }

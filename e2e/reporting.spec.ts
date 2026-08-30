@@ -26,7 +26,9 @@ test("fejlrapportering ender i moderationskø uden en rigtig skrivning", async (
   await page.getByLabel("Beskriv det, du har observeret").fill("Kapaciteten på registreringen ser forkert ud.");
   await page.getByRole("button", { name: "Send rapport" }).click();
 
-  await expect(page.getByRole("status")).toContainText("Tak for din rapport");
+  const successStatus = page.getByRole("status").filter({ hasText: "Tak for din rapport" });
+  await expect(successStatus).toContainText("Tak for din rapport");
+  await expect(successStatus).toBeFocused();
   expect(submittedPayload).toMatchObject({
     reportType: "incorrect_capacity",
     message: "Kapaciteten på registreringen ser forkert ud.",

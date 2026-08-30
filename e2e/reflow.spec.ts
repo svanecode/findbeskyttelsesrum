@@ -30,6 +30,7 @@ test("centrale sider kan bruges ved 200 procent zoom uden vandret rulning", asyn
   const routes = [
     { path: "/", heading: "Se registrerede beskyttelsesrum nær dig" },
     { path: "/kommune", heading: "Kommuneoversigt" },
+    { path: "/kort", heading: "Landskort" },
     { path: "/om-data", heading: "Datagrundlag" },
     { path: "/privatliv", heading: "Privatliv" },
   ];

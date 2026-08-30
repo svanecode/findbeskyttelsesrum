@@ -1,9 +1,10 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 
 import GlobalFooter from "@/components/GlobalFooter";
 import ProductMetricView from "@/components/ProductMetricView";
 import { ui } from "@/components/ui-classes";
+import { getPrivacyController } from "@/lib/privacy/controller";
+import { createPageMetadata } from "@/lib/seo/metadata";
 import {
   getAppV2PublicMunicipalitySummaryCount,
   getAppV2PublicDataFunnel,
@@ -11,34 +12,23 @@ import {
   type AppV2PublicDataFunnel,
   type AppV2PublicDataStats,
 } from "@/lib/supabase/app-v2-queries";
-import { siteUrl } from "@/lib/seo/site";
+import { SupabaseConfigurationError } from "@/lib/supabase/env";
 
 export const revalidate = 600;
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "Datagrundlag",
   description:
     "Find Beskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Læs om datagrundlag, opdatering og forbehold.",
-  alternates: {
-    canonical: "/om-data",
-  },
-  openGraph: {
-    title: "Datagrundlag",
-    description:
-      "Find Beskyttelsesrum bygger på offentlige registerdata fra BBR og DAR. Læs om datagrundlag, opdatering og forbehold.",
-    type: "website",
-    locale: "da_DK",
-    siteName: "Find Beskyttelsesrum",
-    url: `${siteUrl}/om-data`,
-  },
-};
+  path: "/om-data",
+});
 
 type DataOverview =
   | {
       ok: true;
       municipalityCount: number;
       stats: AppV2PublicDataStats;
-      funnel: AppV2PublicDataFunnel;
+      funnel: AppV2PublicDataFunnel | null;
     }
   | {
       ok: false;
@@ -46,11 +36,18 @@ type DataOverview =
 
 async function getDataOverview(): Promise<DataOverview> {
   try {
-    const [municipalityCount, stats, funnel] = await Promise.all([
+    const [municipalityCount, stats] = await Promise.all([
       getAppV2PublicMunicipalitySummaryCount(),
       getAppV2PublicDataStats(),
-      getAppV2PublicDataFunnel(),
     ]);
+    let funnel: AppV2PublicDataFunnel | null = null;
+    try {
+      funnel = await getAppV2PublicDataFunnel();
+    } catch (error) {
+      if (!(error instanceof SupabaseConfigurationError)) {
+        console.error("Could not load the private app_v2 selection funnel:", error);
+      }
+    }
 
     return {
       ok: true,
@@ -87,6 +84,7 @@ function StatCard({ label, value, note }: { label: string; value: string; note: 
 
 export default async function DataPage() {
   const overview = await getDataOverview();
+  const controller = getPrivacyController();
 
   return (
     <main id="main-content" tabIndex={-1} className={ui.page}>
@@ -178,7 +176,33 @@ export default async function DataPage() {
               <a className="text-white underline underline-offset-4 hover:text-orange-300" href="https://danmarksadresser.dk/om-adresser/danmarks-adresseregister-dar" rel="noopener noreferrer" target="_blank">
                 DAR (Danmarks Adresseregister)
               </a>
-              . Data hentes via Datafordeler. Registeroplysninger kan være ufuldstændige eller forsinkede.
+              . Data distribueres via Datafordeler. Registeroplysninger kan være ufuldstændige eller forsinkede.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              <strong className="font-semibold text-white">Kildeangivelse:</strong> Bygnings- og Boligregistret (BBR),
+              Vurderingsstyrelsen, samt Danmarks Adresseregister (DAR), Klimadatastyrelsen. Find Beskyttelsesrum har
+              efterfølgende filtreret, samkørt og grupperet oplysningerne efter reglerne beskrevet på denne side.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-gray-400">
+              Brugen sker efter registermyndighedernes gældende brugsvilkår. Se Datafordelerens{" "}
+              <a
+                className="text-white underline underline-offset-4 hover:text-orange-300"
+                href="https://datafordeler.dk/vejledning/brugervilkaar/bygnings-og-boligregistret-bbr/"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                brugsvilkår for BBR
+              </a>{" "}
+              og{" "}
+              <a
+                className="text-white underline underline-offset-4 hover:text-orange-300"
+                href="https://datafordeler.dk/vejledning/brugervilkaar/danmarks-adresseregister-dar/"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                brugsvilkår for DAR
+              </a>
+              . Kildeangivelsen betyder ikke, at registermyndighederne godkender, støtter eller anbefaler tjenesten.
             </p>
           </section>
 
@@ -192,7 +216,7 @@ export default async function DataPage() {
             <p className="mt-3 text-sm leading-6 text-gray-400">
               Nærhedssøgning og kort kræver desuden brugbare koordinater. Derfor kan antallet variere mellem oversigter.
             </p>
-            {overview.ok ? (
+            {overview.ok && overview.funnel ? (
               <div className="mt-5 overflow-x-auto rounded-lg border border-white/10">
                 <table className="min-w-full border-collapse text-left text-sm">
                   <caption className="sr-only">
@@ -325,6 +349,32 @@ export default async function DataPage() {
             <div className="mt-4">
               <Link href="/" className="inline-flex min-h-[44px] items-center rounded-lg px-3 font-medium text-white underline underline-offset-4 hover:bg-white/5">
                 Find registreringen fra forsiden
+              </Link>
+            </div>
+          </section>
+
+          <section className="border-t border-white/10 py-6 sm:py-8">
+            <h2 className="text-lg font-semibold text-white">Hvem står bag?</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Findbeskyttelsesrum.dk udvikles og drives uafhængigt af {controller.name}. Tjenesten er et privat
+              orienteringsværktøj og er ikke tilknyttet, drevet eller godkendt af staten, en kommune eller en anden
+              offentlig myndighed.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-gray-400">
+              Spørgsmål om tjenesten, databehandlingen eller mulige fejl kan sendes gennem den private kontaktportal.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                href="/kontakt"
+                className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-white underline underline-offset-4 hover:bg-white/5"
+              >
+                Kontakt den ansvarlige
+              </Link>
+              <Link
+                href="/privatliv"
+                className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-white underline underline-offset-4 hover:bg-white/5"
+              >
+                Privatliv og personoplysninger
               </Link>
             </div>
           </section>

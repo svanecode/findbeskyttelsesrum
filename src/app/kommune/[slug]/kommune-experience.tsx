@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { ui } from '@/components/ui-classes'
+import { getMunicipalityPagePath } from '@/lib/municipalities/pagination'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
 
 const KommuneMap = dynamic(() => import('./kommune-map'), { ssr: false })
@@ -11,12 +12,24 @@ const KommuneMap = dynamic(() => import('./kommune-map'), { ssr: false })
 interface Props {
   groups: AppV2MunicipalityShelterGroup[]
   municipalityName: string
+  municipalitySlug: string
+  pagination: {
+    currentPage: number
+    totalPages: number
+    totalItems: number
+    firstItemNumber: number
+    lastItemNumber: number
+  }
 }
 
-export default function KommuneExperience({ groups, municipalityName }: Props) {
+export default function KommuneExperience({
+  groups,
+  municipalityName,
+  municipalitySlug,
+  pagination,
+}: Props) {
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [visibleCount, setVisibleCount] = useState(30)
   const [mapActivated, setMapActivated] = useState(false)
   const mapSectionRef = useRef<HTMLElement | null>(null)
   const filteredGroups = useMemo(() => {
@@ -29,7 +42,6 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
         .includes(normalizedQuery),
     )
   }, [groups, query])
-  const visibleGroups = filteredGroups.slice(0, visibleCount)
 
   useEffect(() => {
     if (mapActivated) return
@@ -81,22 +93,28 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
           </a>
         </div>
         <label htmlFor="municipality-shelter-search" className="mt-4 block text-sm font-medium text-gray-200">
-          Søg i kommunen
+          Søg på denne side
         </label>
         <input
           id="municipality-shelter-search"
           type="search"
           value={query}
-          onChange={(event) => {
-            setQuery(event.target.value)
-            setVisibleCount(30)
-          }}
+          onChange={(event) => setQuery(event.target.value)}
           placeholder="Adresse, postnummer eller by"
           className={`mt-2 ${ui.input}`}
         />
         <p className="mt-2 text-sm text-gray-400" role="status" aria-live="polite">
-          {filteredGroups.length.toLocaleString('da-DK')} {filteredGroups.length === 1 ? 'adresse' : 'adresser'}
+          {query.trim()
+            ? `${filteredGroups.length.toLocaleString('da-DK')} ${filteredGroups.length === 1 ? 'adresse' : 'adresser'} på denne side`
+            : pagination.totalItems === 0
+              ? 'Ingen adresser'
+              : `Viser adresse ${pagination.firstItemNumber.toLocaleString('da-DK')}–${pagination.lastItemNumber.toLocaleString('da-DK')} af ${pagination.totalItems.toLocaleString('da-DK')}`}
         </p>
+        {pagination.totalPages > 1 ? (
+          <p className="mt-1 text-xs leading-5 text-gray-500">
+            Søgningen og kortet omfatter adresserne på denne side. Brug sidelinkene for at se resten af kommunen.
+          </p>
+        ) : null}
 
         {filteredGroups.length === 0 ? (
           <div className={`mt-4 ${ui.panelInset} p-5`}>
@@ -107,7 +125,7 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
           </div>
         ) : (
           <ul className="mt-4 space-y-3">
-            {visibleGroups.map((group) => (
+            {filteredGroups.map((group) => (
               <li
                 id={`kommune-group-${group.primarySlug}`}
                 key={group.groupKey}
@@ -166,14 +184,46 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
           </ul>
         )}
 
-        {visibleGroups.length < filteredGroups.length ? (
-          <button
-            type="button"
-            onClick={() => setVisibleCount((count) => count + 30)}
-            className={`${ui.secondaryAction} mt-5 min-h-[48px] w-full`}
-          >
-            Vis flere adresser
-          </button>
+        {pagination.totalPages > 1 ? (
+          <nav className="mt-6 border-t border-white/10 pt-5" aria-label="Sider med adresser i kommunen">
+            <p className="mb-3 text-sm text-gray-400">
+              Side {pagination.currentPage.toLocaleString('da-DK')} af {pagination.totalPages.toLocaleString('da-DK')}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {pagination.currentPage > 1 ? (
+                <Link
+                  href={getMunicipalityPagePath(municipalitySlug, pagination.currentPage - 1)}
+                  prefetch={false}
+                  className={ui.secondaryAction}
+                  rel="prev"
+                >
+                  Forrige
+                </Link>
+              ) : null}
+              {Array.from({ length: pagination.totalPages }, (_, index) => index + 1).map((page) => (
+                <Link
+                  key={page}
+                  href={getMunicipalityPagePath(municipalitySlug, page)}
+                  prefetch={false}
+                  className={page === pagination.currentPage ? ui.primaryAction : ui.secondaryAction}
+                  aria-current={page === pagination.currentPage ? 'page' : undefined}
+                  aria-label={`Side ${page}`}
+                >
+                  {page}
+                </Link>
+              ))}
+              {pagination.currentPage < pagination.totalPages ? (
+                <Link
+                  href={getMunicipalityPagePath(municipalitySlug, pagination.currentPage + 1)}
+                  prefetch={false}
+                  className={ui.secondaryAction}
+                  rel="next"
+                >
+                  Næste
+                </Link>
+              ) : null}
+            </div>
+          </nav>
         ) : null}
       </section>
 
@@ -186,9 +236,7 @@ export default function KommuneExperience({ groups, municipalityName }: Props) {
               setSelectedGroupKey(key)
               const group = groups.find((item) => item.groupKey === key)
               if (group) {
-                const groupIndex = groups.findIndex((item) => item.groupKey === key)
                 setQuery('')
-                setVisibleCount(Math.max(30, groupIndex + 1))
                 requestAnimationFrame(() => document.getElementById(`kommune-group-${group.primarySlug}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
               }
             }}

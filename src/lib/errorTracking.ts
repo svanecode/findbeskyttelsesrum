@@ -15,6 +15,31 @@ function getPagePath() {
 class ErrorTracker {
   private endpoint = '/api/errors'
   private isProduction = process.env.NODE_ENV === 'production'
+  private initialized = false
+
+  public initialize() {
+    if (this.initialized || typeof window === 'undefined') return
+    this.initialized = true
+
+    window.addEventListener('error', (event) => {
+      this.captureError(
+        event.error instanceof Error ? event.error : new Error(event.message),
+        {
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+          type: 'window-error',
+        },
+      )
+    })
+
+    window.addEventListener('unhandledrejection', (event) => {
+      const error = event.reason instanceof Error
+        ? event.reason
+        : new Error(`Unhandled promise rejection: ${String(event.reason)}`)
+      this.captureError(error, { type: 'unhandledrejection' })
+    })
+  }
 
   public captureError(error: Error, context?: Record<string, unknown>) {
     if (!this.isProduction) {
@@ -72,21 +97,3 @@ class ErrorTracker {
 
 // Create global instance
 export const errorTracker = new ErrorTracker()
-
-// Global error handler
-if (typeof window !== 'undefined') {
-  window.addEventListener('error', (event) => {
-    errorTracker.captureError(new Error(event.message), {
-      filename: event.filename,
-      lineno: event.lineno,
-      colno: event.colno
-    })
-  })
-
-  window.addEventListener('unhandledrejection', (event) => {
-    errorTracker.captureError(
-      new Error(`Unhandled promise rejection: ${event.reason}`),
-      { type: 'unhandledrejection' }
-    )
-  })
-}

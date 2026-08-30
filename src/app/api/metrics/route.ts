@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseProductMetricPayload } from "@/lib/analytics/product-metrics";
 import { recordProductMetricServer } from "@/lib/analytics/product-metrics-server";
 import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
+import { readBoundedRequestText } from "@/lib/http/read-bounded-request-text";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -47,14 +48,17 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const rawBody = await request.text();
-  if (new TextEncoder().encode(rawBody).byteLength > maximumBodyLength) {
+  const bodyResult = await readBoundedRequestText(request, maximumBodyLength);
+  if (!bodyResult.ok && bodyResult.reason === "too_large") {
     return new NextResponse(null, { status: 413, headers: { "Cache-Control": "private, no-store" } });
+  }
+  if (!bodyResult.ok) {
+    return new NextResponse(null, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(rawBody) as unknown;
+    parsed = JSON.parse(bodyResult.text) as unknown;
   } catch {
     return new NextResponse(null, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }

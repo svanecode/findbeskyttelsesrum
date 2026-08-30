@@ -11,6 +11,11 @@ const addressSearchUrl = new URL("../src/components/AddressSearchDAWA.tsx", impo
 const registrationNoticeUrl = new URL("../src/components/RegistrationNotice.tsx", import.meta.url);
 const reportFormUrl = new URL("../src/components/ReportShelterIssue.tsx", import.meta.url);
 const reportApiUrl = new URL("../src/app/api/app-v2/shelter-reports/route.ts", import.meta.url);
+const privacyContactApiUrls = [
+  new URL("../src/app/api/app-v2/privacy-contact/cases/route.ts", import.meta.url),
+  new URL("../src/app/api/app-v2/privacy-contact/cases/messages/route.ts", import.meta.url),
+  new URL("../src/app/api/app-v2/privacy-contact/cases/status/route.ts", import.meta.url),
+];
 const clientErrorApiUrl = new URL("../src/app/api/errors/route.ts", import.meta.url);
 const proxyUrl = new URL("../src/proxy.ts", import.meta.url);
 const privacyPageUrl = new URL("../src/app/privatliv/page.tsx", import.meta.url);
@@ -19,6 +24,7 @@ const countryMapUrl = new URL("../src/app/kort/country-map.tsx", import.meta.url
 const countryMapPageUrl = new URL("../src/app/kort/page.tsx", import.meta.url);
 const municipalityMapUrl = new URL("../src/app/kommune/[slug]/kommune-map.tsx", import.meta.url);
 const healthApiUrl = new URL("../src/app/api/health/route.ts", import.meta.url);
+const livenessApiUrl = new URL("../src/app/api/health/live/route.ts", import.meta.url);
 const manifestUrl = new URL("../public/site.webmanifest", import.meta.url);
 const layoutUrl = new URL("../src/app/layout.tsx", import.meta.url);
 const nextConfigUrl = new URL("../next.config.js", import.meta.url);
@@ -171,7 +177,9 @@ test("production build and Safari-compatible browser stories run before merge", 
 
   assert.match(config, /name: "mobile-webkit"/);
   assert.match(config, /devices\["iPhone 15"\]/);
-  assert.match(workflow, /playwright install --with-deps chromium webkit/);
+  assert.match(config, /name: "desktop-firefox"/);
+  assert.match(config, /name: "desktop-webkit"/);
+  assert.match(workflow, /playwright install --with-deps chromium firefox webkit/);
   assert.match(workflow, /supabase@2\.115\.0 test db supabase\/tests --local/);
   assert.doesNotMatch(workflow, /if: github\.event_name != 'pull_request'/);
 });
@@ -192,6 +200,18 @@ test("expensive public APIs use shared rate limits without globally limiting pag
   assert.doesNotMatch(proxy, /rateLimit\(/);
 });
 
+test("private contact and reporting operations fail closed when the shared limiter is unavailable", async () => {
+  const protectedRoutes = await Promise.all([
+    readFile(reportApiUrl, "utf8"),
+    ...privacyContactApiUrls.map((url) => readFile(url, "utf8")),
+  ]);
+
+  for (const route of protectedRoutes) {
+    assert.match(route, /if \(!sharedLimit\.available\)/);
+    assert.match(route, /503/);
+  }
+});
+
 test("the compact footer links to accurate privacy and reporting guidance", async () => {
   const privacyPage = await readFile(privacyPageUrl, "utf8");
   const footer = await readFile(footerUrl, "utf8");
@@ -209,7 +229,12 @@ test("the compact footer links to accurate privacy and reporting guidance", asyn
   assert.match(privacyPage, /Dine rettigheder/);
   assert.match(privacyPage, /24 måneder/);
   assert.match(privacyPage, /5 år/);
+  assert.match(privacyPage, /eventuelt samtykkebehov skal dokumenteres/);
   assert.match(dataPage, /id="rapportering"/);
+  assert.match(dataPage, /Kildeangivelse:/);
+  assert.match(dataPage, /brugsvilkår for BBR/);
+  assert.match(dataPage, /brugsvilkår for DAR/);
+  assert.match(dataPage, /Hvem står bag\?/);
 });
 
 test("search context is short-lived and has a memory-only storage fallback", async () => {
@@ -230,7 +255,7 @@ test("client errors enforce origin, body and location privacy boundaries", async
 
   assert.match(route, /isSameOrigin/);
   assert.match(route, /maximumBodyBytes/);
-  assert.match(route, /new TextEncoder\(\)\.encode\(rawText\)\.byteLength/);
+  assert.match(route, /readBoundedRequestText\(request, maximumBodyBytes\)/);
   assert.match(route, /parseAndSanitizeClientErrorReport/);
   assert.doesNotMatch(route, /userAgent|userId|ERROR_WEBHOOK/);
   assert.match(sanitizer, /allowedReportKeys/);
@@ -330,7 +355,8 @@ test("nearby accepts only bounded POST bodies", async () => {
   const nearbyApi = await readFile(nearbyApiUrl, "utf8");
 
   assert.match(nearbyApi, /maximumBodyBytes = 2_048/);
-  assert.match(nearbyApi, /new TextEncoder\(\)\.encode\(rawBody\)\.byteLength/);
+  assert.match(nearbyApi, /readBoundedRequestText\(request, maximumBodyBytes\)/);
+  assert.ok(nearbyApi.indexOf("rateLimit(request") < nearbyApi.indexOf("readBoundedRequestText(request"));
   assert.match(nearbyApi, /status: 405/);
   assert.match(nearbyApi, /response\.headers\.set\("Allow", "POST"\)/);
   assert.doesNotMatch(nearbyApi, /handleNearbyRequest\(request, request\.nextUrl\.searchParams/);
@@ -344,8 +370,11 @@ test("the national map page loads aggregate stats instead of all markers", async
   assert.doesNotMatch(mapPage, /markers\.reduce/);
 });
 
-test("the health endpoint exposes verifiable deployment and publication identity", async () => {
-  const healthApi = await readFile(healthApiUrl, "utf8");
+test("the health endpoint exposes cached readiness and separate cheap liveness", async () => {
+  const [healthApi, livenessApi] = await Promise.all([
+    readFile(healthApiUrl, "utf8"),
+    readFile(livenessApiUrl, "utf8"),
+  ]);
 
   assert.match(healthApi, /getAppV2PublicDataStats/);
   assert.match(healthApi, /getAppV2CurrentDatasetPublication/);
@@ -357,8 +386,10 @@ test("the health endpoint exposes verifiable deployment and publication identity
   assert.match(healthApi, /getOperationalHealth/);
   assert.match(healthApi, /trusted_operational_heartbeat_is_stale/);
   assert.doesNotMatch(healthApi, /SUPABASE_SECRET_KEY/);
-  assert.match(healthApi, /Cache-Control/);
-  assert.match(healthApi, /no-store/);
+  assert.match(healthApi, /unstable_cache/);
+  assert.match(healthApi, /s-maxage=/);
+  assert.match(livenessApi, /status: "ok"/);
+  assert.doesNotMatch(livenessApi, /getAppV2|Supabase|database/);
 });
 
 test("the private moderator flow requires GitHub, an allowlisted identity and MFA", async () => {

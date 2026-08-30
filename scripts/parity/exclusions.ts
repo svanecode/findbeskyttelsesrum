@@ -55,6 +55,7 @@ type MatchCandidate = {
 };
 
 const sampleLimit = 10;
+const databasePageSize = 1000;
 
 function getSupabaseEnv(): SupabaseParityEnv {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
@@ -150,48 +151,79 @@ function findMatchesByKey(
 
 async function readLegacyExclusions(url: string, secretKey: string) {
   const supabase = createSupabaseClient(url, secretKey, "public");
-  const { data, error } = await supabase
-    .from("excluded_shelters")
-    .select("id, address, vejnavn, husnummer, postnummer, bygning_id, reason, created_at, created_by")
-    .order("created_at", { ascending: false });
+  const rows: LegacyExcludedShelterRow[] = [];
 
-  if (error) {
-    throw new Error(`Could not read legacy public.excluded_shelters: ${error.message}`);
+  for (let from = 0; ; from += databasePageSize) {
+    const { data, error } = await supabase
+      .from("excluded_shelters")
+      .select("id, address, vejnavn, husnummer, postnummer, bygning_id, reason, created_at, created_by")
+      .order("created_at", { ascending: false })
+      .range(from, from + databasePageSize - 1);
+
+    if (error) {
+      throw new Error(`Could not read legacy public.excluded_shelters: ${error.message}`);
+    }
+
+    const page = (data ?? []) as LegacyExcludedShelterRow[];
+    rows.push(...page);
+
+    if (page.length < databasePageSize) break;
   }
 
-  return (data ?? []) as LegacyExcludedShelterRow[];
+  return rows;
 }
 
 async function readAppV2Shelters(url: string, secretKey: string) {
   const supabase = createSupabaseClient(url, secretKey, "app_v2");
-  const { data, error } = await supabase
-    .from("shelters")
-    .select(
-      "id, slug, name, address_line1, postal_code, city, import_state, canonical_source_name, canonical_source_reference",
-    )
-    .order("slug");
+  const rows: AppV2ShelterRow[] = [];
 
-  if (error) {
-    throw new Error(`Could not read app_v2.shelters: ${error.message}`);
+  for (let from = 0; ; from += databasePageSize) {
+    const { data, error } = await supabase
+      .from("shelters")
+      .select(
+        "id, slug, name, address_line1, postal_code, city, import_state, canonical_source_name, canonical_source_reference",
+      )
+      .order("slug")
+      .range(from, from + databasePageSize - 1);
+
+    if (error) {
+      throw new Error(`Could not read app_v2.shelters: ${error.message}`);
+    }
+
+    const page = (data ?? []) as AppV2ShelterRow[];
+    rows.push(...page);
+
+    if (page.length < databasePageSize) break;
   }
 
-  return (data ?? []) as AppV2ShelterRow[];
+  return rows;
 }
 
 async function readExistingAppV2Exclusions(url: string, secretKey: string) {
   const supabase = createSupabaseClient(url, secretKey, "app_v2");
-  const { data, error } = await supabase
-    .from("shelter_exclusions")
-    .select(
-      "id, is_active, shelter_id, canonical_source_name, canonical_source_reference, address_line1, postal_code, city, legacy_bygning_id",
-    );
+  const rows: AppV2ShelterExclusionRow[] = [];
 
-  if (error) {
-    console.log(`[parity:exclusions] warning: could not read app_v2.shelter_exclusions: ${error.message}`);
-    return null;
+  for (let from = 0; ; from += databasePageSize) {
+    const { data, error } = await supabase
+      .from("shelter_exclusions")
+      .select(
+        "id, is_active, shelter_id, canonical_source_name, canonical_source_reference, address_line1, postal_code, city, legacy_bygning_id",
+      )
+      .order("id")
+      .range(from, from + databasePageSize - 1);
+
+    if (error) {
+      console.log(`[parity:exclusions] warning: could not read app_v2.shelter_exclusions: ${error.message}`);
+      return null;
+    }
+
+    const page = (data ?? []) as AppV2ShelterExclusionRow[];
+    rows.push(...page);
+
+    if (page.length < databasePageSize) break;
   }
 
-  return (data ?? []) as AppV2ShelterExclusionRow[];
+  return rows;
 }
 
 function printCandidates(title: string, candidates: MatchCandidate[], formatter: (candidate: MatchCandidate) => string) {

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 
 type BaseProps = {
   onRetry: () => void;
@@ -18,6 +19,16 @@ export default function MapUnavailableNotice({
   fallbackHref,
   onFallback,
 }: Props) {
+  const retryButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const focusFrame = window.requestAnimationFrame(() => {
+      retryButtonRef.current?.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, []);
+
   return (
     <div
       className="absolute inset-0 z-[1000] flex items-center justify-center bg-[var(--surface-inset)]/95 p-5 text-center"
@@ -31,6 +42,7 @@ export default function MapUnavailableNotice({
         </p>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
           <button
+            ref={retryButtonRef}
             type="button"
             onClick={onRetry}
             className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-gray-200"

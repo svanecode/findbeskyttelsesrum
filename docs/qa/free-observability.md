@@ -7,8 +7,14 @@ No paid analytics, map or error-tracking product is required.
 
 `.github/workflows/application-quality.yml` runs linting, TypeScript, unit/security contract tests, a fresh migration
 replay, all database integrity tests, a production build and the complete Playwright browser story on every pull request.
-The browser gate covers desktop Chromium, mobile Chromium and iPhone-sized WebKit, and it repeats on pushes to `main`.
+The browser gate covers desktop Chromium, Firefox and WebKit plus mobile Chromium and iPhone-sized WebKit, and it
+repeats on pushes to `main`.
 The local HTTP test build disables only CSP's HTTPS-upgrade directives; ordinary production builds retain them.
+
+The release job deliberately receives no `SUPABASE_SECRET_KEY`. It reads the public Supabase URL and publishable key
+from the repository variables `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, with the existing
+same-named secrets as a compatibility fallback for trusted branches. Configure both repository variables so fork and
+Dependabot pull requests can run the public read-only build; they are browser-visible values, not write credentials.
 
 `.github/workflows/production-smoke.yml` checks the live homepage, public data health, DAWA, nearby results, the full
 national map boundary including Bornholm, municipality pages, detail pages and reporting validation twice per hour.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
+import { readBoundedRequestText } from "@/lib/http/read-bounded-request-text";
 import { rateLimit } from "@/lib/rate-limit";
 import { isShelterReportType } from "@/lib/reporting/shelter-report";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
@@ -8,7 +9,7 @@ import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const maxBodyChars = 6_000;
+const maximumBodyBytes = 24_000;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type IncomingReport = {
@@ -51,32 +52,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const sharedLimit = await consumeDistributedRateLimit(
-    request,
-    { maxRequests: 5, windowMs: 60 * 60 * 1_000 },
-    "shelter-reports",
-  );
-  if (!sharedLimit.allowed) {
-    return NextResponse.json(
-      { error: "Du har sendt for mange rapporter. Prøv igen senere." },
-      {
-        status: 429,
-        headers: {
-          "Cache-Control": "private, no-store",
-          "Retry-After": String(sharedLimit.retryAfterSeconds),
-        },
-      },
-    );
-  }
-
-  const raw = await request.text();
-  if (raw.length > maxBodyChars) {
+  const bodyResult = await readBoundedRequestText(request, maximumBodyBytes);
+  if (!bodyResult.ok && bodyResult.reason === "too_large") {
     return json({ error: "Rapporten er for lang." }, 413);
   }
+  if (!bodyResult.ok) return json({ error: "Rapporten kunne ikke læses." }, 400);
 
   let body: IncomingReport;
   try {
-    body = JSON.parse(raw) as IncomingReport;
+    body = JSON.parse(bodyResult.text) as IncomingReport;
   } catch {
     return json({ error: "Rapporten kunne ikke læses." }, 400);
   }
@@ -95,6 +79,27 @@ export async function POST(request: NextRequest) {
 
   if (message.length < 10 || message.length > 1_500) {
     return json({ error: "Beskrivelsen skal være mellem 10 og 1.500 tegn." }, 400);
+  }
+
+  const sharedLimit = await consumeDistributedRateLimit(
+    request,
+    { maxRequests: 5, windowMs: 60 * 60 * 1_000 },
+    "shelter-reports",
+  );
+  if (!sharedLimit.available) {
+    return json({ error: "Rapportering er midlertidigt utilgængelig. Prøv igen senere." }, 503);
+  }
+  if (!sharedLimit.allowed) {
+    return NextResponse.json(
+      { error: "Du har sendt for mange rapporter. Prøv igen senere." },
+      {
+        status: 429,
+        headers: {
+          "Cache-Control": "private, no-store",
+          "Retry-After": String(sharedLimit.retryAfterSeconds),
+        },
+      },
+    );
   }
 
   try {

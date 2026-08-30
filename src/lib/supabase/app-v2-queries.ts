@@ -1,6 +1,8 @@
 import { getMunicipalitySlugCandidates, normalizeMunicipalityDisplay } from "@/lib/municipalities/metadata";
 import { createAppV2PublicClient } from "@/lib/app-v2-public";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
+import { SupabaseConfigurationError } from "@/lib/supabase/env";
+import { isMissingPublicRpcError } from "@/lib/supabase/public-rpc-errors";
 import { cache } from "react";
 import { normalizePublicApplicationLabel } from "@/lib/public-labels";
 import { getStableShelterSlug } from "@/lib/shelter-public-url";
@@ -826,15 +828,37 @@ export async function getAppV2CurrentDatasetPublication(): Promise<AppV2CurrentD
 }
 
 export async function getAppV2PublicDataRevision(): Promise<AppV2PublicDataRevision> {
-  const admin = createAppV2AdminClient();
-  const { data, error } = await admin
-    .from("public_data_revisions")
-    .select("revision, publication_id, changed_at")
-    .eq("scope", "public")
+  const publicClient = createAppV2PublicClient();
+  const { data, error } = await publicClient
+    .rpc("get_public_data_revision_v1")
     .single();
 
   if (error) {
-    throw new Error(`Could not load public app_v2 data revision: ${error.message}`);
+    if (!isMissingPublicRpcError(error)) {
+      throw new Error(`Could not load the public data revision: ${error.message}`);
+    }
+
+    // Rolling deployments can run this app revision briefly before the new
+    // allowlisted RPC migration reaches the target database. Keep public reads
+    // operational with a deterministic aggregate-derived key; once the RPC is
+    // present, moderation changes use the exact revision ledger below.
+    const stats = await getAppV2PublicDataStats();
+    const changedAt = stats.latestPublicImportAt ?? new Date(0).toISOString();
+    const changedAtMilliseconds = Date.parse(changedAt);
+    const revision = [
+      Number.isFinite(changedAtMilliseconds) ? changedAtMilliseconds : 0,
+      stats.publicRegistrations,
+      stats.publicCapacity,
+      stats.mappedRegistrations,
+      stats.mappedCapacity,
+    ].join("-");
+
+    return {
+      revision,
+      publicationId: null,
+      changedAt,
+      cacheKey: `aggregate:${revision}`,
+    };
   }
 
   const row = data as PublicDataRevisionRow;
@@ -1057,10 +1081,13 @@ export async function getAppV2GroupedNearbySheltersWithDiagnostics(
   const labelByCode = new Map<string, string>();
   if (uniqueCodes.length > 0) {
     const labelClient = createAppV2PublicClient();
-    const { data: labelRows } = await labelClient
+    const { data: labelRows, error: labelError } = await labelClient
       .from("application_code_public")
       .select("application_code, label")
       .in("application_code", uniqueCodes);
+    if (labelError) {
+      throw new Error(`Could not load app_v2 nearby application code labels: ${labelError.message}`);
+    }
     for (const row of (labelRows ?? []) as Array<{ application_code: string; label: string | null }>) {
       if (row.label) labelByCode.set(row.application_code, normalizePublicApplicationLabel(row.label));
     }
@@ -1699,6 +1726,10 @@ type ShelterSlugAliasRow = {
   shelter_id: string;
 };
 
+type PublicShelterSlugAliasRow = {
+  canonical_slug: string;
+};
+
 export const resolveAppV2PublicShelter = cache(async function resolveAppV2PublicShelter(slug: string) {
   const directShelter = await getAppV2PublicShelterBySlug(slug);
   if (directShelter) {
@@ -1708,21 +1739,42 @@ export const resolveAppV2PublicShelter = cache(async function resolveAppV2Public
     };
   }
 
-  const admin = createAppV2AdminClient();
-  const { data: aliasData, error: aliasError } = await admin
-    .from("shelter_slug_aliases")
-    .select("shelter_id")
-    .eq("alias_slug", slug)
+  const publicClient = createAppV2PublicClient();
+  const { data: publicAliasData, error: publicAliasError } = await publicClient
+    .rpc("resolve_public_shelter_slug_alias_v1", { p_alias_slug: slug })
     .maybeSingle();
 
-  if (aliasError) {
-    if (aliasError.code === "PGRST205" || aliasError.code === "42P01") return null;
+  let canonicalSlug: string | null = null;
+  if (!publicAliasError) {
+    canonicalSlug = (publicAliasData as PublicShelterSlugAliasRow | null)?.canonical_slug ?? null;
+  } else if (isMissingPublicRpcError(publicAliasError)) {
+    // During a rolling deploy, keep legacy links working with the existing
+    // server-only resolver until the allowlisted public RPC migration lands.
+    try {
+      const admin = createAppV2AdminClient();
+      const { data: privateAliasData, error: privateAliasError } = await admin
+        .from("shelter_slug_aliases")
+        .select("shelter_id")
+        .eq("alias_slug", slug)
+        .maybeSingle();
+
+      if (privateAliasError) {
+        if (privateAliasError.code === "PGRST205" || privateAliasError.code === "42P01") return null;
+        throw new Error(`Could not resolve public app_v2 shelter alias "${slug}".`);
+      }
+      canonicalSlug = privateAliasData
+        ? getStableShelterSlug((privateAliasData as ShelterSlugAliasRow).shelter_id)
+        : null;
+    } catch (error) {
+      if (error instanceof SupabaseConfigurationError) return null;
+      throw error;
+    }
+  } else {
     throw new Error(`Could not resolve public app_v2 shelter alias "${slug}".`);
   }
 
-  if (!aliasData) return null;
+  if (!canonicalSlug) return null;
 
-  const canonicalSlug = getStableShelterSlug((aliasData as ShelterSlugAliasRow).shelter_id);
   const shelter = await getAppV2PublicShelterBySlug(canonicalSlug);
   if (!shelter) return null;
 

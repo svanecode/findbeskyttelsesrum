@@ -29,6 +29,9 @@ export function contentSecurityPolicyValue({
     ...developmentConnections,
   ].filter(Boolean)
 
+  // Static App Router output contains Next.js Flight bootstrap scripts. A
+  // per-request nonce would force every public page out of ISR/CDN caching, so
+  // keep inline scripts while blocking every inline event-handler attribute.
   const scriptSrc = [
     "'self'",
     "'unsafe-inline'",
@@ -45,6 +48,7 @@ export function contentSecurityPolicyValue({
     "default-src 'self'",
     `script-src ${scriptSrc}`,
     "script-src-attr 'none'",
+    // Leaflet and the global error boundary use bounded React inline styles.
     "style-src 'self' 'unsafe-inline'",
     `img-src 'self' data: blob: ${osmTileOrigin}`,
     "font-src 'self' data:",

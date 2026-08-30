@@ -21,6 +21,7 @@ const privacyOperationsMigrationUrl = new URL(
 const heartbeatMonitorUrl = new URL("../scripts/monitor/record-trusted-heartbeat.mjs", import.meta.url);
 const smokeWorkflowUrl = new URL("../.github/workflows/production-smoke.yml", import.meta.url);
 const operationalHealthUrl = new URL("../src/lib/operations/operational-health.ts", import.meta.url);
+const productionSmokeUrl = new URL("../scripts/monitor/production-smoke.mjs", import.meta.url);
 
 test("product metric payloads accept only a fixed privacy-safe contract", () => {
   assert.deepEqual(parseProductMetricPayload({ eventName: "address_selected" }), {
@@ -41,12 +42,13 @@ test("product metric payloads accept only a fixed privacy-safe contract", () => 
 });
 
 test("trusted operational health is separate from browser product metrics", async () => {
-  const [migration, heartbeatMonitor, smokeWorkflow, client, operationalHealth] = await Promise.all([
+  const [migration, heartbeatMonitor, smokeWorkflow, client, operationalHealth, productionSmoke] = await Promise.all([
     readFile(privacyOperationsMigrationUrl, "utf8"),
     readFile(heartbeatMonitorUrl, "utf8"),
     readFile(smokeWorkflowUrl, "utf8"),
     readFile(clientUrl, "utf8"),
     readFile(operationalHealthUrl, "utf8"),
+    readFile(productionSmokeUrl, "utf8"),
   ]);
   const lowerSql = migration.toLowerCase();
 
@@ -62,6 +64,10 @@ test("trusted operational health is separate from browser product metrics", asyn
   assert.match(smokeWorkflow, /Registrér betroet driftsheartbeat/);
   assert.match(smokeWorkflow, /SMOKE_ALLOW_STALE_OPERATIONAL_HEARTBEAT/);
   assert.match(operationalHealth, /typeof value !== "number" && typeof value !== "string"/);
+  assert.match(productionSmoke, /SMOKE_TRANSIENT_RETRY_ATTEMPTS/);
+  assert.match(productionSmoke, /retryTransient\("Database og datafriskhed"/);
+  assert.match(productionSmoke, /response\.status === 409/);
+  assert.match(productionSmoke, /conflict\?\.currentRevision/);
 });
 
 test("metrics stay private, aggregated and service-only", async () => {
@@ -84,7 +90,7 @@ test("metrics stay private, aggregated and service-only", async () => {
   assert.match(route, /maximumBodyLength = 256/);
   assert.match(route, /isSameOrigin/);
   assert.match(route, /consumeDistributedRateLimit/);
-  assert.match(route, /new TextEncoder\(\)\.encode\(rawBody\)\.byteLength/);
+  assert.match(route, /readBoundedRequestText\(request, maximumBodyLength\)/);
   assert.match(client, /credentials: "omit"/);
   assert.match(client, /keepalive: true/);
   assert.match(monitor, /"Content-Profile": "app_v2"/);

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
 
 import {
   installNearbySearchContext,
@@ -98,6 +98,65 @@ test("kortfejl bevarer resultatlisten som fallback", async ({ page }, testInfo) 
 
   const mapError = page.getByRole("alert").filter({ hasText: "Kortbaggrunden er ikke tilgængelig" });
   await expect(mapError).toBeVisible();
-  await mapError.getByRole("button", { name: "Til listen" }).click();
+  await expect(mapError.getByRole("button", { name: "Prøv kortet igen" })).toBeFocused();
+  await expect(page.locator("[data-map-content]")).toHaveAttribute("inert", "");
+  await expect(page.locator("[data-map-content]")).toHaveAttribute("aria-hidden", "true");
+  await mapError.getByRole("button", { name: "Til resultatlisten" }).click();
+  await expect(page.getByRole("tab", { name: "Liste" })).toBeFocused();
   await expect(page.locator("#nearby-list-panel").getByText("Rådhuspladsen 1", { exact: true })).toBeVisible();
+});
+
+test("kortfejl gendanner fokus til den brugte kortkontrol efter retry", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Fokusretur kontrolleres i én mobilmotor.");
+  await installNearbySearchContext(page);
+  await mockNearby(page);
+
+  const heldTiles: Route[] = [];
+  let tileMode: "hold" | "fail" | "ready" = "hold";
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  await page.route("https://tile.openstreetmap.org/**", async (route) => {
+    if (tileMode === "hold") {
+      heldTiles.push(route);
+      return;
+    }
+    if (tileMode === "fail") {
+      await route.fulfill({ status: 503, contentType: "text/plain", body: "tile unavailable" });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
+  });
+
+  await page.goto("/shelters/nearby");
+  await page.getByRole("button", { name: "Vis på kort" }).click();
+  const zoomIn = page.locator(".nearby-map .leaflet-control-zoom-in");
+  await expect(zoomIn).toBeVisible();
+  await zoomIn.focus();
+  await expect(zoomIn).toBeFocused();
+
+  tileMode = "fail";
+  await Promise.all(
+    heldTiles.splice(0).map((route) =>
+      route.fulfill({ status: 503, contentType: "text/plain", body: "tile unavailable" }),
+    ),
+  );
+
+  const mapError = page.getByRole("alert").filter({ hasText: "Kortbaggrunden er ikke tilgængelig" });
+  const retry = mapError.getByRole("button", { name: "Prøv kortet igen" });
+  await expect(retry).toBeFocused();
+  tileMode = "ready";
+  await retry.click();
+
+  await expect(page.locator("[data-map-content]")).not.toHaveAttribute("inert", "");
+  await expect(zoomIn).toBeFocused();
+  expect(consoleErrors.filter((message) => /blocked aria-hidden|inert descendant/i.test(message))).toEqual([]);
 });

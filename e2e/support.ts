@@ -1,6 +1,6 @@
 import type { Page, TestInfo } from "@playwright/test";
 
-export const knownShelterSlug = "kobenhavn-radhuspladsen-14-e317aa299d35";
+export const knownShelterSlug = "registrering-010429c7d9494595838a0a83beaf8171";
 export const selectedAddressLabel = "Rådhuspladsen 1, 1550 København V";
 const testRunNonce = `${Date.now().toString(36)}-${process.pid}`;
 

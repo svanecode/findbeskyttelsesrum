@@ -1,28 +1,16 @@
-import type { Metadata } from "next";
-
 import GlobalFooter from "@/components/GlobalFooter";
 import { ui } from "@/components/ui-classes";
+import { createPageMetadata } from "@/lib/seo/metadata";
 import { getAppV2MunicipalitySummaries } from "@/lib/supabase/app-v2-queries";
-import { siteUrl } from "@/lib/seo/site";
 import MunicipalityList from "./municipality-list";
 
 export const revalidate = 3600;
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "Kommuneoversigt",
   description: "Oversigt over kommuner med viste BBR-registreringer af sikringsrumspladser.",
-  alternates: {
-    canonical: "/kommune",
-  },
-  openGraph: {
-    title: "Kommuneoversigt",
-    description: "Oversigt over kommuner med viste BBR-registreringer af sikringsrumspladser.",
-    type: "website",
-    locale: "da_DK",
-    siteName: "Find Beskyttelsesrum",
-    url: `${siteUrl}/kommune`,
-  },
-};
+  path: "/kommune",
+});
 
 export default async function MunicipalityOverviewPage() {
   const municipalities = (await getAppV2MunicipalitySummaries()).sort((a, b) =>

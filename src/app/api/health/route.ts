@@ -1,3 +1,5 @@
+import { unstable_cache } from "next/cache";
+
 import {
   getAppV2CurrentDatasetPublication,
   getAppV2PublicDataRevision,
@@ -11,6 +13,22 @@ export const runtime = "nodejs";
 const defaultMaximumDataAgeHours = 48;
 const defaultMinimumPublicRegistrations = 500;
 const defaultMaximumOperationalAgeMinutes = 90;
+const healthDependencyCacheSeconds = 30;
+
+const readHealthDependencies = unstable_cache(
+  async (maximumOperationalAgeMinutes: number) => {
+    const [stats, publication, dataRevision, operationalHealth] = await Promise.all([
+      getAppV2PublicDataStats(),
+      getAppV2CurrentDatasetPublication(),
+      getAppV2PublicDataRevision(),
+      getOperationalHealth(maximumOperationalAgeMinutes),
+    ]);
+
+    return { stats, publication, dataRevision, operationalHealth };
+  },
+  ["public-readiness-health-v1"],
+  { revalidate: healthDependencyCacheSeconds },
+);
 
 function positiveNumber(value: string | undefined, fallback: number) {
   const parsed = Number(value);
@@ -26,7 +44,7 @@ function healthResponse(body: Record<string, unknown>, status = 200) {
   return Response.json(body, {
     status,
     headers: {
-      "Cache-Control": "private, no-store",
+      "Cache-Control": `public, max-age=0, s-maxage=${healthDependencyCacheSeconds}, stale-while-revalidate=${healthDependencyCacheSeconds}`,
     },
   });
 }
@@ -53,12 +71,9 @@ export async function GET() {
   };
 
   try {
-    const [stats, publication, dataRevision, operationalHealth] = await Promise.all([
-      getAppV2PublicDataStats(),
-      getAppV2CurrentDatasetPublication(),
-      getAppV2PublicDataRevision(),
-      getOperationalHealth(maximumOperationalAgeMinutes),
-    ]);
+    const { stats, publication, dataRevision, operationalHealth } = await readHealthDependencies(
+      maximumOperationalAgeMinutes,
+    );
     const shelterCount = stats.publicRegistrations;
     const latestImportedAt = stats.latestPublicImportAt;
     const latestImportTime = validDate(latestImportedAt);

@@ -1,15 +1,14 @@
-import type { Metadata } from "next";
-
 import GlobalFooter from "@/components/GlobalFooter";
 import { ui } from "@/components/ui-classes";
+import { createPageMetadata } from "@/lib/seo/metadata";
 
 import PrivacyContactPortal from "./privacy-contact-portal";
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "Kontakt",
   description: "Send og følg en privat henvendelse til Find Beskyttelsesrum uden at bruge e-mail.",
-  alternates: { canonical: "/kontakt" },
-};
+  path: "/kontakt",
+});
 
 export default function ContactPage() {
   return (

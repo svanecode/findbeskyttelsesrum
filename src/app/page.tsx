@@ -3,8 +3,26 @@ import Link from 'next/link'
 import AddressSearchDAWA from '@/components/AddressSearchDAWA'
 import GlobalFooter from '@/components/GlobalFooter'
 import { ui } from '@/components/ui-classes'
+import { createPageMetadata } from '@/lib/seo/metadata'
 
 export const revalidate = 600
+
+export const metadata = createPageMetadata({
+  title: 'Find Beskyttelsesrum | Se BBR-registreringer nær dig',
+  description:
+    'Orientér dig i BBR-registreringer af sikringsrumspladser. Adgang, klargøring og fysisk stand er ikke bekræftet.',
+  path: '/',
+  absoluteTitle: true,
+  keywords: [
+    'find beskyttelsesrum',
+    'beskyttelsesrum',
+    'BBR-registrering',
+    'sikringsrum',
+    'sikringsrumspladser',
+    'Danmark',
+    'civilforsvar',
+  ],
+})
 
 export default async function Home() {
   return (

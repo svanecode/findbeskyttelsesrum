@@ -4,7 +4,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import SiteHeader from "@/components/SiteHeader";
 import VercelWebMetrics from "@/components/VercelWebMetrics";
 import { getWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
-import { siteLocale, siteName, siteUrl } from "@/lib/seo/site";
+import { siteName, siteUrl } from "@/lib/seo/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -34,7 +34,6 @@ export const metadata: Metadata = {
   },
   description:
     "Orientér dig i BBR-registreringer af sikringsrumspladser. Adgang, klargøring og fysisk stand er ikke bekræftet.",
-  keywords: ["find beskyttelsesrum", "beskyttelsesrum", "BBR-registrering", "sikringsrum", "sikringsrumspladser", "Danmark", "civilforsvar"],
   authors: [{ name: siteName }],
   creator: siteName,
   publisher: siteName,
@@ -65,24 +64,6 @@ export const metadata: Metadata = {
     telephone: false,
   },
   metadataBase: new URL(siteUrl),
-  alternates: {
-    canonical: '/',
-  },
-  openGraph: {
-    title: "Find Beskyttelsesrum | Se BBR-registreringer nær dig",
-    description:
-      "Orientér dig i BBR-registreringer af sikringsrumspladser. Adgang, klargøring og fysisk stand er ikke bekræftet.",
-    url: siteUrl,
-    siteName,
-    locale: siteLocale,
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: "Find Beskyttelsesrum | Se BBR-registreringer nær dig",
-    description:
-      "Orientér dig i BBR-registreringer af sikringsrumspladser. Adgang, klargøring og fysisk stand er ikke bekræftet.",
-  },
   robots: {
     index: true,
     follow: true,

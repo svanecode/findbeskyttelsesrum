@@ -71,9 +71,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      # These values are already embedded in the public browser bundle and
+      # authorize only the explicitly granted read models. Never add the
+      # service-role/write secret to this pull-request job.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       NEXT_TELEMETRY_DISABLED: "1"
       PLAYWRIGHT_HTTP_ORIGIN: "1"
     steps:
@@ -89,8 +91,13 @@ jobs:
       - name: Installér låste afhængigheder
         run: npm ci
 
-      - name: Installér Chromium og WebKit
-        run: npx playwright install --with-deps chromium webkit
+      - name: Kontrollér offentlig read-model-konfiguration
+        run: |
+          test -n "$NEXT_PUBLIC_SUPABASE_URL" || { echo "::error::Konfigurér repository variable NEXT_PUBLIC_SUPABASE_URL for fork-PR'er."; exit 1; }
+          test -n "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" || { echo "::error::Konfigurér repository variable NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY for fork-PR'er."; exit 1; }
+
+      - name: Installér Chromium, Firefox og WebKit
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Byg produktionsversionen
         run: npm run build

@@ -41,19 +41,19 @@ const createDivIcon = (className: string, html: string, size = 40) =>
 const userLocationIcon = createDivIcon(
   'user-location-marker',
   '<div class="nearby-map-pin-user" aria-hidden="true"></div>',
-  32,
+  44,
 )
 
 const shelterIcon = createDivIcon(
   'shelter-marker',
   '<div class="nearby-map-pin-shelter" aria-hidden="true"></div>',
-  32,
+  44,
 )
 
 const selectedShelterIcon = createDivIcon(
   'shelter-marker-selected',
   '<div class="nearby-map-pin-shelter-hover" aria-hidden="true"></div>',
-  36,
+  44,
 )
 
 function formatDistanceKm(distanceKm: number) {
@@ -122,8 +122,11 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const shelterRefs = useRef<Record<string, HTMLElement | null>>({})
   const listTabRef = useRef<HTMLButtonElement | null>(null)
   const mapTabRef = useRef<HTMLButtonElement | null>(null)
+  const listPanelRef = useRef<HTMLElement | null>(null)
   const mapRef = useRef<any>(null)
   const mapPanelRef = useRef<HTMLElement | null>(null)
+  const mapContentRef = useRef<HTMLDivElement | null>(null)
+  const mapRecoveryReturnRef = useRef<HTMLElement | null>(null)
   const selectionReturnRef = useRef<HTMLElement | null>(null)
   const srMapSelectionClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -239,13 +242,33 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   }
 
   const handleTileStatusChange = useCallback((status: MapTileStatus) => {
+    if (status === 'error') {
+      const activeElement = document.activeElement
+      mapRecoveryReturnRef.current = activeElement instanceof HTMLElement
+        && mapContentRef.current?.contains(activeElement)
+        ? activeElement
+        : mapTabRef.current
+    }
     setTileStatus(status)
   }, [])
 
   const retryTiles = useCallback(() => {
+    const returnTarget = mapRecoveryReturnRef.current
     setTileStatus('loading')
     setTileRetryKey((key) => key + 1)
+    window.requestAnimationFrame(() => {
+      if (returnTarget?.isConnected && returnTarget.getClientRects().length > 0) {
+        returnTarget.focus({ preventScroll: true })
+      }
+    })
   }, [])
+
+  const useResultListFallback = useCallback(() => {
+    const returnTarget = isDesktopMap ? listPanelRef.current : listTabRef.current
+    mapRecoveryReturnRef.current = returnTarget
+    setMobileView('list')
+    window.requestAnimationFrame(() => returnTarget?.focus({ preventScroll: false }))
+  }, [isDesktopMap])
 
   const shouldRenderMap = mobileView === 'map' || isDesktopMap
 
@@ -305,9 +328,11 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
 
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-6">
           <section
+            ref={listPanelRef}
             id="nearby-list-panel"
             role={isDesktopMap ? undefined : 'tabpanel'}
             aria-labelledby={isDesktopMap ? undefined : 'nearby-list-tab'}
+            tabIndex={-1}
             className={`${mobileView === 'list' ? 'block' : 'hidden'} order-1 space-y-3 lg:block`}
           >
             <h2 id="nearby-results-heading" className="sr-only">Resultater sorteret efter afstand</h2>
@@ -415,73 +440,82 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
           >
             <p id="nearby-map-keyboard-hint" className="sr-only">Brug resultatlisten til at vælge et sted eller åbne en detaljeside med tastatur.</p>
             <div className="relative h-[calc(100dvh-13rem)] min-h-[30rem] lg:sticky lg:top-24 lg:h-[min(600px,calc(100vh-8rem))] lg:min-h-[min(600px,calc(100vh-8rem))]" aria-describedby="nearby-map-keyboard-hint">
-              <div className="absolute inset-0 overflow-hidden rounded-lg border border-white/10">
-                {shouldRenderMap ? (
-                  <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom={false}>
-                    <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
-                    <Marker position={[lat, lng]} icon={userLocationIcon} title="Din placering" alt="Din placering på kortet" />
-                    {shelters.map((shelter) => shelter.location ? (
-                      <Marker
-                        key={shelter.id}
-                        position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
-                        icon={selectedShelterId === shelter.id ? selectedShelterIcon : shelterIcon}
-                        title={getAddressLine(shelter)}
-                        alt={`BBR-registrering ved ${getAddressLine(shelter)}`}
-                        eventHandlers={{
-                          click: () => {
-                            selectionReturnRef.current = null
-                            setSelectedShelterId(shelter.id)
-                            setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
-                            if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                          },
-                        }}
-                      >
-                        <Popup className="fb-popup">
-                          <div dangerouslySetInnerHTML={{ __html: buildLeafletPopupHtml({
-                            title: getAddressLine(shelter),
-                            usageLine: formatBuildingUse(shelter) ?? '',
-                            postalLine: getPostalLine(shelter),
-                            capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
-                            href: getDetailSlug(shelter) ? `/beskyttelsesrum/${getDetailSlug(shelter)}` : null,
-                            linkLabel: 'Se detaljer',
-                          }) }} />
-                        </Popup>
-                      </Marker>
-                    ) : null)}
-                    <NearbyFitBounds userLocation={[lat, lng]} shelters={shelters} />
-                  </MapContainer>
-                ) : (
-                  <div className="flex h-full items-center justify-center bg-[var(--surface-elevated)] p-6 text-center" role="status">
-                    <p className="max-w-sm text-sm leading-6 text-gray-300">Kortet indlæses først, når du vælger kortvisningen.</p>
-                  </div>
-                )}
-                {shouldRenderMap && tileStatus === 'error' ? (
-                  <MapUnavailableNotice
-                    onRetry={retryTiles}
-                    fallbackLabel="Til listen"
-                    onFallback={() => selectMobileView('list', true)}
-                  />
+              <div
+                ref={mapContentRef}
+                data-map-content
+                className="absolute inset-0"
+                aria-hidden={tileStatus === 'error' ? true : undefined}
+                inert={tileStatus === 'error'}
+              >
+                <div className="absolute inset-0 overflow-hidden rounded-lg border border-white/10">
+                  {shouldRenderMap ? (
+                    <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom={false}>
+                      <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
+                      <Marker position={[lat, lng]} icon={userLocationIcon} title="Din placering" alt="Din placering på kortet" />
+                      {shelters.map((shelter) => shelter.location ? (
+                        <Marker
+                          key={shelter.id}
+                          position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
+                          icon={selectedShelterId === shelter.id ? selectedShelterIcon : shelterIcon}
+                          title={getAddressLine(shelter)}
+                          alt={`BBR-registrering ved ${getAddressLine(shelter)}`}
+                          eventHandlers={{
+                            click: () => {
+                              selectionReturnRef.current = null
+                              setSelectedShelterId(shelter.id)
+                              setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
+                              if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                            },
+                          }}
+                        >
+                          <Popup className="fb-popup">
+                            <div dangerouslySetInnerHTML={{ __html: buildLeafletPopupHtml({
+                              title: getAddressLine(shelter),
+                              usageLine: formatBuildingUse(shelter) ?? '',
+                              postalLine: getPostalLine(shelter),
+                              capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
+                              href: getDetailSlug(shelter) ? `/beskyttelsesrum/${getDetailSlug(shelter)}` : null,
+                              linkLabel: 'Se detaljer',
+                            }) }} />
+                          </Popup>
+                        </Marker>
+                      ) : null)}
+                      <NearbyFitBounds userLocation={[lat, lng]} shelters={shelters} />
+                    </MapContainer>
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-[var(--surface-elevated)] p-6 text-center" role="status">
+                      <p className="max-w-sm text-sm leading-6 text-gray-300">Kortet indlæses først, når du vælger kortvisningen.</p>
+                    </div>
+                  )}
+                </div>
+
+                {selectedShelter ? (
+                  <aside className="absolute inset-x-2 bottom-2 z-[700] max-h-[min(55dvh,24rem)] overflow-y-auto rounded-xl border border-white/15 bg-[var(--surface-elevated)] p-4 shadow-xl lg:hidden" aria-label="Valgt registrering">
+                    <div className="flex items-start justify-between gap-3">
+                      <h2 className="break-safe text-base font-semibold text-white">{getAddressLine(selectedShelter)}</h2>
+                      <button type="button" onClick={closeSelectedShelter} className="-mr-2 -mt-2 inline-flex min-h-[44px] shrink-0 items-center rounded-lg px-2 text-sm font-medium text-gray-200 hover:bg-white/5 hover:text-white">
+                        Luk oplysninger
+                      </button>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-300">{getPostalLine(selectedShelter)}</p>
+                    <p className="mt-2 font-semibold text-white">
+                      {formatCapacity(selectedShelter.total_capacity)}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-gray-400">Adgang ikke bekræftet · Stand ikke verificeret</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => selectMobileView('list', true)} className={ui.secondaryAction}>Til listen</button>
+                      {getDetailSlug(selectedShelter) ? <Link href={`/beskyttelsesrum/${getDetailSlug(selectedShelter)}`} className={ui.primaryAction}>Se detaljer</Link> : null}
+                    </div>
+                  </aside>
                 ) : null}
               </div>
 
-              {selectedShelter ? (
-                <aside className="absolute inset-x-2 bottom-2 z-[700] max-h-[min(55dvh,24rem)] overflow-y-auto rounded-xl border border-white/15 bg-[var(--surface-elevated)] p-4 shadow-xl lg:hidden" aria-label="Valgt registrering">
-                  <div className="flex items-start justify-between gap-3">
-                    <h2 className="break-safe text-base font-semibold text-white">{getAddressLine(selectedShelter)}</h2>
-                    <button type="button" onClick={closeSelectedShelter} className="-mr-2 -mt-2 inline-flex min-h-[44px] shrink-0 items-center rounded-lg px-2 text-sm font-medium text-gray-200 hover:bg-white/5 hover:text-white">
-                      Luk oplysninger
-                    </button>
-                  </div>
-                  <p className="mt-1 text-sm text-gray-300">{getPostalLine(selectedShelter)}</p>
-                  <p className="mt-2 font-semibold text-white">
-                    {formatCapacity(selectedShelter.total_capacity)}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-gray-400">Adgang ikke bekræftet · Stand ikke verificeret</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => selectMobileView('list', true)} className={ui.secondaryAction}>Til listen</button>
-                    {getDetailSlug(selectedShelter) ? <Link href={`/beskyttelsesrum/${getDetailSlug(selectedShelter)}`} className={ui.primaryAction}>Se detaljer</Link> : null}
-                  </div>
-                </aside>
+              {shouldRenderMap && tileStatus === 'error' ? (
+                <MapUnavailableNotice
+                  onRetry={retryTiles}
+                  fallbackLabel="Til resultatlisten"
+                  onFallback={useResultListFallback}
+                />
               ) : null}
             </div>
           </section>

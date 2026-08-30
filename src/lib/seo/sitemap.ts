@@ -10,16 +10,6 @@ export function parseSitemapDate(value: SitemapDate): Date | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
-export function mostRecentSitemapDate(...values: SitemapDate[]): Date | undefined {
-  const dates = values
-    .map(parseSitemapDate)
-    .filter((date): date is Date => Boolean(date));
-
-  if (dates.length === 0) return undefined;
-
-  return new Date(Math.max(...dates.map((date) => date.getTime())));
-}
-
 function withLastModified(entry: SitemapEntry, lastModified: SitemapDate): SitemapEntry {
   const date = parseSitemapDate(lastModified);
   return date ? { ...entry, lastModified: date } : entry;
@@ -27,10 +17,7 @@ function withLastModified(entry: SitemapEntry, lastModified: SitemapDate): Sitem
 
 export function buildCoreSitemapRoutes(
   baseUrl: string,
-  dates: {
-    dataDrivenLastModified: SitemapDate;
-    staticLastModified: SitemapDate;
-  },
+  dataDrivenLastModified: SitemapDate,
 ): MetadataRoute.Sitemap {
   return [
     withLastModified(
@@ -39,7 +26,7 @@ export function buildCoreSitemapRoutes(
         changeFrequency: "daily",
         priority: 1,
       },
-      dates.dataDrivenLastModified,
+      dataDrivenLastModified,
     ),
     withLastModified(
       {
@@ -47,7 +34,7 @@ export function buildCoreSitemapRoutes(
         changeFrequency: "weekly",
         priority: 0.85,
       },
-      dates.dataDrivenLastModified,
+      dataDrivenLastModified,
     ),
     withLastModified(
       {
@@ -55,31 +42,25 @@ export function buildCoreSitemapRoutes(
         changeFrequency: "monthly",
         priority: 0.75,
       },
-      dates.dataDrivenLastModified,
+      dataDrivenLastModified,
     ),
-    withLastModified(
-      {
-        url: `${baseUrl}/privatliv`,
-        changeFrequency: "monthly",
-        priority: 0.5,
-      },
-      dates.staticLastModified,
-    ),
-    withLastModified(
-      {
-        url: `${baseUrl}/kontakt`,
-        changeFrequency: "monthly",
-        priority: 0.55,
-      },
-      dates.staticLastModified,
-    ),
+    {
+      url: `${baseUrl}/privatliv`,
+      changeFrequency: "monthly",
+      priority: 0.5,
+    },
+    {
+      url: `${baseUrl}/kontakt`,
+      changeFrequency: "monthly",
+      priority: 0.55,
+    },
     withLastModified(
       {
         url: `${baseUrl}/kommune`,
         changeFrequency: "weekly",
         priority: 0.82,
       },
-      dates.dataDrivenLastModified,
+      dataDrivenLastModified,
     ),
   ];
 }

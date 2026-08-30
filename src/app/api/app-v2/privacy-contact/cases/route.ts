@@ -30,15 +30,6 @@ export async function POST(request: NextRequest) {
   if (!rateLimit(request, limitConfig, "privacy-contact-create")) {
     return json({ error: "Du har sendt for mange henvendelser. Prøv igen senere." }, 429, { "Retry-After": "3600" });
   }
-  const sharedLimit = await consumeDistributedRateLimit(request, limitConfig, "privacy-contact-create");
-  if (!sharedLimit.allowed) {
-    return json(
-      { error: "Du har sendt for mange henvendelser. Prøv igen senere." },
-      429,
-      { "Retry-After": String(sharedLimit.retryAfterSeconds) },
-    );
-  }
-
   const body = await readContactJsonBody<IncomingContactCase>(request, 8_192);
   if (!body) return json({ error: "Henvendelsen kunne ikke læses eller var for stor." }, 400);
 
@@ -54,6 +45,18 @@ export async function POST(request: NextRequest) {
   }
   if (message.length < 10 || message.length > 4_000) {
     return json({ error: "Beskeden skal være mellem 10 og 4.000 tegn." }, 400);
+  }
+
+  const sharedLimit = await consumeDistributedRateLimit(request, limitConfig, "privacy-contact-create");
+  if (!sharedLimit.available) {
+    return json({ error: "Kontaktfunktionen er midlertidigt utilgængelig. Prøv igen senere." }, 503);
+  }
+  if (!sharedLimit.allowed) {
+    return json(
+      { error: "Du har sendt for mange henvendelser. Prøv igen senere." },
+      429,
+      { "Retry-After": String(sharedLimit.retryAfterSeconds) },
+    );
   }
 
   try {

@@ -1,31 +1,21 @@
-import type { Metadata } from "next";
-
 import GlobalFooter from "@/components/GlobalFooter";
 import ProductMetricView from "@/components/ProductMetricView";
 import { ui } from "@/components/ui-classes";
+import { createPageMetadata } from "@/lib/seo/metadata";
 import {
   getAppV2PublicDataRevision,
   getAppV2PublicDataStats,
 } from "@/lib/supabase/app-v2-queries";
-import { siteUrl } from "@/lib/seo/site";
 
 import CountryMapExperience from "./country-map-experience";
 
-export const revalidate = 86400;
+export const revalidate = 600;
 
-export const metadata: Metadata = {
+export const metadata = createPageMetadata({
   title: "Landskort",
   description: "Orienterende landskort med BBR-registreringer af sikringsrumspladser i Danmark.",
-  alternates: { canonical: "/kort" },
-  openGraph: {
-    title: "Landskort",
-    description: "Orienterende landskort med BBR-registreringer af sikringsrumspladser i Danmark.",
-    type: "website",
-    url: `${siteUrl}/kort`,
-    siteName: "Find Beskyttelsesrum",
-    locale: "da_DK",
-  },
-};
+  path: "/kort",
+});
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -65,7 +55,7 @@ export default async function CountryMapPage() {
         </section>
       </div>
 
-      <section className="w-full px-4 pb-12 sm:px-6 lg:px-8" aria-label="Interaktivt landskort">
+      <section className="w-full px-4 pb-12 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <p className="mb-3 max-w-3xl text-xs leading-relaxed text-gray-400 sm:text-sm">
             Zoom ind og klik på punktgrupper for at se enkelte steder. Kortet er bedst med mus eller touch; for præcis

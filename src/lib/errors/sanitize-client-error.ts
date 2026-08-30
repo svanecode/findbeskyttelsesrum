@@ -5,7 +5,7 @@ const maximumUrlLength = 2_048;
 const maximumContextValueLength = 1_000;
 
 const allowedReportKeys = new Set(["message", "stack", "url", "timestamp", "context"]);
-const allowedContextKeys = new Set(["component", "errorInfo", "type", "filename", "lineno", "colno"]);
+const allowedContextKeys = new Set(["component", "digest", "errorInfo", "type", "filename", "lineno", "colno"]);
 const labelledCoordinatePattern = /\b(lat(?:itude)?|lng|lon(?:gitude)?)\s*[:=]\s*-?\d{1,3}(?:[.,]\d+)?/gi;
 const danishCoordinatePairPattern = /\b5[4-8](?:\.\d{2,})\s*[,;/|]\s*(?:[7-9]|1[0-6])(?:\.\d{2,})\b/g;
 const danishAddressPattern = /\b[\p{L}][\p{L} .'-]{1,48}(?:vej|gade|all[ée]|boulevard|plads|stræde|torv|vænget|parken|bakken|engen|holmen)\s+\d{1,4}[a-z]?(?:(?:,|\s)\s*\d{4}\s+[\p{L}][\p{L} .'-]{1,40})?/giu;

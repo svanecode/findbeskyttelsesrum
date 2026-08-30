@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-import { withAppV2Schema } from "@/lib/supabase/app-v2";
+import { withAppV2Schema } from "@/lib/supabase/app-v2-schema";
 import { getSupabasePublicEnv } from "@/lib/supabase/env";
 
 /**

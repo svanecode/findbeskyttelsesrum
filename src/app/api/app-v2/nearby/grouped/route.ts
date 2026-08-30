@@ -7,7 +7,9 @@ import {
   type AppV2GroupedNearbyShelter,
 } from "@/lib/supabase/app-v2-queries";
 import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
+import { readBoundedRequestText } from "@/lib/http/read-bounded-request-text";
 import { rateLimit } from "@/lib/rate-limit";
+import { SupabaseConfigurationError } from "@/lib/supabase/env";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -246,10 +248,6 @@ function rateLimitedResponse(requestId: string, retryAfterSeconds: number) {
   );
 }
 
-function isMissingAppV2EnvError(error: unknown) {
-  return error instanceof Error && error.message.includes("Missing NEXT_PUBLIC_SUPABASE");
-}
-
 function isRequestBody(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -270,13 +268,9 @@ function searchParamsFromRequestBody(value: unknown) {
 async function handleNearbyRequest(
   request: NextRequest,
   searchParams: URLSearchParams,
+  requestId: string,
   debugMeta = false,
 ) {
-  const requestId = getRequestId();
-  if (!rateLimit(request, { maxRequests: 30, windowMs: 60_000 }, "nearby")) {
-    return rateLimitedResponse(requestId, 60);
-  }
-
   const validation = validateNearbyRequest(searchParams);
 
   if (!validation.ok) {
@@ -341,7 +335,7 @@ async function handleNearbyRequest(
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
-    if (isMissingAppV2EnvError(error)) {
+    if (error instanceof SupabaseConfigurationError) {
       return errorResponse({
         status: 503,
         code: "app_v2_unavailable",
@@ -374,35 +368,38 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const declaredLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > maximumBodyBytes) {
-    return errorResponse({
-      status: 413,
-      code: "grouped_nearby_body_too_large",
-      message: "The nearby request body is too large.",
-      requestId: getRequestId(),
-    });
+  const requestId = getRequestId();
+  if (!rateLimit(request, { maxRequests: 30, windowMs: 60_000 }, "nearby")) {
+    return rateLimitedResponse(requestId, 60);
   }
 
-  const rawBody = await request.text();
-  if (new TextEncoder().encode(rawBody).byteLength > maximumBodyBytes) {
+  const bodyResult = await readBoundedRequestText(request, maximumBodyBytes);
+  if (!bodyResult.ok && bodyResult.reason === "too_large") {
     return errorResponse({
       status: 413,
       code: "grouped_nearby_body_too_large",
       message: "The nearby request body is too large.",
-      requestId: getRequestId(),
+      requestId,
+    });
+  }
+  if (!bodyResult.ok) {
+    return errorResponse({
+      status: 400,
+      code: "invalid_grouped_nearby_body",
+      message: "The nearby request body could not be read.",
+      requestId,
     });
   }
 
   let body: unknown;
   try {
-    body = JSON.parse(rawBody) as unknown;
+    body = JSON.parse(bodyResult.text) as unknown;
   } catch {
     return errorResponse({
       status: 400,
       code: "invalid_grouped_nearby_body",
       message: "The nearby request body must be valid JSON.",
-      requestId: getRequestId(),
+      requestId,
     });
   }
 
@@ -412,9 +409,9 @@ export async function POST(request: NextRequest) {
       status: 400,
       code: "invalid_grouped_nearby_body",
       message: "The nearby request body must be a JSON object.",
-      requestId: getRequestId(),
+      requestId,
     });
   }
 
-  return handleNearbyRequest(request, searchParams);
+  return handleNearbyRequest(request, searchParams, requestId);
 }

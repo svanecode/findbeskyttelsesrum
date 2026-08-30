@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { ui } from './ui-classes'
 
 import { shelterReportTypes, type ShelterReportType } from '@/lib/reporting/shelter-report'
@@ -20,6 +20,15 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
   const [messageLength, setMessageLength] = useState(0)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const typeRef = useRef<HTMLSelectElement>(null)
+  const successRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (submitState !== 'success') return
+    const frame = window.requestAnimationFrame(() => {
+      successRef.current?.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [submitState])
 
   const openForm = () => {
     setOpen(true)
@@ -71,7 +80,12 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
 
   if (submitState === 'success') {
     return (
-      <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-4" role="status">
+      <div
+        ref={successRef}
+        className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-4 outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+        role="status"
+        tabIndex={-1}
+      >
         <p className="font-semibold text-emerald-100">Tak for din rapport</p>
         <p className="mt-1 text-sm leading-6 text-gray-200">
           Den er lagt i moderationskø. Registreringen ændres ikke automatisk.

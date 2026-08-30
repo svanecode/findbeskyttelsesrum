@@ -6,6 +6,7 @@ import Link from "next/link";
 import "leaflet/dist/leaflet.css";
 import "@/styles/leaflet-overrides.css";
 import type {
+  CountryMapClusterFeature,
   CountryMapFeature,
   CountryMapFeaturesResponse,
   CountryMapShelterMarker,
@@ -39,15 +40,16 @@ const MarkerClusterGroup = dynamic(
 
 function makeShelterIcon(L: typeof import("leaflet")) {
   const size = 26;
+  const targetSize = 44;
   const border = 3;
   const color = "var(--accent)";
   const shadow = "0 3px 8px rgba(0,0,0,0.4)";
   return L.divIcon({
     className: "shelter-marker",
     html: `<div style="width:${size}px;height:${size}px;background:${color};border:${border}px solid white;border-radius:50%;box-shadow:${shadow};"></div>`,
-    iconSize: [size + 8, size + 8],
-    iconAnchor: [(size + 8) / 2, (size + 8) / 2],
-    popupAnchor: [0, -((size + 8) / 2)],
+    iconSize: [targetSize, targetSize],
+    iconAnchor: [targetSize / 2, targetSize / 2],
+    popupAnchor: [0, -(targetSize / 2)],
   });
 }
 
@@ -125,6 +127,8 @@ export default function CountryMap({
   const [markerRetryKey, setMarkerRetryKey] = useState(0);
   const [tileStatus, setTileStatus] = useState<MapTileStatus>("loading");
   const [tileRetryKey, setTileRetryKey] = useState(0);
+  const mapContentRef = useRef<HTMLDivElement | null>(null);
+  const mapRecoveryReturnRef = useRef<HTMLElement | null>(null);
   const features = markerState.status === "loaded" ? markerState.features : noFeatures;
   const shelters = useMemo(
     () => features.filter((feature) => feature.kind === "marker"),
@@ -134,6 +138,30 @@ export default function CountryMap({
     () => features.filter((feature) => feature.kind === "cluster"),
     [features],
   );
+  const hasMixedFeatureKinds = shelters.length > 0 && serverClusters.length > 0;
+  const renderedShelters = useMemo(
+    () => hasMixedFeatureKinds ? [] : shelters,
+    [hasMixedFeatureKinds, shelters],
+  );
+  const renderedServerClusters = useMemo<CountryMapClusterFeature[]>(() => {
+    if (!hasMixedFeatureKinds) return serverClusters;
+
+    return [
+      ...serverClusters,
+      ...shelters.map((shelter) => ({
+        kind: "cluster" as const,
+        id: `singleton:${shelter.slug}`,
+        latitude: shelter.latitude,
+        longitude: shelter.longitude,
+        north: shelter.latitude,
+        south: shelter.latitude,
+        east: shelter.longitude,
+        west: shelter.longitude,
+        count: 1,
+        capacity: shelter.capacity,
+      })),
+    ];
+  }, [hasMixedFeatureKinds, serverClusters, shelters]);
 
   useEffect(() => {
     ensureLeafletPopupStyles();
@@ -149,6 +177,28 @@ export default function CountryMap({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const mapContent = mapContentRef.current;
+    if (!mapContent) return;
+
+    const applyKeyboardStrategy = () => {
+      const mapElement = mapContent.querySelector<HTMLElement>(".leaflet-container");
+      mapElement?.setAttribute("role", "region");
+      mapElement?.setAttribute("aria-label", "Interaktivt landskort");
+      mapElement?.setAttribute("aria-describedby", "country-map-keyboard-help");
+
+      mapContent.querySelectorAll<HTMLElement>(".leaflet-marker-icon").forEach((marker) => {
+        marker.tabIndex = -1;
+        marker.setAttribute("aria-hidden", "true");
+      });
+    };
+
+    applyKeyboardStrategy();
+    const observer = new MutationObserver(applyKeyboardStrategy);
+    observer.observe(mapContent, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [shelterMarkerIcon]);
 
   useEffect(() => {
     let cancelled = false;
@@ -174,7 +224,7 @@ export default function CountryMap({
 
     cg.clearLayers();
 
-    if (shelters.length === 0) {
+    if (renderedShelters.length === 0) {
       return () => {
         cancelled = true;
         if (rafId !== null) window.cancelAnimationFrame(rafId);
@@ -193,7 +243,7 @@ export default function CountryMap({
 
     const pump = (from: number) => {
       if (cancelled) return;
-      const slice = shelters.slice(from, from + BATCH);
+      const slice = renderedShelters.slice(from, from + BATCH);
       if (slice.length === 0) return;
       const layers: import("leaflet").Marker[] = [];
       for (const s of slice) {
@@ -202,6 +252,7 @@ export default function CountryMap({
           icon,
           title: `${s.addressLine1}, ${s.postalCode} ${s.city}`.trim(),
           alt: `BBR-registrering ved ${s.addressLine1}`,
+          keyboard: false,
         });
         // Match kommune-kortets popup sizing (use popup-html + shared CSS)
         marker.bindPopup(buildPopupHtml(s, anvendelse), { className: "fb-popup" });
@@ -215,12 +266,12 @@ export default function CountryMap({
         setMarkerChunkReady(true);
       }
       const next = from + BATCH;
-      if (next < shelters.length) {
+      if (next < renderedShelters.length) {
         scheduleNext(() => pump(next));
       }
     };
 
-    if (shelters.length > 0) {
+    if (renderedShelters.length > 0) {
       scheduleNext(() => pump(0));
     }
 
@@ -229,7 +280,7 @@ export default function CountryMap({
       if (rafId !== null) window.cancelAnimationFrame(rafId);
       cg.clearLayers();
     };
-  }, [markerState.status, shelters, shelterMarkerIcon, clusterReady, anvendelseskoder]);
+  }, [markerState.status, renderedShelters, shelterMarkerIcon, clusterReady, anvendelseskoder]);
 
   useEffect(() => {
     if (!viewport) return;
@@ -321,12 +372,25 @@ export default function CountryMap({
   }, []);
 
   const handleTileStatusChange = useCallback((status: MapTileStatus) => {
+    if (status === "error") {
+      const activeElement = document.activeElement;
+      mapRecoveryReturnRef.current = activeElement instanceof HTMLElement
+        && mapContentRef.current?.contains(activeElement)
+        ? activeElement
+        : mapContentRef.current?.querySelector<HTMLElement>(".leaflet-container") ?? null;
+    }
     setTileStatus(status);
   }, []);
 
   const retryTiles = useCallback(() => {
+    const returnTarget = mapRecoveryReturnRef.current;
     setTileStatus("loading");
     setTileRetryKey((key) => key + 1);
+    window.requestAnimationFrame(() => {
+      if (returnTarget?.isConnected && returnTarget.getClientRects().length > 0) {
+        returnTarget.focus({ preventScroll: true });
+      }
+    });
   }, []);
 
   const clusterIconCreate = useCallback((cluster: { getChildCount: () => number }) => {
@@ -337,7 +401,7 @@ export default function CountryMap({
     return Leaf.divIcon({
       html: `<div><span class="sr-only">Åbn gruppe med </span><span>${count}</span><span class="sr-only"> adresser</span></div>`,
       className: `marker-cluster ${cls}`,
-      iconSize: Leaf.point(40, 40),
+      iconSize: Leaf.point(44, 44),
     });
   }, []);
 
@@ -383,84 +447,115 @@ export default function CountryMap({
     return <MapLoadingSkeleton />;
   }
 
-  const markersReady = markerState.status === "loaded" && (markerChunkReady || markerState.markerCount === 0);
+  const markersReady = markerState.status === "loaded" && (markerChunkReady || renderedShelters.length === 0);
 
   return (
-    <div
-      className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
-      aria-label="Kort over BBR-registreringer af sikringsrumspladser i Danmark. Zoom og klik på klynger for at se enkeltsteder."
-    >
-      {!markersReady || (markerState.status === "loaded" && markerState.refreshing) ? (
-        <div
-          className="pointer-events-none absolute bottom-4 left-4 z-[5000] max-w-[min(100%,18rem)] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
-          role="status"
-          aria-live="polite"
-        >
-          Indlæser steder på kortet…
-        </div>
-      ) : null}
-      {markerState.status === "loaded" && markerState.refreshError ? (
-        <div
-          className="absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-amber-300/30 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
-          role="alert"
-        >
-          <p>Området kunne ikke opdateres. De senest hentede kortdata vises stadig.</p>
-          <button
-            type="button"
-            className="mt-2 min-h-[44px] rounded-lg bg-white/10 px-3 py-2 font-semibold text-white hover:bg-white/15"
-            onClick={() => setMarkerRetryKey((key) => key + 1)}
-          >
-            Prøv igen
-          </button>
-        </div>
-      ) : markerState.status === "loaded" && markerState.truncated ? (
-        <div
-          className="pointer-events-none absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
-          role="status"
-          aria-live="polite"
-        >
-          Området indeholder {markerState.availableCount.toLocaleString("da-DK")} registreringer. Zoom ind for at se alle adresser.
-        </div>
-      ) : null}
-      <MapContainer
-        center={center}
-        zoom={7}
-        minZoom={6}
-        maxZoom={18}
-        maxBounds={denmarkMaxBounds}
-        maxBoundsViscosity={1}
-        style={{ width: "100%", height: "100%" }}
-        className="leaflet-container z-0"
+    <>
+      <div
+        id="country-map-keyboard-help"
+        className="mb-3 flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-gray-300 sm:flex-row sm:items-center sm:justify-between"
       >
-        <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
-        <MapViewportEvents onViewportChange={handleViewportChange} />
-        <ServerClusterLayer clusters={serverClusters} />
-
-        <MarkerClusterGroup
-          ref={(instance) => {
-            clusterRef.current = instance as MarkerClusterLike | null;
-            setClusterReady(Boolean(instance));
-          }}
-          chunkedLoading
-          chunkInterval={200}
-          chunkDelay={50}
-          animateAddingMarkers={false}
-          maxClusterRadius={72}
-          spiderfyOnMaxZoom
-          showCoverageOnHover={false}
-          zoomToBoundsOnClick
-          iconCreateFunction={clusterIconCreate}
+        <p className="max-w-3xl">
+          Flyt kortet med piletasterne og zoom med plus eller minus. Foretrækker du en liste, kan du søge efter adresse eller vælge kommune.
+        </p>
+        <div className="flex flex-col gap-2 min-[420px]:flex-row">
+          <Link
+            href="/"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-3 font-semibold text-white hover:bg-white/10"
+          >
+            Søg adresse
+          </Link>
+          <Link
+            href="/kommune"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-3 font-semibold text-white hover:bg-white/10"
+          >
+            Kommuneoversigt
+          </Link>
+        </div>
+      </div>
+      <div
+        className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
+      >
+        <div
+          ref={mapContentRef}
+          data-map-content
+          className="absolute inset-0"
+          aria-hidden={tileStatus === "error" ? true : undefined}
+          inert={tileStatus === "error"}
         >
-          {null}
-        </MarkerClusterGroup>
-      </MapContainer>
-      {tileStatus === "error" ? (
-        <MapUnavailableNotice
-          onRetry={retryTiles}
-          fallbackLabel="Brug kommuneoversigten"
-          fallbackHref="/kommune"
-        />
-      ) : null}
-    </div>
+          {!markersReady || (markerState.status === "loaded" && markerState.refreshing) ? (
+            <div
+              className="pointer-events-none absolute bottom-4 left-4 z-[5000] max-w-[min(100%,18rem)] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
+              role="status"
+              aria-live="polite"
+            >
+              Indlæser steder på kortet…
+            </div>
+          ) : null}
+          {markerState.status === "loaded" && markerState.refreshError ? (
+            <div
+              className="absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-amber-300/30 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
+              role="alert"
+            >
+              <p>Området kunne ikke opdateres. De senest hentede kortdata vises stadig.</p>
+              <button
+                type="button"
+                className="mt-2 min-h-[44px] rounded-lg bg-white/10 px-3 py-2 font-semibold text-white hover:bg-white/15"
+                onClick={() => setMarkerRetryKey((key) => key + 1)}
+              >
+                Prøv igen
+              </button>
+            </div>
+          ) : markerState.status === "loaded" && markerState.truncated ? (
+            <div
+              className="pointer-events-none absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
+              role="status"
+              aria-live="polite"
+            >
+              Området indeholder {markerState.availableCount.toLocaleString("da-DK")} registreringer. Zoom ind for at se alle adresser.
+            </div>
+          ) : null}
+          <MapContainer
+            center={center}
+            zoom={7}
+            minZoom={6}
+            maxZoom={18}
+            maxBounds={denmarkMaxBounds}
+            maxBoundsViscosity={1}
+            style={{ width: "100%", height: "100%" }}
+            className="leaflet-container z-0"
+          >
+            <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
+            <MapViewportEvents onViewportChange={handleViewportChange} />
+            <ServerClusterLayer clusters={renderedServerClusters} />
+
+            <MarkerClusterGroup
+              ref={(instance) => {
+                clusterRef.current = instance as MarkerClusterLike | null;
+                setClusterReady(Boolean(instance));
+              }}
+              chunkedLoading
+              chunkInterval={200}
+              chunkDelay={50}
+              animateAddingMarkers={false}
+              maxClusterRadius={(zoom) => window.innerWidth < 640 && zoom <= 10 ? 96 : 72}
+              spiderfyOnMaxZoom
+              showCoverageOnHover={false}
+              zoomToBoundsOnClick
+              iconCreateFunction={clusterIconCreate}
+            >
+              {null}
+            </MarkerClusterGroup>
+          </MapContainer>
+        </div>
+        {tileStatus === "error" ? (
+          <MapUnavailableNotice
+            onRetry={retryTiles}
+            fallbackLabel="Brug kommuneoversigten"
+            fallbackHref="/kommune"
+          />
+        ) : null}
+      </div>
+    </>
   );
 }

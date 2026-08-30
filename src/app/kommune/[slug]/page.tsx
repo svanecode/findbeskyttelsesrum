@@ -1,8 +1,13 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 
 import GlobalFooter from '@/components/GlobalFooter'
 import { ui } from '@/components/ui-classes'
+import {
+  getMunicipalityPagePath,
+  paginateMunicipalityGroups,
+  parseMunicipalityPage,
+} from '@/lib/municipalities/pagination'
 import {
   getAppV2MunicipalityBySlug,
   getAppV2PublicMunicipalityShelters,
@@ -18,7 +23,7 @@ export { generateMetadata } from './metadata'
 export const revalidate = 3600
 
 interface Props {
-  params: Promise<{ slug: string }>
+  params: Promise<{ slug: string; page?: string }>
 }
 
 function hasShelterAddressForJsonLd(shelter: AppV2MunicipalityShelter): boolean {
@@ -32,15 +37,18 @@ function hasShelterAddressForJsonLd(shelter: AppV2MunicipalityShelter): boolean 
 function buildKommunePageJsonLd(
   municipality: { name: string; slug: string },
   shelters: AppV2MunicipalityShelter[],
+  pagePath: string,
+  currentPage: number,
 ) {
   const kommuneNavn = municipality.name
+  const pageSuffix = currentPage > 1 ? ` – side ${currentPage}` : ''
 
   const webPage = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: `BBR-registreringer i ${kommuneNavn}`,
-    description: `Kommuneoversigt over BBR-registreringer af sikringsrumspladser i ${kommuneNavn} — antal, kapacitet, adresser og detaljesider.`,
-    url: `${siteUrl}/kommune/${municipality.slug}`,
+    name: `BBR-registreringer i ${kommuneNavn}${pageSuffix}`,
+    description: `Kommuneoversigt over BBR-registreringer af sikringsrumspladser i ${kommuneNavn}${pageSuffix} — antal, kapacitet, adresser og detaljesider.`,
+    url: `${siteUrl}${pagePath}`,
     inLanguage: 'da-DK',
     isPartOf: {
       '@type': 'WebSite',
@@ -67,7 +75,7 @@ function buildKommunePageJsonLd(
   const itemList = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
-    name: `Udvalgte BBR-registreringer i ${kommuneNavn}`,
+    name: `BBR-registreringer i ${kommuneNavn}${pageSuffix}`,
     numberOfItems: topShelters.length,
     itemListElement: topShelters.map((shelter, index) => ({
       '@type': 'ListItem',
@@ -90,8 +98,17 @@ function buildKommunePageJsonLd(
   return [webPage, administrativeArea, itemList]
 }
 
+export function generateStaticParams() {
+  return []
+}
+
 export default async function KommunePage({ params }: Props) {
-  const { slug } = await params
+  const { slug, page } = await params
+  if (page === '1') permanentRedirect(`/kommune/${encodeURIComponent(slug)}`)
+
+  const requestedPage = parseMunicipalityPage(page)
+  if (requestedPage === null) notFound()
+
   const municipality = await getAppV2MunicipalityBySlug(slug)
 
   if (!municipality) notFound()
@@ -99,9 +116,22 @@ export default async function KommunePage({ params }: Props) {
   const shelters = await getAppV2PublicMunicipalityShelters(municipality.id)
 
   const groups = groupMunicipalityShelters(shelters)
+  const pagination = paginateMunicipalityGroups(groups, requestedPage)
+  if (!pagination) notFound()
+
+  const pageShelterIds = new Set(
+    pagination.items.flatMap((group) => group.shelters.map((shelter) => shelter.id)),
+  )
+  const pageShelters = shelters.filter((shelter) => pageShelterIds.has(shelter.id))
+  const pagePath = getMunicipalityPagePath(municipality.slug, pagination.currentPage)
   const publicShelterCount = shelters.length
   const totalCapacity = shelters.reduce((sum, shelter) => sum + shelter.capacity, 0)
-  const kommuneJsonLd = buildKommunePageJsonLd(municipality, shelters)
+  const kommuneJsonLd = buildKommunePageJsonLd(
+    municipality,
+    pageShelters,
+    pagePath,
+    pagination.currentPage,
+  )
 
   return (
     <main id="main-content" tabIndex={-1} className={ui.page}>
@@ -147,8 +177,10 @@ export default async function KommunePage({ params }: Props) {
       {/* Map experience */}
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
         <KommuneExperience
-          groups={groups}
+          groups={pagination.items}
           municipalityName={municipality.name}
+          municipalitySlug={municipality.slug}
+          pagination={pagination}
         />
       </section>
 

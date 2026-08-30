@@ -17,11 +17,11 @@ const css = `
 .leaflet-popup .leaflet-popup-content {
   margin: 0.75rem 0.9rem !important;
   line-height: 1.4 !important;
-  padding-right: 1.6rem !important;
+  padding-right: 3rem !important;
 }
 .leaflet-popup .leaflet-popup-close-button {
-  width: 34px !important;
-  height: 34px !important;
+  width: 44px !important;
+  height: 44px !important;
   padding: 0 !important;
   margin: 8px 8px 0 0 !important;
   border-radius: 10px !important;
@@ -43,7 +43,7 @@ const css = `
 }
 .leaflet-popup .fb-popup__title {
   margin: 0 !important;
-  padding-right: 1.6rem !important;
+  padding-right: 3rem !important;
   font-weight: 650 !important;
   font-size: 1.05rem !important;
   line-height: 1.25 !important;
@@ -67,7 +67,7 @@ const css = `
 .leaflet-popup .fb-popup__link {
   margin-top: 0.7rem !important;
   display: inline-flex !important;
-  min-height: 36px !important;
+  min-height: 44px !important;
   align-items: center !important;
   justify-content: center !important;
   border-radius: 0.75rem !important;
@@ -92,4 +92,3 @@ export function ensureLeafletPopupStyles() {
   style.textContent = css;
   document.head.appendChild(style);
 }
-

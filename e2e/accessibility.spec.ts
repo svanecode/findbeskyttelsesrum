@@ -68,6 +68,7 @@ test("detaljesiden og den åbne rapportformular består kontrollen", async ({ pa
   test.skip(testInfo.project.name !== "desktop-chromium", "Den databasebaserede detaljekontrol køres én gang.");
   await page.goto(`/beskyttelsesrum/${knownShelterSlug}`);
   await expect(page.getByRole("heading", { name: /Registrering ved/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Se adressen i kort", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Rapportér fejl ved registreringen" }).click();
   await expect(page.getByRole("heading", { name: "Rapportér en mulig fejl" })).toBeVisible();
   await expectNoAccessibilityViolations(page, testInfo);

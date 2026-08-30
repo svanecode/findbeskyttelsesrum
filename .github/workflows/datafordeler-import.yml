@@ -93,9 +93,9 @@ jobs:
         working-directory: tools/datafordeler-importer
     env:
       DATAFORDELER_API_KEY: ${{ secrets.DATAFORDELER_API_KEY }}
-      SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || inputs.dry_run }}
       MAX_PAGES: ${{ github.event_name == 'schedule' && '' || inputs.max_pages }}
       RESUME_LATEST: ${{ github.event_name == 'schedule' && 'false' || inputs.resume_latest }}
@@ -174,9 +174,10 @@ jobs:
         if: github.event_name == 'schedule' || inputs.dry_run == false || inputs.finalize_latest == true
         working-directory: .
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SMOKE_ALLOW_STALE_OPERATIONAL_HEARTBEAT: "true"
         run: |
           npm run parity:exclusions
           npm run parity:municipalities
