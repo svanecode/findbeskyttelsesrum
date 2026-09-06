@@ -32,15 +32,21 @@ class Response:
 
 
 class QueueSession:
-    def __init__(self, responses: list[Response]) -> None:
+    def __init__(self, responses: list[Response | BaseException]) -> None:
         self.responses = responses
         self.calls: list[dict[str, Any]] = []
         self.headers: dict[str, str] = {}
 
     def post(self, url: str, **kwargs: Any) -> Response:
         self.calls.append({"method": "POST", "url": url, **kwargs})
-        return self.responses.pop(0)
+        response = self.responses.pop(0)
+        if isinstance(response, BaseException):
+            raise response
+        return response
 
     def request(self, method: str, url: str, **kwargs: Any) -> Response:
         self.calls.append({"method": method, "url": url, **kwargs})
-        return self.responses.pop(0)
+        response = self.responses.pop(0)
+        if isinstance(response, BaseException):
+            raise response
+        return response

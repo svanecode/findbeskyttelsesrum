@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireModerator } from "@/lib/moderation/auth";
+import { revalidatePublicData } from "@/lib/moderation/revalidate-public-data";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -31,8 +32,6 @@ export async function rollbackPublicationAction(formData: FormData) {
   }
 
   revalidatePath("/admin/drift");
-  revalidatePath("/kort");
-  revalidatePath("/kommune");
-  revalidatePath("/om-data");
+  revalidatePublicData();
   redirect("/admin/drift?restored=1");
 }

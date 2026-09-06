@@ -9,31 +9,7 @@ import {
   getLatestAppV2ImportRun,
 } from "@/lib/supabase/app-v2-queries";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
-
-type SanityEnv =
-  | { ok: true }
-  | {
-      ok: false;
-      missing: string[];
-    };
-
-function getEnv(): SanityEnv {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const secretKey = process.env.SUPABASE_SECRET_KEY?.trim();
-
-  if (!url || !secretKey) {
-    const missing = [
-      ["NEXT_PUBLIC_SUPABASE_URL", url],
-      ["SUPABASE_SECRET_KEY", secretKey],
-    ]
-      .filter(([, value]) => !value)
-      .map(([name]) => name as string);
-
-    return { ok: false, missing };
-  }
-
-  return { ok: true };
-}
+import { getSupabasePublicEnv, getSupabaseWriteEnv } from "@/lib/supabase/env";
 
 function formatInt(value: number) {
   return value.toLocaleString("da-DK");
@@ -52,37 +28,11 @@ function warnIfMaterialDeviation(label: string, value: number, anchor: number, t
   }
 }
 
-function getPublicEnv(): SanityEnv {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
-
-  if (!url || !anonKey) {
-    const missing = [
-      ["NEXT_PUBLIC_SUPABASE_URL", url],
-      ["NEXT_PUBLIC_SUPABASE_ANON_KEY", anonKey],
-    ]
-      .filter(([, value]) => !value)
-      .map(([name]) => name as string);
-
-    return { ok: false, missing };
-  }
-
-  return { ok: true };
-}
-
 /**
  * PostgREST checks: anon must not read base tables; the current versioned
  * public views must exist and return sample rows.
  */
 async function assertAnonPublicReadModel(): Promise<string[]> {
-  const env = getPublicEnv();
-  if (!env.ok) {
-    console.log(
-      `[read:app-v2-sanity] skipping anon/view contract checks (missing): ${env.missing.join(", ")}`,
-    );
-    return [];
-  }
-
   const failures: string[] = [];
   const pub = createAppV2PublicClient();
 
@@ -205,12 +155,9 @@ async function main() {
   console.log("app_v2 sanity check");
   console.log("");
 
-  const env = getEnv();
-  if (!env.ok) {
-    console.log(`[read:app-v2-sanity] missing env vars: ${env.missing.join(", ")}`);
-    console.log("[read:app-v2-sanity] no database reads were attempted.");
-    process.exit(1);
-  }
+  // Fail before any reads when a required part of the release check cannot run.
+  getSupabasePublicEnv();
+  getSupabaseWriteEnv();
 
   const municipalities = await getAppV2MunicipalitySummaries();
   const municipalityCount = municipalities.length;

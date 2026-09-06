@@ -36,9 +36,7 @@ async function main() {
   const missingEnvVars = getMissingEnvVars();
 
   if (missingEnvVars.length > 0) {
-    console.log(`[read:shelter-detail] skipped: missing env vars: ${missingEnvVars.join(", ")}`);
-    console.log("[read:shelter-detail] no database reads were attempted.");
-    return;
+    throw new Error(`Missing required environment variables: ${missingEnvVars.join(", ")}`);
   }
 
   const shelter = await getAppV2ShelterBySlug(slug);

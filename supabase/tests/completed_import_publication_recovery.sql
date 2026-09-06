@@ -22,7 +22,7 @@ select col_default_is(
 select ok(
   not has_function_privilege(
     'anon',
-    'app_v2.retry_latest_completed_datafordeler_publication_v1()',
+    'app_v2.retry_completed_datafordeler_publication_v1(uuid)',
     'EXECUTE'
   ),
   'anonymous clients cannot retry a publication'
@@ -31,7 +31,7 @@ select ok(
 select ok(
   not has_function_privilege(
     'authenticated',
-    'app_v2.retry_latest_completed_datafordeler_publication_v1()',
+    'app_v2.retry_completed_datafordeler_publication_v1(uuid)',
     'EXECUTE'
   ),
   'signed-in clients cannot retry a publication'
@@ -40,15 +40,15 @@ select ok(
 select ok(
   has_function_privilege(
     'service_role',
-    'app_v2.retry_latest_completed_datafordeler_publication_v1()',
+    'app_v2.retry_completed_datafordeler_publication_v1(uuid)',
     'EXECUTE'
   ),
   'the service role can run the recovery operation'
 );
 
 select is(
-  app_v2.retry_latest_completed_datafordeler_publication_v1()->>'status',
-  'no_candidate',
+  app_v2.get_latest_completed_datafordeler_import_v1(),
+  null::uuid,
   'recovery is a no-op without a completed failed staging run'
 );
 
@@ -134,7 +134,9 @@ from generate_series(1, 500) as sequence_number;
 set local role service_role;
 
 select is(
-  app_v2.retry_latest_completed_datafordeler_publication_v1()->>'status',
+  app_v2.retry_completed_datafordeler_publication_v1(
+    '44000000-0000-0000-0000-000000000001'
+  )->>'status',
   'published',
   'the service operator explicitly publishes a completely staged failed run'
 );

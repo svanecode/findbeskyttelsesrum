@@ -48,6 +48,7 @@ class AppV2Store:
             raise ValueError("Supabase configuration is required for write mode")
         self.base_url = config.supabase_url.rstrip("/") + "/rest/v1"
         self.timeout = config.request_timeout
+        self.publication_timeout = config.publication_timeout
         self.max_attempts = config.max_request_attempts
         self.retry_base_seconds = config.retry_base_seconds
         self.batch_size = config.supabase_batch_size
@@ -73,9 +74,18 @@ class AppV2Store:
         params: dict[str, str] | None = None,
         payload: Any = None,
         prefer: str | None = None,
+        retry_safe: bool = False,
+        timeout: float | None = None,
     ) -> Any:
         headers = {"Prefer": prefer} if prefer else None
-        for attempt in range(1, self.max_attempts + 1):
+        # A POST may have committed before a connection failure is reported.
+        # Only explicitly idempotent mutations may be repeated automatically.
+        max_attempts = (
+            self.max_attempts
+            if retry_safe or method.upper() in {"GET", "HEAD", "PATCH", "DELETE"}
+            else 1
+        )
+        for attempt in range(1, max_attempts + 1):
             try:
                 response = self.session.request(
                     method,
@@ -83,10 +93,10 @@ class AppV2Store:
                     params=params,
                     json=payload,
                     headers=headers,
-                    timeout=self.timeout,
+                    timeout=timeout if timeout is not None else self.timeout,
                 )
             except (requests.Timeout, requests.ConnectionError) as exc:
-                if attempt == self.max_attempts:
+                if attempt == max_attempts:
                     raise SupabaseError(
                         f"Supabase {operation} failed after {attempt} network attempts"
                     ) from exc
@@ -97,7 +107,7 @@ class AppV2Store:
 
             if response.status_code in RETRYABLE_STATUSES:
                 detail = self._safe_response_detail(response)
-                if attempt == self.max_attempts:
+                if attempt == max_attempts:
                     raise SupabaseError(
                         f"Supabase {operation} returned HTTP {response.status_code} "
                         f"after {attempt} attempts{detail}"
@@ -153,7 +163,7 @@ class AppV2Store:
             operation="load resume checkpoint",
             params={
                 "select": (
-                    "id,started_at,records_seen,records_upserted,pages_fetched,"
+                    "id,started_at,snapshot_at,records_seen,records_upserted,pages_fetched,"
                     "last_successful_page,last_successful_cursor,resumed_from_import_run_id,"
                     "publication_status,quality_gate_passed,bbr_fetched_count,"
                     "bbr_eligible_count,dar_linked_count,dar_missing_count,"
@@ -190,6 +200,8 @@ class AppV2Store:
                 break
         if failed is None:
             return None
+        if failed.get("snapshot_at"):
+            return failed
         root_started_at = failed.get("started_at")
         parent_id = failed.get("resumed_from_import_run_id")
         visited = {str(failed.get("id"))}
@@ -224,6 +236,7 @@ class AppV2Store:
             "rpc/prune_datafordeler_import_candidates_v1",
             operation="prune stale staging candidates",
             payload={},
+            retry_safe=True,
         )
         payload: dict[str, Any] = {
             "source_name": CANONICAL_SOURCE_NAME,
@@ -320,11 +333,25 @@ class AppV2Store:
         )
 
     def retry_latest_completed_publication(self) -> dict[str, Any]:
+        run_id = self._request(
+            "POST",
+            "rpc/get_latest_completed_datafordeler_import_v1",
+            operation="select latest completed import",
+            payload={},
+            retry_safe=True,
+        )
+        if run_id is None:
+            return {"status": "no_candidate"}
+        if not isinstance(run_id, str) or not run_id:
+            raise SupabaseError("Supabase completed import selection returned an invalid result")
+        # Selection happens once. Every recovery attempt carries the same ID.
         result = self._request(
             "POST",
-            "rpc/retry_latest_completed_datafordeler_publication_v1",
-            operation="retry latest completed publication",
-            payload={},
+            "rpc/retry_completed_datafordeler_publication_v1",
+            operation="retry completed publication",
+            payload={"p_import_run_id": run_id},
+            retry_safe=True,
+            timeout=self.publication_timeout,
         )
         if not isinstance(result, dict) or result.get("status") not in {
             "published",
@@ -464,6 +491,8 @@ class AppV2Store:
                 "p_mapping_failure_count": mapping_failure_count,
                 "p_warning_count": warning_count,
             },
+            retry_safe=True,
+            timeout=self.publication_timeout,
         )
         if not isinstance(result, dict) or result.get("status") not in {"published", "rejected"}:
             raise SupabaseError("Supabase publication function returned an invalid result")
@@ -502,6 +531,7 @@ class AppV2Store:
                 params={"on_conflict": "import_run_id,canonical_source_reference"},
                 payload=payload[start : start + self.batch_size],
                 prefer="resolution=merge-duplicates,return=minimal",
+                retry_safe=True,
             )
         return len(payload)
 

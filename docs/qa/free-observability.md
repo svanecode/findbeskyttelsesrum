@@ -25,6 +25,9 @@ labelled `production-alert`; the next successful run closes it.
 revision, originating import run ID, public record count, data age, and the latest trusted operational heartbeat. It returns `503 degraded` when data is older than 48 hours, the public count
 falls below the safety floor, publication provenance is inconsistent, or required production identity is missing. The
 production smoke compares the endpoint's SHA with the workflow's expected commit.
+Each origin readiness request reads fresh database dependencies. Healthy responses may be reused by the CDN for at most
+30 seconds and must then be revalidated; unhealthy responses are not cached. A failed database read cannot reuse an old
+healthy application snapshot or freeze the age of the operational heartbeat.
 
 Nearby accepts coordinates only in a bounded POST body. The landskort accepts only a bounded viewport with the current
 data revision. Landskort, nearby, reports, errors and anonymous metrics use the shared database limiter; its HMAC key is

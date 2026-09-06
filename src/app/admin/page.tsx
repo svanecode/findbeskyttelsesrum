@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import ModerationPagination from "@/components/ModerationPagination";
+import { parseModerationPage } from "@/lib/moderation/pagination";
 
 import { requireModerator } from "@/lib/moderation/auth";
 import {
@@ -58,7 +60,11 @@ function statusClass(status: ReportStatus) {
   return "border-white/15 bg-white/5 text-gray-300";
 }
 
-function QueueCard({ report }: { report: ModerationReport }) {
+function QueueCard({ report, returnPage, returnStatus }: {
+  report: ModerationReport;
+  returnPage: number;
+  returnStatus?: ReportStatus;
+}) {
   const isFinal = report.status === "resolved" || report.status === "rejected";
 
   return (
@@ -117,6 +123,8 @@ function QueueCard({ report }: { report: ModerationReport }) {
         {report.status === "open" ? (
           <form action={moderateReportAction}>
             <input type="hidden" name="reportId" value={report.id} />
+            <input type="hidden" name="returnPage" value={returnPage} />
+            <input type="hidden" name="returnStatus" value={returnStatus ?? ""} />
             <button
               type="submit"
               name="action"
@@ -131,6 +139,8 @@ function QueueCard({ report }: { report: ModerationReport }) {
         {isFinal ? (
           <form action={moderateReportAction}>
             <input type="hidden" name="reportId" value={report.id} />
+            <input type="hidden" name="returnPage" value={returnPage} />
+            <input type="hidden" name="returnStatus" value={returnStatus ?? ""} />
             <button
               type="submit"
               name="action"
@@ -143,6 +153,8 @@ function QueueCard({ report }: { report: ModerationReport }) {
         ) : (
           <form action={moderateReportAction} className="mt-5 border-t border-white/10 pt-5">
             <input type="hidden" name="reportId" value={report.id} />
+            <input type="hidden" name="returnPage" value={returnPage} />
+            <input type="hidden" name="returnStatus" value={returnStatus ?? ""} />
             <label htmlFor={`note-${report.id}`} className="block text-sm font-semibold text-gray-200">
               Moderatorens begrundelse
             </label>
@@ -201,16 +213,16 @@ function QueueCard({ report }: { report: ModerationReport }) {
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; updated?: string; error?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; updated?: string; error?: string }>;
 }) {
   const { profile, supabase } = await requireModerator(true);
   const params = await searchParams;
   const selectedStatus = reportStatuses.includes(params.status as ReportStatus)
     ? (params.status as ReportStatus)
     : undefined;
-  const allReports = await getModerationReports(supabase);
-  const reports = selectedStatus ? allReports.filter((report) => report.status === selectedStatus) : allReports;
-  const counts = Object.fromEntries(reportStatuses.map((status) => [status, allReports.filter((report) => report.status === status).length])) as Record<ReportStatus, number>;
+  const queue = await getModerationReports(supabase, selectedStatus, parseModerationPage(params.page));
+  const { rows: reports, counts } = queue;
+  const allCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
@@ -243,7 +255,7 @@ export default async function AdminPage({
 
         <nav className="mt-7 flex flex-wrap gap-2" aria-label="Filtrér moderationskø">
           <Link href="/admin" aria-current={!selectedStatus ? "page" : undefined} className={`inline-flex min-h-[44px] items-center rounded-lg border px-3 text-sm font-medium ${!selectedStatus ? "border-orange-400/40 bg-orange-500/10 text-orange-100" : "border-white/10 text-gray-300 hover:bg-white/5"}`}>
-            Alle ({allReports.length})
+            Alle ({allCount})
           </Link>
           {reportStatuses.map((status) => (
             <Link key={status} href={`/admin?status=${status}`} aria-current={selectedStatus === status ? "page" : undefined} className={`inline-flex min-h-[44px] items-center rounded-lg border px-3 text-sm font-medium ${selectedStatus === status ? "border-orange-400/40 bg-orange-500/10 text-orange-100" : "border-white/10 text-gray-300 hover:bg-white/5"}`}>
@@ -252,14 +264,17 @@ export default async function AdminPage({
           ))}
         </nav>
 
+        <ModerationPagination basePath="/admin" status={selectedStatus} {...queue} />
+
         <section className="mt-6 grid gap-5" aria-label="Fejlrapporter">
-          {reports.length > 0 ? reports.map((report) => <QueueCard key={report.id} report={report} />) : (
+          {reports.length > 0 ? reports.map((report) => <QueueCard key={report.id} report={report} returnPage={queue.page} returnStatus={selectedStatus} />) : (
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-8 text-center">
               <h2 className="text-xl font-semibold">Ingen rapporter i denne visning</h2>
               <p className="mt-2 text-sm text-gray-400">Nye fejlrapporter vises her, når de bliver indsendt.</p>
             </div>
           )}
         </section>
+        <ModerationPagination basePath="/admin" status={selectedStatus} {...queue} />
       </div>
     </main>
   );

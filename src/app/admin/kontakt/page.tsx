@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import ModerationPagination from "@/components/ModerationPagination";
+import { parseModerationPage } from "@/lib/moderation/pagination";
 
 import {
   privacyContactCategories,
@@ -48,7 +50,11 @@ function statusClass(status: PrivacyContactStatus) {
   return "border-white/15 bg-white/5 text-gray-300";
 }
 
-function QueueCard({ contactCase }: { contactCase: ModerationPrivacyContactCase }) {
+function QueueCard({ contactCase, returnPage, returnStatus }: {
+  contactCase: ModerationPrivacyContactCase;
+  returnPage: number;
+  returnStatus?: PrivacyContactStatus;
+}) {
   const isClosed = contactCase.status === "closed";
 
   return (
@@ -93,6 +99,8 @@ function QueueCard({ contactCase }: { contactCase: ModerationPrivacyContactCase 
           <div className="space-y-4">
             <form action={moderatePrivacyContactAction}>
               <input type="hidden" name="caseId" value={contactCase.id} />
+              <input type="hidden" name="returnPage" value={returnPage} />
+              <input type="hidden" name="returnStatus" value={returnStatus ?? ""} />
               <button type="submit" name="action" value="reopen" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-semibold text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
                 Genåbn sag
               </button>
@@ -104,6 +112,8 @@ function QueueCard({ contactCase }: { contactCase: ModerationPrivacyContactCase 
               </p>
               <form action={moderatePrivacyContactAction} className="mt-4">
                 <input type="hidden" name="caseId" value={contactCase.id} />
+                <input type="hidden" name="returnPage" value={returnPage} />
+                <input type="hidden" name="returnStatus" value={returnStatus ?? ""} />
                 <label htmlFor={`delete-confirmation-${contactCase.id}`} className="block text-sm font-medium text-gray-200">
                   Skriv {contactCase.reference} for at bekræfte
                 </label>
@@ -119,6 +129,8 @@ function QueueCard({ contactCase }: { contactCase: ModerationPrivacyContactCase 
             {contactCase.status !== "reviewing" ? (
               <form action={moderatePrivacyContactAction}>
                 <input type="hidden" name="caseId" value={contactCase.id} />
+                <input type="hidden" name="returnPage" value={returnPage} />
+                <input type="hidden" name="returnStatus" value={returnStatus ?? ""} />
                 <button type="submit" name="action" value="start_review" className="inline-flex min-h-[44px] items-center rounded-lg border border-blue-400/30 bg-blue-500/10 px-4 text-sm font-semibold text-blue-100 hover:bg-blue-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
                   Tag under behandling
                 </button>
@@ -127,6 +139,8 @@ function QueueCard({ contactCase }: { contactCase: ModerationPrivacyContactCase 
 
             <form action={moderatePrivacyContactAction} className="mt-4">
               <input type="hidden" name="caseId" value={contactCase.id} />
+              <input type="hidden" name="returnPage" value={returnPage} />
+              <input type="hidden" name="returnStatus" value={returnStatus ?? ""} />
               <div className="flex items-end justify-between gap-3">
                 <label htmlFor={`contact-reply-${contactCase.id}`} className="block text-sm font-semibold text-gray-200">
                   Svar til den besøgende
@@ -162,18 +176,16 @@ function QueueCard({ contactCase }: { contactCase: ModerationPrivacyContactCase 
 export default async function PrivacyContactAdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; updated?: string; error?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; updated?: string; error?: string }>;
 }) {
   const { profile, supabase } = await requireModerator(true);
   const params = await searchParams;
   const selectedStatus = privacyContactStatuses.includes(params.status as PrivacyContactStatus)
     ? (params.status as PrivacyContactStatus)
     : undefined;
-  const allCases = await getModerationPrivacyContactCases(supabase);
-  const cases = selectedStatus ? allCases.filter((contactCase) => contactCase.status === selectedStatus) : allCases;
-  const counts = Object.fromEntries(
-    privacyContactStatuses.map((status) => [status, allCases.filter((contactCase) => contactCase.status === status).length]),
-  ) as Record<PrivacyContactStatus, number>;
+  const queue = await getModerationPrivacyContactCases(supabase, selectedStatus, parseModerationPage(params.page));
+  const { rows: cases, counts } = queue;
+  const allCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
@@ -201,7 +213,7 @@ export default async function PrivacyContactAdminPage({
 
         <nav className="mt-7 flex flex-wrap gap-2" aria-label="Filtrér kontaktkø">
           <Link href="/admin/kontakt" aria-current={!selectedStatus ? "page" : undefined} className={`inline-flex min-h-[44px] items-center rounded-lg border px-3 text-sm font-medium ${!selectedStatus ? "border-orange-400/40 bg-orange-500/10 text-orange-100" : "border-white/10 text-gray-300 hover:bg-white/5"}`}>
-            Alle ({allCases.length})
+            Alle ({allCount})
           </Link>
           {privacyContactStatuses.map((status) => (
             <Link key={status} href={`/admin/kontakt?status=${status}`} aria-current={selectedStatus === status ? "page" : undefined} className={`inline-flex min-h-[44px] items-center rounded-lg border px-3 text-sm font-medium ${selectedStatus === status ? "border-orange-400/40 bg-orange-500/10 text-orange-100" : "border-white/10 text-gray-300 hover:bg-white/5"}`}>
@@ -210,14 +222,17 @@ export default async function PrivacyContactAdminPage({
           ))}
         </nav>
 
+        <ModerationPagination basePath="/admin/kontakt" status={selectedStatus} {...queue} />
+
         <section className="mt-6 grid gap-5" aria-label="Kontaktsager">
-          {cases.length > 0 ? cases.map((contactCase) => <QueueCard key={contactCase.id} contactCase={contactCase} />) : (
+          {cases.length > 0 ? cases.map((contactCase) => <QueueCard key={contactCase.id} contactCase={contactCase} returnPage={queue.page} returnStatus={selectedStatus} />) : (
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-8 text-center">
               <h2 className="text-xl font-semibold">Ingen henvendelser i denne visning</h2>
               <p className="mt-2 text-sm text-gray-400">Nye henvendelser vises her, når de bliver indsendt.</p>
             </div>
           )}
         </section>
+        <ModerationPagination basePath="/admin/kontakt" status={selectedStatus} {...queue} />
       </div>
     </main>
   );

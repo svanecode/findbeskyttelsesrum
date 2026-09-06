@@ -123,15 +123,7 @@ The script only calls /api/app-v2/nearby/grouped. It does not read Supabase dire
 }
 
 function buildUrl(options: CliOptions) {
-  const url = new URL("/api/app-v2/nearby/grouped", options.baseUrl);
-
-  url.searchParams.set("lat", String(options.latitude));
-  url.searchParams.set("lng", String(options.longitude));
-  url.searchParams.set("radius", String(options.radiusMeters));
-  url.searchParams.set("limit", String(options.limit));
-  url.searchParams.set("candidateLimit", String(options.candidateLimit));
-
-  return url;
+  return new URL("/api/app-v2/nearby/grouped", options.baseUrl);
 }
 
 function getResultSummary(payload: unknown) {
@@ -185,12 +177,23 @@ async function main() {
   console.log("[read:app-v2-nearby-api] read-only API probe");
   console.log(`[read:app-v2-nearby-api] sample: ${options.sample}`);
   console.log(`[read:app-v2-nearby-api] shape: grouped`);
-  console.log(`[read:app-v2-nearby-api] GET ${url.toString()}`);
+  console.log(`[read:app-v2-nearby-api] POST ${url.toString()} (parameters in JSON body)`);
 
   let response: Response;
 
   try {
-    response = await fetch(url);
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lat: options.latitude,
+        lng: options.longitude,
+        radius: options.radiusMeters,
+        limit: options.limit,
+        candidateLimit: options.candidateLimit,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown fetch error.";
     console.error(`[read:app-v2-nearby-api] failed to reach API: ${message}`);

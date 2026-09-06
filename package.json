@@ -22,8 +22,8 @@
     "test-caching": "node scripts/test-caching-headers.js",
     "parity:municipalities": "tsx scripts/parity/municipalities.ts",
     "parity:exclusions": "tsx scripts/parity/exclusions.ts",
-    "read:shelter-detail": "tsx scripts/read/app-v2-shelter-detail.ts",
-    "read:app-v2-sanity": "tsx scripts/read/app-v2-sanity.ts",
+    "read:shelter-detail": "node --conditions=react-server --import tsx scripts/read/app-v2-shelter-detail.ts",
+    "read:app-v2-sanity": "node --conditions=react-server --import tsx scripts/read/app-v2-sanity.ts",
     "read:app-v2-nearby-api": "tsx scripts/read/app-v2-nearby-api.ts",
     "monitor:production": "node scripts/monitor/production-smoke.mjs"
   },
@@ -44,7 +44,8 @@
     "proj4": "^2.20.8",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-leaflet": "^5.0.0"
+    "react-leaflet": "^5.0.0",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

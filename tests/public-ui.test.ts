@@ -370,7 +370,7 @@ test("the national map page loads aggregate stats instead of all markers", async
   assert.doesNotMatch(mapPage, /markers\.reduce/);
 });
 
-test("the health endpoint exposes cached readiness and separate cheap liveness", async () => {
+test("the health endpoint exposes bounded CDN readiness and separate cheap liveness", async () => {
   const [healthApi, livenessApi] = await Promise.all([
     readFile(healthApiUrl, "utf8"),
     readFile(livenessApiUrl, "utf8"),
@@ -386,7 +386,8 @@ test("the health endpoint exposes cached readiness and separate cheap liveness",
   assert.match(healthApi, /getOperationalHealth/);
   assert.match(healthApi, /trusted_operational_heartbeat_is_stale/);
   assert.doesNotMatch(healthApi, /SUPABASE_SECRET_KEY/);
-  assert.match(healthApi, /unstable_cache/);
+  assert.doesNotMatch(healthApi, /unstable_cache/);
+  assert.match(healthApi, /must-revalidate/);
   assert.match(healthApi, /s-maxage=/);
   assert.match(livenessApi, /status: "ok"/);
   assert.doesNotMatch(livenessApi, /getAppV2|Supabase|database/);

@@ -306,9 +306,7 @@ async function main() {
   const env = getSupabaseEnv();
 
   if (!env.ok) {
-    console.log(`[parity:exclusions] skipped: missing env vars: ${env.missing.join(", ")}`);
-    console.log("[parity:exclusions] no database reads were attempted.");
-    return;
+    throw new Error(`Missing required environment variables: ${env.missing.join(", ")}`);
   }
 
   const [legacyRows, appV2Rows, existingAppV2Exclusions] = await Promise.all([

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { moderationPageSize, parseModerationQueuePage, type ModerationQueuePage } from "@/lib/moderation/pagination";
 
 import {
   privacyContactStatuses,
@@ -43,10 +44,12 @@ type ModerationPrivacyContactCaseRow = {
 export async function getModerationPrivacyContactCases(
   supabase: SupabaseClient,
   status?: PrivacyContactStatus,
-): Promise<ModerationPrivacyContactCase[]> {
-  const { data, error } = await supabase.schema("app_v2").rpc("list_privacy_contact_cases_for_moderation_v1", {
+  page = 1,
+): Promise<ModerationQueuePage<ModerationPrivacyContactCase, PrivacyContactStatus>> {
+  const { data, error } = await supabase.schema("app_v2").rpc("list_privacy_contact_cases_for_moderation_v2", {
     p_status: status ?? null,
-    p_limit: 250,
+    p_limit: moderationPageSize,
+    p_page: page,
   });
 
   if (error) {
@@ -54,7 +57,8 @@ export async function getModerationPrivacyContactCases(
     throw new Error("Kontaktkøen kunne ikke indlæses.");
   }
 
-  return ((data ?? []) as ModerationPrivacyContactCaseRow[]).map((row) => ({
+  const result = parseModerationQueuePage<ModerationPrivacyContactCaseRow, PrivacyContactStatus>(data, privacyContactStatuses);
+  return { ...result, rows: result.rows.map((row) => ({
     id: row.case_id,
     reference: row.case_reference,
     category: row.case_category,
@@ -67,5 +71,5 @@ export async function getModerationPrivacyContactCases(
     retentionUntil: row.retention_until,
     isOverdue: row.case_status !== "closed" && new Date(row.response_due_at).getTime() < Date.now(),
     messages: Array.isArray(row.messages) ? row.messages : [],
-  }));
+  })) };
 }

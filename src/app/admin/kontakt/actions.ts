@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireModerator } from "@/lib/moderation/auth";
+import { privacyContactStatuses } from "@/lib/contact/privacy-contact";
+import { moderationQueueReturnPath } from "@/lib/moderation/pagination";
 
 const caseIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -13,15 +15,17 @@ function optionalText(formData: FormData, key: string) {
 }
 
 export async function moderatePrivacyContactAction(formData: FormData) {
+  const returnPath = (result: { error: string } | { updated: "1" }) =>
+    moderationQueueReturnPath(formData, "/admin/kontakt", privacyContactStatuses, result);
   const caseId = optionalText(formData, "caseId");
   const action = optionalText(formData, "action");
   const message = optionalText(formData, "message");
 
   if (!caseId || !caseIdPattern.test(caseId) || !action) {
-    redirect("/admin/kontakt?error=invalid_action");
+    redirect(returnPath({ error: "invalid_action" }));
   }
   if (message && message.length > 4_000) {
-    redirect("/admin/kontakt?error=invalid_message");
+    redirect(returnPath({ error: "invalid_message" }));
   }
 
   const { supabase } = await requireModerator(true);
@@ -38,9 +42,9 @@ export async function moderatePrivacyContactAction(formData: FormData) {
 
   if (error) {
     console.error("[privacy-contact] Moderation action failed:", { code: error.code, action });
-    redirect("/admin/kontakt?error=moderation_failed");
+    redirect(returnPath({ error: "moderation_failed" }));
   }
 
   revalidatePath("/admin/kontakt");
-  redirect("/admin/kontakt?updated=1");
+  redirect(returnPath({ updated: "1" }));
 }
