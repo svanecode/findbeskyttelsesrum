@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { ui } from '@/components/ui-classes'
@@ -8,6 +8,10 @@ import { getMunicipalityPagePath } from '@/lib/municipalities/pagination'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
 
 const KommuneMap = dynamic(() => import('./kommune-map'), { ssr: false })
+
+const subscribeToHydration = () => () => {}
+const hydratedSnapshot = () => true
+const serverHydratedSnapshot = () => false
 
 interface Props {
   groups: AppV2MunicipalityShelterGroup[]
@@ -28,6 +32,7 @@ export default function KommuneExperience({
   municipalitySlug,
   pagination,
 }: Props) {
+  const isHydrated = useSyncExternalStore(subscribeToHydration, hydratedSnapshot, serverHydratedSnapshot)
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [mapActivated, setMapActivated] = useState(false)
@@ -139,6 +144,7 @@ export default function KommuneExperience({
                   {group.latitude != null && group.longitude != null ? (
                     <button
                       type="button"
+                      disabled={!isHydrated}
                       onClick={() => {
                         setMapActivated(true)
                         setSelectedGroupKey(group.groupKey)
@@ -146,7 +152,7 @@ export default function KommuneExperience({
                           document.getElementById('municipality-map')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                         }
                       }}
-                      className={`${ui.quietAction} shrink-0`}
+                      className={`${ui.quietAction} shrink-0 disabled:cursor-wait disabled:opacity-60`}
                       aria-label={`Vis ${group.addressLine1} på kortet`}
                     >
                       Vis på kort
@@ -245,7 +251,7 @@ export default function KommuneExperience({
           <div className={`flex h-full items-center justify-center p-6 text-center ${ui.panel}`} role="status">
             <div className="max-w-sm">
               <p className="text-sm leading-6 text-gray-300">Kortet indlæses først, når det nærmer sig skærmen.</p>
-              <button type="button" onClick={() => setMapActivated(true)} className={`${ui.secondaryAction} mt-4`}>
+              <button type="button" disabled={!isHydrated} onClick={() => setMapActivated(true)} className={`${ui.secondaryAction} mt-4 disabled:cursor-wait disabled:opacity-60`}>
                 Indlæs kort
               </button>
             </div>

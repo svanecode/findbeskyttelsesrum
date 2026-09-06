@@ -96,12 +96,36 @@ test("kommunekortet tilpasser første visning til sidens adresser", async ({ pag
 
 test("første mobilvalg fokuserer adressen efter kommunekortets lazy loading", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile-"), "Lazy aktivering kontrolleres i mobilprojekterne.");
-  await page.goto("/kommune/kobenhavn");
-  const firstSelection = page.getByRole("button", { name: /^Vis .+ på kortet$/ }).first();
-  await expect(firstSelection).toBeVisible();
-  await expect(page.locator("#municipality-map .leaflet-container")).toHaveCount(0);
+  let releaseHydration!: () => void;
+  const hydrationGate = new Promise<void>((resolve) => { releaseHydration = resolve; });
+  let componentChunkHeld = false;
+  await page.route("**/_next/static/chunks/*.js", async (route) => {
+    const response = await route.fetch();
+    const source = await response.text();
+    if (source.includes("municipality-shelter-search")) {
+      componentChunkHeld = true;
+      await hydrationGate;
+    }
+    await route.fulfill({ response, body: source });
+  });
 
-  await firstSelection.click();
+  try {
+    // Async hydration scripts do not block the server-rendered controls appearing.
+    await page.goto("/kommune/kobenhavn", { waitUntil: "domcontentloaded" });
+    const firstSelection = page.getByRole("button", { name: /^Vis .+ på kortet$/ }).first();
+    await expect(firstSelection).toBeVisible();
+    await expect.poll(() => componentChunkHeld).toBe(true);
+    await expect(firstSelection).toBeDisabled();
+    await expect(page.locator("#municipality-map .leaflet-container")).toHaveCount(0);
 
-  await expect.poll(() => currentTileZoom(page, "#municipality-map")).toBeGreaterThanOrEqual(14);
+    releaseHydration();
+    // One click: Playwright waits until hydration enables the button.
+    await firstSelection.click();
+
+    await expect(firstSelection.locator("xpath=ancestor::li[1]")).toHaveClass(/border-orange-400\/60/);
+    await expect(page.locator("#municipality-map .leaflet-container")).toBeAttached();
+    await expect.poll(() => currentTileZoom(page, "#municipality-map")).toBeGreaterThanOrEqual(14);
+  } finally {
+    releaseHydration();
+  }
 });
