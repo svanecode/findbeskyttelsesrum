@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { moderationPageSize, parseModerationQueuePage, type ModerationQueuePage } from "@/lib/moderation/pagination";
 
 export const reportStatuses = ["open", "reviewing", "resolved", "rejected"] as const;
 export type ReportStatus = (typeof reportStatuses)[number];
@@ -52,10 +53,12 @@ type ModerationReportRow = {
 export async function getModerationReports(
   supabase: SupabaseClient,
   status?: ReportStatus,
-): Promise<ModerationReport[]> {
-  const { data, error } = await supabase.schema("app_v2").rpc("list_shelter_reports_for_moderation_v1", {
+  page = 1,
+): Promise<ModerationQueuePage<ModerationReport, ReportStatus>> {
+  const { data, error } = await supabase.schema("app_v2").rpc("list_shelter_reports_for_moderation_v2", {
     p_status: status ?? null,
-    p_limit: 250,
+    p_limit: moderationPageSize,
+    p_page: page,
   });
 
   if (error) {
@@ -63,7 +66,8 @@ export async function getModerationReports(
     throw new Error("Moderationskøen kunne ikke indlæses.");
   }
 
-  return ((data ?? []) as ModerationReportRow[]).map((row) => ({
+  const result = parseModerationQueuePage<ModerationReportRow, ReportStatus>(data, reportStatuses);
+  return { ...result, rows: result.rows.map((row) => ({
     id: row.report_id,
     status: row.report_status,
     type: row.report_type,
@@ -84,5 +88,5 @@ export async function getModerationReports(
       publicationState: row.publication_state,
       municipalityName: row.municipality_name,
     },
-  }));
+  })) };
 }

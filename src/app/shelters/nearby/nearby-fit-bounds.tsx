@@ -13,14 +13,16 @@ type NearbyFitBoundsProps = {
 
 export function NearbyFitBounds({ userLocation, shelters }: NearbyFitBoundsProps) {
   const map = useMap()
+  const [latitude, longitude] = userLocation
 
   useEffect(() => {
     if (!map || shelters.length === 0) {
       return
     }
 
+    const origin: [number, number] = [latitude, longitude]
     const group = L.featureGroup([
-      L.marker(userLocation),
+      L.marker(origin),
       ...shelters
         .filter((s) => s.location)
         .map((s) => L.marker([s.location!.coordinates[1], s.location!.coordinates[0]])),
@@ -34,7 +36,7 @@ export function NearbyFitBounds({ userLocation, shelters }: NearbyFitBoundsProps
     }
 
     if (shelters.filter((s) => s.location).length === 0) {
-      map.setView(userLocation, 13, { animate: false })
+      map.setView(origin, 13, { animate: false })
     } else {
       const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
       map.fitBounds(bounds, {
@@ -45,7 +47,7 @@ export function NearbyFitBounds({ userLocation, shelters }: NearbyFitBoundsProps
     }
 
     group.clearLayers()
-  }, [map, userLocation, shelters])
+  }, [map, latitude, longitude, shelters])
 
   return null
 }

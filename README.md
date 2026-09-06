@@ -80,11 +80,13 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 | `npm test` | Kører enheds- og sikkerhedstests. |
 | `npm run test:db` | Kører databaseinvarianter mod lokal Supabase. |
 | `npm run build` | Bygger produktionsversionen. |
-| `npm run test:e2e` | Bygger og kører Playwright i desktop Chromium, mobil Chromium og mobil WebKit. |
+| `npm run test:e2e` | Bygger og kører Playwright i desktop Chromium, Firefox og WebKit samt mobil Chromium og WebKit. |
 | `npm run test:release` | Kører den samlede lokale releasekontrol. |
 | `npm run monitor:production` | Kontrollerer den live brugerrejse og dataalder. |
 
 Pull requests skal bestå lint, typekontrol, kode- og databaseinvarianter, produktionsbuild og hele browserhistorien i Chromium og WebKit. De samme kontroller gentages ved push til `main`.
+
+Parity- og sanitykontroller kræver de relevante Supabase-nøgler og fejler, hvis konfigurationen mangler. De bruger samme publishable-key-konfiguration som appen; den ældre `NEXT_PUBLIC_SUPABASE_ANON_KEY` understøttes fortsat. `test:release` kræver også `SUPABASE_SECRET_KEY` til de private paritylæsninger. Nøglen skal kun findes lokalt eller i betroede driftsjob, aldrig i pull request-job.
 
 ## Dataimport
 

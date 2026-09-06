@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import requests
 from conftest import QueueSession, Response, shelter
 
 from shelter_importer.config import ImportConfig
@@ -198,7 +199,9 @@ def test_final_retry_includes_sanitized_postgrest_error() -> None:
         SupabaseError,
         match=r"HTTP 500 after 4 attempts \(57014: canceling statement",
     ) as error:
-        store._request("POST", "rpc/test", operation="test operation", payload={})
+        store._request(
+            "POST", "rpc/test", operation="test operation", payload={}, retry_safe=True
+        )
 
     assert "must-not-leak" not in str(error.value)
     assert len(session.calls) == 4
@@ -222,6 +225,7 @@ def test_complete_scan_is_persisted_before_publication() -> None:
 def test_completed_publication_can_be_retried_without_source_access() -> None:
     session = QueueSession(
         [
+            Response(200, "run-1"),
             Response(
                 200,
                 {
@@ -238,6 +242,79 @@ def test_completed_publication_can_be_retried_without_source_access() -> None:
 
     assert result["status"] == "published"
     assert session.calls[0]["url"].endswith(
-        "/rpc/retry_latest_completed_datafordeler_publication_v1"
+        "/rpc/get_latest_completed_datafordeler_import_v1"
     )
     assert session.calls[0]["json"] == {}
+    assert session.calls[1]["url"].endswith("/rpc/retry_completed_datafordeler_publication_v1")
+    assert session.calls[1]["json"] == {"p_import_run_id": "run-1"}
+    assert session.calls[1]["timeout"] == 75.0
+
+
+def test_recovery_response_loss_retries_the_same_run_without_reselecting() -> None:
+    session = QueueSession(
+        [
+            Response(200, "latest-run"),
+            requests.Timeout("response lost after commit"),
+            Response(200, {"status": "published", "publicationId": "publication-1"}),
+        ]
+    )
+    result = store_with_session(session).retry_latest_completed_publication()
+
+    assert result["publicationId"] == "publication-1"
+    assert len(session.calls) == 3
+    assert all(
+        call["json"] == {"p_import_run_id": "latest-run"}
+        and call["url"].endswith("/rpc/retry_completed_datafordeler_publication_v1")
+        for call in session.calls[1:]
+    )
+
+
+def test_no_completed_run_does_not_attempt_recovery() -> None:
+    session = QueueSession([Response(200)])
+    assert store_with_session(session).retry_latest_completed_publication() == {
+        "status": "no_candidate"
+    }
+    assert len(session.calls) == 1
+
+
+def test_publication_response_loss_returns_the_original_committed_result() -> None:
+    session = QueueSession(
+        [
+            requests.Timeout("response lost after commit"),
+            Response(200, {"status": "published", "publicationId": "publication-1"}),
+        ]
+    )
+    result = store_with_session(session).publish_full_import(
+        "run-1", records_seen=500, records_staged=500, pages_fetched=1,
+        cursor="done", finished_at="2026-09-06T12:00:00Z", bbr_fetched_count=500,
+        bbr_eligible_count=500, dar_linked_count=500, dar_missing_count=0,
+        mapping_failure_count=0, warning_count=0,
+    )
+    assert result["publicationId"] == "publication-1"
+    assert len(session.calls) == 2
+    assert session.calls[0]["json"] == session.calls[1]["json"]
+    assert all(call["timeout"] > 60 for call in session.calls)
+
+
+def test_non_idempotent_post_is_not_retried_after_an_uncertain_result() -> None:
+    session = QueueSession([requests.Timeout("create may have committed")])
+    with pytest.raises(SupabaseError, match="after 1 network attempts"):
+        store_with_session(session)._request(
+            "POST", "import_runs", operation="create import run", payload={"status": "running"}
+        )
+    assert len(session.calls) == 1
+
+
+def test_resume_prefers_persisted_source_snapshot_to_parent_creation_time() -> None:
+    session = QueueSession(
+        [
+            Response(200, [{
+                "id": "resumed-run", "started_at": "2026-09-06T12:00:00Z",
+                "snapshot_at": "2026-09-05T10:00:00Z", "resumed_from_import_run_id": "root-run",
+            }]),
+            Response(200, [{"import_run_id": "resumed-run"}]),
+        ]
+    )
+    result = store_with_session(session).latest_failed_run()
+    assert result is not None and result["snapshot_at"] == "2026-09-05T10:00:00Z"
+    assert len(session.calls) == 2

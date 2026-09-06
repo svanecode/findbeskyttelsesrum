@@ -58,12 +58,16 @@ export async function POST(request: NextRequest) {
   }
   if (!bodyResult.ok) return json({ error: "Rapporten kunne ikke læses." }, 400);
 
-  let body: IncomingReport;
+  let parsed: unknown;
   try {
-    body = JSON.parse(bodyResult.text) as IncomingReport;
+    parsed = JSON.parse(bodyResult.text) as unknown;
   } catch {
     return json({ error: "Rapporten kunne ikke læses." }, 400);
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return json({ error: "Rapporten skal være et JSON-objekt." }, 400);
+  }
+  const body = parsed as IncomingReport;
 
   // Quietly accept obvious bot submissions without writing them.
   if (typeof body.website === "string" && body.website.trim()) {

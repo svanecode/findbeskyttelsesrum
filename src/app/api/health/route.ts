@@ -1,5 +1,3 @@
-import { unstable_cache } from "next/cache";
-
 import {
   getAppV2CurrentDatasetPublication,
   getAppV2PublicDataRevision,
@@ -15,20 +13,18 @@ const defaultMinimumPublicRegistrations = 500;
 const defaultMaximumOperationalAgeMinutes = 90;
 const healthDependencyCacheSeconds = 30;
 
-const readHealthDependencies = unstable_cache(
-  async (maximumOperationalAgeMinutes: number) => {
-    const [stats, publication, dataRevision, operationalHealth] = await Promise.all([
-      getAppV2PublicDataStats(),
-      getAppV2CurrentDatasetPublication(),
-      getAppV2PublicDataRevision(),
-      getOperationalHealth(maximumOperationalAgeMinutes),
-    ]);
+async function readHealthDependencies(maximumOperationalAgeMinutes: number) {
+  // Readiness must observe failed reads. A stale-while-revalidate data cache
+  // would retain the last healthy result indefinitely when a refresh fails.
+  const [stats, publication, dataRevision, operationalHealth] = await Promise.all([
+    getAppV2PublicDataStats(),
+    getAppV2CurrentDatasetPublication(),
+    getAppV2PublicDataRevision(),
+    getOperationalHealth(maximumOperationalAgeMinutes),
+  ]);
 
-    return { stats, publication, dataRevision, operationalHealth };
-  },
-  ["public-readiness-health-v1"],
-  { revalidate: healthDependencyCacheSeconds },
-);
+  return { stats, publication, dataRevision, operationalHealth };
+}
 
 function positiveNumber(value: string | undefined, fallback: number) {
   const parsed = Number(value);
@@ -44,7 +40,9 @@ function healthResponse(body: Record<string, unknown>, status = 200) {
   return Response.json(body, {
     status,
     headers: {
-      "Cache-Control": `public, max-age=0, s-maxage=${healthDependencyCacheSeconds}, stale-while-revalidate=${healthDependencyCacheSeconds}`,
+      "Cache-Control": status === 200
+        ? `public, max-age=0, s-maxage=${healthDependencyCacheSeconds}, must-revalidate`
+        : "private, no-store",
     },
   });
 }

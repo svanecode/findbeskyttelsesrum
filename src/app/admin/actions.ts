@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireModerator } from "@/lib/moderation/auth";
+import { moderationQueueReturnPath } from "@/lib/moderation/pagination";
+import { reportStatuses } from "@/lib/moderation/reports";
+import { revalidatePublicData } from "@/lib/moderation/revalidate-public-data";
 
 const reportIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -13,9 +16,11 @@ function optionalText(formData: FormData, key: string) {
 }
 
 export async function moderateReportAction(formData: FormData) {
+  const returnPath = (result: { error: string } | { updated: "1" }) =>
+    moderationQueueReturnPath(formData, "/admin", reportStatuses, result);
   const reportId = optionalText(formData, "reportId");
   const action = optionalText(formData, "action");
-  if (!reportId || !reportIdPattern.test(reportId) || !action) redirect("/admin?error=invalid_action");
+  if (!reportId || !reportIdPattern.test(reportId) || !action) redirect(returnPath({ error: "invalid_action" }));
 
   const { supabase } = await requireModerator(true);
   const rawCapacity = optionalText(formData, "capacity");
@@ -32,13 +37,12 @@ export async function moderateReportAction(formData: FormData) {
 
   if (error) {
     console.error("[moderation] Action failed:", { code: error.code, action });
-    redirect("/admin?error=moderation_failed");
+    redirect(returnPath({ error: "moderation_failed" }));
   }
 
   revalidatePath("/admin");
-  revalidatePath("/kort");
-  revalidatePath("/om-data");
-  redirect("/admin?updated=1");
+  revalidatePublicData();
+  redirect(returnPath({ updated: "1" }));
 }
 
 export async function signOutModeratorAction() {

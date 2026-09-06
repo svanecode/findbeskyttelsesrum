@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 
@@ -29,7 +30,7 @@ def _positive_float(name: str, default: float) -> float:
         value = float(raw)
     except ValueError as exc:
         raise ValueError(f"{name} must be a number") from exc
-    if value <= 0:
+    if not math.isfinite(value) or value <= 0:
         raise ValueError(f"{name} must be positive")
     return value
 
@@ -42,6 +43,7 @@ class ImportConfig:
     page_size: int = 500
     dar_batch_size: int = 100
     request_timeout: float = 45.0
+    publication_timeout: float = 75.0
     max_request_attempts: int = 4
     retry_base_seconds: float = 1.0
     supabase_batch_size: int = 200
@@ -77,6 +79,10 @@ class ImportConfig:
                     "Supabase service-role/secret keys must never use a NEXT_PUBLIC_* variable"
                 )
 
+        publication_timeout = _positive_float("SUPABASE_PUBLICATION_TIMEOUT_SECONDS", 75.0)
+        if publication_timeout <= 60:
+            raise ValueError("SUPABASE_PUBLICATION_TIMEOUT_SECONDS must exceed 60 seconds")
+
         return cls(
             datafordeler_api_key=api_key,
             supabase_url=supabase_url,
@@ -84,6 +90,7 @@ class ImportConfig:
             page_size=_positive_int("DATAFORDELER_PAGE_SIZE", 500, maximum=1000),
             dar_batch_size=_positive_int("DATAFORDELER_DAR_BATCH_SIZE", 100, maximum=100),
             request_timeout=_positive_float("DATAFORDELER_REQUEST_TIMEOUT_SECONDS", 45.0),
+            publication_timeout=publication_timeout,
             max_request_attempts=_positive_int("MAX_REQUEST_ATTEMPTS", 4, maximum=10),
             retry_base_seconds=_positive_float("RETRY_BASE_SECONDS", 1.0),
             supabase_batch_size=_positive_int("SUPABASE_BATCH_SIZE", 200, maximum=500),

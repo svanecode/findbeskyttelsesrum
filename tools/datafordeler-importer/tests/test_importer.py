@@ -99,6 +99,20 @@ def test_full_success_stages_then_atomically_publishes() -> None:
     ]
 
 
+def test_source_scan_uses_the_snapshot_persisted_by_the_database() -> None:
+    class SnapshotStore(Store):
+        def create_import_run(self, *, resumed_from: Any):
+            return {
+                "id": "run-1",
+                "started_at": "2026-07-13T11:59:00Z",
+                "snapshot_at": "2026-07-13T11:59:01Z",
+            }
+
+    source = Source([page()])
+    importer(source, SnapshotStore()).run(dry_run=False, max_pages=None, resume_latest=False)
+    assert source.args["snapshot_at"] == "2026-07-13T11:59:01Z"
+
+
 def test_capped_run_never_marks_missing() -> None:
     store = Store()
     summary = importer(Source([page(has_next=True)]), store).run(

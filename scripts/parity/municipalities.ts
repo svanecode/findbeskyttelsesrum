@@ -3,6 +3,7 @@ import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 
 import { normalizeMunicipalityDisplay } from "@/lib/municipalities/metadata";
+import { getSupabasePublicEnv, getSupabaseWriteEnv } from "@/lib/supabase/env";
 
 type LegacyMunicipalityRow = {
   kode: string;
@@ -22,39 +23,7 @@ type NormalizedAppV2MunicipalityRow = AppV2MunicipalityRow & {
   normalizedName: string;
 };
 
-type SupabaseParityEnv =
-  | {
-      ok: true;
-      url: string;
-      anonKey: string;
-      secretKey: string;
-    }
-  | {
-      ok: false;
-      missing: string[];
-    };
-
 const sampleLimit = 20;
-
-function getSupabaseEnv(): SupabaseParityEnv {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
-  const secretKey = process.env.SUPABASE_SECRET_KEY?.trim();
-
-  if (!url || !anonKey || !secretKey) {
-    const missing = [
-      ["NEXT_PUBLIC_SUPABASE_URL", url],
-      ["NEXT_PUBLIC_SUPABASE_ANON_KEY", anonKey],
-      ["SUPABASE_SECRET_KEY", secretKey],
-    ]
-      .filter(([, value]) => !value)
-      .map(([name]) => name as string);
-
-    return { ok: false, missing };
-  }
-
-  return { ok: true, url, anonKey, secretKey };
-}
 
 function formatRows<T>(rows: T[], formatter: (row: T) => string) {
   if (rows.length === 0) {
@@ -148,19 +117,13 @@ function normalizeMunicipalitySlug(slug: string) {
 }
 
 async function main() {
-  const env = getSupabaseEnv();
-
   console.log("[parity:municipalities] read-only legacy/app_v2 municipality parity check");
-
-  if (!env.ok) {
-    console.log(`[parity:municipalities] skipped: missing env vars: ${env.missing.join(", ")}`);
-    console.log("[parity:municipalities] no database reads were attempted.");
-    return;
-  }
+  const { url, publishableKey } = getSupabasePublicEnv();
+  const { secretKey } = getSupabaseWriteEnv();
 
   const [legacyRows, appV2Rows] = await Promise.all([
-    readLegacyMunicipalities(env.url, env.anonKey),
-    readAppV2Municipalities(env.url, env.secretKey),
+    readLegacyMunicipalities(url, publishableKey),
+    readAppV2Municipalities(url, secretKey),
   ]);
 
   const normalizedAppV2Rows = normalizeAppV2Rows(appV2Rows);

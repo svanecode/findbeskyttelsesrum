@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import dynamic from 'next/dynamic'
 import 'leaflet/dist/leaflet.css'
 import '@/styles/leaflet-overrides.css'
@@ -52,9 +52,7 @@ function makeIcon(L: typeof import('leaflet'), selected: boolean) {
 }
 
 export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: Props) {
-  const mapRef = useRef<import('leaflet').Map | null>(null)
-  const leafletRef = useRef<typeof import('leaflet') | null>(null)
-  const fittedRef = useRef(false)
+  const [map, setMap] = useState<import('leaflet').Map | null>(null)
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const [tileStatus, setTileStatus] = useState<MapTileStatus>('loading')
   const [tileRetryKey, setTileRetryKey] = useState(0)
@@ -71,40 +69,34 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
         iconRetinaUrl: '/leaflet/marker-icon-2x.png',
         shadowUrl: '/leaflet/marker-shadow.png',
       })
-      leafletRef.current = L
       setLeaflet(L)
     })
   }, [])
 
-  // Fly to selected marker
+  // The forwarded ref is populated after React Leaflet's ready callback.
+  // React to the mounted map so an address selected before lazy loading also wins.
   useEffect(() => {
-    if (!selectedGroupKey || !mapRef.current) return
-    const group = groups.find((g) => g.groupKey === selectedGroupKey)
-    if (!group || group.latitude == null || group.longitude == null) return
-    mapRef.current.flyTo([group.latitude, group.longitude], Math.max(mapRef.current.getZoom(), 14), {
-      animate: true,
-      duration: 0.6,
-    })
-  }, [selectedGroupKey, groups])
+    if (!map || !leaflet) return
 
-  // Fit bounds on first render when map + data are ready
-  const handleMapReady = useCallback(() => {
-    if (fittedRef.current) return
-    const L = leafletRef.current
-    const map = mapRef.current
-    if (!L || !map) return
+    const selectedGroup = groups.find((group) => group.groupKey === selectedGroupKey)
+    if (selectedGroup?.latitude != null && selectedGroup.longitude != null) {
+      map.flyTo([selectedGroup.latitude, selectedGroup.longitude], Math.max(map.getZoom(), 14), {
+        animate: true,
+        duration: 0.6,
+      })
+      return
+    }
 
     const withCoords = groups.filter((g) => g.latitude != null && g.longitude != null)
     if (withCoords.length === 0) return
 
-    const bounds = L.latLngBounds(
+    const bounds = leaflet.latLngBounds(
       withCoords.map((g) => [g.latitude as number, g.longitude as number]),
     )
     if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 })
-      fittedRef.current = true
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15, animate: false })
     }
-  }, [groups])
+  }, [groups, leaflet, map, selectedGroupKey])
 
   const handleTileStatusChange = useCallback((status: MapTileStatus) => {
     setTileStatus(status)
@@ -152,8 +144,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
         maxZoom={18}
         style={{ width: '100%', height: '100%' }}
         className="leaflet-container"
-        ref={mapRef}
-        whenReady={handleMapReady}
+        ref={setMap}
       >
         <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
 

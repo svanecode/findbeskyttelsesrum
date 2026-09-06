@@ -56,9 +56,15 @@ class Importer:
                 raise ValueError("No failed Datafordeler import run with a checkpoint was found")
             run = self.store.create_import_run(resumed_from=resumed)
 
-        snapshot_at = (
-            str(resumed.get("snapshot_at") or resumed["started_at"]) if resumed else self.clock()
-        )
+        snapshot_at = self.clock()
+        if run:
+            snapshot_at = str(
+                run.get("snapshot_at")
+                or (resumed or {}).get("snapshot_at")
+                or (resumed or {}).get("started_at")
+                or run.get("started_at")
+                or snapshot_at
+            )
         summary = ImportSummary(
             dry_run=dry_run,
             source_name=CANONICAL_SOURCE_NAME,
