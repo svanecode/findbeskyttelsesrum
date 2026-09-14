@@ -1,11 +1,16 @@
 export function stripLocationDataFromMetric<TEvent extends { url: string }>(
   event: TEvent,
-  baseUrl = "https://findbeskyttelsesrum.invalid",
-): TEvent {
+  baseUrl = "https://findbeskyttelsesrum.dk",
+): TEvent | null {
   try {
     const url = new URL(event.url, baseUrl);
-    return { ...event, url: url.pathname };
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    url.search = "";
+    url.hash = "";
+    url.username = "";
+    url.password = "";
+    return { ...event, url: url.toString() };
   } catch {
-    return { ...event, url: event.url.split(/[?#]/, 1)[0] ?? "/" };
+    return null;
   }
 }
