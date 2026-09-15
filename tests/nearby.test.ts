@@ -47,12 +47,23 @@ test("analytics URLs omit address, coordinates and all other query data", () => 
       url: "/shelters/nearby?lat=55.67&lng=12.56&q=Testvej%201",
       name: "pageview",
     }),
-    { url: "/shelters/nearby", name: "pageview" },
+    { url: "https://findbeskyttelsesrum.dk/shelters/nearby", name: "pageview" },
   );
   assert.equal(
-    stripLocationDataFromMetric({ url: "https://findbeskyttelsesrum.dk/om-data#filter" }).url,
-    "/om-data",
+    stripLocationDataFromMetric({ url: "https://findbeskyttelsesrum.dk/om-data#filter" })?.url,
+    "https://findbeskyttelsesrum.dk/om-data",
   );
+});
+
+test("analytics preserves an ingestible HTTP URL and drops invalid URLs", () => {
+  const event = stripLocationDataFromMetric({
+    url: "https://user:password@findbeskyttelsesrum.dk/?lat=55&lng=12#address",
+    type: "pageview",
+  });
+  assert.equal(event?.url, "https://findbeskyttelsesrum.dk/");
+  assert.equal(event?.type, "pageview");
+  assert.equal(stripLocationDataFromMetric({ url: "https://[invalid?secret=1" }), null);
+  assert.equal(stripLocationDataFromMetric({ url: "data:text/plain,secret" }), null);
 });
 
 test("grouped API rows preserve aggregate capacity and every detail link without exposing review status", () => {
