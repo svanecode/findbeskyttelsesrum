@@ -38,7 +38,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 | P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | done, in review | – |
 | P1-3 | CONTENT-01 | Link to official shelter and warning information | S | done, in review | – |
 | P1-4 | PERF-02 | CDN-cache the revision-keyed country map API | M | steps 1–2 done, in review; step 3 (grid snapping) todo | – |
-| P1-5 | ARCH-01 | Revision-keyed nearby tiles with on-device ranking | L | todo | PERF-01 |
+| P1-5 | ARCH-01 | Nearby tiles with on-device ranking | L | done, in review (#42) | PERF-01 |
 | P1-6 | PERF-03 | Cut database writes per visitor action | S | done (revised: kill switch only), in review | – |
 | P2-1 | DX-01 | Automated dependency updates | S | done, in review | SEC-01 |
 | P2-2 | TEST-01 | Secret-free e2e path for contributors and agents | M | done, in review | – |
@@ -231,7 +231,14 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 - If fewer than 10 groups fall inside the guaranteed radius, or any tile fails, fall back to the existing POST endpoint. The POST endpoint stays as the fallback and as the contract for `scripts/read/app-v2-nearby-api.ts`.
 - Current revision comes from the existing public revision read (as the country map does).
 
-**Spike first (½ day, report in PR).** Measure gzip size of the 9 Copenhagen tiles. Target ≤ 150 KB total. If it's larger, halve the tile size and load 5×5 around the centre, or drop `applicationCodeLabel` into a code → label dictionary.
+**Outcome (measured on the #42 preview, 2026-09-25).**
+
+- Parity: `npm run parity:nearby-tiles` gave identical results to the POST search at all 17 sample positions (cities, islands, tile edges), with 0 fallbacks.
+- Payload (Brotli, as browsers receive it) for the 3×3 block: Copenhagen centre 149 KB (the densest block), Aarhus 51 KB, Mors 13 KB. All tiles were CDN hits after the first request. The slugs are about half of it; dropping them would need a second lookup step and isn't worth it yet.
+- Time to first result on a phone profile, Copenhagen: 1.3–1.5 s via tiles versus 1.9–2.5 s via the POST search, with no position sent.
+- Decided during implementation: no revision in the tile URL. Tiles use the same 5-minute CDN lifetime as the country map (after the #40 review), so there is no 409 flow. The client falls back to POST if the 9 tiles report mixed revisions.
+
+**Original spike note.** Measure gzip size of the 9 Copenhagen tiles. Target ≤ 150 KB total. If it's larger, halve the tile size and load 5×5 around the centre, or drop `applicationCodeLabel` into a code → label dictionary.
 
 **Files.** New `src/app/api/app-v2/nearby/tiles/[revision]/[tile]/route.ts`, new `src/lib/nearby/tiles.ts` (grid math + ranking + grouping, pure functions), query in `src/lib/supabase/app-v2-queries.ts` (or its split module after CODE-03), `src/app/shelters/nearby/client.tsx`, docs in `docs/data/`.
 
