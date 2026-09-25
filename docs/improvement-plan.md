@@ -31,26 +31,26 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 
 | Rank | ID | Task | Effort | Status | Depends on |
 | --- | --- | --- | --- | --- | --- |
-| P0-1 | ADDR-01 | Replace DAWA with Adressevælger before 2026-10-01 10:00 | M | done (`a761375`), needs deploy | – |
-| P0-2 | SEC-01 | Patch critical Next.js and sharp advisories | S | done (`7bf4eea`), needs deploy | – |
-| P0-3 | OPS-01 | Stop `/api/health` reporting 503 because GitHub delays cron | S | done (`2f62aef`), needs deploy | – |
-| P1-1 | PERF-01 | Nearby rate limit must survive shared mobile IPs (CGNAT) | S | todo | – |
-| P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | todo | – |
-| P1-3 | CONTENT-01 | Link to official shelter and warning information | S | todo | – |
-| P1-4 | PERF-02 | CDN-cache the revision-keyed country map API | M | todo | – |
+| P0-1 | ADDR-01 | Replace DAWA with Adressevælger before 2026-10-01 10:00 | M | done (#39) | – |
+| P0-2 | SEC-01 | Patch critical Next.js and sharp advisories | S | done (#39) | – |
+| P0-3 | OPS-01 | Stop `/api/health` reporting 503 because GitHub delays cron | S | done (#39) | – |
+| P1-1 | PERF-01 | Nearby rate limit must survive shared mobile IPs (CGNAT) | S | done, in review | – |
+| P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | done, in review | – |
+| P1-3 | CONTENT-01 | Link to official shelter and warning information | S | done, in review | – |
+| P1-4 | PERF-02 | CDN-cache the revision-keyed country map API | M | steps 1–2 done, in review; step 3 (grid snapping) todo | – |
 | P1-5 | ARCH-01 | Revision-keyed nearby tiles with on-device ranking | L | todo | PERF-01 |
-| P1-6 | PERF-03 | Cut database writes per visitor action | S | todo | – |
-| P2-1 | DX-01 | Automated dependency updates | S | todo | SEC-01 |
-| P2-2 | TEST-01 | Secret-free e2e path for contributors and agents | M | todo | – |
-| P2-3 | PRIV-01 | Click-to-load map on detail pages | S | todo | – |
-| P2-4 | SEC-02 | One helper for client IP and same-origin checks | S | todo | – |
-| P2-5 | UX-02 | Clear actions on the detail page, incl. walking route | S | todo | – |
-| P2-6 | UX-03 | Fix wrapping of secondary links on the home page | XS | todo | – |
-| P2-7 | CODE-01 | Remove dead diagnostics from the nearby API | S | todo | ARCH-01 (optional) |
-| P2-8 | CODE-02 | Shared helper for user-facing fetch errors | XS | todo | – |
+| P1-6 | PERF-03 | Cut database writes per visitor action | S | done (revised: kill switch only), in review | – |
+| P2-1 | DX-01 | Automated dependency updates | S | done, in review | SEC-01 |
+| P2-2 | TEST-01 | Secret-free e2e path for contributors and agents | M | done, in review | – |
+| P2-3 | PRIV-01 | Click-to-load map on detail pages | S | done, in review | – |
+| P2-4 | SEC-02 | One helper for client IP and same-origin checks | S | done, in review | – |
+| P2-5 | UX-02 | Clear actions on the detail page (no walking route) | S | done (revised), in review | – |
+| P2-6 | UX-03 | Fix wrapping of secondary links on the home page | XS | done, in review | – |
+| P2-7 | CODE-01 | Remove dead diagnostics from the nearby API | S | done, in review | ARCH-01 (optional) |
+| P2-8 | CODE-02 | Shared helper for user-facing fetch errors | XS | done, in review | – |
 | P3-1 | CODE-03 | Split `app-v2-queries.ts` by domain | M | todo | ARCH-01, CODE-01 |
 | P3-2 | OFFLINE-01 | Offline fallback for the last search | M | todo | ARCH-01 |
-| P3-3 | DATA-01 | Explain the "≥ 40 places" filter next to results | XS | todo | – |
+| P3-3 | DATA-01 | Explain the "≥ 40 places" filter next to results | XS | done, in review | – |
 | P3-4 | OPS-02 | External dependency register and change watch | XS | todo | ADDR-01 |
 | P3-5 | DEPS-01 | Major upgrades (Tailwind 4, ESLint 10, TypeScript 7) | L | deferred | DX-01 |
 
@@ -245,10 +245,8 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 **Why.** Each product-metric event performs **two writes** (distributed rate-limit bucket + metric counter). A single search emits 3–4 events, so a visit costs roughly 8 writes, on top of the nearby rate-limit write. Under surge, analytics competes with the actual search for database capacity.
 
-**Decision.**
+**Decision (revised during implementation).** An earlier audit deliberately put the shared rate limit on `/api/metrics` as abuse protection, and the existing `keepalive` fetch already survives navigation, so neither change is worth it. Only the kill switch is implemented:
 
-- `/api/metrics`: drop the distributed rate limit; keep the in-memory limiter. Metrics are best-effort, and the counter RPC is already bounded.
-- Client: send metrics with `navigator.sendBeacon` when available (fallback to the current `fetch` with `keepalive`).
 - Add a kill switch: `PRODUCT_METRICS_DISABLED=1` makes `/api/metrics` return 202 without writing, so the owner can shed load in an emergency by changing an environment variable and redeploying, with no code change.
 
 **Files.** `src/app/api/metrics/route.ts`, `src/lib/analytics/product-metrics.ts`, `docs/qa/free-observability.md`, tests.
@@ -295,9 +293,9 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 **Why.** The detail page has "Vis på kort" (orange, Google Maps) and "Se adressen i kort" (in-page map), which are nearly identical labels for different things. There is no route option, although the most likely next action is "how do I get there".
 
-**Decision.**
+**Decision (revised during implementation).** No route link. `qa/emergency-copy-standard.md` forbids presenting results as an instruction to move toward an address, and a route button does exactly that. Implemented instead: the external link is labelled "Åbn i Google Maps" and the in-page "Vis på kort" now also loads the map (PRIV-01). The original proposal is kept below for the record.
 
-- Primary: **"Rutevejledning (gå)"** → `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>&travelmode=walking` (destination only, no origin sent by us).
+- ~~Primary: **"Rutevejledning (gå)"** → `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>&travelmode=walking` (destination only, no origin sent by us).~~
 - Secondary: "Åbn i Google Maps" (existing place link).
 - The in-page map anchor is renamed "Kort på siden".
 - Add the same route link as a secondary action on nearby result cards.
