@@ -463,7 +463,7 @@ export default function CountryMap({
         >
           {!markersReady || (markerState.status === "loaded" && markerState.refreshing) ? (
             <div
-              className="pointer-events-none absolute bottom-4 left-4 z-[5000] max-w-[min(100%,18rem)] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
+              className="pointer-events-none absolute bottom-4 left-4 z-[5000] max-w-[min(100%,18rem)] rounded-lg border border-white/15 bg-[#141619]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
               role="status"
               aria-live="polite"
             >
@@ -472,7 +472,7 @@ export default function CountryMap({
           ) : null}
           {markerState.status === "loaded" && markerState.refreshError ? (
             <div
-              className="absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-amber-300/30 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
+              className="absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-amber-300/30 bg-[#141619]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
               role="alert"
             >
               <p>Området kunne ikke opdateres. De senest hentede kortdata vises stadig.</p>
@@ -486,7 +486,7 @@ export default function CountryMap({
             </div>
           ) : markerState.status === "loaded" && markerState.truncated ? (
             <div
-              className="pointer-events-none absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
+              className="pointer-events-none absolute left-4 top-4 z-[700] max-w-[min(100%,22rem)] rounded-lg border border-white/15 bg-[#141619]/95 px-3 py-2 text-sm text-gray-100 shadow-lg"
               role="status"
               aria-live="polite"
             >
