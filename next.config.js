@@ -86,6 +86,11 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  // The site serves no optimized images. Disabling the optimizer keeps
+  // /_next/image out of the attack surface for future advisories.
+  images: {
+    unoptimized: true,
+  },
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     SITE_BUILD_TIMESTAMP: siteBuildTimestamp,
