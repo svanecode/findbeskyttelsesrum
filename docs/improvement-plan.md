@@ -31,9 +31,9 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 
 | Rank | ID | Task | Effort | Status | Depends on |
 | --- | --- | --- | --- | --- | --- |
-| P0-1 | ADDR-01 | Replace DAWA with Adressevælger before 2026-10-01 10:00 | M | done (#39) | – |
-| P0-2 | SEC-01 | Patch critical Next.js and sharp advisories | S | done (#39) | – |
-| P0-3 | OPS-01 | Stop `/api/health` reporting 503 because GitHub delays cron | S | done (#39) | – |
+| P0-1 | ADDR-01 | Replace DAWA with Adressevælger before 2026-10-01 10:00 | M | done (#39), live 2026-09-25 | – |
+| P0-2 | SEC-01 | Patch critical Next.js and sharp advisories | S | done (#39), live 2026-09-25 | – |
+| P0-3 | OPS-01 | Stop `/api/health` reporting 503 because GitHub delays cron | S | done (#39), live 2026-09-25 | – |
 | P1-1 | PERF-01 | Nearby rate limit must survive shared mobile IPs (CGNAT) | S | done, in review | – |
 | P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | done, in review | – |
 | P1-3 | CONTENT-01 | Link to official shelter and warning information | S | done, in review | – |
