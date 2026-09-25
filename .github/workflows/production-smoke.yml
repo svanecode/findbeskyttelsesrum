@@ -2,7 +2,9 @@ name: Production smoke monitoring
 
 on:
   schedule:
-    - cron: "17,47 * * * *"
+    # GitHub delays scheduled runs by hours under load; health treats a late
+    # heartbeat as a warning and only degrades after 24 hours.
+    - cron: "7 * * * *"
   workflow_dispatch:
 
 concurrency:

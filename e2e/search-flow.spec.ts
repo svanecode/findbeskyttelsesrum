@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   installNearbySearchContext,
   isolateRateLimit,
-  mockDawa,
+  mockAddressSearch,
   mockNearby,
   quietThirdPartyRequests,
   selectedAddressLabel,
@@ -20,7 +20,7 @@ test("adresseflowet viser resultater uden steddata i URL'en", async ({ page }) =
     metricPayloads.push(route.request().postDataJSON() as Record<string, unknown>);
     await route.fulfill({ status: 202 });
   });
-  await mockDawa(page);
+  await mockAddressSearch(page);
   await mockNearby(page);
 
   await page.goto("/");
@@ -41,11 +41,11 @@ test("adresseflowet viser resultater uden steddata i URL'en", async ({ page }) =
 
   const nearbyRequest = await nearbyRequestPromise;
   expect(new URL(nearbyRequest.url()).search).toBe("");
-  expect(nearbyRequest.postDataJSON()).toEqual({
-    lat: 55.6761,
-    lng: 12.5683,
-    limit: 10,
-  });
+  const nearbyBody = nearbyRequest.postDataJSON() as { lat: number; lng: number; limit: number };
+  expect(Object.keys(nearbyBody).sort()).toEqual(["lat", "limit", "lng"]);
+  expect(nearbyBody.lat).toBeCloseTo(55.6761, 6);
+  expect(nearbyBody.lng).toBeCloseTo(12.5683, 6);
+  expect(nearbyBody.limit).toBe(10);
   await expect.poll(() => metricPayloads.map((payload) => payload.eventName)).toContain("nearby_results_loaded");
   expect(metricPayloads.map((payload) => payload.eventName)).toEqual(expect.arrayContaining([
     "address_search_started",
@@ -110,4 +110,43 @@ test("mobilvisningen skifter mellem liste og kort", async ({ page }, testInfo) =
   await page.getByRole("button", { name: "Luk oplysninger" }).click();
   await expect(page.getByLabel("Valgt registrering")).toBeHidden();
   await expect(mapTab).toBeFocused();
+});
+
+test("et vejnavn indsnævrer søgningen til et husnummer", async ({ page }) => {
+  const searches: string[] = [];
+  await mockAddressSearch(page);
+  await page.unroute("https://adressevaelger.dk/husnumre/soeg**");
+  await page.route("https://adressevaelger.dk/husnumre/soeg**", async (route) => {
+    const text = new URL(route.request().url()).searchParams.get("tekst") ?? "";
+    searches.push(text);
+    // Mirrors the live API: "Vej , postnr by" lists the street's house numbers.
+    const fund = text.includes(", 1550")
+      ? [{ type: "husnummer", id: "0a3f507a-ec01-32b8-e044-0003ba298018", titel: selectedAddressLabel }]
+      : [{
+          type: "navngivenvejpostnummer",
+          id: "83a1b9a3-185d-4596-ad9a-e7587dd14474",
+          titel: "Rådhuspladsen 1550 København V",
+          vejnavn: "Rådhuspladsen",
+          postnr: "1550",
+          postdistrikt: "København V",
+        }];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ok", beskrivelse: "", fund }),
+    });
+  });
+
+  await page.goto("/");
+  const addressInput = page.getByRole("combobox", { name: "Adresse, by eller postnummer" });
+  await addressInput.fill("Rådhusp");
+  await page.getByRole("option", { name: "Rådhuspladsen 1550 København V" }).click();
+
+  await expect(addressInput).toHaveValue("Rådhuspladsen , 1550 København V");
+  await expect(addressInput).toBeFocused();
+  expect(await addressInput.evaluate((input: HTMLInputElement) => input.selectionStart)).toBe(14);
+  await page.getByRole("option", { name: selectedAddressLabel }).click();
+  await expect(page.getByText(`Valgt adresse: ${selectedAddressLabel}`)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Søg", exact: true })).toBeEnabled();
+  expect(searches).toContain("Rådhuspladsen , 1550 København V");
 });

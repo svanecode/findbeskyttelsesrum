@@ -87,6 +87,19 @@ function formatCapacity(capacity: number | undefined) {
   return `${capacity.toLocaleString('da-DK')} ${capacity === 1 ? 'BBR-registreret plads' : 'BBR-registrerede pladser'}`
 }
 
+class NearbyRequestError extends Error {
+  constructor(readonly status: number) {
+    super(`app_v2 grouped nearby failed with status ${status}`)
+  }
+}
+
+function getNearbyLoadErrorMessage(error: unknown) {
+  if (error instanceof NearbyRequestError && error.status === 429) {
+    return 'Vi kunne ikke hente BBR-registreringerne lige nu, fordi der er søgt mange gange fra din netværksforbindelse. Vent et minut, og prøv igen.'
+  }
+  return 'Vi kunne ikke hente BBR-registreringerne lige nu. Prøv igen om lidt.'
+}
+
 async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<NearbyResultShelter[]> {
   const response = await fetch('/api/app-v2/nearby/grouped', {
     method: 'POST',
@@ -95,7 +108,7 @@ async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<Near
     cache: 'no-store',
   })
 
-  if (!response.ok) throw new Error(`app_v2 grouped nearby failed with status ${response.status}`)
+  if (!response.ok) throw new NearbyRequestError(response.status)
 
   const json = await response.json()
   return adaptAppV2Grouped(json.results ?? [])
@@ -175,10 +188,10 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             performance.now() - startedAt,
           )
         }
-      } catch {
+      } catch (error) {
         if (isMounted) {
           setShelters([])
-          setLoadError('Vi kunne ikke hente BBR-registreringerne lige nu. Prøv igen om lidt.')
+          setLoadError(getNearbyLoadErrorMessage(error))
           trackProductMetric('nearby_error', performance.now() - startedAt)
         }
       } finally {

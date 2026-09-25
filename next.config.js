@@ -2,6 +2,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { osmTileOrigin } from "./src/lib/maps/provider.js";
 
+// Keep in sync with adressevaelgerOrigin in src/lib/address/adressevaelger.ts.
+const adressevaelgerOrigin = "https://adressevaelger.dk";
+
 const siteBuildTimestamp = process.env.SITE_BUILD_TIMESTAMP || new Date().toISOString();
 
 function supabaseOriginForCsp() {
@@ -25,7 +28,7 @@ export function contentSecurityPolicyValue({
     supabaseOrigin,
     'https://*.vercel-scripts.com',
     'https://*.vercel-insights.com',
-    'https://api.dataforsyningen.dk',
+    adressevaelgerOrigin,
     ...developmentConnections,
   ].filter(Boolean)
 
@@ -85,6 +88,11 @@ const nextConfig = {
   },
   typescript: {
     ignoreBuildErrors: false,
+  },
+  // The site serves no optimized images. Disabling the optimizer keeps
+  // /_next/image out of the attack surface for future advisories.
+  images: {
+    unoptimized: true,
   },
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,

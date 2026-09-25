@@ -46,6 +46,7 @@ test("readiness observes an outage after a healthy response and recovers on the 
         getAppV2CurrentDatasetPublication: async () => ({ publicationId: "publication", isConsistent: true }),
         getAppV2PublicDataRevision: async () => ({ publicationId: "publication", cacheKey: "publication:1" }),
       },
+      "@/lib/operations/heartbeat-limits": await import("../src/lib/operations/heartbeat-limits"),
       "@/lib/operations/operational-health": {
         getOperationalHealth: async () => ({ heartbeatFound: true, status: "ok", isFresh: true }),
       },
@@ -70,6 +71,61 @@ test("readiness observes an outage after a healthy response and recovers on the 
       assert.match(recovered.headers.get("Cache-Control") ?? "", /s-maxage=30, must-revalidate/);
       assert.equal(reads, 3);
     });
+  } finally {
+    if (oldEnvironment === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = oldEnvironment;
+  }
+});
+
+test("a late heartbeat warns, while a missing or day-old heartbeat degrades readiness", async () => {
+  const nextCache = require("next/cache") as Record<string, unknown>;
+  let operationalHealth: Record<string, unknown> = {};
+  const route = await loadServerModule<{ GET: () => Promise<Response> }>(
+    new URL("../src/app/api/health/route.ts", import.meta.url),
+    {
+      "next/cache": nextCache,
+      "@/lib/supabase/app-v2-queries": {
+        getAppV2PublicDataStats: async () => ({
+          publicRegistrations: 1000,
+          latestPublicImportAt: new Date().toISOString(),
+        }),
+        getAppV2CurrentDatasetPublication: async () => ({ publicationId: "publication", isConsistent: true }),
+        getAppV2PublicDataRevision: async () => ({ publicationId: "publication", cacheKey: "publication:1" }),
+      },
+      "@/lib/operations/heartbeat-limits": await import("../src/lib/operations/heartbeat-limits"),
+      "@/lib/operations/operational-health": {
+        getOperationalHealth: async () => operationalHealth,
+      },
+    },
+  );
+  const oldEnvironment = process.env.VERCEL_ENV;
+  process.env.VERCEL_ENV = "preview";
+  try {
+    operationalHealth = { heartbeatFound: true, status: "ok", isFresh: true, ageMinutes: 20 };
+    const fresh = await route.GET();
+    assert.equal(fresh.status, 200);
+    assert.equal((await fresh.json()).warnings, undefined);
+
+    operationalHealth = { heartbeatFound: true, status: "ok", isFresh: false, ageMinutes: 600 };
+    const late = await route.GET();
+    const lateBody = await late.json();
+    assert.equal(late.status, 200, "GitHub cron delays must not report the site as down");
+    assert.equal(lateBody.status, "ok");
+    assert.deepEqual(lateBody.warnings, ["trusted_operational_heartbeat_is_late"]);
+
+    operationalHealth = { heartbeatFound: true, status: "ok", isFresh: false, ageMinutes: 1_500 };
+    const stale = await route.GET();
+    assert.equal(stale.status, 503);
+    assert.deepEqual((await stale.json()).degradationReasons, ["trusted_operational_heartbeat_is_stale"]);
+
+    operationalHealth = { heartbeatFound: true, status: "ok", isFresh: false, ageMinutes: null };
+    assert.equal((await route.GET()).status, 503, "an unknown heartbeat age must not be treated as late");
+
+    operationalHealth = { heartbeatFound: false, status: null, isFresh: false, ageMinutes: null };
+    assert.equal((await route.GET()).status, 503);
+
+    operationalHealth = { heartbeatFound: true, status: "error", isFresh: true, ageMinutes: 5 };
+    assert.equal((await route.GET()).status, 503);
   } finally {
     if (oldEnvironment === undefined) delete process.env.VERCEL_ENV;
     else process.env.VERCEL_ENV = oldEnvironment;
@@ -134,4 +190,16 @@ test("successful moderation and rollback invalidate cached public detail and lis
       assert.ok(invalidated.some(([value]) => value === path), `${action}: ${path}`);
     }
   }
+});
+
+test("health and the admin operations page share one heartbeat threshold", async () => {
+  const { getOperationalHeartbeatLimits } = await import("../src/lib/operations/heartbeat-limits");
+  const { readFile } = await import("node:fs/promises");
+  assert.deepEqual(getOperationalHeartbeatLimits({}), { warningAgeMinutes: 480, hardLimitMinutes: 1_440 });
+  assert.deepEqual(
+    getOperationalHeartbeatLimits({ HEALTH_MAX_OPERATION_AGE_MINUTES: "2000", HEALTH_MAX_OPERATION_HARD_AGE_MINUTES: "60" }),
+    { warningAgeMinutes: 2000, hardLimitMinutes: 2000 },
+  );
+  const operationalHealth = await readFile(new URL("../src/lib/operations/operational-health.ts", import.meta.url), "utf8");
+  assert.match(operationalHealth, /maximumAgeMinutes = getOperationalHeartbeatLimits\(\)\.warningAgeMinutes/);
 });

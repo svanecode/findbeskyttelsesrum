@@ -9,7 +9,7 @@ En registrering er ikke en garanti for offentlig adgang, klargøring eller aktue
 
 ## Hvad løsningen indeholder
 
-- adressesøgning med DAWA og nærhedsberegning uden adresse eller koordinater i URL'en;
+- adressesøgning med Klimadatastyrelsens Adressevælger og nærhedsberegning uden adresse eller koordinater i URL'en;
 - landskort og lokale kort med Leaflet og OpenStreetMap;
 - kommune- og registreringssider med forklaring af datagrundlaget;
 - privat fejlrapportering med moderationskø;
@@ -35,9 +35,9 @@ Python-importer ──► privat staging ──► kvalitetskontrol
                             versioneret publicering i app_v2
                                           │
                                           ▼
-DAWA ──► Next.js på Vercel ──► offentlige views/RPC'er i Supabase
-                 │
-                 └──► Leaflet + OpenStreetMap
+Adressevælger ──► Next.js på Vercel ──► offentlige views/RPC'er i Supabase
+                          │
+                          └──► Leaflet + OpenStreetMap
 ```
 
 Den offentlige app læser kun eksplicitte, offentlige views og read-only funktioner i Supabase-skemaet `app_v2`. Importkandidater, snapshots, moderation, audit og driftstællere er private. En fejlet eller mistænkelig import ændrer aldrig det aktuelt publicerede datasæt.

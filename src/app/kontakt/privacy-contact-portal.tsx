@@ -65,6 +65,11 @@ function CaseConversation({ contactCase }: { contactCase: PrivacyContactCase }) 
   );
 }
 
+// Network failures surface as browser-specific TypeErrors; show our own Danish text instead.
+function visibleErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && !(error instanceof TypeError) ? error.message : fallback;
+}
+
 export default function PrivacyContactPortal() {
   const [createState, setCreateState] = useState<RequestState>("idle");
   const [lookupState, setLookupState] = useState<RequestState>("idle");
@@ -92,7 +97,7 @@ export default function PrivacyContactPortal() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(caseCredentials),
       });
-      const result = (await response.json()) as { success?: boolean; case?: PrivacyContactCase; error?: string };
+      const result = (await response.json().catch(() => ({}))) as { success?: boolean; case?: PrivacyContactCase; error?: string };
       if (!response.ok || !result.success || !result.case) {
         throw new Error(result.error || "Sagen kunne ikke hentes.");
       }
@@ -101,7 +106,7 @@ export default function PrivacyContactPortal() {
       setContactCase(result.case);
       window.requestAnimationFrame(() => caseHeadingRef.current?.focus());
     } catch (error) {
-      setLookupError(error instanceof Error ? error.message : "Sagen kunne ikke hentes. Prøv igen senere.");
+      setLookupError(visibleErrorMessage(error, "Sagen kunne ikke hentes. Prøv igen senere."));
     } finally {
       setLookupState("idle");
     }
@@ -128,7 +133,7 @@ export default function PrivacyContactPortal() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = (await response.json()) as {
+      const result = (await response.json().catch(() => ({}))) as {
         success?: boolean;
         reference?: string;
         accessKey?: string;
@@ -146,7 +151,7 @@ export default function PrivacyContactPortal() {
       setMessageLength(0);
       window.requestAnimationFrame(() => receiptHeadingRef.current?.focus());
     } catch (error) {
-      setCreateError(error instanceof Error ? error.message : "Henvendelsen kunne ikke gemmes. Prøv igen senere.");
+      setCreateError(visibleErrorMessage(error, "Henvendelsen kunne ikke gemmes. Prøv igen senere."));
     } finally {
       setCreateState("idle");
     }
@@ -180,7 +185,7 @@ export default function PrivacyContactPortal() {
           website: form.get("website"),
         }),
       });
-      const result = (await response.json()) as { success?: boolean; case?: PrivacyContactCase; error?: string };
+      const result = (await response.json().catch(() => ({}))) as { success?: boolean; case?: PrivacyContactCase; error?: string };
       if (!response.ok || !result.success || !result.case) {
         throw new Error(result.error || "Beskeden kunne ikke gemmes.");
       }
@@ -189,7 +194,7 @@ export default function PrivacyContactPortal() {
       formElement.reset();
       setReplyLength(0);
     } catch (error) {
-      setReplyError(error instanceof Error ? error.message : "Beskeden kunne ikke gemmes. Prøv igen senere.");
+      setReplyError(visibleErrorMessage(error, "Beskeden kunne ikke gemmes. Prøv igen senere."));
     } finally {
       setReplyState("idle");
     }

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import AddressSearchDAWA from '@/components/AddressSearchDAWA'
+import AddressSearch from '@/components/AddressSearch'
 import GlobalFooter from '@/components/GlobalFooter'
 import { ui } from '@/components/ui-classes'
 import { createPageMetadata } from '@/lib/seo/metadata'
@@ -49,7 +49,7 @@ export default async function Home() {
           <div className="min-w-0">
             <div className={`${ui.panel} p-5 sm:p-7`}>
               <div suppressHydrationWarning className="relative z-20">
-                <AddressSearchDAWA key="dawa-v2" />
+                <AddressSearch />
               </div>
             </div>
 
