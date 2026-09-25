@@ -207,7 +207,7 @@ export default async function DataPage() {
             </p>
           </section>
 
-          <section className="border-t border-white/10 py-6 sm:py-8">
+          <section id="hvilke-registreringer" className="scroll-mt-24 border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold text-white">Hvilke registreringer vises?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Oversigten viser publicerede BBR-registreringer med mindst 40 registrerede pladser og en

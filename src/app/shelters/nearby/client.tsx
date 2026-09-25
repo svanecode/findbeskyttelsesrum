@@ -409,6 +409,10 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
               <div className={`${ui.panel} p-4`} role="status" aria-live="polite">
                 <p className="text-lg font-semibold text-white">Ingen registreringer i resultatet</p>
                 <p className="mt-2 text-gray-300">Prøv en anden adresse. Du kan også gennemse pr. kommune. Følg altid myndighedernes anvisninger.</p>
+                <p className="mt-2 text-sm text-gray-400">
+                  Oversigten viser kun registreringer med mindst 40 pladser.{' '}
+                  <Link href="/om-data#hvilke-registreringer" className={ui.textLink}>Læs hvorfor</Link>
+                </p>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   <Link href="/" className={ui.primaryAction}>Søg igen</Link>
                   <Link href="/kommune" className={ui.secondaryAction}>Kommuneoversigt</Link>
@@ -479,7 +483,11 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                     </article>
                   )
                 })}
-                <RegistrationNotice className="mt-4" />
+                <p className="pt-1 text-sm text-gray-400">
+                  Kun registreringer med mindst 40 pladser vises.{' '}
+                  <Link href="/om-data#hvilke-registreringer" className={ui.textLink}>Læs hvorfor</Link>
+                </p>
+                <RegistrationNotice className="mt-3" />
               </>
             )}
           </section>
