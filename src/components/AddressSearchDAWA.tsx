@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import LoadingSpinner from './LoadingSpinner'
 import { ui } from './ui-classes'
@@ -30,7 +30,7 @@ function getGeolocationErrorMessage(error: unknown) {
       return 'Du har afvist adgang til din placering. Søg efter en adresse i stedet, eller tillad placering i browserens indstillinger.'
     }
     if (code === 3) {
-      return 'Din placering kunne ikke hentes inden for 10 sekunder. Prøv igen, eller søg efter en adresse.'
+      return 'Din placering kunne ikke hentes i tide. Prøv igen, eller søg efter en adresse.'
     }
     if (code === 2) {
       return 'Din placering er ikke tilgængelig lige nu. Prøv igen, eller søg efter en adresse.'
@@ -38,6 +38,30 @@ function getGeolocationErrorMessage(error: unknown) {
   }
 
   return 'Din placering kunne ikke hentes. Prøv igen, eller søg efter en adresse.'
+}
+
+function getGeolocationErrorCode(error: unknown) {
+  return error && typeof error === 'object' && 'code' in error
+    ? Number((error as { code?: unknown }).code)
+    : null
+}
+
+function requestPosition(options: PositionOptions) {
+  return new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, options)
+  })
+}
+
+// GPS often cannot get a fix indoors. A network-based position is precise enough
+// to rank nearby registrations, so fall back to it instead of failing the search.
+async function getCurrentPosition() {
+  try {
+    return await requestPosition({ enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 })
+  } catch (error) {
+    const code = getGeolocationErrorCode(error)
+    if (code !== 2 && code !== 3) throw error
+    return requestPosition({ enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 })
+  }
 }
 
 export default function AddressSearchDAWA() {
@@ -52,6 +76,7 @@ export default function AddressSearchDAWA() {
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [hasNoResults, setHasNoResults] = useState(false)
+  const [retryToken, setRetryToken] = useState(0)
   const router = useRouter()
   const { handleError } = useErrorHandler()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -123,7 +148,7 @@ export default function AddressSearchDAWA() {
     [],
   )
 
-  const canSubmit = useMemo(() => selectedAddress !== null && !hasFailed, [selectedAddress, hasFailed])
+  const canSubmit = selectedAddress !== null
 
   const handleSubmit = useCallback(
     async (event: FormEvent) => {
@@ -147,8 +172,10 @@ export default function AddressSearchDAWA() {
           setIsOpen(results.length > 0)
           setActiveIndex(results.length > 0 ? 0 : null)
           setHasNoResults(results.length === 0)
+          setHasFailed(false)
         } catch (error) {
           trackProductMetric('address_search_error')
+          setHasFailed(true)
           handleError(error instanceof Error ? error : new Error('DAWA autocomplete failed'), 'DAWA Autocomplete failed')
         } finally {
           setIsLoading(false)
@@ -177,9 +204,7 @@ export default function AddressSearchDAWA() {
     setSearchError(null)
     setGpsLoading(true)
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true })
-      })
+      const position = await getCurrentPosition()
       navigateToNearby({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
@@ -187,9 +212,7 @@ export default function AddressSearchDAWA() {
       }, 'geolocation_succeeded')
     } catch (error) {
       setGpsError(getGeolocationErrorMessage(error))
-      const errorCode = error && typeof error === 'object' && 'code' in error
-        ? Number((error as { code?: unknown }).code)
-        : null
+      const errorCode = getGeolocationErrorCode(error)
       trackProductMetric(errorCode === 1 ? 'geolocation_denied' : 'geolocation_error')
       if (errorCode !== 1) {
         handleError(error instanceof Error ? error : new Error('Failed to get location'), 'Geolocation failed')
@@ -244,7 +267,7 @@ export default function AddressSearchDAWA() {
       clearTimeout(timeoutId)
       controller.abort()
     }
-  }, [query, handleError, selectedAddress?.label])
+  }, [query, handleError, selectedAddress?.label, retryToken])
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -326,15 +349,18 @@ export default function AddressSearchDAWA() {
               <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
               <div className="flex-1">
                 <p className="font-medium">Adressesøgningen er ikke tilgængelig</p>
-                <p className="text-xs mt-1 opacity-80">Prøv at genindlæse siden eller brug din placering ovenfor.</p>
+                <p className="text-xs mt-1 opacity-80">Prøv igen om lidt, eller brug din placering ovenfor.</p>
               </div>
               <button
                 type="button"
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  setHasFailed(false)
+                  setRetryToken((token) => token + 1)
+                  inputRef.current?.focus()
+                }}
                 className="ml-2 inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg bg-yellow-600/25 px-3 py-2 text-xs font-medium text-yellow-100 transition-colors hover:bg-yellow-600/40"
-                aria-label="Genindlæs siden"
               >
-                Genindlæs
+                Prøv igen
               </button>
             </div>
           </div>
@@ -360,7 +386,6 @@ export default function AddressSearchDAWA() {
                 id="adresse"
                 placeholder="Skriv vejnavn, by eller postnummer"
                 className={`${ui.input} touch-target py-3 pl-12 pr-11 transition-colors disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12`}
-                disabled={hasFailed}
                 aria-describedby={hasFailed ? 'dawa-error' : hasNoResults ? 'dawa-no-results' : undefined}
                 role="combobox"
                 aria-haspopup="listbox"

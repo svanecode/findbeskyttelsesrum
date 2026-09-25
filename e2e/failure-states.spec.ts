@@ -58,6 +58,56 @@ test("DAWA-fejl efterlader GPS som tydeligt alternativ", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Brug min placering/ })).toBeEnabled();
 });
 
+test("forbigående DAWA-fejl låser ikke adressesøgningen", async ({ page }) => {
+  await page.route("https://api.dataforsyningen.dk/autocomplete**", async (route) => {
+    await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+  });
+
+  await page.goto("/");
+  const combobox = page.getByRole("combobox", { name: "Adresse, by eller postnummer" });
+  await combobox.fill("Rådhuspladsen");
+  const alert = page.getByRole("alert").filter({ hasText: "Adressesøgningen er ikke tilgængelig" });
+  await expect(alert).toBeVisible();
+  await expect(combobox).toBeEnabled();
+
+  await page.unroute("https://api.dataforsyningen.dk/autocomplete**");
+  await mockDawa(page);
+  await alert.getByRole("button", { name: "Prøv igen" }).click();
+
+  await expect(alert).toBeHidden();
+  await expect(page.getByRole("option", { name: "Rådhuspladsen 1, 1550 København V" })).toBeVisible();
+});
+
+test("GPS-timeout falder tilbage til netværksposition", async ({ page }) => {
+  await mockNearby(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(window.navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition: (
+          success: PositionCallback,
+          failure?: PositionErrorCallback | null,
+          options?: PositionOptions,
+        ) => {
+          if (options?.enableHighAccuracy) {
+            failure?.({ code: 3, message: "Timeout", PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 });
+            return;
+          }
+          success({
+            coords: { latitude: 55.6761, longitude: 12.5683, accuracy: 150 },
+            timestamp: Date.now(),
+          } as GeolocationPosition);
+        },
+      },
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Brug min placering/ }).click();
+
+  await expect(page).toHaveURL((url) => url.pathname === "/shelters/nearby");
+});
+
 test("tom DAWA-søgning forklarer næste skridt", async ({ page }) => {
   await mockDawa(page, []);
 
