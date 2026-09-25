@@ -152,7 +152,7 @@ export default function KommuneExperience({
                           document.getElementById('municipality-map')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                         }
                       }}
-                      className={`${ui.quietAction} shrink-0 disabled:cursor-wait disabled:opacity-60`}
+                      className={`${ui.secondaryAction} shrink-0 py-2 disabled:cursor-wait disabled:opacity-60`}
                       aria-label={`Vis ${group.addressLine1} på kortet`}
                     >
                       Vis på kort

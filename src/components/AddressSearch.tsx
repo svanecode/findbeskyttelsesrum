@@ -383,7 +383,7 @@ export default function AddressSearch() {
                 ref={inputRef}
                 type="text"
                 id="adresse"
-                placeholder="Skriv vejnavn, by eller postnummer"
+                placeholder="Vejnavn, by eller postnr."
                 className={`${ui.input} touch-target py-3 pl-12 pr-11 transition-colors disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12`}
                 aria-describedby={hasFailed ? 'address-search-error' : hasNoResults ? 'address-no-results' : undefined}
                 role="combobox"

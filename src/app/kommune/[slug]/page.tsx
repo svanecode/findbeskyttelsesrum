@@ -163,7 +163,7 @@ export default async function KommunePage({ params }: Props) {
           BBR-registreringer i {municipality.name}
         </h1>
 
-        <p className="mt-3 text-lg tabular-nums text-gray-300">
+        <p className="mt-3 text-lg text-gray-300">
           {publicShelterCount === 1
             ? '1 BBR-registrering'
             : `${publicShelterCount.toLocaleString('da-DK')} BBR-registreringer`}

@@ -79,7 +79,7 @@ test("the homepage does not contain the removed personal example address", async
   const addressSearch = await readFile(addressSearchUrl, "utf8");
 
   assert.doesNotMatch(addressSearch, /Elsted Byvej/i);
-  assert.match(addressSearch, /Skriv vejnavn, by eller postnummer/);
+  assert.match(addressSearch, /Vejnavn, by eller postnr\./);
 });
 
 test("core search surfaces explain registration limits and data freshness", async () => {

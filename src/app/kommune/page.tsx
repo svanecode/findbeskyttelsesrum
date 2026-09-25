@@ -34,7 +34,7 @@ export default async function MunicipalityOverviewPage() {
           <h1 className={ui.pageTitle}>
             Kommuneoversigt
           </h1>
-          <p className="text-base tabular-nums text-gray-300 sm:text-lg">
+          <p className="text-base text-gray-300 sm:text-lg">
             {publicShelterCount === 1
               ? "1 BBR-registrering"
               : `${publicShelterCount.toLocaleString("da-DK")} BBR-registreringer`}
