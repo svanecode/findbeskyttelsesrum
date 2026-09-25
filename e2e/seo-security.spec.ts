@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { knownShelterSlug, quietThirdPartyRequests } from "./support";
 
-test("robots and sitemap expose stable crawlable metadata", async ({ request }) => {
+test("robots and sitemap expose stable crawlable metadata", { tag: "@full-stack" }, async ({ request }) => {
   const robotsResponse = await request.get("/robots.txt");
   expect(robotsResponse.ok()).toBe(true);
   const robots = await robotsResponse.text();
@@ -27,7 +27,7 @@ test("robots and sitemap expose stable crawlable metadata", async ({ request }) 
   expect(lastModifiedValues.every((value) => Number.isFinite(Date.parse(value)))).toBe(true);
 });
 
-test("production responses carry the hardened CSP and no service worker", async ({ request }) => {
+test("production responses carry the hardened CSP and no service worker", { tag: "@full-stack" }, async ({ request }) => {
   const response = await request.get("/");
   expect(response.ok()).toBe(true);
   const csp = response.headers()["content-security-policy"] ?? "";
@@ -41,7 +41,7 @@ test("production responses carry the hardened CSP and no service worker", async 
   expect(serviceWorkerResponse.status()).toBe(404);
 });
 
-test("a shelter detail page exposes visible and machine-readable breadcrumbs", async ({ page }) => {
+test("a shelter detail page exposes visible and machine-readable breadcrumbs", { tag: "@full-stack" }, async ({ page }) => {
   await quietThirdPartyRequests(page);
   await page.goto(`/beskyttelsesrum/${knownShelterSlug}`);
 
@@ -84,7 +84,7 @@ test("public pages expose route-specific canonical and sharing metadata", async 
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
 });
 
-test("all municipalities and address pages are linked in server-rendered pagination", async ({ page }, testInfo) => {
+test("all municipalities and address pages are linked in server-rendered pagination", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   await quietThirdPartyRequests(page);
   await page.goto("/kommune");
 

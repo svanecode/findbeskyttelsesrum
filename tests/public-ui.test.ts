@@ -162,7 +162,7 @@ test("shelter detail routes resolve old URLs and redirect to one canonical ident
 test("desktop map focus stays visible and the mobile sheet can close with focus return", async () => {
   const nearbyPage = await readFile(nearbyPageUrl, "utf8");
 
-  assert.match(nearbyPage, /if \(!isDesktopMap\) mapTabRef\.current\?\.focus\(\)/);
+  assert.match(nearbyPage, /if \(!isDesktopMap\) mapTabRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(nearbyPage, /role=\{isDesktopMap \? undefined : 'tabpanel'\}/);
   assert.match(nearbyPage, /Luk oplysninger/);
   assert.match(nearbyPage, /closeSelectedShelter/);

@@ -1,3 +1,6 @@
+import Link from 'next/link'
+
+import OfficialGuidanceLinks from './OfficialGuidanceLinks'
 import { ui } from './ui-classes'
 
 type RegistrationNoticeProps = {
@@ -24,11 +27,24 @@ export default function RegistrationNotice({ compact = false, className = '' }: 
         tilgængelige, klargjorte eller fysisk kontrollerede.
       </p>
       {!compact ? (
-        <p className="mt-2 text-sm leading-6 text-gray-400">
-          Kortet er til orientering og er ikke en evakueringsanvisning. Ved varsling skal du gå indenfor og følge
-          information fra myndighederne.
-        </p>
+        <>
+          <p className="mt-2 text-sm leading-6 text-gray-400">
+            Kortet er til orientering og er ikke en evakueringsanvisning. Ved varsling skal du gå indenfor og følge
+            information fra myndighederne.
+          </p>
+          <OfficialGuidanceLinks className="mt-1" />
+        </>
       ) : null}
     </aside>
+  )
+}
+
+/** One-line caveat for places where the first result must stay above the fold. */
+export function RegistrationNoticeLine({ className = '' }: { className?: string }) {
+  return (
+    <p className={`border-l-2 border-l-[var(--accent)] pl-3 text-sm leading-6 text-gray-300 ${className}`}>
+      BBR-registreringer: offentlig adgang, klargøring og stand er ikke bekræftet.{' '}
+      <Link href="/om-data" className={ui.textLink}>Om data</Link>
+    </p>
   )
 }

@@ -84,7 +84,7 @@ test("nærkortet bevarer brugerens zoom efter langsomme kortfliser og markørval
   expect(await currentTileZoom(page, mapSelector)).toBe(initialZoom + 1);
 });
 
-test("kommunekortet tilpasser første visning til sidens adresser", async ({ page }, testInfo) => {
+test("kommunekortet tilpasser første visning til sidens adresser", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   await page.goto("/kommune/kobenhavn");
   if (testInfo.project.name.startsWith("mobile-")) {
     await page.getByRole("link", { name: "Vis kort", exact: true }).click();
@@ -94,7 +94,7 @@ test("kommunekortet tilpasser første visning til sidens adresser", async ({ pag
   await expect.poll(() => currentTileZoom(page, "#municipality-map")).toBeGreaterThan(10);
 });
 
-test("første mobilvalg fokuserer adressen efter kommunekortets lazy loading", async ({ page }, testInfo) => {
+test("første mobilvalg fokuserer adressen efter kommunekortets lazy loading", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile-"), "Lazy aktivering kontrolleres i mobilprojekterne.");
   let releaseHydration!: () => void;
   const hydrationGate = new Promise<void>((resolve) => { releaseHydration = resolve; });

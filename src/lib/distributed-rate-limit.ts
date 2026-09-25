@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import type { NextRequest } from "next/server";
 
+import { getClientAddress } from "@/lib/http/request-context";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 
 type DistributedRateLimitConfig = {
@@ -20,14 +21,6 @@ export type DistributedRateLimitDecision = {
   remaining: number | null;
   retryAfterSeconds: number;
 };
-
-function getClientAddress(request: NextRequest) {
-  const forwarded = request.headers.get("x-vercel-forwarded-for")
-    ?? request.headers.get("x-forwarded-for")
-    ?? request.headers.get("x-real-ip");
-
-  return forwarded?.split(",", 1)[0]?.trim() || null;
-}
 
 function unavailableDecision(windowMs: number): DistributedRateLimitDecision {
   return {

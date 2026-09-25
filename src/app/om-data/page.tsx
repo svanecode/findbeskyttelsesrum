@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import GlobalFooter from "@/components/GlobalFooter";
+import OfficialGuidanceLinks from "@/components/OfficialGuidanceLinks";
 import ProductMetricView from "@/components/ProductMetricView";
 import { ui } from "@/components/ui-classes";
 import { getPrivacyController } from "@/lib/privacy/controller";
@@ -206,7 +207,7 @@ export default async function DataPage() {
             </p>
           </section>
 
-          <section className="border-t border-white/10 py-6 sm:py-8">
+          <section id="hvilke-registreringer" className="scroll-mt-24 border-t border-white/10 py-6 sm:py-8">
             <h2 className="text-lg font-semibold text-white">Hvilke registreringer vises?</h2>
             <p className="mt-3 text-sm leading-6 text-gray-300">
               Oversigten viser publicerede BBR-registreringer med mindst 40 registrerede pladser og en
@@ -308,16 +309,8 @@ export default async function DataPage() {
               Offentlige beskyttelsesrum er en anden kategori. BBR-feltet på denne side dokumenterer ikke, at en adresse
               er et offentligt tilgængeligt beskyttelsesrum.
             </p>
-            <p className="mt-3 text-sm">
-              <a
-                href="https://www.borger.dk/politi-retsvaesen-forsvar/Forsvar-og-beredskab/beskyttelsesrum-og-sikringsrum"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-white underline underline-offset-4 hover:text-orange-300"
-              >
-                Læs myndighedernes forklaring på Borger.dk
-              </a>
-            </p>
+            <p className="mt-3 text-sm text-gray-300">Læs myndighedernes forklaring:</p>
+            <OfficialGuidanceLinks />
           </section>
 
           <section className="border-t border-white/10 py-6 sm:py-8">

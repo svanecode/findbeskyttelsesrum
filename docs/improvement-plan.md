@@ -19,42 +19,39 @@ This is the ranked backlog from the full review of logic, UI, security, operatio
 
 ### Running browser tests without secrets
 
-A production build prerenders `/kommune` and needs real Supabase credentials. Without them (typical for agents), run UI-only specs against a dev server:
-
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co \
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_dummy \
-PLAYWRIGHT_HTTP_ORIGIN=1 npx next dev --hostname 127.0.0.1 --port 3100 &
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:3100 npx playwright test e2e/<spec>.ts --project=desktop-chromium
+npm run test:e2e:ui
+# If the pinned Playwright browsers are not installed:
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 ```
 
-Specs that mock `/api/**` and third-party hosts work this way. Product metrics are disabled outside production builds, so assertions on `/api/metrics` fail in dev mode; that is expected. If the pinned Playwright browsers are missing, point a local config at the preinstalled Chromium via `launchOptions.executablePath`. Task TEST-01 makes this a first-class path.
+`playwright.ui.config.ts` starts `next dev` with placeholder Supabase values and runs every spec that mocks its data, in desktop and mobile Chromium. Tests tagged `@full-stack` need live data or a production build (metrics, CSP, prerendered pages) and run only in CI through `playwright.config.ts`. Tag any new test that needs them.
 
 ## Status
 
 | Rank | ID | Task | Effort | Status | Depends on |
 | --- | --- | --- | --- | --- | --- |
-| P0-1 | ADDR-01 | Replace DAWA with Adressevælger before 2026-10-01 10:00 | M | done (`a761375`), needs deploy | – |
-| P0-2 | SEC-01 | Patch critical Next.js and sharp advisories | S | done (`7bf4eea`), needs deploy | – |
-| P0-3 | OPS-01 | Stop `/api/health` reporting 503 because GitHub delays cron | S | done (`2f62aef`), needs deploy | – |
-| P1-1 | PERF-01 | Nearby rate limit must survive shared mobile IPs (CGNAT) | S | todo | – |
-| P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | todo | – |
-| P1-3 | CONTENT-01 | Link to official shelter and warning information | S | todo | – |
-| P1-4 | PERF-02 | CDN-cache the revision-keyed country map API | M | todo | – |
+| P0-1 | ADDR-01 | Replace DAWA with Adressevælger before 2026-10-01 10:00 | M | done (#39), live 2026-09-25 | – |
+| P0-2 | SEC-01 | Patch critical Next.js and sharp advisories | S | done (#39), live 2026-09-25 | – |
+| P0-3 | OPS-01 | Stop `/api/health` reporting 503 because GitHub delays cron | S | done (#39), live 2026-09-25 | – |
+| P1-1 | PERF-01 | Nearby rate limit must survive shared mobile IPs (CGNAT) | S | done, in review | – |
+| P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | done, in review | – |
+| P1-3 | CONTENT-01 | Link to official shelter and warning information | S | done, in review | – |
+| P1-4 | PERF-02 | CDN-cache the revision-keyed country map API | M | steps 1–2 done, in review; step 3 (grid snapping) todo | – |
 | P1-5 | ARCH-01 | Revision-keyed nearby tiles with on-device ranking | L | todo | PERF-01 |
-| P1-6 | PERF-03 | Cut database writes per visitor action | S | todo | – |
-| P2-1 | DX-01 | Automated dependency updates | S | todo | SEC-01 |
-| P2-2 | TEST-01 | Secret-free e2e path for contributors and agents | M | todo | – |
-| P2-3 | PRIV-01 | Click-to-load map on detail pages | S | todo | – |
-| P2-4 | SEC-02 | One helper for client IP and same-origin checks | S | todo | – |
-| P2-5 | UX-02 | Clear actions on the detail page, incl. walking route | S | todo | – |
-| P2-6 | UX-03 | Fix wrapping of secondary links on the home page | XS | todo | – |
-| P2-7 | CODE-01 | Remove dead diagnostics from the nearby API | S | todo | ARCH-01 (optional) |
-| P2-8 | CODE-02 | Shared helper for user-facing fetch errors | XS | todo | – |
+| P1-6 | PERF-03 | Cut database writes per visitor action | S | done (revised: kill switch only), in review | – |
+| P2-1 | DX-01 | Automated dependency updates | S | done, in review | SEC-01 |
+| P2-2 | TEST-01 | Secret-free e2e path for contributors and agents | M | done, in review | – |
+| P2-3 | PRIV-01 | Click-to-load map on detail pages | S | done, in review | – |
+| P2-4 | SEC-02 | One helper for client IP and same-origin checks | S | done, in review | – |
+| P2-5 | UX-02 | Clear actions on the detail page (no walking route) | S | done (revised), in review | – |
+| P2-6 | UX-03 | Fix wrapping of secondary links on the home page | XS | done, in review | – |
+| P2-7 | CODE-01 | Remove dead diagnostics from the nearby API | S | done, in review | ARCH-01 (optional) |
+| P2-8 | CODE-02 | Shared helper for user-facing fetch errors | XS | done, in review | – |
 | P3-1 | CODE-03 | Split `app-v2-queries.ts` by domain | M | todo | ARCH-01, CODE-01 |
 | P3-2 | OFFLINE-01 | Offline fallback for the last search | M | todo | ARCH-01 |
-| P3-3 | DATA-01 | Explain the "≥ 40 places" filter next to results | XS | todo | – |
-| P3-4 | OPS-02 | External dependency register and change watch | XS | todo | ADDR-01 |
+| P3-3 | DATA-01 | Explain the "≥ 40 places" filter next to results | XS | done, in review | – |
+| P3-4 | OPS-02 | External dependency register and change watch | XS | done, in review | ADDR-01 |
 | P3-5 | DEPS-01 | Major upgrades (Tailwind 4, ESLint 10, TypeScript 7) | L | deferred | DX-01 |
 
 Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
@@ -127,6 +124,8 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 **Decision.** Patch-level bumps only: `next` and `eslint-config-next` → 16.3.6, `sharp` → 0.35.4. Additionally set `images: { unoptimized: true }` in `next.config.js`, because the site serves no optimised images; this removes the optimizer attack surface for future advisories. Confirm first with `rg "from ['\"]next/image" src` (currently no imports; `mfa-panel.tsx` only mentions it in a comment).
 
 **Files.** `package.json`, `package-lock.json`, `next.config.js`.
+
+**Outcome.** Shipped in #39. On Vercel, `/_next/image` is served by Vercel's platform image service, so `unoptimized: true` does not remove the endpoint there (it does locally and when self-hosted). The Next.js upgrade is the actual fix.
 
 **Verification.** `npm audit --omit=dev` reports 0 high/critical; lint, typecheck, tests and CI Playwright are green; `curl -I https://<preview>/_next/image?url=/favicons/favicon-32x32.png&w=32&q=75` no longer returns an optimised image.
 
@@ -206,7 +205,7 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 **Decision.**
 
-1. For 200 responses where `requestedRevision === currentRevision`, send `Cache-Control: public, max-age=60, s-maxage=86400, stale-while-revalidate=600`. 400/409/429/502 stay `no-store`.
+1. For 200 responses where `requestedRevision === currentRevision`, send `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60`. 400/409/429/502 stay `no-store`. (Revised after review: a 24 h lifetime would let a tab on an older revision keep getting cached data and never see the 409 that reloads corrected data. 5 minutes keeps the surge benefit.)
 2. Move the distributed rate limit **after** the revision check, so a cache hit never reaches it. The in-memory limiter stays first.
 3. Snap client requests to a **fixed grid per zoom level** (tile-aligned bounds, e.g. 256-px tile boundaries expanded to the viewport), rather than a viewport-derived buffer, so different users produce identical URLs. Keep `quantizeCountryMapViewport` as the server-side guard.
 
@@ -248,10 +247,8 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 **Why.** Each product-metric event performs **two writes** (distributed rate-limit bucket + metric counter). A single search emits 3–4 events, so a visit costs roughly 8 writes, on top of the nearby rate-limit write. Under surge, analytics competes with the actual search for database capacity.
 
-**Decision.**
+**Decision (revised during implementation).** An earlier audit deliberately put the shared rate limit on `/api/metrics` as abuse protection, and the existing `keepalive` fetch already survives navigation, so neither change is worth it. Only the kill switch is implemented:
 
-- `/api/metrics`: drop the distributed rate limit; keep the in-memory limiter. Metrics are best-effort, and the counter RPC is already bounded.
-- Client: send metrics with `navigator.sendBeacon` when available (fallback to the current `fetch` with `keepalive`).
 - Add a kill switch: `PRODUCT_METRICS_DISABLED=1` makes `/api/metrics` return 202 without writing, so the owner can shed load in an emergency by changing an environment variable and redeploying, with no code change.
 
 **Files.** `src/app/api/metrics/route.ts`, `src/lib/analytics/product-metrics.ts`, `docs/qa/free-observability.md`, tests.
@@ -298,9 +295,9 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 **Why.** The detail page has "Vis på kort" (orange, Google Maps) and "Se adressen i kort" (in-page map), which are nearly identical labels for different things. There is no route option, although the most likely next action is "how do I get there".
 
-**Decision.**
+**Decision (revised during implementation).** No route link. `qa/emergency-copy-standard.md` forbids presenting results as an instruction to move toward an address, and a route button does exactly that. Implemented instead: the external link is labelled "Åbn i Google Maps" and the in-page "Vis på kort" now also loads the map (PRIV-01). The original proposal is kept below for the record.
 
-- Primary: **"Rutevejledning (gå)"** → `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>&travelmode=walking` (destination only, no origin sent by us).
+- ~~Primary: **"Rutevejledning (gå)"** → `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>&travelmode=walking` (destination only, no origin sent by us).~~
 - Secondary: "Åbn i Google Maps" (existing place link).
 - The in-page map anchor is renamed "Kort på siden".
 - Add the same route link as a secondary action on nearby result cards.

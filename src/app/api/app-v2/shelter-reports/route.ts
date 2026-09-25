@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
 import { readBoundedRequestText } from "@/lib/http/read-bounded-request-text";
+import { isSameOriginRequest } from "@/lib/http/request-context";
 import { rateLimit } from "@/lib/rate-limit";
 import { isShelterReportType } from "@/lib/reporting/shelter-report";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
@@ -26,19 +27,8 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
-function isSameOrigin(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-
-  try {
-    return new URL(origin).host === request.nextUrl.host;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: NextRequest) {
-  if (!isSameOrigin(request)) {
+  if (!isSameOriginRequest(request)) {
     return json({ error: "Ugyldig oprindelse." }, 403);
   }
 

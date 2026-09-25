@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   await quietThirdPartyRequests(page);
 });
 
-test("landskortet skifter fra serverklynge til konkret markør ved zoom", async ({ page }, testInfo) => {
+test("landskortet skifter fra serverklynge til konkret markør ved zoom", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Landskortets klyngeflow kontrolleres én gang.");
   const requests: URL[] = [];
 
@@ -92,7 +92,7 @@ test("landskortet skifter fra serverklynge til konkret markør ved zoom", async 
   expect(requests.some((url) => Number(url.searchParams.get("zoom")) >= 10)).toBe(true);
 });
 
-test("landskortet beholder seneste data hvis en områdeopdatering fejler", async ({ page }, testInfo) => {
+test("landskortet beholder seneste data hvis en områdeopdatering fejler", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Landskortets fejlfallback kontrolleres én gang.");
   let requestCount = 0;
 
@@ -154,7 +154,7 @@ test("landskortet beholder seneste data hvis en områdeopdatering fejler", async
   await expect(cluster).toBeVisible();
 });
 
-test("mobile tætte klynger samles i ét stort touchmål uden markør-tabstop", async ({ page }, testInfo) => {
+test("mobile tætte klynger samles i ét stort touchmål uden markør-tabstop", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobilstrategien kontrolleres i én browserprofil.");
 
   await page.route("**/api/country-shelters?**", async (route) => {
@@ -235,7 +235,7 @@ test("mobile tætte klynger samles i ét stort touchmål uden markør-tabstop", 
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test("blandede serverklynger og singleton-markører deler ét kollisionsfrit lag", async ({ page }, testInfo) => {
+test("blandede serverklynger og singleton-markører deler ét kollisionsfrit lag", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mixed-feature strategien kontrolleres i én mobilprofil.");
 
   await page.route("**/api/country-shelters?**", async (route) => {

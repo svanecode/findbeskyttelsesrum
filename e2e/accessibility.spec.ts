@@ -64,17 +64,23 @@ test("mobilmenuen består kontrollen i åben tilstand", async ({ page }, testInf
   await expectNoAccessibilityViolations(page, testInfo);
 });
 
-test("detaljesiden og den åbne rapportformular består kontrollen", async ({ page }, testInfo) => {
+test("detaljesiden og den åbne rapportformular består kontrollen", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Den databasebaserede detaljekontrol køres én gang.");
   await page.goto(`/beskyttelsesrum/${knownShelterSlug}`);
   await expect(page.getByRole("heading", { name: /Registrering ved/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Se adressen i kort", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Åbn i Google Maps", exact: true })).toBeVisible();
+  // OpenStreetMap is contacted only after the visitor asks for the map.
+  await expect(page.locator('iframe[src*="openstreetmap.org"]')).toHaveCount(0);
+  await page.route("https://www.openstreetmap.org/export/embed.html**", (route) =>
+    route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Kort</title>" }));
+  await page.getByRole("link", { name: "Vis på kort", exact: true }).click();
+  await expect(page.locator('iframe[src*="openstreetmap.org/export/embed.html"]')).toBeVisible();
   await page.getByRole("button", { name: "Rapportér fejl ved registreringen" }).click();
   await expect(page.getByRole("heading", { name: "Rapportér en mulig fejl" })).toBeVisible();
   await expectNoAccessibilityViolations(page, testInfo);
 });
 
-test("kommuneoversigten består automatiske WCAG A/AA-kontroller", async ({ page }, testInfo) => {
+test("kommuneoversigten består automatiske WCAG A/AA-kontroller", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Den databasebaserede oversigt køres én gang.");
   await page.goto("/kommune");
   await expect(page.getByRole("heading", { name: "Kommuneoversigt" })).toBeVisible();
