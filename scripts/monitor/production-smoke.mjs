@@ -203,6 +203,58 @@ const checks = [
     },
   },
   {
+    name: "Kortfliser til søgning på enheden",
+    run: async () => retryTransient("Kortfliser til søgning på enheden", async () => {
+      // The 3x3 tile block around Rådhuspladsen (0.25° x 0.40° grid, see src/lib/nearby/tiles.ts).
+      const origin = { latitude: 55.6761, longitude: 12.5683 };
+      const latitudeIndex = Math.floor(origin.latitude / 0.25);
+      const longitudeIndex = Math.floor(origin.longitude / 0.4);
+      const keys = [];
+      for (let dLat = -1; dLat <= 1; dLat += 1) {
+        for (let dLng = -1; dLng <= 1; dLng += 1) keys.push(`${latitudeIndex + dLat}_${longitudeIndex + dLng}`);
+      }
+
+      const tiles = await Promise.all(keys.map(async (key) => {
+        const response = await requireOk(await request(`${baseUrl}/api/app-v2/nearby/tiles/${key}`), `Kortflise ${key}`);
+        const payload = await response.json();
+        if (payload?.contract !== "nearby-tile-v1" || payload.tile !== key || !Array.isArray(payload.rows)) {
+          throw new Error(`Kortflise ${key} returnerede en uventet kontrakt.`);
+        }
+        return payload;
+      }));
+      if (new Set(tiles.map((tile) => tile.revision)).size !== 1) {
+        throw new Error("Kortfliserne rapporterede forskellige datarevisioner.");
+      }
+      const rows = tiles.flatMap((tile) => tile.rows);
+      if (rows.length < 1000) throw new Error(`Kortfliserne om København indeholdt kun ${rows.length} registreringer.`);
+
+      const busted = await request(`${baseUrl}/api/app-v2/nearby/tiles/${keys[4]}?nonce=smoke`);
+      if (busted.status !== 400) throw new Error(`En kortflise med queryparametre skulle afvises med 400, men svarede ${busted.status}.`);
+
+      // Drift check: the server search's nearest registration must also be the nearest row in the tiles.
+      const serverResponse = await requireOk(
+        await request(`${baseUrl}/api/app-v2/nearby/grouped`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat: origin.latitude, lng: origin.longitude, limit: 1 }),
+        }),
+        "Nearby-API'et",
+      );
+      const serverNearest = (await serverResponse.json())?.results?.[0]?.representativeShelter?.slug;
+      const radians = (degrees) => (degrees * Math.PI) / 180;
+      const distance = (latitude, longitude) => {
+        const a = Math.sin(radians(latitude - origin.latitude) / 2) ** 2
+          + Math.cos(radians(origin.latitude)) * Math.cos(radians(latitude)) * Math.sin(radians(longitude - origin.longitude) / 2) ** 2;
+        return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
+      };
+      const [tileNearest] = [...rows].sort((a, b) => distance(a[4], a[5]) - distance(b[4], b[5]) || a[0].localeCompare(b[0]));
+      if (!serverNearest || tileNearest?.[0] !== serverNearest) {
+        throw new Error(`Søgning på enheden og serversøgningen er uenige om nærmeste registrering (${tileNearest?.[0]} vs. ${serverNearest}).`);
+      }
+      return `${rows.length.toLocaleString("da-DK")} registreringer i 9 fliser, samme nærmeste som serveren`;
+    }),
+  },
+  {
     name: "Landskortets marker-endpoint",
     run: async () => retryTransient("Landskortets marker-endpoint", async () => {
       const query = new URLSearchParams({
