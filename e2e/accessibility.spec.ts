@@ -5,7 +5,7 @@ import {
   installNearbySearchContext,
   isolateRateLimit,
   knownShelterSlug,
-  mockDawa,
+  mockAddressSearch,
   mockNearby,
   quietThirdPartyRequests,
   selectedAddressLabel,
@@ -41,7 +41,7 @@ test("forsiden består automatiske WCAG A/AA-kontroller", async ({ page }, testI
 });
 
 test("åben autocomplete består automatiske WCAG A/AA-kontroller", async ({ page }, testInfo) => {
-  await mockDawa(page);
+  await mockAddressSearch(page);
   await page.goto("/");
   await page.getByRole("combobox", { name: "Adresse, by eller postnummer" }).fill("Rådhuspladsen 1");
   await expect(page.getByRole("option", { name: selectedAddressLabel })).toBeVisible();

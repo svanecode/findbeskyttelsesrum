@@ -148,17 +148,36 @@ const checks = [
     }),
   },
   {
-    name: "DAWA-adressesøgning",
+    name: "Adressevælger-adressesøgning",
     run: async () => {
-      const url = new URL("https://api.dataforsyningen.dk/autocomplete");
-      url.searchParams.set("q", "Rådhuspladsen 1, København");
-      url.searchParams.set("per_side", "1");
-      const response = await requireOk(await request(url), "DAWA");
-      const payload = await response.json();
-      if (!Array.isArray(payload) || payload.length < 1) {
-        throw new Error("DAWA returnerede ingen adresseforslag.");
+      const token = process.env.NEXT_PUBLIC_ADRESSEVAELGER_TOKEN?.trim() || "adressevaelger123";
+      const searchUrl = new URL("https://adressevaelger.dk/husnumre/soeg");
+      searchUrl.searchParams.set("tekst", "Rådhuspladsen 1, 1550");
+      searchUrl.searchParams.set("maksimum", "3");
+      searchUrl.searchParams.set("token", token);
+      const search = await (await requireOk(await request(searchUrl), "Adressevælger-søgning")).json();
+      const address = Array.isArray(search?.fund)
+        ? search.fund.find((item) => item?.type === "husnummer" && typeof item.id === "string")
+        : null;
+      if (search?.status !== "ok" || !address) {
+        throw new Error("Adressevælger returnerede ingen adresseforslag.");
       }
-      return "Adresseforslag modtaget";
+
+      const detailUrl = new URL(`https://adressevaelger.dk/husnumre/${encodeURIComponent(address.id)}`);
+      detailUrl.searchParams.set("token", token);
+      const detail = await (await requireOk(await request(detailUrl), "Adressevælger-opslag")).json();
+      const coordinates = detail?.husnummer?.adgangspunkt?.koordinater;
+      // Plausible ETRS89 / UTM 32N range for Denmark; the app converts it to WGS84.
+      if (
+        detail?.status !== "ok"
+        || !Number.isFinite(coordinates?.x)
+        || !Number.isFinite(coordinates?.y)
+        || coordinates.x < 400_000 || coordinates.x > 950_000
+        || coordinates.y < 6_000_000 || coordinates.y > 6_450_000
+      ) {
+        throw new Error("Adressevælger returnerede ingen gyldig placering for adressen.");
+      }
+      return "Adresseforslag og placering modtaget";
     },
   },
   {

@@ -144,6 +144,8 @@ test("production CSP narrows scripts and browser capabilities without breaking r
   assert.doesNotMatch(production, /https:\/\/\*\.vercel\.app/);
   assert.doesNotMatch(production, /(?:^|\s)wss?:/);
   assert.doesNotMatch(production, /connect-src[^;]*tile\.openstreetmap\.org/);
+  assert.match(production, /connect-src[^;]*https:\/\/adressevaelger\.dk/);
+  assert.doesNotMatch(production, /api\.dataforsyningen\.dk|dawa/);
   assert.match(production, /upgrade-insecure-requests/);
   assert.doesNotMatch(localHttpTest, /upgrade-insecure-requests|block-all-mixed-content/);
   assert.match(development, /'unsafe-eval'/);

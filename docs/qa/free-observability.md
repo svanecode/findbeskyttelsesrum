@@ -16,7 +16,7 @@ from the repository variables `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABA
 same-named secrets as a compatibility fallback for trusted branches. Configure both repository variables so fork and
 Dependabot pull requests can run the public read-only build; they are browser-visible values, not write credentials.
 
-`.github/workflows/production-smoke.yml` checks the live homepage, public data health, DAWA, nearby results, the full
+`.github/workflows/production-smoke.yml` checks the live homepage, public data health, the Adressevælger address search, nearby results, the full
 national map boundary including Bornholm, municipality pages, detail pages and reporting validation twice per hour.
 It also reads a service-only two-hour metrics aggregate. A failed scheduled run creates or updates one GitHub issue
 labelled `production-alert`; the next successful run closes it.

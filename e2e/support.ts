@@ -80,26 +80,34 @@ export async function quietThirdPartyRequests(page: Page) {
   });
 }
 
-export async function mockDawa(page: Page, response?: unknown[]) {
+export const selectedAddressId = "0a3f507a-ec01-32b8-e044-0003ba298018";
+
+// UTM zone 32 access point that converts to 55.6761, 12.5683 (within 1e-7°).
+const selectedAddressAccessPoint = { x: 724351.93, y: 6175804.02 };
+
+export async function mockAddressSearch(page: Page, response?: unknown[]) {
   const suggestions = response ?? [
-    {
-      tekst: selectedAddressLabel,
-      forslagstekst: selectedAddressLabel,
-      type: "adresse",
-      caretpos: selectedAddressLabel.length,
-      data: {
-        x: 12.5683,
-        y: 55.6761,
-        href: "https://api.dataforsyningen.dk/adresser/mock-raadhuspladsen-1",
-      },
-    },
+    { type: "husnummer", id: selectedAddressId, titel: selectedAddressLabel },
   ];
 
-  await page.route("https://api.dataforsyningen.dk/autocomplete**", async (route) => {
+  await page.route("https://adressevaelger.dk/husnumre/soeg**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(suggestions),
+      body: JSON.stringify({ status: "ok", beskrivelse: "", fund: suggestions }),
+    });
+  });
+  await page.route(`https://adressevaelger.dk/husnumre/${selectedAddressId}?**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        husnummer: {
+          adgangsadressebetegnelse: selectedAddressLabel,
+          adgangspunkt: { koordinater: selectedAddressAccessPoint },
+        },
+      }),
     });
   });
 }

@@ -59,7 +59,7 @@ export default function PrivacyPage() {
           <section className={sectionClassName} aria-labelledby="location-heading">
             <h2 id="location-heading" className="text-lg font-semibold">Adresse- og placeringssøgning</h2>
             <p className={paragraphClassName}>
-              Når du skriver en adresse, sendes søgeteksten fra din browser til den offentlige adressetjeneste DAWA.
+              Når du skriver en adresse, sendes søgeteksten fra din browser til Adressevælger, Klimadatastyrelsens offentlige adressetjeneste. Vælger du en adresse, hentes dens placering fra samme tjeneste.
               Vælger du din aktuelle placering, beder browseren først om din tilladelse. De valgte koordinater sendes
               derefter i en kortvarig POST-forespørgsel til tjenesten for at beregne afstande.
             </p>
@@ -166,7 +166,7 @@ export default function PrivacyPage() {
               <li>Vercel: hosting, sikkerhedslogs, Web Analytics og Speed Insights.</li>
               <li>Supabase: database, private kontakt- og moderationskøer, driftsdata og moderatorlogin/MFA.</li>
               <li>GitHub: kun moderatorlogin, automatiske driftskørsler og kodehosting.</li>
-              <li>DAWA/Dataforsyningen: adresseforslag fra din browser.</li>
+              <li>Klimadatastyrelsen (Adressevælger): adresseforslag og adressens placering fra din browser.</li>
               <li>OpenStreetMap: kortfelter fra din browser, når et kort aktiveres.</li>
               <li>En uafhængig uptime-tjeneste: kontrollerer kun det offentlige sundhedsendpoint.</li>
             </ul>

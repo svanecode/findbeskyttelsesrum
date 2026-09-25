@@ -6,16 +6,16 @@ import LoadingSpinner from './LoadingSpinner'
 import { ui } from './ui-classes'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
-  fetchAddressSuggestions,
-  suggestionHasCoordinates,
-  type DawaSuggestion,
-} from '@/lib/dawa/autocomplete'
+  resolveAddress,
+  searchAddresses,
+  type AddressSuggestion,
+} from '@/lib/address/adressevaelger'
 import { saveNearbySearchContext } from '@/lib/nearby/search-context'
 import { trackProductMetric, type ProductMetricEventName } from '@/lib/analytics/product-metrics'
 
 const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'
 
-const DAWA_LISTBOX_ID = 'dawa-address-suggestions'
+const ADDRESS_LISTBOX_ID = 'address-suggestions'
 
 type SelectedAddress = {
   label: string
@@ -64,9 +64,9 @@ async function getCurrentPosition() {
   }
 }
 
-export default function AddressSearchDAWA() {
+export default function AddressSearch() {
   const [query, setQuery] = useState('')
-  const [suggestions, setSuggestions] = useState<DawaSuggestion[]>([])
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -77,12 +77,13 @@ export default function AddressSearchDAWA() {
   const [searchError, setSearchError] = useState<string | null>(null)
   const [hasNoResults, setHasNoResults] = useState(false)
   const [retryToken, setRetryToken] = useState(0)
+  const [resolvingLabel, setResolvingLabel] = useState<string | null>(null)
   const router = useRouter()
   const { handleError } = useErrorHandler()
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
-  const cursorPosRef = useRef(0)
+  const resolveControllerRef = useRef<AbortController | null>(null)
 
   const navigateToNearby = useCallback(
     (search: SelectedAddress, successMetric: ProductMetricEventName) => {
@@ -104,48 +105,53 @@ export default function AddressSearchDAWA() {
     [router],
   )
 
-  const syncCaretFromInput = useCallback(() => {
-    const el = inputRef.current
-    if (!el) {
-      return
-    }
-    cursorPosRef.current = el.selectionStart ?? el.value.length
-  }, [])
-
   const selectSuggestion = useCallback(
-    (suggestion: DawaSuggestion) => {
-      if (suggestionHasCoordinates(suggestion)) {
-        const label = (suggestion.forslagstekst ?? suggestion.tekst).trim()
-        setSelectedAddress({
-          label,
-          latitude: suggestion.data.y,
-          longitude: suggestion.data.x,
+    async (suggestion: AddressSuggestion) => {
+      setIsOpen(false)
+      setActiveIndex(null)
+      setHasNoResults(false)
+      setSearchError(null)
+
+      if (suggestion.kind === 'street') {
+        // A street needs a house number: list its numbers and put the caret
+        // where the visitor types the number.
+        setSelectedAddress(null)
+        setQuery(suggestion.refineText)
+        requestAnimationFrame(() => {
+          const el = inputRef.current
+          if (!el) return
+          el.focus()
+          el.setSelectionRange(suggestion.caret, suggestion.caret)
         })
-        setIsOpen(false)
-        setActiveIndex(null)
-        setHasNoResults(false)
-        setSearchError(null)
-        setQuery(label)
         return
       }
 
+      resolveControllerRef.current?.abort()
+      const controller = new AbortController()
+      resolveControllerRef.current = controller
       setSelectedAddress(null)
-      setQuery(suggestion.tekst)
-      const pos = suggestion.caretpos ?? suggestion.tekst.length
-      cursorPosRef.current = pos
-      setIsOpen(false)
-      setActiveIndex(null)
-
-      requestAnimationFrame(() => {
-        const el = inputRef.current
-        if (!el) {
-          return
+      setResolvingLabel(suggestion.label)
+      setQuery(suggestion.label)
+      setIsLoading(true)
+      try {
+        const resolved = await resolveAddress(suggestion, { signal: controller.signal })
+        if (controller.signal.aborted) return
+        setSelectedAddress(resolved)
+        setQuery(resolved.label)
+        setHasFailed(false)
+      } catch (error) {
+        if (isAbortError(error) || controller.signal.aborted) return
+        trackProductMetric('address_search_error')
+        setHasFailed(true)
+        handleError(error instanceof Error ? error : new Error('Address lookup failed'), 'Address lookup failed')
+      } finally {
+        if (!controller.signal.aborted) {
+          setResolvingLabel(null)
+          setIsLoading(false)
         }
-        el.focus()
-        el.setSelectionRange(pos, pos)
-      })
+      }
     },
-    [],
+    [handleError],
   )
 
   const canSubmit = selectedAddress !== null
@@ -160,14 +166,10 @@ export default function AddressSearchDAWA() {
           return
         }
 
-        syncCaretFromInput()
         try {
           trackProductMetric('address_search_started')
           setIsLoading(true)
-          const results = await fetchAddressSuggestions(query, {
-            limit: 5,
-            caretpos: cursorPosRef.current,
-          })
+          const results = await searchAddresses(query, { limit: 5 })
           setSuggestions(results)
           setIsOpen(results.length > 0)
           setActiveIndex(results.length > 0 ? 0 : null)
@@ -176,7 +178,7 @@ export default function AddressSearchDAWA() {
         } catch (error) {
           trackProductMetric('address_search_error')
           setHasFailed(true)
-          handleError(error instanceof Error ? error : new Error('DAWA autocomplete failed'), 'DAWA Autocomplete failed')
+          handleError(error instanceof Error ? error : new Error('Address search failed'), 'Address search failed')
         } finally {
           setIsLoading(false)
         }
@@ -188,7 +190,7 @@ export default function AddressSearchDAWA() {
         navigateToNearby(selectedAddress, 'address_selected')
       }
     },
-    [canSubmit, handleError, navigateToNearby, query, selectedAddress, syncCaretFromInput],
+    [canSubmit, handleError, navigateToNearby, query, selectedAddress],
   )
 
   const handleLocationClick = async () => {
@@ -224,7 +226,7 @@ export default function AddressSearchDAWA() {
 
   useEffect(() => {
     abortControllerRef.current?.abort()
-    if (selectedAddress?.label === query.trim()) {
+    if (selectedAddress?.label === query.trim() || resolvingLabel === query.trim()) {
       return
     }
     if (query.trim().length < 2) {
@@ -236,11 +238,7 @@ export default function AddressSearchDAWA() {
     const timeoutId = setTimeout(async () => {
       setIsLoading(true)
       try {
-        const results = await fetchAddressSuggestions(query, {
-          signal: controller.signal,
-          limit: 5,
-          caretpos: cursorPosRef.current,
-        })
+        const results = await searchAddresses(query, { signal: controller.signal, limit: 5 })
         setSuggestions(results)
         setIsOpen(results.length > 0)
         setActiveIndex(null)
@@ -252,8 +250,8 @@ export default function AddressSearchDAWA() {
           setHasFailed(true)
           setHasNoResults(false)
           handleError(
-            error instanceof Error ? error : new Error('DAWA autocomplete failed'),
-            'DAWA Autocomplete failed',
+            error instanceof Error ? error : new Error('Address search failed'),
+            'Address search failed',
           )
         }
       } finally {
@@ -267,7 +265,7 @@ export default function AddressSearchDAWA() {
       clearTimeout(timeoutId)
       controller.abort()
     }
-  }, [query, handleError, selectedAddress?.label, retryToken])
+  }, [query, handleError, selectedAddress?.label, resolvingLabel, retryToken])
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -281,6 +279,7 @@ export default function AddressSearchDAWA() {
     return () => {
       document.removeEventListener('mousedown', closeOnOutsideClick)
       abortControllerRef.current?.abort()
+      resolveControllerRef.current?.abort()
     }
   }, [])
 
@@ -293,7 +292,7 @@ export default function AddressSearchDAWA() {
     if (event.key === 'Enter') {
       if (isOpen && activeIndex !== null && suggestions[activeIndex]) {
         event.preventDefault()
-        selectSuggestion(suggestions[activeIndex])
+        void selectSuggestion(suggestions[activeIndex])
       }
       return
     }
@@ -344,7 +343,7 @@ export default function AddressSearchDAWA() {
 
       <div ref={containerRef} className="relative w-full">
         {hasFailed && (
-          <div id="dawa-error" className="mb-2 p-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg text-yellow-200 text-sm" role="alert">
+          <div id="address-search-error" className="mb-2 p-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg text-yellow-200 text-sm" role="alert">
             <div className="flex items-center gap-2">
               <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
               <div className="flex-1">
@@ -386,15 +385,15 @@ export default function AddressSearchDAWA() {
                 id="adresse"
                 placeholder="Skriv vejnavn, by eller postnummer"
                 className={`${ui.input} touch-target py-3 pl-12 pr-11 transition-colors disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12`}
-                aria-describedby={hasFailed ? 'dawa-error' : hasNoResults ? 'dawa-no-results' : undefined}
+                aria-describedby={hasFailed ? 'address-search-error' : hasNoResults ? 'address-no-results' : undefined}
                 role="combobox"
                 aria-haspopup="listbox"
                 aria-autocomplete="list"
-                aria-controls={isOpen && suggestions.length > 0 ? DAWA_LISTBOX_ID : undefined}
+                aria-controls={isOpen && suggestions.length > 0 ? ADDRESS_LISTBOX_ID : undefined}
                 aria-expanded={isOpen && suggestions.length > 0}
                 aria-activedescendant={
                   isOpen && activeIndex !== null && suggestions[activeIndex]
-                    ? `dawa-address-option-${activeIndex}`
+                    ? `address-option-${activeIndex}`
                     : undefined
                 }
                 autoComplete="off"
@@ -403,6 +402,8 @@ export default function AddressSearchDAWA() {
                 onChange={(event) => {
                   const nextQuery = event.target.value
                   setQuery(nextQuery)
+                  resolveControllerRef.current?.abort()
+                  setResolvingLabel(null)
                   setSelectedAddress(null)
                   setSearchError(null)
                   setHasNoResults(false)
@@ -413,42 +414,35 @@ export default function AddressSearchDAWA() {
                     setActiveIndex(null)
                     setIsLoading(false)
                   }
-                  cursorPosRef.current = event.target.selectionStart ?? event.target.value.length
                 }}
-                onSelect={syncCaretFromInput}
-                onClick={syncCaretFromInput}
                 onFocus={() => setIsOpen(suggestions.length > 0 && !selectedAddress)}
                 onKeyDown={handleKeyDown}
               />
 
               {isOpen && suggestions.length > 0 && (
                 <div
-                  id={DAWA_LISTBOX_ID}
+                  id={ADDRESS_LISTBOX_ID}
                   className="absolute left-0 right-0 top-full z-[9999] mt-1 max-h-[min(18rem,50vh)] overflow-y-auto rounded-lg border border-white/15 bg-[var(--surface-elevated)] shadow-[0_12px_30px_rgba(0,0,0,0.38)]"
                   role="listbox"
                   aria-label="Adresseforslag"
                 >
                   {suggestions.map((suggestion, index) => {
-                    const display = (suggestion.forslagstekst ?? suggestion.tekst).trim()
-                    const key =
-                      typeof suggestion.data.href === 'string'
-                        ? suggestion.data.href
-                        : `${suggestion.dawaType ?? 'item'}-${display}-${index}`
+                    const key = suggestion.kind === 'address' ? suggestion.id : `street-${suggestion.label}`
 
                     return (
                       <div
                         key={key}
-                        id={`dawa-address-option-${index}`}
+                        id={`address-option-${index}`}
                         role="option"
                         aria-selected={activeIndex === index}
                         className={`cursor-pointer border-b border-white/10 px-2.5 py-2.5 text-base text-white last:border-b-0 sm:py-2 ${activeIndex === index ? 'bg-[var(--surface-row-hover)]' : 'hover:bg-[var(--surface-row-hover)]'}`}
                         onMouseEnter={() => setActiveIndex(index)}
                         onMouseDown={(event) => {
                           event.preventDefault()
-                          selectSuggestion(suggestion)
+                          void selectSuggestion(suggestion)
                         }}
                       >
-                        {display}
+                        {suggestion.label}
                       </div>
                     )
                   })}
@@ -467,7 +461,7 @@ export default function AddressSearchDAWA() {
         </form>
 
         {hasNoResults ? (
-          <p id="dawa-no-results" className="mt-3 text-sm text-gray-200" role="status">
+          <p id="address-no-results" className="mt-3 text-sm text-gray-200" role="status">
             Ingen adresser fundet. Prøv med vejnavn og by eller søg efter kommunen.
           </p>
         ) : null}

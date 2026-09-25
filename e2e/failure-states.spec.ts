@@ -3,7 +3,7 @@ import { expect, test, type Route } from "@playwright/test";
 import {
   installNearbySearchContext,
   isolateRateLimit,
-  mockDawa,
+  mockAddressSearch,
   mockNearby,
   quietThirdPartyRequests,
 } from "./support";
@@ -46,8 +46,8 @@ test("afvist placering viser en konkret vej videre", async ({ page }) => {
   expect(errorReports).toHaveLength(0);
 });
 
-test("DAWA-fejl efterlader GPS som tydeligt alternativ", async ({ page }) => {
-  await page.route("https://api.dataforsyningen.dk/autocomplete**", async (route) => {
+test("fejl i adressesøgningen efterlader GPS som tydeligt alternativ", async ({ page }) => {
+  await page.route("https://adressevaelger.dk/husnumre/soeg**", async (route) => {
     await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
   });
 
@@ -58,8 +58,8 @@ test("DAWA-fejl efterlader GPS som tydeligt alternativ", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Brug min placering/ })).toBeEnabled();
 });
 
-test("forbigående DAWA-fejl låser ikke adressesøgningen", async ({ page }) => {
-  await page.route("https://api.dataforsyningen.dk/autocomplete**", async (route) => {
+test("forbigående fejl i adressesøgningen låser ikke adressesøgningen", async ({ page }) => {
+  await page.route("https://adressevaelger.dk/husnumre/soeg**", async (route) => {
     await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
   });
 
@@ -70,12 +70,27 @@ test("forbigående DAWA-fejl låser ikke adressesøgningen", async ({ page }) =>
   await expect(alert).toBeVisible();
   await expect(combobox).toBeEnabled();
 
-  await page.unroute("https://api.dataforsyningen.dk/autocomplete**");
-  await mockDawa(page);
+  await page.unroute("https://adressevaelger.dk/husnumre/soeg**");
+  await mockAddressSearch(page);
   await alert.getByRole("button", { name: "Prøv igen" }).click();
 
   await expect(alert).toBeHidden();
   await expect(page.getByRole("option", { name: "Rådhuspladsen 1, 1550 København V" })).toBeVisible();
+});
+
+test("fejl ved opslag af adressens placering kan prøves igen", async ({ page }) => {
+  await mockAddressSearch(page);
+  await page.unroute("https://adressevaelger.dk/husnumre/0a3f507a-ec01-32b8-e044-0003ba298018?**");
+  await page.route("https://adressevaelger.dk/husnumre/0a3f507a-ec01-32b8-e044-0003ba298018?**", async (route) => {
+    await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+  });
+
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "Adresse, by eller postnummer" }).fill("Rådhuspladsen 1");
+  await page.getByRole("option", { name: "Rådhuspladsen 1, 1550 København V" }).click();
+
+  await expect(page.getByRole("alert").filter({ hasText: "Adressesøgningen er ikke tilgængelig" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Søg", exact: true })).toBeDisabled();
 });
 
 test("GPS-timeout falder tilbage til netværksposition", async ({ page }) => {
@@ -108,8 +123,8 @@ test("GPS-timeout falder tilbage til netværksposition", async ({ page }) => {
   await expect(page).toHaveURL((url) => url.pathname === "/shelters/nearby");
 });
 
-test("tom DAWA-søgning forklarer næste skridt", async ({ page }) => {
-  await mockDawa(page, []);
+test("tom adressesøgning forklarer næste skridt", async ({ page }) => {
+  await mockAddressSearch(page, []);
 
   await page.goto("/");
   await page.getByRole("combobox", { name: "Adresse, by eller postnummer" }).fill("Findesikkevej");
