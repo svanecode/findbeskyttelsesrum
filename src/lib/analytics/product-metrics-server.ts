@@ -15,12 +15,21 @@ function safeCount(value: unknown) {
   return Number.isSafeInteger(count) && count >= 0 ? count : 0;
 }
 
+/**
+ * Emergency load-shedding switch: set PRODUCT_METRICS_DISABLED=1 and redeploy
+ * to stop all metric database writes while the search keeps working.
+ */
+export function productMetricsDisabled() {
+  return process.env.PRODUCT_METRICS_DISABLED === "1";
+}
+
 export async function recordProductMetricServer(
   eventName: ProductMetricEventName,
   durationMs?: number,
 ) {
   // Local builds, tests and preview deployments must never pollute production metrics.
   if (process.env.VERCEL_ENV !== "production") return false;
+  if (productMetricsDisabled()) return false;
 
   try {
     const { error } = await createAppV2AdminClient().rpc("record_product_metric_v1", {

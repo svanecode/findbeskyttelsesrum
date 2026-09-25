@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { parseProductMetricPayload } from "@/lib/analytics/product-metrics";
-import { recordProductMetricServer } from "@/lib/analytics/product-metrics-server";
+import { productMetricsDisabled, recordProductMetricServer } from "@/lib/analytics/product-metrics-server";
 import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
 import { readBoundedRequestText } from "@/lib/http/read-bounded-request-text";
 import { rateLimit } from "@/lib/rate-limit";
@@ -24,6 +24,11 @@ function isSameOrigin(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
     return new NextResponse(null, { status: 403, headers: { "Cache-Control": "private, no-store" } });
+  }
+
+  // Shed load before any database work (rate-limit bucket included).
+  if (productMetricsDisabled()) {
+    return new NextResponse(null, { status: 202, headers: { "Cache-Control": "private, no-store" } });
   }
 
   if (!rateLimit(request, { maxRequests: 60, windowMs: 60_000 }, "product-metrics")) {

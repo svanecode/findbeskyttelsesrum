@@ -95,3 +95,53 @@ test("metrics stay private, aggregated and service-only", async () => {
   assert.match(client, /keepalive: true/);
   assert.match(monitor, /"Content-Profile": "app_v2"/);
 });
+
+test("the metrics kill switch accepts events without any database work", async () => {
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const { loadServerModule } = await import("./support/load-server-module");
+  let databaseCalls = 0;
+  const admin = {
+    createAppV2AdminClient: () => {
+      databaseCalls += 1;
+      throw new Error("database must not be touched");
+    },
+  };
+  const metricsServer = await loadServerModule(
+    new URL("../src/lib/analytics/product-metrics-server.ts", import.meta.url),
+    { "@/lib/supabase/app-v2": admin },
+  );
+  const route = await loadServerModule<{ POST: (request: unknown) => Promise<Response> }>(
+    new URL("../src/app/api/metrics/route.ts", import.meta.url),
+    {
+      "next/server": require("next/server"),
+      "@/lib/analytics/product-metrics": await import("../src/lib/analytics/product-metrics"),
+      "@/lib/analytics/product-metrics-server": metricsServer,
+      "@/lib/http/read-bounded-request-text": await import("../src/lib/http/read-bounded-request-text"),
+      "@/lib/rate-limit": await import("../src/lib/rate-limit"),
+      "@/lib/distributed-rate-limit": {
+        consumeDistributedRateLimit: async () => {
+          databaseCalls += 1;
+          return { available: true, allowed: true, remaining: 1, retryAfterSeconds: 60 };
+        },
+      },
+    },
+  );
+  const { NextRequest } = require("next/server") as typeof import("next/server");
+  const previous = { disabled: process.env.PRODUCT_METRICS_DISABLED, environment: process.env.VERCEL_ENV };
+  process.env.PRODUCT_METRICS_DISABLED = "1";
+  process.env.VERCEL_ENV = "production";
+  try {
+    const response = await route.POST(new NextRequest("https://findbeskyttelsesrum.dk/api/metrics", {
+      method: "POST",
+      body: JSON.stringify({ eventName: "map_opened" }),
+    }));
+    assert.equal(response.status, 202);
+    assert.equal(databaseCalls, 0);
+  } finally {
+    if (previous.disabled === undefined) delete process.env.PRODUCT_METRICS_DISABLED;
+    else process.env.PRODUCT_METRICS_DISABLED = previous.disabled;
+    if (previous.environment === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previous.environment;
+  }
+});
