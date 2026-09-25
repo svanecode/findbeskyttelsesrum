@@ -2,6 +2,10 @@
 
 Denne mappe samler projektets aktive data-, kvalitets- og driftsaftaler. Den aktive kode, migrationshistorikken, GitHub Actions-filerne og [projektets README](../README.md) er autoritative.
 
+## Forbedringsplan
+
+[`improvement-plan.md`](improvement-plan.md) er den rangerede, arkitektstyrede backlog. Den er skrevet til, at AI-agenter og personer kan tage én opgave ad gangen.
+
 ## Data og import
 
 Læs dokumenterne i denne rækkefølge:
