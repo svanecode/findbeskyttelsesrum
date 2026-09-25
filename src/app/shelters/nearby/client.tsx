@@ -646,7 +646,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                 </div>
 
                 {shouldRenderMap ? (
-                  <div className="pointer-events-none absolute right-2 top-2 z-[600] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-xs leading-5 text-gray-200 shadow-lg" aria-hidden="true">
+                  <div className="pointer-events-none absolute right-2 top-2 z-[700] rounded-lg border border-white/15 bg-[#141619]/95 px-3 py-2 text-xs leading-5 text-gray-200 shadow-lg" aria-hidden="true">
                     <p className="flex items-center gap-2"><span className="nearby-legend-search" />Søgepunkt</p>
                     <p className="flex items-center gap-2"><span className="nearby-result-number nearby-legend-number">1</span>Nummer i listen</p>
                   </div>
