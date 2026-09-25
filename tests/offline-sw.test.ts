@@ -138,3 +138,24 @@ test("hashed static assets are served from the cache once saved", async () => {
   await worker.dispatch("https://findbeskyttelsesrum.dk/_next/static/chunks/app.js");
   assert.equal(calls, 1);
 });
+
+test("transient server errors fall back to the saved copy, other errors pass through", async () => {
+  let status = 200;
+  const worker = await loadWorker(async () => new Response(status === 200 ? "saved tile" : "error", { status }));
+  await worker.dispatch("https://findbeskyttelsesrum.dk/api/app-v2/nearby/tiles/222_31");
+
+  for (const transient of [429, 502, 503]) {
+    status = transient;
+    const response = await worker.dispatch("https://findbeskyttelsesrum.dk/api/app-v2/nearby/tiles/222_31");
+    assert.equal(response?.status, 200, `status ${transient}`);
+    assert.equal(await response?.text(), "saved tile");
+  }
+
+  status = 503;
+  const uncached = await worker.dispatch("https://findbeskyttelsesrum.dk/api/app-v2/nearby/tiles/221_30");
+  assert.equal(uncached?.status, 503, "without a saved copy the server error is returned");
+
+  status = 404;
+  const missing = await worker.dispatch("https://findbeskyttelsesrum.dk/api/app-v2/nearby/tiles/222_31");
+  assert.equal(missing?.status, 404);
+});

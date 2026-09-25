@@ -27,6 +27,8 @@ const cachedAtHeader = "X-Offline-Cached-At";
 
 const precachedPages = ["/", "/shelters/nearby", "/om-data", "/privatliv"];
 const networkTimeoutMs = 6000;
+// Server trouble the saved copy should cover; other statuses (e.g. 404) pass through.
+const transientStatuses = new Set([429, 500, 502, 503, 504]);
 const maximumEntries = { [pageCache]: 20, [staticCache]: 200, [tileCache]: 45 };
 
 self.addEventListener("install", (event) => {
@@ -110,21 +112,23 @@ async function networkFirst(request, cacheName, key) {
   });
 
   const timeout = new Promise((resolve) => setTimeout(() => resolve(null), networkTimeoutMs));
+  let transientFailure = null;
   try {
     const winner = await Promise.race([network, timeout]);
-    if (winner) return winner;
+    if (winner && !transientStatuses.has(winner.status)) return winner;
+    transientFailure = winner;
   } catch {
     // Network failed; fall through to the cache.
   }
 
   const cached = await cache.match(key);
   if (cached) {
-    // Keep the slow network request running so the cache refreshes.
+    // Keep a slow network request running so the cache refreshes.
     network.catch(() => undefined);
     return cached;
   }
-  // Nothing cached: wait for the network after all, and let it fail visibly.
-  return network;
+  // Nothing cached: return the server's error, or wait for the network after all.
+  return transientFailure ?? network;
 }
 
 async function cacheFirst(request, cacheName) {
