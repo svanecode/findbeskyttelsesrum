@@ -38,7 +38,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 | P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | done, in review | – |
 | P1-3 | CONTENT-01 | Link to official shelter and warning information | S | done, in review | – |
 | P1-4 | PERF-02 | CDN-cache the revision-keyed country map API | M | steps 1–2 done, in review; step 3 (grid snapping) todo | – |
-| P1-5 | ARCH-01 | Nearby tiles with on-device ranking | L | done, in review (#42) | PERF-01 |
+| P1-5 | ARCH-01 | Nearby tiles with on-device ranking | L | done (#42), live 2026-09-25 | PERF-01 |
 | P1-6 | PERF-03 | Cut database writes per visitor action | S | done (revised: kill switch only), in review | – |
 | P2-1 | DX-01 | Automated dependency updates | S | done, in review | SEC-01 |
 | P2-2 | TEST-01 | Secret-free e2e path for contributors and agents | M | done, in review | – |
@@ -49,7 +49,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 | P2-7 | CODE-01 | Remove dead diagnostics from the nearby API | S | done, in review | ARCH-01 (optional) |
 | P2-8 | CODE-02 | Shared helper for user-facing fetch errors | XS | done, in review | – |
 | P3-1 | CODE-03 | Split `app-v2-queries.ts` by domain | M | todo | ARCH-01, CODE-01 |
-| P3-2 | OFFLINE-01 | Offline fallback for the last search | M | todo | ARCH-01 |
+| P3-2 | OFFLINE-01 | Offline fallback for the last search | M | done, in review | ARCH-01 |
 | P3-3 | DATA-01 | Explain the "≥ 40 places" filter next to results | XS | done, in review | – |
 | P3-4 | OPS-02 | External dependency register and change watch | XS | done, in review | ADDR-01 |
 | P3-5 | DEPS-01 | Major upgrades (Tailwind 4, ESLint 10, TypeScript 7) | L | deferred | DX-01 |
@@ -342,7 +342,14 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 ### P3-2 · OFFLINE-01 · Offline fallback for the last search
 
-When networks are congested, a returning visitor should still see their last result list. After ARCH-01: a minimal service worker (no library) that caches the app shell, the last-used nearby tiles (by revision) and the static info pages. It must show a clear "offline – data fra <dato>" banner. No background sync, no push. Needs its own privacy note (tiles are coarse and contain no user data).
+**Implemented (revised).** `public/offline-sw.js`, registered from `src/components/OfflineSupport.tsx` in production only.
+- **What it caches:** page navigations (network-first with a 6 s timeout), hashed `/_next/static` assets (cache-first) and `/api/app-v2/nearby/tiles/*` (network-first). Nothing else is touched, including admin and auth.
+- **File name:** it is `/offline-sw.js`, because `/sw.js` must keep returning 404 (the old worker was removed on purpose; see `tests/seo-browser-hardening.test.ts`).
+- **Revised: no stored search context.** The position stays tab-only by design, so the offline path is "Brug min placering" (GPS works without a network) against saved tiles.
+- **Offline notice:** results built from saved tiles show "Viser gemte data" with the date.
+- **Tests:** browser tests block service workers by default; `e2e/offline.spec.ts` opts back in (CI, production build), and `tests/offline-sw.test.ts` runs the real worker file against simulated caches and network.
+
+Original note: When networks are congested, a returning visitor should still see their last result list. After ARCH-01: a minimal service worker (no library) that caches the app shell, the last-used nearby tiles (by revision) and the static info pages. It must show a clear "offline – data fra <dato>" banner. No background sync, no push. Needs its own privacy note (tiles are coarse and contain no user data).
 
 ### P3-3 · DATA-01 · Explain the "≥ 40 places" filter next to results
 

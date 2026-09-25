@@ -28,6 +28,7 @@ export default defineConfig({
     locale: "da-DK",
     timezoneId: "Europe/Copenhagen",
     screenshot: "only-on-failure",
+    serviceWorkers: "block",
   },
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"], launchOptions } },

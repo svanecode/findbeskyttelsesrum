@@ -71,6 +71,12 @@ export default function PrivacyPage() {
               midlertidig værdi i browserens hukommelse, som forsvinder ved genindlæsning.
             </p>
             <p className={secondaryParagraphClassName}>
+              Så siden kan bruges uden net, gemmer din browser en kopi af sidens filer og de offentlige kortfliser, du
+              senest har hentet. Kortfliserne indeholder kun offentlige registreringer for et område på ca. 28 × 26 km og
+              intet om din position eller søgning. Kopien bliver på din enhed, sendes ikke til tjenesten og kan slettes
+              under browserens indstillinger for webstedsdata.
+            </p>
+            <p className={secondaryParagraphClassName}>
               Formålet er at levere den søgning, du beder om. Retsgrundlaget er den dataansvarliges legitime interesse i
               at levere tjenestens kernefunktion, jf. databeskyttelsesforordningens artikel 6, stk. 1, litra f.
             </p>

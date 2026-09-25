@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import SiteHeader from "@/components/SiteHeader";
+import OfflineSupport from "@/components/OfflineSupport";
 import VercelWebMetrics from "@/components/VercelWebMetrics";
 import { getWebsiteJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
 import { siteName, siteUrl } from "@/lib/seo/site";
@@ -111,6 +112,7 @@ export default function RootLayout({
           <SiteHeader />
           {children}
           {process.env.NODE_ENV === "production" ? <VercelWebMetrics /> : null}
+          {process.env.NODE_ENV === "production" ? <OfflineSupport /> : null}
         </ErrorBoundary>
       </body>
     </html>

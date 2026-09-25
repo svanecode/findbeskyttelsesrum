@@ -25,6 +25,9 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
+    // The offline worker would intercept requests that tests mock with
+    // page.route; the offline spec opts back in explicitly.
+    serviceWorkers: "block",
   },
   projects: [
     {
