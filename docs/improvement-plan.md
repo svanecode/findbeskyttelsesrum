@@ -205,7 +205,7 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 **Decision.**
 
-1. For 200 responses where `requestedRevision === currentRevision`, send `Cache-Control: public, max-age=60, s-maxage=86400, stale-while-revalidate=600`. 400/409/429/502 stay `no-store`.
+1. For 200 responses where `requestedRevision === currentRevision`, send `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60`. 400/409/429/502 stay `no-store`. (Revised after review: a 24 h lifetime would let a tab on an older revision keep getting cached data and never see the 409 that reloads corrected data. 5 minutes keeps the surge benefit.)
 2. Move the distributed rate limit **after** the revision check, so a cache hit never reaches it. The in-memory limiter stays first.
 3. Snap client requests to a **fixed grid per zoom level** (tile-aligned bounds, e.g. 256-px tile boundaries expanded to the viewport), rather than a viewport-derived buffer, so different users produce identical URLs. Keep `quantizeCountryMapViewport` as the server-side guard.
 
