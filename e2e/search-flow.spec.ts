@@ -175,3 +175,37 @@ test("første resultat er synligt uden at scrolle, og kortet fylder skærmen", a
     return (visibleBottom - visibleTop) / viewport!.height;
   }).toBeGreaterThanOrEqual(0.6);
 });
+
+test("resultater beregnes i browseren fra kortfliser uden at sende positionen", async ({ page }) => {
+  await installNearbySearchContext(page);
+  const nearbyRequests: string[] = [];
+  const tileRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/app-v2/nearby/grouped") nearbyRequests.push(url.pathname);
+  });
+  // Registered after installNearbySearchContext, so it takes precedence over its server-search default.
+  await page.route("**/api/app-v2/nearby/tiles/**", async (route) => {
+    const tile = new URL(route.request().url()).pathname.split("/").pop()!;
+    tileRequests.push(tile);
+    const rows = tile === "222_31"
+      ? Array.from({ length: 12 }, (_, index) => [
+          `flise-${index}`, `Flisevej ${index + 1}`, "1550", "København V",
+          55.6765 + index * 0.001, 12.5683, 100 + index, "320",
+        ])
+      : [];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ contract: "nearby-tile-v1", tile, revision: "rev:1", labels: { "320": "Kontor" }, rows }),
+    });
+  });
+
+  await page.goto("/shelters/nearby");
+
+  await expect(page.locator("#nearby-list-panel").getByText("Flisevej 1", { exact: true })).toBeVisible();
+  await expect(page.locator("#nearby-list-panel article")).toHaveCount(10);
+  // Dev mode mounts twice; compare the set of tiles.
+  expect([...new Set(tileRequests)].sort()).toEqual(["221_30", "221_31", "221_32", "222_30", "222_31", "222_32", "223_30", "223_31", "223_32"]);
+  expect(nearbyRequests).toHaveLength(0);
+});

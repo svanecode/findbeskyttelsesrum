@@ -1812,3 +1812,31 @@ export async function getAppV2PublicRelatedShelters(input: {
 
   return Array.from(related.values(), normalizeRelatedShelter);
 }
+
+/**
+ * Public registrations inside one nearby tile plus the building-use labels
+ * they reference (ARCH-01). Uses the same public view as the national map,
+ * which is the source of get_nearby_shelters_public_v2.
+ */
+export async function getAppV2PublicNearbyTile(bounds: AppV2CountryShelterMarkerBounds) {
+  const { markers } = await getAppV2PublicCountryShelterMarkersInBounds(bounds);
+  const uniqueCodes = Array.from(
+    new Set(markers.map((marker) => marker.sourceApplicationCode).filter((code): code is string => code !== null)),
+  );
+  const labels: Record<string, string> = {};
+
+  if (uniqueCodes.length > 0) {
+    const { data, error } = await createAppV2PublicClient()
+      .from("application_code_public")
+      .select("application_code, label")
+      .in("application_code", uniqueCodes);
+    if (error) {
+      throw new Error(`Could not load app_v2 nearby tile labels: ${error.message}`);
+    }
+    for (const row of (data ?? []) as Array<{ application_code: string; label: string | null }>) {
+      if (row.label) labels[row.application_code] = normalizePublicApplicationLabel(row.label);
+    }
+  }
+
+  return { markers, labels };
+}

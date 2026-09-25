@@ -8,7 +8,7 @@ type ApiGroupedResult = {
   totalCapacity: number
   applicationCodeLabel: string | null
   applicationCodeLabels?: string[]
-  municipality: { code: string | null; name: string; slug: string; id: string }
+  municipality?: { code: string | null; name: string; slug: string; id: string }
   representativeShelter?: { slug: string; name?: string; capacity?: number }
   shelters?: Array<{ id: string; slug: string; name: string; capacity: number }>
   shelterSlugs?: string[]

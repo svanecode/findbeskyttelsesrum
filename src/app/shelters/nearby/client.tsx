@@ -16,6 +16,12 @@ import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
 import { setupLeafletDefaults } from '@/lib/leaflet/setup-defaults'
 import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
+import {
+  isNearbyTilePayload,
+  parseTileKey,
+  rankNearbyGroupsFromTiles,
+  surroundingTileKeys,
+} from '@/lib/nearby/tiles'
 import { trackProductMetric } from '@/lib/analytics/product-metrics'
 import { NearbyFitBounds } from './nearby-fit-bounds'
 
@@ -105,6 +111,30 @@ function getNearbyLoadErrorMessage(error: unknown) {
     return 'Vi kunne ikke hente BBR-registreringerne lige nu, fordi der er søgt mange gange fra din netværksforbindelse. Vent et minut, og prøv igen.'
   }
   return 'Vi kunne ikke hente BBR-registreringerne lige nu. Prøv igen om lidt.'
+}
+
+// Loads the CDN-cached tiles around the position and ranks them on the
+// device. Returns null whenever the result cannot be guaranteed identical to
+// the server search (outside the tile grid, a failed tile, mixed data
+// revisions, or too few results inside the loaded block).
+async function fetchNearbyFromTiles(lat: number, lng: number): Promise<NearbyResultShelter[] | null> {
+  const keys = surroundingTileKeys(lat, lng)
+  if (keys.some((key) => parseTileKey(key) === null)) return null
+
+  const tiles = await Promise.all(keys.map(async (key) => {
+    const response = await fetch(`/api/app-v2/nearby/tiles/${key}`)
+    if (!response.ok) throw new Error(`nearby tile ${key} failed with status ${response.status}`)
+    const payload: unknown = await response.json()
+    if (!isNearbyTilePayload(payload, key)) throw new Error(`nearby tile ${key} returned an invalid payload`)
+    return payload
+  }))
+  if (new Set(tiles.map((tile) => tile.revision)).size !== 1) return null
+
+  const groups = rankNearbyGroupsFromTiles(tiles, { latitude: lat, longitude: lng }, {
+    limit: nearbyResultLimit,
+    radiusMeters: nearbyRadiusKm * 1000,
+  })
+  return groups ? adaptAppV2Grouped(groups) : null
 }
 
 async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<NearbyResultShelter[]> {
@@ -209,7 +239,8 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         setIsLoading(true)
         setLoadError(null)
         setIsRetryingBusy(false)
-        const shelterData = await fetchWithOneBusyRetry()
+        const tileData = await fetchNearbyFromTiles(lat, lng).catch(() => null)
+        const shelterData = tileData ?? await fetchWithOneBusyRetry()
         if (isMounted) {
           setShelters(shelterData)
           trackProductMetric(
