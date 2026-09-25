@@ -5,6 +5,7 @@ import { ui } from './ui-classes'
 
 import { shelterReportTypes, type ShelterReportType } from '@/lib/reporting/shelter-report'
 import { trackProductMetric } from '@/lib/analytics/product-metrics'
+import { readJsonSafely, visibleErrorMessage } from '@/lib/http/client-errors'
 
 type Props = {
   shelterId: string
@@ -63,8 +64,7 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shelterId, reportType, message, website }),
       })
-      // An upstream failure can return a non-JSON body; never show a parser error to the visitor.
-      const result = (await response.json().catch(() => ({}))) as { success?: boolean; error?: string }
+      const result = await readJsonSafely<{ success: boolean; error: string }>(response)
 
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Rapporten kunne ikke gemmes. Prøv igen senere.')
@@ -75,10 +75,7 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
     } catch (submitError) {
       setSubmitState('idle')
       trackProductMetric('report_error')
-      // Network failures surface as browser-specific TypeErrors; show our own Danish text instead.
-      setError(submitError instanceof Error && !(submitError instanceof TypeError)
-        ? submitError.message
-        : 'Rapporten kunne ikke gemmes. Prøv igen senere.')
+      setError(visibleErrorMessage(submitError, 'Rapporten kunne ikke gemmes. Prøv igen senere.'))
     }
   }
 

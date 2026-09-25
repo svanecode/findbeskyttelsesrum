@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { isPrivacyContactCategory } from "@/lib/contact/privacy-contact";
-import { isSameOriginContactRequest, readContactJsonBody } from "@/lib/contact/privacy-contact-api";
+import { readContactJsonBody } from "@/lib/contact/privacy-contact-api";
+import { isSameOriginRequest } from "@/lib/http/request-context";
 import { submitPrivacyContactCase } from "@/lib/contact/privacy-contact-server";
 import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
 import { rateLimit } from "@/lib/rate-limit";
@@ -24,7 +25,7 @@ function json(body: Record<string, unknown>, status = 200, extraHeaders?: Record
 }
 
 export async function POST(request: NextRequest) {
-  if (!isSameOriginContactRequest(request)) return json({ error: "Ugyldig oprindelse." }, 403);
+  if (!isSameOriginRequest(request)) return json({ error: "Ugyldig oprindelse." }, 403);
 
   const limitConfig = { maxRequests: 5, windowMs: 60 * 60 * 1_000 };
   if (!rateLimit(request, limitConfig, "privacy-contact-create")) {

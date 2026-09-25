@@ -119,6 +119,7 @@ test("the metrics kill switch accepts events without any database work", async (
       "@/lib/analytics/product-metrics-server": metricsServer,
       "@/lib/http/read-bounded-request-text": await import("../src/lib/http/read-bounded-request-text"),
       "@/lib/rate-limit": await import("../src/lib/rate-limit"),
+      "@/lib/http/request-context": await import("../src/lib/http/request-context"),
       "@/lib/distributed-rate-limit": {
         consumeDistributedRateLimit: async () => {
           databaseCalls += 1;

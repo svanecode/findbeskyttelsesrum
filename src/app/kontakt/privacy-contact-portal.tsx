@@ -10,6 +10,7 @@ import {
   type PrivacyContactCategory,
   type PrivacyContactStatus,
 } from "@/lib/contact/privacy-contact";
+import { readJsonSafely, visibleErrorMessage } from "@/lib/http/client-errors";
 
 type Credentials = { reference: string; accessKey: string };
 type RequestState = "idle" | "submitting";
@@ -65,11 +66,6 @@ function CaseConversation({ contactCase }: { contactCase: PrivacyContactCase }) 
   );
 }
 
-// Network failures surface as browser-specific TypeErrors; show our own Danish text instead.
-function visibleErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && !(error instanceof TypeError) ? error.message : fallback;
-}
-
 export default function PrivacyContactPortal() {
   const [createState, setCreateState] = useState<RequestState>("idle");
   const [lookupState, setLookupState] = useState<RequestState>("idle");
@@ -97,7 +93,7 @@ export default function PrivacyContactPortal() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(caseCredentials),
       });
-      const result = (await response.json().catch(() => ({}))) as { success?: boolean; case?: PrivacyContactCase; error?: string };
+      const result = await readJsonSafely<{ success: boolean; case: PrivacyContactCase; error: string }>(response);
       if (!response.ok || !result.success || !result.case) {
         throw new Error(result.error || "Sagen kunne ikke hentes.");
       }
@@ -133,12 +129,12 @@ export default function PrivacyContactPortal() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = (await response.json().catch(() => ({}))) as {
-        success?: boolean;
-        reference?: string;
-        accessKey?: string;
-        error?: string;
-      };
+      const result = await readJsonSafely<{
+        success: boolean;
+        reference: string;
+        accessKey: string;
+        error: string;
+      }>(response);
       if (!response.ok || !result.success || !result.reference || !result.accessKey) {
         throw new Error(result.error || "Henvendelsen kunne ikke gemmes.");
       }
@@ -185,7 +181,7 @@ export default function PrivacyContactPortal() {
           website: form.get("website"),
         }),
       });
-      const result = (await response.json().catch(() => ({}))) as { success?: boolean; case?: PrivacyContactCase; error?: string };
+      const result = await readJsonSafely<{ success: boolean; case: PrivacyContactCase; error: string }>(response);
       if (!response.ok || !result.success || !result.case) {
         throw new Error(result.error || "Beskeden kunne ikke gemmes.");
       }

@@ -3,23 +3,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { consumeDistributedRateLimit } from '@/lib/distributed-rate-limit'
 import { parseAndSanitizeClientErrorReport } from '@/lib/errors/sanitize-client-error'
 import { readBoundedRequestText } from '@/lib/http/read-bounded-request-text'
+import { isSameOriginRequest } from '@/lib/http/request-context'
 import { rateLimit } from '@/lib/rate-limit'
 import { recordProductMetricServer } from '@/lib/analytics/product-metrics-server'
 
 export const runtime = 'nodejs'
 
 const maximumBodyBytes = 48_000
-
-function isSameOrigin(request: NextRequest) {
-  const origin = request.headers.get('origin')
-  if (!origin) return true
-
-  try {
-    return new URL(origin).host === request.nextUrl.host
-  } catch {
-    return false
-  }
-}
 
 function privateResponse(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, {
@@ -29,7 +19,7 @@ function privateResponse(body: Record<string, unknown>, status: number) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isSameOrigin(request)) {
+  if (!isSameOriginRequest(request)) {
     return privateResponse({ error: 'Forbidden' }, 403)
   }
 

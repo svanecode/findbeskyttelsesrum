@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { getClientAddress } from '@/lib/http/request-context'
+
 interface RateLimitConfig {
   maxRequests: number
   windowMs: number
@@ -18,8 +20,7 @@ export function rateLimit(
   config: RateLimitConfig = { maxRequests: 100, windowMs: 60000 },
   namespace = 'global',
 ): boolean {
-  const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
-  const key = `${namespace}:${ip.split(',')[0]?.trim() || 'unknown'}`
+  const key = `${namespace}:${getClientAddress(request) ?? 'unknown'}`
   const now = Date.now()
   
   if (rateLimitStore.size > 10_000) {

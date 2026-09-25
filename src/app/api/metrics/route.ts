@@ -4,25 +4,15 @@ import { parseProductMetricPayload } from "@/lib/analytics/product-metrics";
 import { productMetricsDisabled, recordProductMetricServer } from "@/lib/analytics/product-metrics-server";
 import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
 import { readBoundedRequestText } from "@/lib/http/read-bounded-request-text";
+import { isSameOriginRequest } from "@/lib/http/request-context";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 const maximumBodyLength = 256;
 
-function isSameOrigin(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-
-  try {
-    return new URL(origin).host === request.nextUrl.host;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: NextRequest) {
-  if (!isSameOrigin(request)) {
+  if (!isSameOriginRequest(request)) {
     return new NextResponse(null, { status: 403, headers: { "Cache-Control": "private, no-store" } });
   }
 
