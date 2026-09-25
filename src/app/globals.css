@@ -158,17 +158,64 @@ select:focus:not(:focus-visible) {
   background: #3b82f6;
 }
 
-.nearby-map-pin-shelter {
-  width: 24px;
-  height: 24px;
+/* Result pins show their number in the list. */
+.nearby-map-pin-shelter,
+.nearby-map-pin-shelter-hover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--accent);
+  color: #0b0c0e;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nearby-map-pin-shelter {
+  width: 30px;
+  height: 30px;
+  border-width: 3px;
+  font-size: 13px;
 }
 
 .nearby-map-pin-shelter-hover {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+  box-shadow: 0 0 0 3px #0b0c0e, 0 3px 10px rgba(0, 0, 0, 0.58);
+}
+
+/* The same number badge on the result card and in the map legend. */
+.nearby-result-number {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
   background: var(--accent);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.58);
+  color: #0b0c0e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nearby-legend-number {
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  border: 2px solid white;
+}
+
+.nearby-legend-search {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin: 0 2px;
+  border: 2px solid white;
+  border-radius: 9999px;
+  background: #3b82f6;
 }
 
 .leaflet-tile-container,

@@ -50,17 +50,23 @@ const userLocationIcon = createDivIcon(
   44,
 )
 
-const shelterIcon = createDivIcon(
-  'shelter-marker',
-  '<div class="nearby-map-pin-shelter" aria-hidden="true"></div>',
-  44,
-)
+// Pins carry the result's number so the map and the list can be matched at a
+// glance; icons are cached because Leaflet compares them by identity.
+const numberedShelterIcons = new Map<string, L.DivIcon>()
 
-const selectedShelterIcon = createDivIcon(
-  'shelter-marker-selected',
-  '<div class="nearby-map-pin-shelter-hover" aria-hidden="true"></div>',
-  44,
-)
+function getNumberedShelterIcon(number: number, selected: boolean) {
+  const key = `${number}:${selected ? 'selected' : 'default'}`
+  let icon = numberedShelterIcons.get(key)
+  if (!icon) {
+    icon = createDivIcon(
+      selected ? 'shelter-marker-selected' : 'shelter-marker',
+      `<div class="${selected ? 'nearby-map-pin-shelter-hover' : 'nearby-map-pin-shelter'}" aria-hidden="true">${number}</div>`,
+      44,
+    )
+    numberedShelterIcons.set(key, icon)
+  }
+  return icon
+}
 
 function formatDistanceKm(distanceKm: number) {
   if (!Number.isFinite(distanceKm)) return ''
@@ -503,7 +509,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             ) : (
               <>
                 <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{srMapSelection}</div>
-                {shelters.map((shelter) => {
+                {shelters.map((shelter, index) => {
                   const detailSlug = getDetailSlug(shelter)
                   const buildingUse = formatBuildingUse(shelter)
                   const buildingUseLabels = getBuildingUseLabels(shelter)
@@ -517,7 +523,11 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                       className={`min-w-0 rounded-xl border bg-[var(--surface-row)] p-4 sm:p-5 ${selectedShelterId === shelter.id ? 'border-orange-500/60' : 'border-white/10'}`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-orange-300">{formatDistanceKm(shelter.distance)} i luftlinje</span>
+                        <span className="flex items-center gap-2">
+                          <span className="nearby-result-number" aria-hidden="true">{index + 1}</span>
+                          <span className="sr-only">Nummer {index + 1} på kortet: </span>
+                          <span className="text-sm font-semibold text-orange-300">{formatDistanceKm(shelter.distance)} i luftlinje</span>
+                        </span>
                         {typeof shelter.shelter_count === 'number' && shelter.shelter_count > 1 ? <span className="rounded-md bg-white/5 px-2 py-1 text-xs text-gray-300">{shelter.shelter_count} registreringer</span> : null}
                       </div>
                       <h3 className="break-safe mt-2 text-lg font-semibold text-white">{getAddressLine(shelter)}</h3>
@@ -597,14 +607,14 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                   {shouldRenderMap ? (
                     <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom={false}>
                       <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
-                      <Marker position={[lat, lng]} icon={userLocationIcon} title="Din placering" alt="Din placering på kortet" />
-                      {shelters.map((shelter) => shelter.location ? (
+                      <Marker position={[lat, lng]} icon={userLocationIcon} title="Søgepunkt" alt="Søgepunkt på kortet" />
+                      {shelters.map((shelter, index) => shelter.location ? (
                         <Marker
                           key={shelter.id}
                           position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
-                          icon={selectedShelterId === shelter.id ? selectedShelterIcon : shelterIcon}
+                          icon={getNumberedShelterIcon(index + 1, selectedShelterId === shelter.id)}
                           title={getAddressLine(shelter)}
-                          alt={`BBR-registrering ved ${getAddressLine(shelter)}`}
+                          alt={`Nummer ${index + 1}: BBR-registrering ved ${getAddressLine(shelter)}`}
                           eventHandlers={{
                             click: () => {
                               selectionReturnRef.current = null
@@ -634,6 +644,13 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                     </div>
                   )}
                 </div>
+
+                {shouldRenderMap ? (
+                  <div className="pointer-events-none absolute right-2 top-2 z-[600] rounded-lg border border-white/15 bg-[var(--surface-elevated)]/95 px-3 py-2 text-xs leading-5 text-gray-200 shadow-lg" aria-hidden="true">
+                    <p className="flex items-center gap-2"><span className="nearby-legend-search" />Søgepunkt</p>
+                    <p className="flex items-center gap-2"><span className="nearby-result-number nearby-legend-number">1</span>Nummer i listen</p>
+                  </div>
+                ) : null}
 
                 {selectedShelter ? (
                   <aside className="absolute inset-x-2 bottom-2 z-[700] max-h-[min(55dvh,24rem)] overflow-y-auto rounded-xl border border-white/15 bg-[var(--surface-elevated)] p-4 shadow-xl lg:hidden" aria-label="Valgt registrering">
