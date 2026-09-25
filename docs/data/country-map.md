@@ -17,7 +17,7 @@ Klyngning erstatter den tidligere udtynding. En klynge repræsenterer derfor all
 
 ## Browseradfærd
 
-Browseren henter et afrundet bufferområde omkring det synlige kort. Små panoreringer inden for bufferen udløser ingen ny forespørgsel. Ved en reel område- eller zoomændring:
+Browseren henter et bufferområde omkring det synlige kort (20 % margen), rundet udad til et fast gitter pr. zoomniveau. En gittercelle er cirka to kortfliser bred og et helt multiplum af serverens afrunding, så besøgende, der ser på samme område, sender identiske URL'er, som CDN'et kan genbruge i op til fem minutter. Små panoreringer inden for bufferen udløser ingen ny forespørgsel. Ved en reel område- eller zoomændring:
 
 1. Forespørgslen forsinkes kort, så afsluttede kortbevægelser samles.
 2. En forældet forespørgsel afbrydes.

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const migrationUrl = new URL(
@@ -74,7 +74,14 @@ const brokenLegacyNearestRpcMigrationUrl = new URL(
   "../supabase/migrations/20260830132630_drop_broken_legacy_nearest_rpc.sql",
   import.meta.url,
 );
-const appV2QueriesUrl = new URL("../src/lib/supabase/app-v2-queries.ts", import.meta.url);
+const appV2QueryModulesUrl = new URL("../src/lib/supabase/queries/", import.meta.url);
+
+/** Source of every app_v2 query module (CODE-03 split app-v2-queries.ts by domain). */
+async function readAppV2Queries() {
+  const names = (await readdir(appV2QueryModulesUrl)).filter((name) => name.endsWith(".ts")).sort();
+  const sources = await Promise.all(names.map((name) => readFile(new URL(name, appV2QueryModulesUrl), "utf8")));
+  return sources.join("\n");
+}
 const applicationQualityWorkflowUrl = new URL(
   "../.github/workflows/application-quality.yml",
   import.meta.url,
@@ -429,7 +436,7 @@ test("retired legacy public read surfaces have no API-role grants", async () => 
 test("public cache revisions use a fixed allowlisted RPC without exposing the private ledger", async () => {
   const [sql, queries] = await Promise.all([
     readFile(publicDataRevisionReadModelMigrationUrl, "utf8").then((value) => value.toLowerCase()),
-    readFile(appV2QueriesUrl, "utf8"),
+    readAppV2Queries(),
   ]);
 
   assert.match(sql, /create or replace function app_v2\.get_public_data_revision_v1\(\)/);
@@ -458,7 +465,7 @@ test("public cache revisions use a fixed allowlisted RPC without exposing the pr
   );
 
   const revisionFunctionStart = queries.indexOf("export async function getAppV2PublicDataRevision");
-  const nextFunctionStart = queries.indexOf("export async function getAppV2PublicDataFunnel", revisionFunctionStart);
+  const nextFunctionStart = queries.indexOf("\nexport ", revisionFunctionStart + 1);
   const revisionFunction = queries.slice(revisionFunctionStart, nextFunctionStart);
   assert.match(revisionFunction, /createAppV2PublicClient\(\)/);
   assert.match(revisionFunction, /\.rpc\("get_public_data_revision_v1"\)/);

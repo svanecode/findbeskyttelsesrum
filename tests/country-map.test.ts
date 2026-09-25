@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  countryMapGridCell,
   countryMapViewportContains,
   createBufferedCountryMapViewport,
   quantizeCountryMapViewport,
@@ -29,6 +30,50 @@ test("country map requests use a quantized buffer around the visible viewport", 
   assert.ok(requested.west < visible.west);
   assert.equal(Number((requested.north / 0.2).toFixed(8)) % 1, 0);
   assert.equal(countryMapViewportContains(requested, visible), true);
+});
+
+test("nearby viewports snap to the same grid-aligned request (PERF-02)", () => {
+  const first = createBufferedCountryMapViewport({ north: 55.7, south: 55.65, east: 12.6, west: 12.52, zoom: 14 });
+  const second = createBufferedCountryMapViewport({ north: 55.701, south: 55.652, east: 12.603, west: 12.523, zoom: 14 });
+
+  assert.deepEqual(second, first);
+  assert.deepEqual(quantizeCountryMapViewport(first), first);
+});
+
+test("grid cells are whole multiples of the server step at every zoom", () => {
+  for (let zoom = 5; zoom <= 18; zoom += 1) {
+    const cell = countryMapGridCell(zoom);
+    const probe = { north: 55 + cell.latitude, south: 55, east: 10 + cell.longitude, west: 10, zoom };
+    assert.deepEqual(quantizeCountryMapViewport(probe), probe, `zoom ${zoom}`);
+    assert.ok(cell.longitude >= cell.latitude, `zoom ${zoom}`);
+  }
+});
+
+test("grid-aligned requests always cover the visible viewport and survive server quantization", () => {
+  let seed = 7;
+  const random = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+
+  for (let zoom = 6; zoom <= 18; zoom += 1) {
+    for (let index = 0; index < 200; index += 1) {
+      const latitude = 54 + random() * 4;
+      const longitude = 8 + random() * 7.3;
+      const height = (180 / 2 ** zoom) * (0.5 + random() * 2);
+      const width = (360 / 2 ** zoom) * (1 + random() * 5);
+      const visible = {
+        north: latitude + height / 2,
+        south: latitude - height / 2,
+        east: longitude + width / 2,
+        west: longitude - width / 2,
+        zoom,
+      };
+      const requested = createBufferedCountryMapViewport(visible);
+      assert.equal(countryMapViewportContains(requested, visible), true);
+      assert.deepEqual(quantizeCountryMapViewport(requested), requested);
+    }
+  }
 });
 
 test("small pans reuse the buffered request while zoom changes do not", () => {

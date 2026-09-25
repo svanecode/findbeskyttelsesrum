@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const detailPageUrl = new URL("../src/app/beskyttelsesrum/[slug]/page.tsx", import.meta.url);
@@ -33,7 +33,14 @@ const mapFallbackUrl = new URL("../src/components/MapUnavailableNotice.tsx", imp
 const countryMarkerApiUrl = new URL("../src/app/api/country-shelters/route.ts", import.meta.url);
 const municipalityExperienceUrl = new URL("../src/app/kommune/[slug]/kommune-experience.tsx", import.meta.url);
 const municipalityOverviewUrl = new URL("../src/app/kommune/page.tsx", import.meta.url);
-const appV2QueriesUrl = new URL("../src/lib/supabase/app-v2-queries.ts", import.meta.url);
+const appV2QueryModulesUrl = new URL("../src/lib/supabase/queries/", import.meta.url);
+
+/** Source of every app_v2 query module (CODE-03 split app-v2-queries.ts by domain). */
+async function readAppV2Queries() {
+  const names = (await readdir(appV2QueryModulesUrl)).filter((name) => name.endsWith(".ts")).sort();
+  const sources = await Promise.all(names.map((name) => readFile(new URL(name, appV2QueryModulesUrl), "utf8")));
+  return sources.join("\n");
+}
 const adminPageUrl = new URL("../src/app/admin/page.tsx", import.meta.url);
 const adminActionsUrl = new URL("../src/app/admin/actions.ts", import.meta.url);
 const adminOperationsPageUrl = new URL("../src/app/admin/drift/page.tsx", import.meta.url);
@@ -147,7 +154,7 @@ test("detail pages expose contact, moderated reporting and related registrations
 test("shelter detail routes resolve old URLs and redirect to one canonical identity", async () => {
   const [detailPage, queries, publicUrl] = await Promise.all([
     readFile(detailPageUrl, "utf8"),
-    readFile(appV2QueriesUrl, "utf8"),
+    readAppV2Queries(),
     readFile(publicUrlUrl, "utf8"),
   ]);
 
@@ -339,7 +346,7 @@ test("municipality pages use bounded summaries and allow ISR", async () => {
   const [overview, dataPage, queries] = await Promise.all([
     readFile(municipalityOverviewUrl, "utf8"),
     readFile(dataPageUrl, "utf8"),
-    readFile(appV2QueriesUrl, "utf8"),
+    readAppV2Queries(),
   ]);
 
   assert.match(overview, /getAppV2MunicipalitySummaries/);
