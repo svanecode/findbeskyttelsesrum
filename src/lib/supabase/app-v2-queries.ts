@@ -239,15 +239,6 @@ export type AppV2NearbySheltersOptions = {
   importStates?: AppV2ImportState[];
 };
 
-export type AppV2NearbyEligibilitySummary = {
-  mode: AppV2NearbyEligibilityMode;
-  minimumCapacity: number | null;
-  minimumCapacityRequired: boolean;
-  sourceApplicationCodeRequired: boolean;
-  sourceApplicationCodeSemantics: "available" | "unpopulated" | "not_requested";
-  note: string;
-};
-
 type AppV2NearbyRpcPayload = {
   results: unknown;
   diagnostics: unknown;
@@ -377,30 +368,6 @@ function getNearbyImportStates(input: AppV2NearbySheltersOptions) {
   }
 
   return importStates;
-}
-
-export function getAppV2NearbyEligibilitySummary(
-  mode: AppV2NearbyEligibilityMode = defaultNearbyEligibilityMode,
-): AppV2NearbyEligibilitySummary {
-  if (mode === "none") {
-    return {
-      mode,
-      minimumCapacity: null,
-      minimumCapacityRequired: false,
-      sourceApplicationCodeRequired: false,
-      sourceApplicationCodeSemantics: "not_requested",
-      note: "No app_v2 nearby eligibility filtering is applied beyond import_state, coordinates, radius, and active app_v2 exclusions.",
-    };
-  }
-
-  return {
-    mode,
-    minimumCapacity: nearbyMinimumCapacity,
-    minimumCapacityRequired: true,
-    sourceApplicationCodeRequired: true,
-    sourceApplicationCodeSemantics: "available",
-    note: "Applies capacity >= 40 and requires a source-backed application code that app_v2.application_code_eligibility marks as nearby eligible. Rows without source_application_code are excluded in this mode.",
-  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -55,12 +55,12 @@ export default async function Home() {
             </div>
 
             <nav
-              className="mt-3 flex flex-wrap items-center gap-x-1 text-sm text-gray-400"
+              className="mt-3 grid grid-cols-2 items-center gap-2 text-sm text-gray-400 sm:flex sm:flex-wrap sm:gap-x-1 sm:gap-y-0"
               aria-label="Andre måder at søge på"
             >
-              <span className="mr-1">Kender du ikke adressen?</span>
-              <Link href="/kommune" className={ui.quietAction}>Kommuner</Link>
-              <Link href="/kort" className={ui.quietAction}>Landskort</Link>
+              <span className="col-span-2 sm:mr-1">Kender du ikke adressen?</span>
+              <Link href="/kommune" className={ui.secondaryAction + ' sm:border-0 sm:bg-transparent sm:font-medium sm:text-gray-300'}>Kommuner</Link>
+              <Link href="/kort" className={ui.secondaryAction + ' sm:border-0 sm:bg-transparent sm:font-medium sm:text-gray-300'}>Landskort</Link>
             </nav>
           </div>
         </section>

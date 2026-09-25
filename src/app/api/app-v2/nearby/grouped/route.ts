@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 
 import {
-  getAppV2NearbyEligibilitySummary,
   getAppV2GroupedNearbySheltersWithDiagnostics,
   type AppV2GroupedNearbyShelter,
 } from "@/lib/supabase/app-v2-queries";
@@ -28,49 +27,6 @@ const nearbyRateLimit = { maxRequests: 600, windowMs: 60_000 };
 const apiContract = "app_v2_nearby_grouped_v1";
 const apiSource = "app_v2";
 const activeImportStates = ["active"] as const;
-const parameterDefaults = {
-  radiusMeters: defaultRadiusMeters,
-  limit: defaultLimit,
-  candidateLimit: defaultCandidateLimit,
-};
-const parameterBounds = {
-  radiusMeters: {
-    min: 1,
-    max: maxRadiusMeters,
-  },
-  limit: {
-    min: 1,
-    max: maxLimit,
-  },
-  candidateLimit: {
-    min: 1,
-    max: maxCandidateLimit,
-  },
-};
-const capabilities = {
-  nativeAppV2Shape: true,
-  groupedAppV2Shape: true,
-  sourceApplicationCodeEligibility: true,
-  databaseSideDistanceOrdering: true,
-  postgisSpatialIndex: false,
-};
-const grouping = {
-  key: "address_line1 + postal_code + city",
-  shelterCount: "number of app_v2 shelter rows in the deterministic address group",
-  totalCapacity: "sum of app_v2 capacity values in the group",
-  representative: "nearest row in the group by app_v2 distance ordering",
-};
-const exclusionMode = {
-  importStates: activeImportStates,
-  appV2ShelterExclusions:
-    "active shelter_id, canonical source identity, and exact app_v2 address/postal matches",
-};
-const limitations = [
-  "Groups app_v2 shelter rows by exact address_line1, postal_code, and city after deterministic normalization.",
-  "Always applies source-backed application-code eligibility (capacity >= 40 + eligible source_application_code) before grouping.",
-  "Uses database-side bounding-box filtering and Haversine distance ordering, not a PostGIS spatial index.",
-  "Used by the public /shelters/nearby UI.",
-];
 
 type ValidationResult =
   | {
@@ -273,7 +229,6 @@ async function handleNearbyRequest(
   request: NextRequest,
   searchParams: URLSearchParams,
   requestId: string,
-  debugMeta = false,
 ) {
   const validation = validateNearbyRequest(searchParams);
 
@@ -305,36 +260,20 @@ async function handleNearbyRequest(
       candidateLimit: validation.value.candidateLimit,
       importStates: [...activeImportStates],
     });
-    const eligibility = getAppV2NearbyEligibilitySummary();
-
-    const slimMeta = {
-      requestId,
-      contract: apiContract,
-      source: apiSource,
-      resultCount: result.rows.length,
-      query: {
-        radiusMeters: validation.value.radiusMeters,
-        limit: validation.value.limit,
-        candidateLimit: validation.value.candidateLimit,
-      },
-    };
-
     return NextResponse.json(
       {
         results: result.rows.map(toApiGroup),
-        meta: debugMeta
-          ? {
-              ...slimMeta,
-              defaults: parameterDefaults,
-              bounds: parameterBounds,
-              capabilities,
-              grouping,
-              eligibility,
-              exclusionMode,
-              diagnostics: result.diagnostics,
-              limitations,
-            }
-          : slimMeta,
+        meta: {
+          requestId,
+          contract: apiContract,
+          source: apiSource,
+          resultCount: result.rows.length,
+          query: {
+            radiusMeters: validation.value.radiusMeters,
+            limit: validation.value.limit,
+            candidateLimit: validation.value.candidateLimit,
+          },
+        },
       },
       { headers: { "Cache-Control": "private, no-store" } },
     );

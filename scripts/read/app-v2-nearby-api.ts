@@ -134,15 +134,6 @@ function getResultSummary(payload: unknown) {
   const record = payload as Record<string, unknown>;
   const meta = typeof record.meta === "object" && record.meta !== null ? (record.meta as Record<string, unknown>) : {};
   const results = Array.isArray(record.results) ? record.results : [];
-  const diagnostics =
-    typeof meta.diagnostics === "object" && meta.diagnostics !== null
-      ? (meta.diagnostics as Record<string, unknown>)
-      : typeof meta.appV2 === "object" &&
-          meta.appV2 !== null &&
-          typeof (meta.appV2 as Record<string, unknown>).diagnostics === "object" &&
-          (meta.appV2 as Record<string, unknown>).diagnostics !== null
-        ? ((meta.appV2 as Record<string, unknown>).diagnostics as Record<string, unknown>)
-      : null;
   const appV2ResultCount =
     typeof meta.appV2 === "object" && meta.appV2 !== null
       ? (meta.appV2 as Record<string, unknown>).resultCount
@@ -155,11 +146,6 @@ function getResultSummary(payload: unknown) {
     mode: meta.mode,
     query: meta.query,
     resultCount: meta.resultCount ?? appV2ResultCount ?? results.length,
-    capabilities: meta.capabilities,
-    eligibility: meta.eligibility,
-    exclusionMode: meta.exclusionMode,
-    diagnostics,
-    limitations: meta.limitations,
     firstResults: results.slice(0, 5),
     error: record.error,
   };
