@@ -40,6 +40,17 @@ const readCachedCountryMapFeatures = unstable_cache(
   { revalidate: 3600 },
 );
 
+// A successful response is fully determined by its URL: the data revision and
+// the quantized viewport are both query parameters, and moderation or imports
+// always publish a new revision. The CDN can therefore share it between
+// visitors (every first /kort load requests the same default view).
+function sharedCacheHeaders(revision: string) {
+  return {
+    "Cache-Control": "public, max-age=60, s-maxage=86400, stale-while-revalidate=600",
+    "X-Public-Data-Revision": revision,
+  };
+}
+
 function noStoreHeaders(revision?: string) {
   return {
     "Cache-Control": "private, no-store",
@@ -167,7 +178,7 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json(payload, {
-      headers: noStoreHeaders(currentRevision.cacheKey),
+      headers: sharedCacheHeaders(currentRevision.cacheKey),
     });
   } catch (error) {
     if (error instanceof RangeError) {
