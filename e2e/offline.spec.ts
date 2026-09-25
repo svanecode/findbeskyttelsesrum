@@ -74,5 +74,7 @@ test("uden gemte data forklarer siden, at man er offline", { tag: "@full-stack" 
   });
   await page.reload();
 
-  await expect(page.getByRole("alert").filter({ hasText: "Du er offline" })).toBeVisible();
+  // "Du er offline" when the browser knows it, otherwise the connection message;
+  // headless Chromium keeps navigator.onLine true here.
+  await expect(page.getByRole("alert").filter({ hasText: "ingen gemte data for dette område" })).toBeVisible();
 });

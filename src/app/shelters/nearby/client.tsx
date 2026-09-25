@@ -99,6 +99,9 @@ class NearbyRequestError extends Error {
   }
 }
 
+// The request got no response at all: no connection, or the network is down.
+class NearbyConnectionError extends Error {}
+
 const maximumAutomaticRetryWaitSeconds = 10
 
 function parseRetryAfterSeconds(value: string | null) {
@@ -109,6 +112,10 @@ function parseRetryAfterSeconds(value: string | null) {
 function getNearbyLoadErrorMessage(error: unknown) {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return 'Du er offline, og der er ingen gemte data for dette område. Opret forbindelse, og prøv igen.'
+  }
+  // navigator.onLine stays true on many dead networks, so a missing response counts too.
+  if (error instanceof NearbyConnectionError) {
+    return 'Siden kan ikke få forbindelse, og der er ingen gemte data for dette område. Tjek din internetforbindelse, og prøv igen.'
   }
   if (error instanceof NearbyRequestError && error.status === 429) {
     return 'Vi kunne ikke hente BBR-registreringerne lige nu, fordi der er søgt mange gange fra din netværksforbindelse. Vent et minut, og prøv igen.'
@@ -165,6 +172,8 @@ async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<Near
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ lat, lng, limit: nearbyResultLimit }),
     cache: 'no-store',
+  }).catch(() => {
+    throw new NearbyConnectionError('app_v2 grouped nearby got no response')
   })
 
   if (!response.ok) {
