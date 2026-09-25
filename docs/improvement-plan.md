@@ -34,24 +34,24 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 | P0-1 | ADDR-01 | Replace DAWA with Adressevælger before 2026-10-01 10:00 | M | done (#39), live 2026-09-25 | – |
 | P0-2 | SEC-01 | Patch critical Next.js and sharp advisories | S | done (#39), live 2026-09-25 | – |
 | P0-3 | OPS-01 | Stop `/api/health` reporting 503 because GitHub delays cron | S | done (#39), live 2026-09-25 | – |
-| P1-1 | PERF-01 | Nearby rate limit must survive shared mobile IPs (CGNAT) | S | done, in review | – |
-| P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | done, in review | – |
-| P1-3 | CONTENT-01 | Link to official shelter and warning information | S | done, in review | – |
-| P1-4 | PERF-02 | CDN-cache the revision-keyed country map API | M | steps 1–2 done, in review; step 3 (grid snapping) todo | – |
+| P1-1 | PERF-01 | Nearby rate limit must survive shared mobile IPs (CGNAT) | S | done (#40), live 2026-09-25 | – |
+| P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | done (#40), live 2026-09-25 | – |
+| P1-3 | CONTENT-01 | Link to official shelter and warning information | S | done (#40), live 2026-09-25 | – |
+| P1-4 | PERF-02 | CDN-cache the revision-keyed country map API | M | steps 1–2 done (#40), live; step 3 (grid snapping) done, in review | – |
 | P1-5 | ARCH-01 | Nearby tiles with on-device ranking | L | done (#42), live 2026-09-25 | PERF-01 |
-| P1-6 | PERF-03 | Cut database writes per visitor action | S | done (revised: kill switch only), in review | – |
-| P2-1 | DX-01 | Automated dependency updates | S | done, in review | SEC-01 |
-| P2-2 | TEST-01 | Secret-free e2e path for contributors and agents | M | done, in review | – |
-| P2-3 | PRIV-01 | Click-to-load map on detail pages | S | done, in review | – |
-| P2-4 | SEC-02 | One helper for client IP and same-origin checks | S | done, in review | – |
-| P2-5 | UX-02 | Clear actions on the detail page (no walking route) | S | done (revised), in review | – |
-| P2-6 | UX-03 | Fix wrapping of secondary links on the home page | XS | done, in review | – |
-| P2-7 | CODE-01 | Remove dead diagnostics from the nearby API | S | done, in review | ARCH-01 (optional) |
-| P2-8 | CODE-02 | Shared helper for user-facing fetch errors | XS | done, in review | – |
-| P3-1 | CODE-03 | Split `app-v2-queries.ts` by domain | M | todo | ARCH-01, CODE-01 |
-| P3-2 | OFFLINE-01 | Offline fallback for the last search | M | done, in review | ARCH-01 |
-| P3-3 | DATA-01 | Explain the "≥ 40 places" filter next to results | XS | done, in review | – |
-| P3-4 | OPS-02 | External dependency register and change watch | XS | done, in review | ADDR-01 |
+| P1-6 | PERF-03 | Cut database writes per visitor action | S | done (#40, revised: kill switch only), live 2026-09-25 | – |
+| P2-1 | DX-01 | Automated dependency updates | S | done (#40), live 2026-09-25 | SEC-01 |
+| P2-2 | TEST-01 | Secret-free e2e path for contributors and agents | M | done (#40), live 2026-09-25 | – |
+| P2-3 | PRIV-01 | Click-to-load map on detail pages | S | done (#40), live 2026-09-25 | – |
+| P2-4 | SEC-02 | One helper for client IP and same-origin checks | S | done (#40), live 2026-09-25 | – |
+| P2-5 | UX-02 | Clear actions on the detail page (no walking route) | S | done (#40, revised), live 2026-09-25 | – |
+| P2-6 | UX-03 | Fix wrapping of secondary links on the home page | XS | done (#40), live 2026-09-25 | – |
+| P2-7 | CODE-01 | Remove dead diagnostics from the nearby API | S | done (#40), live 2026-09-25 | ARCH-01 (optional) |
+| P2-8 | CODE-02 | Shared helper for user-facing fetch errors | XS | done (#40), live 2026-09-25 | – |
+| P3-1 | CODE-03 | Split `app-v2-queries.ts` by domain | M | done, in review | ARCH-01, CODE-01 |
+| P3-2 | OFFLINE-01 | Offline fallback for the last search | M | done (#49), live 2026-09-25 | ARCH-01 |
+| P3-3 | DATA-01 | Explain the "≥ 40 places" filter next to results | XS | done (#40), live 2026-09-25 | – |
+| P3-4 | OPS-02 | External dependency register and change watch | XS | done (#40), live 2026-09-25 | ADDR-01 |
 | P3-5 | DEPS-01 | Major upgrades (Tailwind 4, ESLint 10, TypeScript 7) | L | deferred | DX-01 |
 
 Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
@@ -207,7 +207,7 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 1. For 200 responses where `requestedRevision === currentRevision`, send `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60`. 400/409/429/502 stay `no-store`. (Revised after review: a 24 h lifetime would let a tab on an older revision keep getting cached data and never see the 409 that reloads corrected data. 5 minutes keeps the surge benefit.)
 2. Move the distributed rate limit **after** the revision check, so a cache hit never reaches it. The in-memory limiter stays first.
-3. Snap client requests to a **fixed grid per zoom level** (tile-aligned bounds, e.g. 256-px tile boundaries expanded to the viewport), rather than a viewport-derived buffer, so different users produce identical URLs. Keep `quantizeCountryMapViewport` as the server-side guard.
+3. *(Done: `countryMapGridCell` in `src/lib/maps/country-map-viewport.ts`, about two map tiles per cell, a whole multiple of the server step.)* Snap client requests to a **fixed grid per zoom level** (tile-aligned bounds, e.g. 256-px tile boundaries expanded to the viewport), rather than a viewport-derived buffer, so different users produce identical URLs. Keep `quantizeCountryMapViewport` as the server-side guard.
 
 **Files.** `src/app/api/country-shelters/route.ts`, `src/lib/maps/country-map-viewport.ts`, `src/app/kort/country-map.tsx`, `docs/data/country-map.md`, tests for viewport snapping.
 
@@ -338,7 +338,7 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 ### P3-1 · CODE-03 · Split `app-v2-queries.ts` by domain
 
-`src/lib/supabase/app-v2-queries.ts` is 1,847 lines. Split into `src/lib/supabase/queries/{shelters,nearby,municipalities,country-map,stats,publication}.ts` with a temporary barrel re-export so imports don't churn. Pure move, no logic changes, one PR. Do it **after** ARCH-01 and CODE-01 to avoid merge pain.
+**Implemented.** `src/lib/supabase/app-v2-queries.ts` (1,842 lines) is now a barrel that re-exports the same public names from `src/lib/supabase/queries/{shared,publication,stats,nearby,municipalities,country-map,shelters}.ts`. Pure move, verified line for line (only imports and `export` keywords on shared helpers were added), and there are no import cycles. New code should import from the domain module; migrating existing imports off the barrel is optional follow-up.
 
 ### P3-2 · OFFLINE-01 · Offline fallback for the last search
 

@@ -5,7 +5,7 @@
  * ranks the rows locally, so a search costs the database nothing on a cache
  * hit and the exact position never leaves the device. The ranking mirrors
  * app_v2.get_nearby_shelters_public_v2 + groupNearbyRows in
- * src/lib/supabase/app-v2-queries.ts: Haversine distance, rows ordered by
+ * src/lib/supabase/queries/nearby.ts: Haversine distance, rows ordered by
  * distance then slug, grouped by normalized address, groups ordered by the
  * representative's distance then group key. Results are only returned when
  * they are guaranteed identical; otherwise the caller falls back to the
