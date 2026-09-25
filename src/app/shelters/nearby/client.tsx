@@ -186,13 +186,16 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
     let isMounted = true
 
     // A busy period can briefly trip the rate limit; retry once before
-    // showing an error so the visitor does not have to act.
+    // showing an error so the visitor does not have to act. Only when the
+    // advertised wait is short: retrying before Retry-After expires is
+    // guaranteed to fail and only adds load.
     async function fetchWithOneBusyRetry() {
       try {
         return await fetchAppV2GroupedShelters(lat, lng)
       } catch (error) {
         if (!(error instanceof NearbyRequestError) || error.status !== 429) throw error
-        const waitSeconds = Math.min(Math.max(error.retryAfterSeconds ?? 2, 1), maximumAutomaticRetryWaitSeconds)
+        const waitSeconds = Math.max(error.retryAfterSeconds ?? 2, 1)
+        if (waitSeconds > maximumAutomaticRetryWaitSeconds) throw error
         setIsRetryingBusy(true)
         await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000))
         if (!isMounted) throw error

@@ -179,6 +179,28 @@ test("en kortvarig 429 prøves automatisk igen én gang", async ({ page }) => {
   expect(calls).toBeGreaterThanOrEqual(2);
 });
 
+test("en lang Retry-After prøves ikke automatisk igen", async ({ page }) => {
+  await installNearbySearchContext(page);
+  let calls = 0;
+  await page.route("**/api/app-v2/nearby/grouped", async (route) => {
+    calls += 1;
+    await route.fulfill({
+      status: 429,
+      headers: { "Retry-After": "60" },
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "rate_limited" } }),
+    });
+  });
+
+  await page.goto("/shelters/nearby");
+
+  await expect(page.getByRole("alert").filter({ hasText: "Vent et minut, og prøv igen" })).toBeVisible();
+  await expect(page.getByText("Mange søger lige nu")).toHaveCount(0);
+  const callsWhenShown = calls;
+  await page.waitForTimeout(11_000);
+  expect(calls).toBe(callsWhenShown);
+});
+
 test("kortfejl bevarer resultatlisten som fallback", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile-"), "Kortfallback kontrolleres i mobilprojekterne.");
   await installNearbySearchContext(page);

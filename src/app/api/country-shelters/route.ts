@@ -41,12 +41,14 @@ const readCachedCountryMapFeatures = unstable_cache(
 );
 
 // A successful response is fully determined by its URL: the data revision and
-// the quantized viewport are both query parameters, and moderation or imports
-// always publish a new revision. The CDN can therefore share it between
-// visitors (every first /kort load requests the same default view).
+// the quantized viewport are both query parameters. The CDN can therefore
+// share it between visitors (every first /kort load requests the same default
+// view). Keep the shared lifetime short: a tab still holding an older revision
+// must reach the function again soon, so the revision check can answer 409
+// and the map reloads corrected data after moderation or an import.
 function sharedCacheHeaders(revision: string) {
   return {
-    "Cache-Control": "public, max-age=60, s-maxage=86400, stale-while-revalidate=600",
+    "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=60",
     "X-Public-Data-Revision": revision,
   };
 }

@@ -103,7 +103,7 @@ test("only successful, revision-matched map responses are shared by the CDN", as
   const { readFile } = await import("node:fs/promises");
   const route = await readFile(new URL("../src/app/api/country-shelters/route.ts", import.meta.url), "utf8");
 
-  assert.match(route, /"Cache-Control": "public, max-age=60, s-maxage=86400, stale-while-revalidate=600"/);
+  assert.match(route, /"Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=60"/);
   assert.equal(route.match(/sharedCacheHeaders\(currentRevision\.cacheKey\)/g)?.length, 1);
   assert.match(route, /status: 409, headers: noStoreHeaders\(currentRevision\.cacheKey\)/);
   assert.match(route, /status: 400, headers: noStoreHeaders\(\)/);
