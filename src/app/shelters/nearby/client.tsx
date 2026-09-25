@@ -193,7 +193,8 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isRetryingBusy, setIsRetryingBusy] = useState(false)
-  const [offlineSavedAt, setOfflineSavedAt] = useState<string | null>(null)
+  // Set when results were built while offline or from the worker's saved tiles.
+  const [savedDataNotice, setSavedDataNotice] = useState<{ savedAt: string | null } | null>(null)
   const [srMapSelection, setSrMapSelection] = useState('')
   const shelterRefs = useRef<Record<string, HTMLElement | null>>({})
   const listTabRef = useRef<HTMLButtonElement | null>(null)
@@ -262,12 +263,15 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         setIsLoading(true)
         setLoadError(null)
         setIsRetryingBusy(false)
-        setOfflineSavedAt(null)
+        setSavedDataNotice(null)
         const tileData = await fetchNearbyFromTiles(lat, lng).catch(() => null)
         const shelterData = tileData?.shelters ?? await fetchWithOneBusyRetry()
         if (isMounted) {
           setShelters(shelterData)
-          setOfflineSavedAt(tileData?.savedAt ?? null)
+          // The browser's own short HTTP cache can answer offline too, so being
+          // offline always earns the notice, with a date when the worker knows it.
+          const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
+          setSavedDataNotice(tileData && (tileData.savedAt || isOffline) ? { savedAt: tileData.savedAt } : null)
           trackProductMetric(
             shelterData.length > 0 ? 'nearby_results_loaded' : 'nearby_no_results',
             performance.now() - startedAt,
@@ -447,12 +451,12 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
           >
             <h2 id="nearby-results-heading" className="sr-only">Resultater sorteret efter afstand</h2>
 
-            {offlineSavedAt && !loadError && !isLoading ? (
+            {savedDataNotice && !loadError && !isLoading ? (
               <div className="rounded-lg border border-yellow-600/40 bg-yellow-900/20 p-3 text-sm leading-6 text-yellow-100" role="status">
                 <p className="font-semibold">Viser gemte data</p>
                 <p>
                   Netværket svarer ikke, så resultaterne bygger på data gemt på din enhed
-                  {formatSavedAt(offlineSavedAt) ? ` ${formatSavedAt(offlineSavedAt)}` : ''}. De kan være forældede.
+                  {savedDataNotice.savedAt && formatSavedAt(savedDataNotice.savedAt) ? ` ${formatSavedAt(savedDataNotice.savedAt)}` : ''}. De kan være forældede.
                 </p>
               </div>
             ) : null}
