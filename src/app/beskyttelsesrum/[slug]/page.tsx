@@ -8,6 +8,7 @@ import RegistrationNotice, { RegistrationStatusLabels } from "@/components/Regis
 import ReportShelterIssue from "@/components/ReportShelterIssue";
 import ProductMetricView from "@/components/ProductMetricView";
 import ShelterOsmEmbedMap from "@/components/ShelterOsmEmbedMap";
+import { shelterMapSectionId } from "@/components/shelter-map-section";
 import { ui } from "@/components/ui-classes";
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from "@/lib/anvendelseskoder";
 import { getBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
@@ -264,7 +265,7 @@ export default async function ShelterDetailPage({ params }: Props) {
             <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {hasCoords ? (
                 <a
-                  href="#registrering-kort"
+                  href={`#${shelterMapSectionId}`}
                   className={ui.primaryAction}
                 >
                   Vis på kort
@@ -277,7 +278,7 @@ export default async function ShelterDetailPage({ params }: Props) {
                   rel="noopener noreferrer"
                   className={ui.secondaryAction}
                 >
-                  Se adressen i kort
+                  Åbn i Google Maps
                 </a>
               ) : null}
               <a
@@ -298,7 +299,7 @@ export default async function ShelterDetailPage({ params }: Props) {
           </section>
 
           {hasCoords ? (
-            <section id="registrering-kort" className={`scroll-mt-24 p-5 sm:p-6 ${ui.panel}`}>
+            <section id={shelterMapSectionId} className={`scroll-mt-24 p-5 sm:p-6 ${ui.panel}`}>
               <h2 className="text-lg font-semibold text-white">Kort</h2>
               <div className="mt-4">
                 <ShelterOsmEmbedMap
