@@ -409,7 +409,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 text-sm">
             {originLabel ? <span className="break-safe text-gray-300">Søgeområde: {originLabel}</span> : null}
-            <Link href="/" className="-ml-1 inline-flex min-h-[44px] items-center rounded-lg px-2 text-white underline underline-offset-4 hover:bg-white/5">Skift adresse</Link>
+            <Link href="/" className="inline-flex min-h-[44px] items-center text-white underline underline-offset-4 hover:decoration-white/70">Skift adresse</Link>
           </div>
           <p className="max-w-2xl text-xs leading-5 text-gray-400 sm:text-sm">
             Op til {nearbyResultLimit} adresser inden for {nearbyRadiusKm} km, sorteret efter afstand i luftlinje.
@@ -554,13 +554,15 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                         </details>
                       ) : null}
 
-                      <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-4 sm:flex-row">
+                      {/* Two equal, quiet actions side by side: ten orange buttons in a row
+                          competed with each other and doubled the list's length on phones. */}
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3">
                         {detailSlug ? (
-                          <Link href={`/beskyttelsesrum/${detailSlug}`} className={`${ui.primaryAction} flex-1`}>Se detaljer</Link>
+                          <Link href={`/beskyttelsesrum/${detailSlug}`} className={ui.secondaryAction}>Se detaljer</Link>
                         ) : (
-                          <span className="inline-flex min-h-[44px] flex-1 items-center text-sm text-gray-400">Detaljeside er ikke tilgængelig</span>
+                          <span className="inline-flex min-h-[44px] items-center text-sm text-gray-400">Detaljeside er ikke tilgængelig</span>
                         )}
-                        {shelter.location ? <button type="button" onClick={(event) => showShelterOnMap(shelter, event.currentTarget)} className={`${ui.secondaryAction} flex-1`}>Vis på kort</button> : null}
+                        {shelter.location ? <button type="button" onClick={(event) => showShelterOnMap(shelter, event.currentTarget)} className={ui.secondaryAction}>Vis på kort</button> : null}
                       </div>
                     </article>
                   )

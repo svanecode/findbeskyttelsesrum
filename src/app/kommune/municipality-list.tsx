@@ -48,7 +48,7 @@ export default function MunicipalityList({ municipalities }: { municipalities: A
                 aria-label={`${municipality.name}, ${municipality.activeShelterCount.toLocaleString('da-DK')} BBR-registreringer, ${municipality.activeShelterTotalCapacity.toLocaleString('da-DK')} BBR-registrerede pladser`}
               >
                 <span className="break-safe font-medium text-white">{municipality.name}</span>
-                <span className="flex min-w-0 flex-col gap-1 text-sm tabular-nums text-gray-300 sm:items-end">
+                <span className="flex min-w-0 flex-col gap-1 text-sm text-gray-300 sm:items-end">
                   <span>{municipality.activeShelterCount.toLocaleString('da-DK')} BBR-registreringer · {municipality.activeShelterTotalCapacity.toLocaleString('da-DK')} pladser</span>
                   <span className="font-medium text-white">Se kommune</span>
                 </span>

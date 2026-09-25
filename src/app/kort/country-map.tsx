@@ -452,28 +452,6 @@ export default function CountryMap({
   return (
     <>
       <div
-        id="country-map-keyboard-help"
-        className="mb-3 flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-gray-300 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <p className="max-w-3xl">
-          Flyt kortet med piletasterne og zoom med plus eller minus. Foretrækker du en liste, kan du søge efter adresse eller vælge kommune.
-        </p>
-        <div className="flex flex-col gap-2 min-[420px]:flex-row">
-          <Link
-            href="/"
-            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-3 font-semibold text-white hover:bg-white/10"
-          >
-            Søg adresse
-          </Link>
-          <Link
-            href="/kommune"
-            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-3 font-semibold text-white hover:bg-white/10"
-          >
-            Kommuneoversigt
-          </Link>
-        </div>
-      </div>
-      <div
         className="relative h-[60vh] min-h-[60vh] w-full overflow-hidden rounded-lg border border-white/10 md:h-[calc(100vh-12rem)] md:min-h-[70vh]"
       >
         <div
@@ -555,6 +533,30 @@ export default function CountryMap({
             fallbackHref="/kommune"
           />
         ) : null}
+      </div>
+      <div
+        id="country-map-keyboard-help"
+        className="mt-3 flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-gray-300 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <p className="max-w-3xl">
+          {/* Arrow keys only matter with a keyboard; touch screens skip the sentence. */}
+          <span className="[@media(pointer:coarse)]:hidden">Flyt kortet med piletasterne og zoom med plus eller minus. </span>
+          Foretrækker du en liste, kan du søge efter adresse eller vælge kommune.
+        </p>
+        <div className="flex flex-col gap-2 min-[420px]:flex-row">
+          <Link
+            href="/"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-3 font-semibold text-white hover:bg-white/10"
+          >
+            Søg adresse
+          </Link>
+          <Link
+            href="/kommune"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/15 px-3 font-semibold text-white hover:bg-white/10"
+          >
+            Kommuneoversigt
+          </Link>
+        </div>
       </div>
     </>
   );

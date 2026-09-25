@@ -29,25 +29,24 @@ export default async function Home() {
   return (
     <main id="main-content" tabIndex={-1} className={`flex min-h-mobile-viewport flex-col ${ui.page}`}>
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-8 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
+        {/* Phones: heading, one-line caveat, then search, so "Brug min placering" is
+            reached first; the full explanation follows the search. Desktop keeps the
+            explanation in the left column beside the search. */}
         <section
-          className="grid items-start gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(28rem,1.1fr)] lg:gap-14"
+          className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(28rem,1.1fr)] lg:gap-x-14 lg:gap-y-5"
           aria-labelledby="home-heading"
         >
-          <header className="max-w-xl lg:pt-6">
+          <header className="max-w-xl lg:col-start-1 lg:row-start-1 lg:pt-6">
             <p className={ui.eyebrow}>Uafhængigt orienteringsværktøj</p>
             <h1 id="home-heading" className={`mt-3 ${ui.pageTitle}`}>
               Se registrerede beskyttelsesrum nær dig
             </h1>
-            <p className={`mt-5 ${ui.lead}`}>
-              Søg i BBR&apos;s registreringer af sikringsrumspladser. En registrering er ikke en garanti for offentlig adgang,
-              klargøring eller aktuel fysisk stand.
-            </p>
-            <p className="mt-4 max-w-lg text-sm leading-6 text-gray-400">
-              Resultaterne viser registeroplysninger ved adresser – ikke åbne, kontrollerede eller anviste opholdssteder.
+            <p className="mt-3 text-sm leading-6 text-gray-300 lg:hidden">
+              BBR-registreringer: offentlig adgang, klargøring og stand er ikke bekræftet.
             </p>
           </header>
 
-          <div className="min-w-0">
+          <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
             <div className={`${ui.panel} p-5 sm:p-7`}>
               <div suppressHydrationWarning className="relative z-20">
                 <AddressSearch />
@@ -62,6 +61,16 @@ export default async function Home() {
               <Link href="/kommune" className={ui.secondaryAction + ' sm:border-0 sm:bg-transparent sm:font-medium sm:text-gray-300'}>Kommuner</Link>
               <Link href="/kort" className={ui.secondaryAction + ' sm:border-0 sm:bg-transparent sm:font-medium sm:text-gray-300'}>Landskort</Link>
             </nav>
+          </div>
+
+          <div className="max-w-xl lg:col-start-1 lg:row-start-2">
+            <p className={ui.lead}>
+              Søg i BBR&apos;s registreringer af sikringsrumspladser. En registrering er ikke en garanti for offentlig adgang,
+              klargøring eller aktuel fysisk stand.
+            </p>
+            <p className="mt-4 max-w-lg text-sm leading-6 text-gray-400">
+              Resultaterne viser registeroplysninger ved adresser – ikke åbne, kontrollerede eller anviste opholdssteder.
+            </p>
           </div>
         </section>
 
