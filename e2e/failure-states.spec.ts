@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   await quietThirdPartyRequests(page);
 });
 
-test("afvist placering viser en konkret vej videre", async ({ page }) => {
+test("afvist placering viser en konkret vej videre", { tag: "@full-stack" }, async ({ page }) => {
   const errorReports: unknown[] = [];
   const metricEvents: unknown[] = [];
   await page.route("**/api/errors", async (route) => {

@@ -64,7 +64,7 @@ test("mobilmenuen består kontrollen i åben tilstand", async ({ page }, testInf
   await expectNoAccessibilityViolations(page, testInfo);
 });
 
-test("detaljesiden og den åbne rapportformular består kontrollen", async ({ page }, testInfo) => {
+test("detaljesiden og den åbne rapportformular består kontrollen", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Den databasebaserede detaljekontrol køres én gang.");
   await page.goto(`/beskyttelsesrum/${knownShelterSlug}`);
   await expect(page.getByRole("heading", { name: /Registrering ved/ })).toBeVisible();
@@ -80,7 +80,7 @@ test("detaljesiden og den åbne rapportformular består kontrollen", async ({ pa
   await expectNoAccessibilityViolations(page, testInfo);
 });
 
-test("kommuneoversigten består automatiske WCAG A/AA-kontroller", async ({ page }, testInfo) => {
+test("kommuneoversigten består automatiske WCAG A/AA-kontroller", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Den databasebaserede oversigt køres én gang.");
   await page.goto("/kommune");
   await expect(page.getByRole("heading", { name: "Kommuneoversigt" })).toBeVisible();

@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   await quietThirdPartyRequests(page);
 });
 
-test("centrale sider kan bruges ved 200 procent zoom uden vandret rulning", async ({ page }) => {
+test("centrale sider kan bruges ved 200 procent zoom uden vandret rulning", { tag: "@full-stack" }, async ({ page }) => {
   const routes = [
     { path: "/", heading: "Se registrerede beskyttelsesrum nær dig" },
     { path: "/kommune", heading: "Kommuneoversigt" },

@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   await quietThirdPartyRequests(page);
 });
 
-test("fejlrapportering ender i moderationskø uden en rigtig skrivning", async ({ page }, testInfo) => {
+test("fejlrapportering ender i moderationskø uden en rigtig skrivning", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Rapportflowet behøver kun én browserprofil.");
   let submittedPayload: Record<string, unknown> | null = null;
 

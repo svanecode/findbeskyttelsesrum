@@ -19,16 +19,13 @@ This is the ranked backlog from the full review of logic, UI, security, operatio
 
 ### Running browser tests without secrets
 
-A production build prerenders `/kommune` and needs real Supabase credentials. Without them (typical for agents), run UI-only specs against a dev server:
-
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co \
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_dummy \
-PLAYWRIGHT_HTTP_ORIGIN=1 npx next dev --hostname 127.0.0.1 --port 3100 &
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:3100 npx playwright test e2e/<spec>.ts --project=desktop-chromium
+npm run test:e2e:ui
+# If the pinned Playwright browsers are not installed:
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 ```
 
-Specs that mock `/api/**` and third-party hosts work this way. Product metrics are disabled outside production builds, so assertions on `/api/metrics` fail in dev mode; that is expected. If the pinned Playwright browsers are missing, point a local config at the preinstalled Chromium via `launchOptions.executablePath`. Task TEST-01 makes this a first-class path.
+`playwright.ui.config.ts` starts `next dev` with placeholder Supabase values and runs every spec that mocks its data, in desktop and mobile Chromium. Tests tagged `@full-stack` need live data or a production build (metrics, CSP, prerendered pages) and run only in CI through `playwright.config.ts`. Tag any new test that needs them.
 
 ## Status
 

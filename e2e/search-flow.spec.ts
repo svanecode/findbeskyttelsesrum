@@ -14,7 +14,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   await quietThirdPartyRequests(page);
 });
 
-test("adresseflowet viser resultater uden steddata i URL'en", async ({ page }) => {
+test("adresseflowet viser resultater uden steddata i URL'en", { tag: "@full-stack" }, async ({ page }) => {
   const metricPayloads: Array<Record<string, unknown>> = [];
   await page.route("**/api/metrics", async (route) => {
     metricPayloads.push(route.request().postDataJSON() as Record<string, unknown>);
