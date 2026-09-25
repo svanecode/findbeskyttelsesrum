@@ -12,7 +12,7 @@ Opret én HTTP-monitor med disse værdier:
 - Valgfrit keyword: `"status":"ok"`
 - Alarm: projektets driftsmail
 
-Endpointet returnerer `503`, når kode-, database-, datasæt- eller driftskontrollen er degraded. Det omfatter også et manglende eller for gammelt betroet produktionsheartbeat. En almindelig besøgende kan ikke oprette dette heartbeat.
+Endpointet returnerer `503`, når kode-, database-, datasæt- eller driftskontrollen er degraded. Det omfatter også et manglende, fejlet eller mere end 24 timer gammelt betroet produktionsheartbeat. Et heartbeat, der blot er forsinket, giver `200` med `"warnings": ["trusted_operational_heartbeat_is_late"]`, fordi GitHub ofte afvikler planlagte workflows flere timer for sent. En almindelig besøgende kan ikke oprette dette heartbeat.
 
 Der sendes ingen adresse, koordinater, rapporttekst eller brugeridentifikation til monitoren. Monitoren læser kun et offentligt, aggregeret sundhedsresultat.
 
@@ -29,6 +29,6 @@ Der sendes ingen adresse, koordinater, rapporttekst eller brugeridentifikation t
 
 Ved en alarm læses `/api/health` først. Feltet `degradationReasons` angiver den konkrete årsag. Hvis årsagen begynder med `trusted_operational_heartbeat_`, kontrolleres GitHub-workflowet og repositoryets secrets. En ny succesfuld produktionskontrol opretter et frisk heartbeat og gør endpointet grønt igen. `/api/health/live` er en billig liveness-kontrol uden databasekald og kan bruges til at skelne en utilgængelig deployment fra en deployment med degraderede data eller driftskontroller; den erstatter ikke den fulde `/api/health`-monitor.
 
-Health-endpointets grænse er som standard 90 minutter. Den kan justeres med `HEALTH_MAX_OPERATION_AGE_MINUTES`, men skal altid være længere end det planlagte workflowinterval og kort nok til at opdage en udeblevet kørsel.
+Workflowet er planlagt hver time, men GitHub afvikler planlagte kørsler efter bedste evne og i praksis ofte kun hver 3.-6. time. Et heartbeat ældre end 8 timer (`HEALTH_MAX_OPERATION_AGE_MINUTES`, standard 480) giver en advarsel; et heartbeat ældre end 24 timer (`HEALTH_MAX_OPERATION_HARD_AGE_MINUTES`, standard 1440) giver `503`. Et workflow, der helt holder op med at køre, opdages derfor inden for et døgn, uden at monitoren alarmerer ved almindelige forsinkelser.
 
 UptimeRobot er ikke en del af applikationens funktionalitet. Hvis leverandøren ændrer gratisvilkår, kan monitoren flyttes til en anden gratis tjeneste uden kodeændring, så længe den kontrollerer samme URL og HTTP-status.

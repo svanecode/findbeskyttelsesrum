@@ -10,7 +10,11 @@ export const runtime = "nodejs";
 
 const defaultMaximumDataAgeHours = 48;
 const defaultMinimumPublicRegistrations = 500;
-const defaultMaximumOperationalAgeMinutes = 90;
+// GitHub runs scheduled workflows best-effort and often hours late, so a late
+// heartbeat is a warning. Only a heartbeat older than the hard limit (or a
+// missing/failed one) means the monitoring chain itself is broken.
+const defaultMaximumOperationalAgeMinutes = 480;
+const defaultOperationalHardLimitMinutes = 1_440;
 const healthDependencyCacheSeconds = 30;
 
 async function readHealthDependencies(maximumOperationalAgeMinutes: number) {
@@ -61,6 +65,10 @@ export async function GET() {
     process.env.HEALTH_MAX_OPERATION_AGE_MINUTES,
     defaultMaximumOperationalAgeMinutes,
   );
+  const operationalHardLimitMinutes = Math.max(
+    maximumOperationalAgeMinutes,
+    positiveNumber(process.env.HEALTH_MAX_OPERATION_HARD_AGE_MINUTES, defaultOperationalHardLimitMinutes),
+  );
   const application = {
     gitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
     deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? null,
@@ -79,6 +87,7 @@ export async function GET() {
       ? null
       : Math.round(((Date.now() - latestImportTime) / 3_600_000) * 10) / 10;
     const degradationReasons: string[] = [];
+    const warnings: string[] = [];
 
     if (shelterCount < minimumPublicRegistrations) {
       degradationReasons.push("public_record_count_below_safety_floor");
@@ -101,7 +110,12 @@ export async function GET() {
         degradationReasons.push("trusted_operational_heartbeat_not_ok");
       }
       if (!operationalHealth.isFresh) {
-        degradationReasons.push("trusted_operational_heartbeat_is_stale");
+        const ageMinutes = operationalHealth.ageMinutes;
+        if (typeof ageMinutes === "number" && ageMinutes <= operationalHardLimitMinutes) {
+          warnings.push("trusted_operational_heartbeat_is_late");
+        } else {
+          degradationReasons.push("trusted_operational_heartbeat_is_stale");
+        }
       }
     }
     if (application.environment === "production") {
@@ -115,6 +129,7 @@ export async function GET() {
       status,
       checkedAt,
       ...(degradationReasons.length > 0 ? { degradationReasons } : {}),
+      ...(warnings.length > 0 ? { warnings } : {}),
       application,
       dataset: {
         publicationId: publication?.publicationId ?? null,
@@ -135,7 +150,7 @@ export async function GET() {
         latestImportedAt,
         dataAgeHours,
       },
-      operations: operationalHealth,
+      operations: { ...operationalHealth, hardLimitMinutes: operationalHardLimitMinutes },
     };
 
     return healthResponse(body, status === "ok" ? 200 : 503);
