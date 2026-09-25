@@ -9,7 +9,7 @@ import '@/styles/leaflet-overrides.css'
 
 import GlobalFooter from '@/components/GlobalFooter'
 import MapUnavailableNotice from '@/components/MapUnavailableNotice'
-import RegistrationNotice from '@/components/RegistrationNotice'
+import RegistrationNotice, { RegistrationNoticeLine } from '@/components/RegistrationNotice'
 import type { MapTileStatus } from '@/components/ResilientMapTileLayer'
 import { ui } from '@/components/ui-classes'
 import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
@@ -88,9 +88,16 @@ function formatCapacity(capacity: number | undefined) {
 }
 
 class NearbyRequestError extends Error {
-  constructor(readonly status: number) {
+  constructor(readonly status: number, readonly retryAfterSeconds: number | null = null) {
     super(`app_v2 grouped nearby failed with status ${status}`)
   }
+}
+
+const maximumAutomaticRetryWaitSeconds = 10
+
+function parseRetryAfterSeconds(value: string | null) {
+  const seconds = Number(value)
+  return value !== null && Number.isFinite(seconds) && seconds >= 0 ? seconds : null
 }
 
 function getNearbyLoadErrorMessage(error: unknown) {
@@ -108,7 +115,9 @@ async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<Near
     cache: 'no-store',
   })
 
-  if (!response.ok) throw new NearbyRequestError(response.status)
+  if (!response.ok) {
+    throw new NearbyRequestError(response.status, parseRetryAfterSeconds(response.headers.get('Retry-After')))
+  }
 
   const json = await response.json()
   return adaptAppV2Grouped(json.results ?? [])
@@ -131,6 +140,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const [tileRetryKey, setTileRetryKey] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [isRetryingBusy, setIsRetryingBusy] = useState(false)
   const [srMapSelection, setSrMapSelection] = useState('')
   const shelterRefs = useRef<Record<string, HTMLElement | null>>({})
   const listTabRef = useRef<HTMLButtonElement | null>(null)
@@ -175,12 +185,28 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   useEffect(() => {
     let isMounted = true
 
+    // A busy period can briefly trip the rate limit; retry once before
+    // showing an error so the visitor does not have to act.
+    async function fetchWithOneBusyRetry() {
+      try {
+        return await fetchAppV2GroupedShelters(lat, lng)
+      } catch (error) {
+        if (!(error instanceof NearbyRequestError) || error.status !== 429) throw error
+        const waitSeconds = Math.min(Math.max(error.retryAfterSeconds ?? 2, 1), maximumAutomaticRetryWaitSeconds)
+        setIsRetryingBusy(true)
+        await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000))
+        if (!isMounted) throw error
+        return await fetchAppV2GroupedShelters(lat, lng)
+      }
+    }
+
     async function loadData() {
       const startedAt = performance.now()
       try {
         setIsLoading(true)
         setLoadError(null)
-        const shelterData = await fetchAppV2GroupedShelters(lat, lng)
+        setIsRetryingBusy(false)
+        const shelterData = await fetchWithOneBusyRetry()
         if (isMounted) {
           setShelters(shelterData)
           trackProductMetric(
@@ -195,7 +221,10 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
           trackProductMetric('nearby_error', performance.now() - startedAt)
         }
       } finally {
-        if (isMounted) setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+          setIsRetryingBusy(false)
+        }
       }
     }
 
@@ -211,15 +240,23 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
     return () => cancelAnimationFrame(frame)
   }, [mobileView])
 
+  // On phones the map panel sits below the header; bring it fully into view.
+  const revealMobileMap = useCallback(() => {
+    requestAnimationFrame(() => mapPanelRef.current?.scrollIntoView({ block: 'start' }))
+  }, [])
+
   const selectMobileView = useCallback((view: MobileView, moveFocus = false) => {
     setMobileView(view)
-    if (view === 'map') trackProductMetric('map_opened')
+    if (view === 'map') {
+      trackProductMetric('map_opened')
+      revealMobileMap()
+    }
     if (!moveFocus) return
     requestAnimationFrame(() => {
       if (view === 'list') listTabRef.current?.focus()
-      else mapTabRef.current?.focus()
+      else mapTabRef.current?.focus({ preventScroll: true })
     })
-  }, [])
+  }, [revealMobileMap])
 
   const showShelterOnMap = useCallback((shelter: NearbyResultShelter, trigger: HTMLButtonElement) => {
     selectionReturnRef.current = isDesktopMap ? trigger : mapTabRef.current
@@ -227,8 +264,9 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
     setMobileView('map')
     trackProductMetric('map_opened')
     setSrMapSelection(`${getAddressLine(shelter)} er valgt og vist på kortet.`)
+    if (!isDesktopMap) revealMobileMap()
     requestAnimationFrame(() => {
-      if (!isDesktopMap) mapTabRef.current?.focus()
+      if (!isDesktopMap) mapTabRef.current?.focus({ preventScroll: true })
       mapRef.current?.invalidateSize({ animate: false })
       if (shelter.location) {
         mapRef.current?.setView(
@@ -238,7 +276,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         )
       }
     })
-  }, [isDesktopMap])
+  }, [isDesktopMap, revealMobileMap])
 
   const closeSelectedShelter = useCallback(() => {
     const selectedMarker = mapPanelRef.current?.querySelector<HTMLElement>('.shelter-marker-selected') ?? null
@@ -287,8 +325,8 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
 
   return (
     <main id="main-content" tabIndex={-1} className={ui.page}>
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-5">
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <header className="mb-3 sm:mb-4">
           <div className="flex items-center gap-2 sm:gap-3">
             <Link href="/" className="-ml-2 inline-flex touch-target items-center justify-center rounded-lg p-2 text-gray-400 transition-colors hover:bg-white/[0.05] hover:text-white" aria-label="Tilbage til forsiden">
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -297,16 +335,16 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             </Link>
             <h1 className="break-safe font-space-grotesk text-xl font-semibold tracking-tight sm:text-2xl">Registrerede sikringsrumspladser i nærheden</h1>
           </div>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-400 sm:text-base">
-            Viser op til {nearbyResultLimit} adresser inden for {nearbyRadiusKm} km, sorteret efter afstand i luftlinje.
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-            {originLabel ? <span className="text-gray-300">Søgeområde: {originLabel}</span> : null}
-            <Link href="/" className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-white underline-offset-4 hover:bg-white/5 hover:underline">Skift adresse</Link>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-sm">
+            {originLabel ? <span className="break-safe text-gray-300">Søgeområde: {originLabel}</span> : null}
+            <Link href="/" className="-ml-1 inline-flex min-h-[44px] items-center rounded-lg px-2 text-white underline underline-offset-4 hover:bg-white/5">Skift adresse</Link>
           </div>
+          <p className="max-w-2xl text-xs leading-5 text-gray-400 sm:text-sm">
+            Op til {nearbyResultLimit} adresser inden for {nearbyRadiusKm} km, sorteret efter afstand i luftlinje.
+          </p>
         </header>
 
-        <RegistrationNotice className="mb-4" />
+        <RegistrationNoticeLine className="mb-3 sm:mb-4" />
 
         <div className="sticky top-[calc(4.5rem+env(safe-area-inset-top,0px))] z-30 mb-4 grid grid-cols-2 rounded-lg border border-white/10 bg-[var(--surface-inset)] p-1 lg:hidden" role="tablist" aria-label="Vælg resultatvisning">
           <button
@@ -362,7 +400,9 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
               </div>
             ) : isLoading ? (
               <div className="space-y-3" role="status" aria-live="polite" aria-busy="true">
-                <p className="text-sm text-gray-400">Henter BBR-registreringer …</p>
+                <p className="text-sm text-gray-400">
+                  {isRetryingBusy ? 'Mange søger lige nu – prøver igen om et øjeblik …' : 'Henter BBR-registreringer …'}
+                </p>
                 {[0, 1, 2].map((index) => <div key={index} className="h-40 animate-pulse rounded-lg border border-white/5 bg-white/[0.06] motion-reduce:animate-none" aria-hidden="true" />)}
               </div>
             ) : shelters.length === 0 ? (
@@ -439,6 +479,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                     </article>
                   )
                 })}
+                <RegistrationNotice className="mt-4" />
               </>
             )}
           </section>
@@ -448,7 +489,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             id="nearby-map-panel"
             role={isDesktopMap ? undefined : 'tabpanel'}
             aria-labelledby={isDesktopMap ? undefined : 'nearby-map-tab'}
-            className={`${mobileView === 'map' ? 'block' : 'hidden'} order-2 lg:block`}
+            className={`${mobileView === 'map' ? 'block' : 'hidden'} order-2 scroll-mt-[calc(8.5rem+env(safe-area-inset-top,0px))] lg:block lg:scroll-mt-0`}
             aria-label="Kort med din placering og BBR-registreringer i nærheden"
           >
             <p id="nearby-map-keyboard-hint" className="sr-only">Brug resultatlisten til at vælge et sted eller åbne en detaljeside med tastatur.</p>

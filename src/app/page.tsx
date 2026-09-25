@@ -2,6 +2,7 @@ import Link from 'next/link'
 
 import AddressSearch from '@/components/AddressSearch'
 import GlobalFooter from '@/components/GlobalFooter'
+import OfficialGuidanceLinks from '@/components/OfficialGuidanceLinks'
 import { ui } from '@/components/ui-classes'
 import { createPageMetadata } from '@/lib/seo/metadata'
 
@@ -69,10 +70,13 @@ export default async function Home() {
           aria-labelledby="emergency-guidance-heading"
         >
           <h2 id="emergency-guidance-heading" className="font-semibold text-gray-100">Ved varsling</h2>
-          <p className="max-w-3xl text-gray-400">
-            Gå indenfor, og følg information fra myndighederne. Kortet er til orientering og er ikke en
-            evakueringsanvisning.
-          </p>
+          <div className="max-w-3xl">
+            <p className="text-gray-400">
+              Gå indenfor, og følg information fra myndighederne. Kortet er til orientering og er ikke en
+              evakueringsanvisning.
+            </p>
+            <OfficialGuidanceLinks className="mt-2" />
+          </div>
         </aside>
       </div>
 

@@ -150,3 +150,28 @@ test("et vejnavn indsnævrer søgningen til et husnummer", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Søg", exact: true })).toBeEnabled();
   expect(searches).toContain("Rådhuspladsen , 1550 København V");
 });
+
+test("første resultat er synligt uden at scrolle, og kortet fylder skærmen", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith("mobile-"), "Layoutet kontrolleres i mobilprojekterne.");
+  await installNearbySearchContext(page);
+  await mockNearby(page);
+
+  await page.goto("/shelters/nearby");
+  const firstResult = page.locator("#nearby-list-panel article").first();
+  await expect(firstResult).toBeVisible();
+  const viewport = page.viewportSize();
+  const heading = await firstResult.getByRole("heading").boundingBox();
+  expect(viewport).not.toBeNull();
+  expect(heading).not.toBeNull();
+  expect(heading!.y + heading!.height).toBeLessThanOrEqual(viewport!.height);
+
+  await page.getByRole("tab", { name: "Kort" }).click();
+  await expect(page.locator(".nearby-map")).toBeVisible();
+  await expect.poll(async () => {
+    const map = await page.locator(".nearby-map").boundingBox();
+    if (!map) return 0;
+    const visibleTop = Math.max(map.y, 0);
+    const visibleBottom = Math.min(map.y + map.height, viewport!.height);
+    return (visibleBottom - visibleTop) / viewport!.height;
+  }).toBeGreaterThanOrEqual(0.6);
+});

@@ -21,6 +21,10 @@ const maxRadiusMeters = 100_000;
 const maxLimit = 50;
 const maxCandidateLimit = 500;
 const maximumBodyBytes = 2_048;
+// Danish mobile carriers put many subscribers behind shared IPv4 addresses
+// (CGNAT). During an alert thousands of real visitors can share one address,
+// so this only stops scripted abuse, never a busy carrier network.
+const nearbyRateLimit = { maxRequests: 600, windowMs: 60_000 };
 const apiContract = "app_v2_nearby_grouped_v1";
 const apiSource = "app_v2";
 const activeImportStates = ["active"] as const;
@@ -285,7 +289,7 @@ async function handleNearbyRequest(
 
   const sharedLimit = await consumeDistributedRateLimit(
     request,
-    { maxRequests: 30, windowMs: 60_000 },
+    nearbyRateLimit,
     "nearby",
   );
   if (!sharedLimit.allowed) {
@@ -369,7 +373,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const requestId = getRequestId();
-  if (!rateLimit(request, { maxRequests: 30, windowMs: 60_000 }, "nearby")) {
+  if (!rateLimit(request, nearbyRateLimit, "nearby")) {
     return rateLimitedResponse(requestId, 60);
   }
 

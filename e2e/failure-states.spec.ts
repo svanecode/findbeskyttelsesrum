@@ -150,6 +150,35 @@ for (const status of [429, 502, 504]) {
   });
 }
 
+test("en kortvarig 429 prøves automatisk igen én gang", async ({ page }) => {
+  await installNearbySearchContext(page);
+  // Registered first so the handler below (registered last, runs first) can fall back to it.
+  await mockNearby(page);
+  // Busy for the first 500 ms, so React's dev-mode double mount behaves like production.
+  let calls = 0;
+  let firstCallAt: number | null = null;
+  await page.route("**/api/app-v2/nearby/grouped", async (route) => {
+    calls += 1;
+    firstCallAt ??= Date.now();
+    if (Date.now() - firstCallAt < 500) {
+      await route.fulfill({
+        status: 429,
+        headers: { "Retry-After": "1" },
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "rate_limited" } }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/shelters/nearby");
+
+  await expect(page.getByText("Mange søger lige nu")).toBeVisible();
+  await expect(page.locator("#nearby-list-panel").getByText("Rådhuspladsen 1", { exact: true })).toBeVisible();
+  expect(calls).toBeGreaterThanOrEqual(2);
+});
+
 test("kortfejl bevarer resultatlisten som fallback", async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile-"), "Kortfallback kontrolleres i mobilprojekterne.");
   await installNearbySearchContext(page);
