@@ -26,6 +26,7 @@ Den konkrete Python-opsætning og lokale kommandoer findes i [importerens README
 - [`qa/emergency-utility-review.md`](qa/emergency-utility-review.md) og [`qa/emergency-hardening-release-summary.md`](qa/emergency-hardening-release-summary.md) dokumenterer den seneste samlede gennemgang.
 - [`qa/free-observability.md`](qa/free-observability.md) beskriver gratis produktionskontrol, privatlivsvenlige målinger og de accepterede databaseadvarsler.
 - [`operations/external-monitoring.md`](operations/external-monitoring.md) beskriver den gratis, uafhængige dead-man monitor.
+- [`operations/external-dependencies.md`](operations/external-dependencies.md) er registret over eksterne tjenester, fallback og kendte lukkedatoer.
 - [`operations/mfa-recovery-and-secret-rotation.md`](operations/mfa-recovery-and-secret-rotation.md) er runbook for lockout, kompromittering og nøgleudskiftning.
 - [`privacy/retention.md`](privacy/retention.md) fastlægger de automatiske opbevaringsfrister.
 - Den offentlige `/kontakt`-side og den MFA-beskyttede `/admin/kontakt`-kø udgør den mailfri kontaktkanal; kontaktindhold må aldrig kopieres til GitHub-issues eller almindelige driftslogs.

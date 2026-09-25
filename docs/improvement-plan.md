@@ -51,7 +51,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 | P3-1 | CODE-03 | Split `app-v2-queries.ts` by domain | M | todo | ARCH-01, CODE-01 |
 | P3-2 | OFFLINE-01 | Offline fallback for the last search | M | todo | ARCH-01 |
 | P3-3 | DATA-01 | Explain the "≥ 40 places" filter next to results | XS | done, in review | – |
-| P3-4 | OPS-02 | External dependency register and change watch | XS | todo | ADDR-01 |
+| P3-4 | OPS-02 | External dependency register and change watch | XS | done, in review | ADDR-01 |
 | P3-5 | DEPS-01 | Major upgrades (Tailwind 4, ESLint 10, TypeScript 7) | L | deferred | DX-01 |
 
 Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
