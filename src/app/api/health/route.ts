@@ -3,6 +3,7 @@ import {
   getAppV2PublicDataRevision,
   getAppV2PublicDataStats,
 } from "@/lib/supabase/app-v2-queries";
+import { getOperationalHeartbeatLimits } from "@/lib/operations/heartbeat-limits";
 import { getOperationalHealth } from "@/lib/operations/operational-health";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +11,6 @@ export const runtime = "nodejs";
 
 const defaultMaximumDataAgeHours = 48;
 const defaultMinimumPublicRegistrations = 500;
-// GitHub runs scheduled workflows best-effort and often hours late, so a late
-// heartbeat is a warning. Only a heartbeat older than the hard limit (or a
-// missing/failed one) means the monitoring chain itself is broken.
-const defaultMaximumOperationalAgeMinutes = 480;
-const defaultOperationalHardLimitMinutes = 1_440;
 const healthDependencyCacheSeconds = 30;
 
 async function readHealthDependencies(maximumOperationalAgeMinutes: number) {
@@ -61,14 +57,10 @@ export async function GET() {
     process.env.HEALTH_MIN_PUBLIC_REGISTRATIONS,
     defaultMinimumPublicRegistrations,
   );
-  const maximumOperationalAgeMinutes = positiveNumber(
-    process.env.HEALTH_MAX_OPERATION_AGE_MINUTES,
-    defaultMaximumOperationalAgeMinutes,
-  );
-  const operationalHardLimitMinutes = Math.max(
-    maximumOperationalAgeMinutes,
-    positiveNumber(process.env.HEALTH_MAX_OPERATION_HARD_AGE_MINUTES, defaultOperationalHardLimitMinutes),
-  );
+  const {
+    warningAgeMinutes: maximumOperationalAgeMinutes,
+    hardLimitMinutes: operationalHardLimitMinutes,
+  } = getOperationalHeartbeatLimits();
   const application = {
     gitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
     deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? null,

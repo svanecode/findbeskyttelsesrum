@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getOperationalHeartbeatLimits } from "@/lib/operations/heartbeat-limits";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 
 export type OperationalHealth = {
@@ -21,7 +22,9 @@ function finiteNumber(value: unknown) {
   return Number.isFinite(number) ? number : null;
 }
 
-export async function getOperationalHealth(maximumAgeMinutes = 90): Promise<OperationalHealth> {
+export async function getOperationalHealth(
+  maximumAgeMinutes = getOperationalHeartbeatLimits().warningAgeMinutes,
+): Promise<OperationalHealth> {
   const boundedMaximumAge = Math.max(15, Math.min(Math.round(maximumAgeMinutes), 1_440));
   const { data, error } = await createAppV2AdminClient().rpc("get_operational_health_v1", {
     p_max_age_minutes: boundedMaximumAge,

@@ -46,6 +46,7 @@ test("readiness observes an outage after a healthy response and recovers on the 
         getAppV2CurrentDatasetPublication: async () => ({ publicationId: "publication", isConsistent: true }),
         getAppV2PublicDataRevision: async () => ({ publicationId: "publication", cacheKey: "publication:1" }),
       },
+      "@/lib/operations/heartbeat-limits": await import("../src/lib/operations/heartbeat-limits"),
       "@/lib/operations/operational-health": {
         getOperationalHealth: async () => ({ heartbeatFound: true, status: "ok", isFresh: true }),
       },
@@ -91,6 +92,7 @@ test("a late heartbeat warns, while a missing or day-old heartbeat degrades read
         getAppV2CurrentDatasetPublication: async () => ({ publicationId: "publication", isConsistent: true }),
         getAppV2PublicDataRevision: async () => ({ publicationId: "publication", cacheKey: "publication:1" }),
       },
+      "@/lib/operations/heartbeat-limits": await import("../src/lib/operations/heartbeat-limits"),
       "@/lib/operations/operational-health": {
         getOperationalHealth: async () => operationalHealth,
       },
@@ -188,4 +190,16 @@ test("successful moderation and rollback invalidate cached public detail and lis
       assert.ok(invalidated.some(([value]) => value === path), `${action}: ${path}`);
     }
   }
+});
+
+test("health and the admin operations page share one heartbeat threshold", async () => {
+  const { getOperationalHeartbeatLimits } = await import("../src/lib/operations/heartbeat-limits");
+  const { readFile } = await import("node:fs/promises");
+  assert.deepEqual(getOperationalHeartbeatLimits({}), { warningAgeMinutes: 480, hardLimitMinutes: 1_440 });
+  assert.deepEqual(
+    getOperationalHeartbeatLimits({ HEALTH_MAX_OPERATION_AGE_MINUTES: "2000", HEALTH_MAX_OPERATION_HARD_AGE_MINUTES: "60" }),
+    { warningAgeMinutes: 2000, hardLimitMinutes: 2000 },
+  );
+  const operationalHealth = await readFile(new URL("../src/lib/operations/operational-health.ts", import.meta.url), "utf8");
+  assert.match(operationalHealth, /maximumAgeMinutes = getOperationalHeartbeatLimits\(\)\.warningAgeMinutes/);
 });
