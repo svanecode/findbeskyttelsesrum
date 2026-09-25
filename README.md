@@ -131,12 +131,14 @@ Kør ikke migrationsfiler direkte én efter én uden migrationshistorik. Kontrol
 
 ## Release
 
+Vercel-projektet er forbundet til GitHub-repositoriet. Hver pull request får en beskyttet preview-deployment, og hver merge til `main` udgives automatisk til produktion.
+
 1. Opret en feature branch og en pull request.
-2. Lad de obligatoriske kvalitetskontroller bestå.
-3. Anvend og verificér eventuelle Supabase-migrations før kode, der afhænger af dem, frigives.
-4. Merge til `main`.
-5. Byg og udgiv fra det linkede Vercel-projekt; projektet er ikke afhængigt af automatisk Git-deploy.
-6. Kontrollér browserhistorien og produktionskontrollen mod det deployede Git-SHA.
+2. Lad de obligatoriske kvalitetskontroller bestå, og kontrollér eventuelt preview-deploymentet.
+3. Anvend og verificér eventuelle Supabase-migrations **før** merge, hvis koden afhænger af dem. Merge udgiver straks.
+4. Merge til `main`. Vercel bygger og udgiver produktion automatisk.
+5. Kontrollér produktionskontrollen mod det deployede Git-SHA (`npm run monitor:production` eller `/api/health`).
+6. Ved fejl: brug *Instant Rollback* i Vercel til den forrige produktionsdeployment.
 
 ## Struktur
 
