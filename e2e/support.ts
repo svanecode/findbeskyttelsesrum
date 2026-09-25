@@ -112,7 +112,19 @@ export async function mockAddressSearch(page: Page, response?: unknown[]) {
   });
 }
 
+/**
+ * Makes the results page use the server search (the fallback path) so tests
+ * control the data through mockNearby. Tests of on-device tile ranking mock
+ * the tile endpoint themselves.
+ */
+export async function forceServerNearbySearch(page: Page) {
+  await page.route("**/api/app-v2/nearby/tiles/**", async (route) => {
+    await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+  });
+}
+
 export async function mockNearby(page: Page, status = 200, body: unknown = nearbyResponse) {
+  await forceServerNearbySearch(page);
   await page.route("**/api/app-v2/nearby/grouped", async (route) => {
     await route.fulfill({
       status,
@@ -134,6 +146,7 @@ export async function installNearbySearchContext(
     createdAt: Date.now(),
   };
 
+  await forceServerNearbySearch(page);
   await page.addInitScript((context) => {
     try {
       window.sessionStorage.setItem("findbeskyttelsesrum.nearby-search.v1", JSON.stringify(context));

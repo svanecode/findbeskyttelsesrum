@@ -60,8 +60,10 @@ export default function PrivacyPage() {
             <h2 id="location-heading" className="text-lg font-semibold">Adresse- og placeringssøgning</h2>
             <p className={paragraphClassName}>
               Når du skriver en adresse, sendes søgeteksten fra din browser til Adressevælger, Klimadatastyrelsens offentlige adressetjeneste. Vælger du en adresse, hentes dens placering fra samme tjeneste.
-              Vælger du din aktuelle placering, beder browseren først om din tilladelse. De valgte koordinater sendes
-              derefter i en kortvarig POST-forespørgsel til tjenesten for at beregne afstande.
+              Vælger du din aktuelle placering, beder browseren først om din tilladelse. Afstandene beregnes derefter i
+              din browser ud fra offentlige kortfliser for et område på ca. 80 × 80 km omkring positionen; tjenesten ser
+              kun, hvilke fliser der hentes. Kun hvis fliserne ikke giver et sikkert resultat, sendes de valgte
+              koordinater i en kortvarig POST-forespørgsel til tjenesten.
             </p>
             <p className={secondaryParagraphClassName}>
               Adressetekst og præcise koordinater lægges ikke i URL&apos;en eller i tjenestens produktmålinger. De gemmes
