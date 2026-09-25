@@ -34,9 +34,9 @@ Specs that mock `/api/**` and third-party hosts work this way. Product metrics a
 
 | Rank | ID | Task | Effort | Status | Depends on |
 | --- | --- | --- | --- | --- | --- |
-| P0-1 | ADDR-01 | Replace DAWA with Adressevælger before 2026-10-01 10:00 | M | todo | – |
-| P0-2 | SEC-01 | Patch critical Next.js and sharp advisories | S | todo | – |
-| P0-3 | OPS-01 | Stop `/api/health` reporting 503 because GitHub delays cron | S | todo | – |
+| P0-1 | ADDR-01 | Replace DAWA with Adressevælger before 2026-10-01 10:00 | M | done (`a761375`), needs deploy | – |
+| P0-2 | SEC-01 | Patch critical Next.js and sharp advisories | S | done (`7bf4eea`), needs deploy | – |
+| P0-3 | OPS-01 | Stop `/api/health` reporting 503 because GitHub delays cron | S | done (`2f62aef`), needs deploy | – |
 | P1-1 | PERF-01 | Nearby rate limit must survive shared mobile IPs (CGNAT) | S | todo | – |
 | P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | todo | – |
 | P1-3 | CONTENT-01 | Link to official shelter and warning information | S | todo | – |
@@ -91,7 +91,7 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 - Keep our own accessible combobox (`AddressSearchDAWA`), and **do not** embed Klimadatastyrelsen's widget. Ours has tested keyboard/ARIA behaviour; theirs is unversioned and not on npm.
 - Search endpoint `husnumre` (entrance addresses). Floor/door addresses add nothing for distance ranking.
-- Selecting a `vejnavn` suggestion sets the input to `titel + " "` and searches again (same UX as DAWA's caret behaviour). Selecting a `husnummer` fetches the detail **once** and converts the coordinates. Never fetch details per keystroke.
+- Street suggestions refine the search (verified against the live API): a `vejnavn` sets the input to `titel + " "`; a `navngivenvejpostnummer` sets it to `"<vejnavn> , <postnr> <postdistrikt>"` with the caret after the street name, so typing the number yields `"Nørrebrogade 120, 2200 København N"`, an exact match. The API's `postnummer` parameter does not filter, so it is not used. Selecting a `husnummer` fetches the detail **once** and converts the coordinates. Never fetch details per keystroke.
 - Token from `NEXT_PUBLIC_ADRESSEVAELGER_TOKEN`, defaulting to `adressevaelger123` so the site works with no configuration.
 - Converted coordinates must fall inside the Denmark bounds in `src/lib/maps/denmark-bounds.ts`, or the selection is rejected with the existing error UI.
 
