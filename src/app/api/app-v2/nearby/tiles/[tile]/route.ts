@@ -22,15 +22,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return noStore({ error: "For mange forespørgsler. Vent et øjeblik, og prøv igen." }, 429);
   }
 
+  // The CDN caches by full URL. Query strings would let a client mint
+  // unlimited cache misses for the same tile, so none are accepted.
+  if (request.nextUrl.search) return noStore({ error: "Kortflisen tager ingen parametre." }, 400);
+
   const { tile } = await params;
   const parsed = parseTileKey(tile);
   if (!parsed) return noStore({ error: "Ugyldig kortflise." }, 400);
 
   try {
-    const [{ markers, labels }, revision] = await Promise.all([
-      getAppV2PublicNearbyTile(parsed.bounds),
-      getAppV2PublicDataRevision(),
-    ]);
+    // The tile is built from several reads. If an import or moderation change
+    // lands in between, the rows could mix two datasets, so the revision is
+    // read before and after and a changed revision is never cached.
+    const revisionBefore = await getAppV2PublicDataRevision();
+    const { markers, labels } = await getAppV2PublicNearbyTile(parsed.bounds);
+    const revision = await getAppV2PublicDataRevision();
+    if (revision.cacheKey !== revisionBefore.cacheKey) {
+      return noStore({ error: "Datasættet blev opdateret. Prøv igen." }, 503);
+    }
     const payload: NearbyTilePayload = {
       contract: nearbyTileContract,
       tile,
