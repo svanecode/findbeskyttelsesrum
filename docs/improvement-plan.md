@@ -125,6 +125,8 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 **Files.** `package.json`, `package-lock.json`, `next.config.js`.
 
+**Outcome.** Shipped in #39. On Vercel, `/_next/image` is served by Vercel's platform image service, so `unoptimized: true` does not remove the endpoint there (it does locally and when self-hosted). The Next.js upgrade is the actual fix.
+
 **Verification.** `npm audit --omit=dev` reports 0 high/critical; lint, typecheck, tests and CI Playwright are green; `curl -I https://<preview>/_next/image?url=/favicons/favicon-32x32.png&w=32&q=75` no longer returns an optimised image.
 
 ---
