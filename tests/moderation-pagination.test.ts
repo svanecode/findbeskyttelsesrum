@@ -73,6 +73,7 @@ test("moderation redirects preserve validated filters and pages on successful an
       form.set(isContact ? "caseId" : "reportId", outcome === "invalid_action" ? "invalid" : "94000000-0000-4000-8000-000000000003");
       form.set("action", isContact ? "close" : "resolve_no_change");
       form.set("message", outcome === "invalid_message" ? "x".repeat(4_001) : "Test message");
+      form.set("note", "Kontrolleret mod BBR.");
       form.set("returnPage", outcome === "invalid_context" ? "https://attacker.invalid" : "6");
       form.set("returnStatus", outcome === "invalid_context" ? "reviewing&redirect=https://attacker.invalid" : "reviewing");
       form.set("returnTo", "https://attacker.invalid");
@@ -116,20 +117,62 @@ test("every rendered moderation card form posts the current clamped page and sel
         "react/jsx-runtime": jsxRuntime,
         "next/link": ({ children, ...props }: { children: ReactNode }) => createElement("a", props, children),
         "@/components/ModerationPagination": () => null,
+        "@/components/admin/AdminHeader": () => null,
         "@/lib/moderation/pagination": pagination,
         "@/lib/moderation/auth": { requireModerator: async () => ({ profile: { providerLogin: "Test", role: "moderator" }, supabase: {} }) },
         "@/lib/moderation/reports": { reportStatuses, getModerationReports: async () => queue },
         "@/lib/contact/privacy-contact": privacyContact,
         "@/lib/moderation/privacy-contacts": { getModerationPrivacyContactCases: async () => queue },
         "./actions": { moderateReportAction: "/test-action", moderatePrivacyContactAction: "/test-action", signOutModeratorAction: "/sign-out" },
+        "../actions": { signOutModeratorAction: "/sign-out" },
       },
     );
     const markup = renderToStaticMarkup(await page.default({ searchParams: Promise.resolve({ page: "999", status: "reviewing" }) }));
     const forms = [...markup.matchAll(/<form\b[^>]*action="\/test-action"[^>]*>([\s\S]*?)<\/form>/g)];
-    assert.equal(forms.length, isContact ? 5 : 4, "all actionable card branches must retain return context");
+    // Reports: one decision form per open or reviewing card, one reopen form per closed card.
+    assert.equal(forms.length, isContact ? 5 : 3, "all actionable card branches must retain return context");
     for (const [, form] of forms) {
       assert.match(form, /name="returnPage" value="6"/, "use the database-clamped page, not raw page=999");
       assert.match(form, /name="returnStatus" value="reviewing"/);
     }
+  }
+});
+
+test("closing a report requires a note and never reaches the database without one", async () => {
+  class ActionRedirect extends Error {
+    constructor(readonly path: string) { super(path); }
+  }
+  for (const [action, note, expected] of [
+    ["resolve_no_change", null, "note_required"],
+    ["exclude", "kort", "note_required"],
+    ["reject", "x".repeat(1_001), "note_required"],
+    ["start_review", "Kladde der ikke er en afgørelse", null],
+  ] as const) {
+    const calls: Array<Record<string, unknown>> = [];
+    const actions = await loadServerModule<Record<string, (form: FormData) => Promise<void>>>(
+      new URL("../src/app/admin/actions.ts", import.meta.url),
+      {
+        "next/cache": { revalidatePath: () => undefined },
+        "next/navigation": { redirect: (path: string) => { throw new ActionRedirect(path); } },
+        "@/lib/moderation/auth": { requireModerator: async () => ({ supabase: { schema: () => ({ rpc: async (_name: string, parameters: Record<string, unknown>) => {
+          calls.push(parameters);
+          return { error: null };
+        } }) } }) },
+        "@/lib/moderation/pagination": pagination,
+        "@/lib/moderation/reports": { reportStatuses },
+        "@/lib/moderation/revalidate-public-data": { revalidatePublicData: () => undefined },
+      },
+    );
+    const form = new FormData();
+    form.set("reportId", "94000000-0000-4000-8000-000000000003");
+    form.set("action", action);
+    if (note !== null) form.set("note", note);
+    await assert.rejects(actions.moderateReportAction(form), (error: unknown) => {
+      assert.ok(error instanceof ActionRedirect);
+      assert.equal(new URL(error.path, "https://example.invalid").searchParams.get("error"), expected, action);
+      return true;
+    });
+    assert.equal(calls.length, expected ? 0 : 1, action);
+    if (!expected) assert.equal(calls[0]?.p_note, null, "a note typed before starting review stays out of the audit trail");
   }
 });

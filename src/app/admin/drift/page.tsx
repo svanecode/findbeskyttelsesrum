@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import AdminHeader from "@/components/admin/AdminHeader";
 
 import { requireModerator } from "@/lib/moderation/auth";
 import { getOperationalHealth } from "@/lib/operations/operational-health";
 import { getImportOperations, type ImportPublication, type ImportRun } from "@/lib/operations/import-operations";
 import { getProductMetricSummary } from "@/lib/analytics/product-metrics-server";
 
+import { signOutModeratorAction } from "../actions";
 import { rollbackPublicationAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,8 @@ export const metadata: Metadata = {
 };
 
 const countFormat = new Intl.NumberFormat("da-DK");
+// Matches the cleanup in app_v2.prune_datafordeler_import_candidates_v1.
+const abandonedRunAfterMs = 7 * 60 * 60 * 1000;
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -38,6 +41,10 @@ function runState(run: ImportRun) {
   }
   if (run.publicationStatus === "rejected") {
     return { label: "Afvist af datakontrol", className: "border-red-400/30 bg-red-500/10 text-red-100" };
+  }
+  if (run.status === "running" && Date.now() - new Date(run.startedAt).getTime() > abandonedRunAfterMs) {
+    // The workflow stops an import after six hours; the next import marks it failed.
+    return { label: "Hænger – ryddes ved næste import", className: "border-amber-400/30 bg-amber-500/10 text-amber-100" };
   }
   if (run.status === "running") {
     return { label: "Kører i karantæne", className: "border-blue-400/30 bg-blue-500/10 text-blue-100" };
@@ -97,23 +104,13 @@ export default async function AdminOperationsPage({
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
       <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-wide text-orange-300">Privat administration</p>
-            <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Datadrift</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-400">
-              Data hentes først i karantæne og bliver kun publiceret samlet, når alle automatiske kontroller er bestået.
-            </p>
-          </div>
-          <nav className="flex flex-wrap gap-2" aria-label="Administration">
-            <Link href="/admin" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
-              Fejlrapporter
-            </Link>
-            <Link href="/admin/kontakt" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
-              Kontaktkø
-            </Link>
-          </nav>
-        </header>
+        <AdminHeader
+          current="drift"
+          title="Datadrift"
+          description="Data hentes først i karantæne og bliver kun publiceret samlet, når alle automatiske kontroller er bestået."
+          profile={profile}
+          signOutAction={signOutModeratorAction}
+        />
 
         {params.restored ? (
           <p className="mt-6 rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-100" role="status">
@@ -228,9 +225,9 @@ export default async function AdminOperationsPage({
                     <p className="font-medium">{formatDate(publication.publishedAt)}</p>
                     <p className="mt-1 text-sm text-gray-400">{publicationSourceLabel(publication)} · {countFormat.format(publication.recordCount)} registreringer</p>
                   </div>
-                  {publication.isCurrent ? <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-100">Aktiv</span> : publication.snapshotAvailable ? <span className="rounded-full border border-white/15 px-3 py-1 text-xs text-gray-300">Kan gendannes</span> : <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-gray-400">Historik</span>}
+                  {publication.isCurrent ? <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-100">Aktiv</span> : publication.snapshotAvailable && publication.recordCount > 0 ? <span className="rounded-full border border-white/15 px-3 py-1 text-xs text-gray-300">Kan gendannes</span> : <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-gray-400">Historik</span>}
                 </div>
-                {profile.role === "owner" && !publication.isCurrent && publication.snapshotAvailable ? (
+                {profile.role === "owner" && !publication.isCurrent && publication.snapshotAvailable && publication.recordCount > 0 ? (
                   <details className="mt-4 rounded-lg border border-red-400/20 bg-red-500/5 p-4">
                     <summary className="cursor-pointer py-1 text-sm font-semibold text-red-100">Gendan denne version</summary>
                     <p className="mt-3 text-sm leading-6 text-gray-300">Det offentlige datasæt skifter samlet tilbage til denne version. Redaktionelle rettelser og eksklusioner bevares.</p>

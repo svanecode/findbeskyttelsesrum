@@ -211,6 +211,7 @@ test("successful moderation and rollback invalidate cached public detail and lis
     form.set("publicationId", "94000000-0000-4000-8000-000000000003");
     form.set("action", "exclude");
     form.set("confirmation", "GENDAN");
+    form.set("note", "Bygningen er nedrevet.");
     await assert.rejects(actions[action === "moderate" ? "moderateReportAction" : "rollbackPublicationAction"](form), /redirect:/);
     for (const path of ["/beskyttelsesrum/[slug]", "/kommune/[slug]", "/kommune/[slug]/side/[page]"]) {
       assert.ok(invalidated.some(([value, type]) => value === path && type === "page"), `${action}: ${path}`);
