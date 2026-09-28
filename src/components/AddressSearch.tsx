@@ -157,7 +157,7 @@ export default function AddressSearch() {
   const canSubmit = selectedAddress !== null
 
   const handleSubmit = useCallback(
-    async (event: FormEvent) => {
+    async (event: Pick<FormEvent, 'preventDefault'>) => {
       event.preventDefault()
 
       if (!canSubmit) {
@@ -293,6 +293,10 @@ export default function AddressSearch() {
       if (isOpen && activeIndex !== null && suggestions[activeIndex]) {
         event.preventDefault()
         void selectSuggestion(suggestions[activeIndex])
+      } else if (!canSubmit) {
+        // The submit button stays disabled until an address is chosen, and a
+        // disabled default button blocks implicit submission. Search instead.
+        void handleSubmit(event)
       }
       return
     }

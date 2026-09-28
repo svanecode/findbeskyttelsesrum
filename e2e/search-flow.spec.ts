@@ -247,3 +247,30 @@ test("fliser fra før en publicering hentes igen i den nye version i stedet for 
   expect([...new Set(pinnedRequests)].sort()).toEqual(["222_31/5", "222_32/5"]);
   expect(nearbyRequests).toHaveLength(0);
 });
+
+test("Enter søger igen, når der endnu ikke er valgt en adresse", async ({ page }) => {
+  let searches = 0;
+  await mockAddressSearch(page);
+  await page.unroute("https://adressevaelger.dk/husnumre/soeg**");
+  await page.route("https://adressevaelger.dk/husnumre/soeg**", async (route) => {
+    searches += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ok", beskrivelse: "", fund: [{ type: "husnummer", id: "0a3f507a-ec01-32b8-e044-0003ba298018", titel: selectedAddressLabel }] }),
+    });
+  });
+
+  await page.goto("/");
+  const addressInput = page.getByRole("combobox", { name: "Adresse, by eller postnummer" });
+  await addressInput.fill("Rådhuspladsen 1");
+  await expect(page.getByRole("option", { name: selectedAddressLabel })).toBeVisible();
+  await addressInput.press("Escape");
+  await expect(page.getByRole("option", { name: selectedAddressLabel })).toHaveCount(0);
+  const searchesBeforeEnter = searches;
+
+  await addressInput.press("Enter");
+
+  await expect(page.getByRole("option", { name: selectedAddressLabel })).toBeVisible();
+  expect(searches).toBeGreaterThan(searchesBeforeEnter);
+});
