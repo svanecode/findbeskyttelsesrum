@@ -185,26 +185,10 @@ export async function getAppV2PublicCountryMapFeatures(
 
 async function readAppV2CountryShelterMarkers(
   bounds?: AppV2CountryShelterMarkerBounds,
-): Promise<{ markers: AppV2CountryShelterMarker[]; totalCount: number }> {
+): Promise<AppV2CountryShelterMarker[]> {
   const supabase = createAppV2PublicClient();
   const out: AppV2CountryShelterMarker[] = [];
   let from = 0;
-
-  const countResult = bounds
-    ? await supabase
-        .from("country_marker_public_v2")
-        .select("id", { count: "exact", head: true })
-        .gte("latitude", bounds.south)
-        .lte("latitude", bounds.north)
-        .gte("longitude", bounds.west)
-        .lte("longitude", bounds.east)
-    : await supabase
-        .from("country_marker_public_v2")
-        .select("id", { count: "exact", head: true });
-
-  if (countResult.error) {
-    throw new Error(`Could not count app_v2 country shelter markers: ${countResult.error.message}`);
-  }
 
   while (true) {
     const to = from + sitemapShelterPageSize - 1;
@@ -252,11 +236,11 @@ async function readAppV2CountryShelterMarkers(
     from += sitemapShelterPageSize;
   }
 
-  return { markers: out, totalCount: countResult.count ?? out.length };
+  return out;
 }
 
 export async function getAppV2CountryShelterMarkers(): Promise<AppV2CountryShelterMarker[]> {
-  return (await readAppV2CountryShelterMarkers()).markers;
+  return readAppV2CountryShelterMarkers();
 }
 
 /** Same as {@link getAppV2CountryShelterMarkers} (`country_marker_public`). */
@@ -266,6 +250,6 @@ export async function getAppV2PublicCountryShelterMarkers(): Promise<AppV2Countr
 
 export async function getAppV2PublicCountryShelterMarkersInBounds(
   bounds: AppV2CountryShelterMarkerBounds,
-): Promise<{ markers: AppV2CountryShelterMarker[]; totalCount: number }> {
-  return readAppV2CountryShelterMarkers(bounds);
+): Promise<{ markers: AppV2CountryShelterMarker[] }> {
+  return { markers: await readAppV2CountryShelterMarkers(bounds) };
 }
