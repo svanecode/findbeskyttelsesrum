@@ -52,6 +52,8 @@ than 90 days are removed during the next increment.
 The model deliberately has no columns for IP address, user, session, cookies, URL, search text, address or coordinates.
 The MFA-protected `/admin/drift` page reads only a 30-day aggregate through the server-side service role.
 
+The hourly production check posts one real `data_explanation_opened` event to prove that the write path works end to end, so that counter includes up to 24 synthetic events a day (about 720 in the 30-day view). Subtract them when reading it.
+
 ## Emergency load shedding
 
 Set `PRODUCT_METRICS_DISABLED=1` in the Vercel production environment and redeploy to stop every product-metric database write, including the metric rate-limit bucket. `/api/metrics` then answers `202` without touching the database, and the search keeps working. `scripts/monitor/product-metrics-health.mjs` will report missing aggregates while the switch is on; remove the variable and redeploy afterwards.
