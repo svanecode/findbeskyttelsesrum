@@ -173,7 +173,7 @@ export function rankNearbyGroupsFromTiles(
   }
 
   // Same tie-break as groupNearbyRows on the server.
-  rows.sort((a, b) => a.distanceMeters - b.distanceMeters || a.slug.localeCompare(b.slug));
+  rows.sort((a, b) => a.distanceMeters - b.distanceMeters || a.slug.localeCompare(b.slug, "da-DK"));
 
   const groups = new Map<string, RankableRow[]>();
   for (const row of rows) {
@@ -186,7 +186,7 @@ export function rankNearbyGroupsFromTiles(
   const ranked = Array.from(groups.entries())
     .map(([groupKey, members]) => ({ groupKey, members, representative: members[0]! }))
     .sort((a, b) => a.representative.distanceMeters - b.representative.distanceMeters
-      || a.groupKey.localeCompare(b.groupKey))
+      || a.groupKey.localeCompare(b.groupKey, "da-DK"))
     .slice(0, options.limit);
 
   const coverage = guaranteedCoverageMeters(origin.latitude, origin.longitude);
