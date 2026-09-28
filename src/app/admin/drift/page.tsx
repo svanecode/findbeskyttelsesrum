@@ -4,7 +4,6 @@ import AdminHeader from "@/components/admin/AdminHeader";
 import { requireModerator } from "@/lib/moderation/auth";
 import { getOperationalHealth } from "@/lib/operations/operational-health";
 import { getImportOperations, type ImportPublication, type ImportRun } from "@/lib/operations/import-operations";
-import { getProductMetricSummary } from "@/lib/analytics/product-metrics-server";
 
 import { signOutModeratorAction } from "../actions";
 import { rollbackPublicationAction } from "./actions";
@@ -71,9 +70,8 @@ export default async function AdminOperationsPage({
   searchParams: Promise<{ restored?: string; error?: string }>;
 }) {
   const { profile, supabase } = await requireModerator(true);
-  const [operations, productMetrics, operationalHealth, params] = await Promise.all([
+  const [operations, operationalHealth, params] = await Promise.all([
     getImportOperations(supabase),
-    getProductMetricSummary(30).catch(() => []),
     getOperationalHealth().catch(() => null),
     searchParams,
   ]);
@@ -82,24 +80,6 @@ export default async function AdminOperationsPage({
     ? Math.round((current.coordinateCount / current.recordCount) * 1000) / 10
     : 0;
   const currentMappingCoverage = current ? mappingCoverage(current.qualityMetrics) : null;
-  const metricCounts = new Map(productMetrics.map((metric) => [metric.eventName, metric.eventCount]));
-  const metricCount = (eventName: (typeof productMetrics)[number]["eventName"]) => metricCounts.get(eventName) ?? 0;
-  const searchesStarted = metricCount("address_search_started") + metricCount("geolocation_requested");
-  const searchesCompleted = metricCount("address_selected") + metricCount("geolocation_succeeded");
-  const resultLoads = metricCount("nearby_results_loaded") + metricCount("nearby_no_results");
-  const gpsDecisions = metricCount("geolocation_succeeded") + metricCount("geolocation_denied");
-  const errorCount = [
-    "address_search_error",
-    "geolocation_error",
-    "nearby_error",
-    "report_error",
-    "client_error",
-  ].reduce((total, eventName) => total + (metricCounts.get(eventName as (typeof productMetrics)[number]["eventName"]) ?? 0), 0);
-  const nearbyDuration = productMetrics.find((metric) => metric.eventName === "nearby_results_loaded");
-  const averageNearbyMs = nearbyDuration && nearbyDuration.durationSampleCount > 0
-    ? Math.round(nearbyDuration.durationTotalMs / nearbyDuration.durationSampleCount)
-    : 0;
-  const percentage = (part: number, total: number) => total > 0 ? Math.round((part / total) * 100) : 0;
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
@@ -161,29 +141,6 @@ export default async function AdminOperationsPage({
           </dl>
           <p className="mt-4 text-xs leading-5 text-gray-400">
             Kun den betroede serverbaserede produktionskontrol kan oprette heartbeat. Besøgendes produktmålinger kan ikke holde driftsstatus kunstigt grøn.
-          </p>
-        </section>
-
-        <section className="mt-8 rounded-xl border border-white/10 bg-white/[0.04] p-5 sm:p-6" aria-labelledby="usage-heading">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-300">Seneste 30 dage</p>
-              <h2 id="usage-heading" className="mt-2 text-2xl font-semibold">Brug og stabilitet</h2>
-            </div>
-            <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-100">
-              Gratis og anonymt
-            </span>
-          </div>
-          <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Startede søgninger</dt><dd className="mt-1 text-2xl font-semibold">{countFormat.format(searchesStarted)}</dd></div>
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Søgninger med valgt område</dt><dd className="mt-1 text-2xl font-semibold">{percentage(searchesCompleted, searchesStarted)}%</dd></div>
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Resultater med fund</dt><dd className="mt-1 text-2xl font-semibold">{percentage(metricCount("nearby_results_loaded"), resultLoads)}%</dd></div>
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Afvist GPS-adgang</dt><dd className="mt-1 text-2xl font-semibold">{percentage(metricCount("geolocation_denied"), gpsDecisions)}%</dd></div>
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Gennemsnitlig resultatindlæsning</dt><dd className="mt-1 text-2xl font-semibold">{averageNearbyMs > 0 ? `${(averageNearbyMs / 1000).toLocaleString("da-DK", { maximumFractionDigits: 1 })} sek.` : "—"}</dd></div>
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Registrerede tekniske fejl</dt><dd className="mt-1 text-2xl font-semibold">{countFormat.format(errorCount)}</dd><dd className="mt-1 text-xs text-gray-400">{countFormat.format(metricCount("report_submitted"))} brugerrapporter indsendt</dd></div>
-          </dl>
-          <p className="mt-4 text-xs leading-5 text-gray-400">
-            Kun timevise tællere gemmes. Målingerne indeholder ikke IP-adresser, bruger-id, adresser, koordinater, søgetekst eller fulde URL’er.
           </p>
         </section>
 

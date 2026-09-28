@@ -50,7 +50,7 @@ count. The public API roles cannot read or write it. The ingest endpoint accepts
 than 90 days are removed during the next increment.
 
 The model deliberately has no columns for IP address, user, session, cookies, URL, search text, address or coordinates.
-The MFA-protected `/admin/drift` page reads only a 30-day aggregate through the server-side service role.
+The MFA-protected `/admin/statistik` page reads only aggregates through the server-side service role: the 30-day totals and `app_v2.get_admin_statistics_v1`, which returns daily counts (Europe/Copenhagen) and weekly report and contact-case counts with median handling times, but no text or identities. The counters record actions, not unique visitors.
 
 The hourly production check posts one real `data_explanation_opened` event to prove that the write path works end to end, so that counter includes up to 24 synthetic events a day (about 720 in the 30-day view). Subtract them when reading it.
 
