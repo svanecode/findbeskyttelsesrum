@@ -84,7 +84,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 | `npm run test:release` | Kører den samlede lokale releasekontrol. |
 | `npm run monitor:production` | Kontrollerer den live brugerrejse og dataalder. |
 
-Pull requests skal bestå lint, typekontrol, kode- og databaseinvarianter, produktionsbuild og hele browserhistorien i Chromium og WebKit. De samme kontroller gentages ved push til `main`.
+Pull requests skal bestå lint, typekontrol, kode- og databaseinvarianter, produktionsbuild og hele browserhistorien i Chromium, Firefox og WebKit. De samme kontroller gentages ved push til `main`.
 
 Parity- og sanitykontroller kræver de relevante Supabase-nøgler og fejler, hvis konfigurationen mangler. De bruger samme publishable-key-konfiguration som appen; den ældre `NEXT_PUBLIC_SUPABASE_ANON_KEY` understøttes fortsat. `test:release` kræver også `SUPABASE_SECRET_KEY` til de private paritylæsninger. Nøglen skal kun findes lokalt eller i betroede driftsjob, aldrig i pull request-job.
 
@@ -123,7 +123,7 @@ Kør ikke migrationsfiler direkte én efter én uden migrationshistorik. Kontrol
 - Administratorer logger ind gennem GitHub OAuth, skal være på tilladelseslisten og skal gennemføre MFA.
 - `/admin/drift` viser importer, kvalitetskontroller, aktivt datasæt, rollback og 30 dages aggregerede driftstal.
 - `/api/health` viser deployet Git SHA, deployment-ID, byggetid, publication-ID, offentlig datarevision, import-run-ID og dataalder. Gamle eller inkonsistente data giver `503 degraded`.
-- Produktionsflowet kontrolleres automatisk to gange i timen. Fejl opretter en GitHub-issue; næste succes lukker den igen.
+- Produktionsflowet kontrolleres automatisk én gang i timen (GitHub kan forsinke planlagte kørsler med flere timer). Fejl opretter en GitHub-issue; næste succes lukker den igen.
 - Et service-only heartbeat kobler health-status til den seneste gennemførte produktionskontrol. En gratis ekstern monitor kan derfor også opdage, hvis GitHub-workflowet slet ikke starter.
 - De egne driftstællere indeholder ikke IP-adresse, bruger-id, adresse, koordinater, søgetekst eller fuld URL og slettes senest efter 90 dage.
 - Rapportfritekst og identificerende auditfelter redigeres efter 24 måneder; struktureret audit slettes efter 5 år. Se [`docs/privacy/retention.md`](docs/privacy/retention.md).

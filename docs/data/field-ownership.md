@@ -29,7 +29,7 @@ Define which active `app_v2` fields belong to the importer, manual operations, o
 | `source_summary` | admin-only enrichment / future derived | no | Kept out of importer ownership for now. |
 | `is_featured` | admin-only enrichment | no | Editorial curation. |
 | `featured_rank` | admin-only enrichment | no | Editorial ordering. |
-| `import_state` | official import owned | yes | `active`, `missing_from_source`, or `suppressed`. |
+| `import_state` | official import owned | yes | `active` or `missing_from_source`, set by every import. `suppressed` is allowed by the schema but is overwritten by the next import; use an exclusion to hide a registration. |
 | `last_seen_at` | official import owned | yes | Set when a source record appears in a successful run. |
 | `last_imported_at` | official import owned | yes | Importer refresh timestamp. |
 | `canonical_source_name` | official import owned | yes | Stable source namespace. |
@@ -41,7 +41,7 @@ Define which active `app_v2` fields belong to the importer, manual operations, o
 | `code` | official import owned | yes | Stable municipality identity anchor. |
 | `slug` | internal operational | yes | Public route key for later cutover. |
 | `name` | official import owned | yes | Canonical display name. |
-| `region_name` | official import owned | yes | Metadata from bundled municipality map. |
+| `region_name` | official import owned | yes | Not populated: the bundled municipality map has no regions, so every import writes `null`. |
 | `description` | admin-only enrichment | no | Public/editorial copy, not importer data. |
 
 ## Source Fields

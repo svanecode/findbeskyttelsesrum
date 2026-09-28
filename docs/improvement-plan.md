@@ -37,7 +37,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 | P1-1 | PERF-01 | Nearby rate limit must survive shared mobile IPs (CGNAT) | S | done (#40), live 2026-09-25 | – |
 | P1-2 | UX-01 | First result above the fold; map tab fills the screen | M | done (#40), live 2026-09-25 | – |
 | P1-3 | CONTENT-01 | Link to official shelter and warning information | S | done (#40), live 2026-09-25 | – |
-| P1-4 | PERF-02 | CDN-cache the revision-keyed country map API | M | steps 1–2 done (#40), live; step 3 (grid snapping) done, in review | – |
+| P1-4 | PERF-02 | CDN-cache the revision-keyed country map API | M | done (#40, #50), live 2026-09-25 | – |
 | P1-5 | ARCH-01 | Nearby tiles with on-device ranking | L | done (#42), live 2026-09-25 | PERF-01 |
 | P1-6 | PERF-03 | Cut database writes per visitor action | S | done (#40, revised: kill switch only), live 2026-09-25 | – |
 | P2-1 | DX-01 | Automated dependency updates | S | done (#40), live 2026-09-25 | SEC-01 |
@@ -48,7 +48,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:e2e:ui
 | P2-6 | UX-03 | Fix wrapping of secondary links on the home page | XS | done (#40), live 2026-09-25 | – |
 | P2-7 | CODE-01 | Remove dead diagnostics from the nearby API | S | done (#40), live 2026-09-25 | ARCH-01 (optional) |
 | P2-8 | CODE-02 | Shared helper for user-facing fetch errors | XS | done (#40), live 2026-09-25 | – |
-| P3-1 | CODE-03 | Split `app-v2-queries.ts` by domain | M | done, in review | ARCH-01, CODE-01 |
+| P3-1 | CODE-03 | Split `app-v2-queries.ts` by domain | M | done (#50), live 2026-09-25 | ARCH-01, CODE-01 |
 | P3-2 | OFFLINE-01 | Offline fallback for the last search | M | done (#49), live 2026-09-25 | ARCH-01 |
 | P3-3 | DATA-01 | Explain the "≥ 40 places" filter next to results | XS | done (#40), live 2026-09-25 | – |
 | P3-4 | OPS-02 | External dependency register and change watch | XS | done (#40), live 2026-09-25 | ADDR-01 |
@@ -158,12 +158,12 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 - Nearby: raise both limits to **600/min per IP**. This still stops a single abusive script, while a CGNAT pool keeps working.
 - The distributed limiter stays fail-open (current behaviour).
-- On 429 the client retries **once** automatically after `Retry-After` (capped at 10 s), showing "Mange søger lige nu – prøver igen …", before falling back to the error panel.
+- On 429 the client retries **once** automatically after `Retry-After`, but only when that wait is at most 10 s (a longer wait shows the error at once), showing "Mange søger lige nu – prøver igen …", before falling back to the error panel.
 - Long-term relief comes from ARCH-01, which removes this endpoint from the hot path.
 
 **Files.** `src/app/api/app-v2/nearby/grouped/route.ts`, `src/app/shelters/nearby/client.tsx`, `e2e/failure-states.spec.ts`.
 
-**Verification.** Unit/route test: request 31 succeeds. E2E: a mocked 429 with `Retry-After: 1` followed by 200 renders results without user action. A permanent 429 still shows the 429 message from commit `8ee6a45`.
+**Verification.** E2E: a mocked 429 with `Retry-After: 1` followed by 200 renders results without user action. A permanent 429 still shows the 429 message from commit `8ee6a45`.
 
 ---
 
@@ -207,7 +207,7 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 1. For 200 responses where `requestedRevision === currentRevision`, send `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=60`. 400/409/429/502 stay `no-store`. (Revised after review: a 24 h lifetime would let a tab on an older revision keep getting cached data and never see the 409 that reloads corrected data. 5 minutes keeps the surge benefit.)
 2. Move the distributed rate limit **after** the revision check, so a cache hit never reaches it. The in-memory limiter stays first.
-3. *(Done: `countryMapGridCell` in `src/lib/maps/country-map-viewport.ts`, about two map tiles per cell, a whole multiple of the server step.)* Snap client requests to a **fixed grid per zoom level** (tile-aligned bounds, e.g. 256-px tile boundaries expanded to the viewport), rather than a viewport-derived buffer, so different users produce identical URLs. Keep `quantizeCountryMapViewport` as the server-side guard.
+3. *(Done: `countryMapGridCell` in `src/lib/maps/country-map-viewport.ts`, about two map tiles per cell, a whole multiple of the server step. Measured in the 2026-09-26 review, identical URLs occur only when all four padded edges snap to the same cells: about 20–30 % of equal-size viewports in one cell, rarely between a phone and a desktop. The URL space per zoom is finite, which is the real benefit.)* Snap client requests to a **fixed grid per zoom level** (tile-aligned bounds, e.g. 256-px tile boundaries expanded to the viewport), rather than a viewport-derived buffer, so different users produce identical URLs. Keep `quantizeCountryMapViewport` as the server-side guard.
 
 **Files.** `src/app/api/country-shelters/route.ts`, `src/lib/maps/country-map-viewport.ts`, `src/app/kort/country-map.tsx`, `docs/data/country-map.md`, tests for viewport snapping.
 
@@ -220,7 +220,7 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 **Why.** Every search today is a POST with exact coordinates. That means one rate-limit write, one Haversine scan over a 50 km bounding box (≈ 20k rows around Copenhagen, no spatial index), and a label query. POSTs cannot be cached. The whole public dataset is only **~10,100 registrations**, which is small enough to serve as static, CDN-cached tiles and rank on the device. That brings:
 
 - **Scalability:** zero database work per search on a cache hit.
-- **Privacy:** only a coarse tile ID leaves the device, never the exact position.
+- **Privacy:** on the tile path only a coarse tile ID leaves the device. When tiles fail, or too few results lie inside the loaded block (common in sparse rural areas and on small islands), the client falls back to the POST search with the exact position; `/privatliv` says so.
 - **Resilience:** it keeps working if Supabase is slow, and it is the foundation for OFFLINE-01.
 
 **Decision.**
@@ -295,7 +295,7 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 **Why.** `src/lib/rate-limit.ts` prefers `x-forwarded-for`, while `src/lib/distributed-rate-limit.ts` prefers `x-vercel-forwarded-for`. `isSameOrigin` is copy-pasted in four route files plus `privacy-contact-api.ts`. Inconsistency here becomes a bypass later.
 
-**Decision.** New `src/lib/http/request-context.ts` exporting `getClientAddress(request)` (order: `x-vercel-forwarded-for`, `x-real-ip`, first `x-forwarded-for`) and `isSameOriginRequest(request)`. Replace all copies. No behaviour change except the header order in the in-memory limiter.
+**Decision.** New `src/lib/http/request-context.ts` exporting `getClientAddress(request)` (as implemented: `x-vercel-forwarded-for`, then first `x-forwarded-for`, then `x-real-ip`) and `isSameOriginRequest(request)`. Replace all copies. No behaviour change except the header order in the in-memory limiter.
 
 **Verification.** Unit tests for header precedence and origin parsing; `rg "function isSameOrigin" src` returns one match.
 
@@ -373,7 +373,7 @@ Recorded so future reviews don't redo the work:
 - Admin: GitHub OAuth + allowlist + MFA, enforced again in the database (`aal2` checked in every moderation RPC); rollback is owner-only and requires typed confirmation.
 - Contact portal: 160-bit access keys, only hashes stored, no email.
 - Public API input validation, bounded body reads, same-origin checks and honeypots.
-- CSP without `unsafe-eval` in production, `script-src-attr 'none'`, `frame-ancestors 'none'`; HSTS preload.
+- CSP without `unsafe-eval` in production, `script-src-attr 'none'`, `frame-ancestors 'none'`; HSTS preload. Note: `script-src` keeps `'unsafe-inline'` without nonces because pages are statically generated (see `next.config.js`), so the CSP is not a defence against script injection. The known sinks (JSON-LD, Leaflet popups) are escaped.
 - Nearby query ranks by true distance before applying the candidate budget; RPC arguments are bounded in SQL.
 - Functions run in `dub1` (Dublin), close to the EU database; live latency 0.7–1.3 s TTFB from outside the EU.
 - Leaflet popup HTML is escaped; JSON-LD is serialized safely.
