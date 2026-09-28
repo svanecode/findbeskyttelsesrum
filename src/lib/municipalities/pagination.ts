@@ -29,3 +29,24 @@ export function paginateMunicipalityGroups<T>(items: T[], page: number) {
     lastItemNumber: startIndex + pageItems.length,
   };
 }
+
+/**
+ * Page links to show: the first and last page and two on each side of the
+ * current one, with "gap" where pages are left out. Previous/next links still
+ * reach every page.
+ */
+export function municipalityPageLinks(currentPage: number, totalPages: number): Array<number | "gap"> {
+  const pages = new Set([1, totalPages]);
+  for (let page = currentPage - 2; page <= currentPage + 2; page += 1) {
+    if (page >= 1 && page <= totalPages) pages.add(page);
+  }
+  const sorted = Array.from(pages).sort((a, b) => a - b);
+  const links: Array<number | "gap"> = [];
+  for (const page of sorted) {
+    const previous = links[links.length - 1];
+    if (typeof previous === "number" && page - previous === 2) links.push(previous + 1);
+    else if (typeof previous === "number" && page - previous > 2) links.push("gap");
+    links.push(page);
+  }
+  return links;
+}

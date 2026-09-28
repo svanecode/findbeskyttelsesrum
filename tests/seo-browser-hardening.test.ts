@@ -9,6 +9,7 @@ import {
   getMunicipalityPagePath,
   paginateMunicipalityGroups,
   parseMunicipalityPage,
+  municipalityPageLinks,
 } from "../src/lib/municipalities/pagination";
 import { getBreadcrumbJsonLd, serializeJsonLd } from "../src/lib/seo/json-ld";
 import { createPageMetadata } from "../src/lib/seo/metadata";
@@ -155,4 +156,13 @@ test("production CSP narrows scripts and browser capabilities without breaking r
 
 test("the expired service-worker cleanup endpoint is gone", () => {
   assert.equal(existsSync(serviceWorkerUrl), false);
+});
+
+test("municipality page links are windowed around the current page", () => {
+  assert.deepEqual(municipalityPageLinks(1, 1), [1]);
+  assert.deepEqual(municipalityPageLinks(1, 5), [1, 2, 3, 4, 5]);
+  assert.deepEqual(municipalityPageLinks(1, 67), [1, 2, 3, "gap", 67]);
+  assert.deepEqual(municipalityPageLinks(34, 67), [1, "gap", 32, 33, 34, 35, 36, "gap", 67]);
+  assert.deepEqual(municipalityPageLinks(5, 67), [1, 2, 3, 4, 5, 6, 7, "gap", 67], "a single skipped page is shown, not hidden");
+  assert.deepEqual(municipalityPageLinks(67, 67), [1, "gap", 65, 66, 67]);
 });
