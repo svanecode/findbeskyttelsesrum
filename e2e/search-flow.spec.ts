@@ -197,7 +197,7 @@ test("resultater beregnes i browseren fra kortfliser uden at sende positionen", 
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ contract: "nearby-tile-v1", tile, revision: "rev:1", labels: { "320": "Kontor" }, rows }),
+      body: JSON.stringify({ contract: "nearby-tile-v1", tile, revision: "publication:1", labels: { "320": "Kontor" }, rows }),
     });
   });
 
@@ -207,5 +207,43 @@ test("resultater beregnes i browseren fra kortfliser uden at sende positionen", 
   await expect(page.locator("#nearby-list-panel article")).toHaveCount(10);
   // Dev mode mounts twice; compare the set of tiles.
   expect([...new Set(tileRequests)].sort()).toEqual(["221_30", "221_31", "221_32", "222_30", "222_31", "222_32", "223_30", "223_31", "223_32"]);
+  expect(nearbyRequests).toHaveLength(0);
+});
+
+test("fliser fra før en publicering hentes igen i den nye version i stedet for at sende positionen", async ({ page }) => {
+  await installNearbySearchContext(page);
+  const nearbyRequests: string[] = [];
+  const pinnedRequests: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/app-v2/nearby/grouped") nearbyRequests.push(url.pathname);
+  });
+  // The CDN still holds 222_31 and 222_32 from revision 4; the rest are already at revision 5.
+  await page.route("**/api/app-v2/nearby/tiles/**", async (route) => {
+    const segments = new URL(route.request().url()).pathname.split("/").slice(5);
+    const [tile, pinned] = segments as [string, string | undefined];
+    if (pinned) pinnedRequests.push(`${tile}/${pinned}`);
+    const stale = !pinned && (tile === "222_31" || tile === "222_32");
+    const rows = tile === "222_31"
+      ? Array.from({ length: 12 }, (_, index) => [
+          `flise-${index}`, `${stale ? "Gammelvej" : "Flisevej"} ${index + 1}`, "1550", "København V",
+          55.6765 + index * 0.001, 12.5683, 100 + index, "320",
+        ])
+      : [];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        contract: "nearby-tile-v1", tile, revision: stale ? "publication-a:4" : "publication-b:5",
+        labels: { "320": "Kontor" }, rows,
+      }),
+    });
+  });
+
+  await page.goto("/shelters/nearby");
+
+  await expect(page.locator("#nearby-list-panel").getByText("Flisevej 1", { exact: true })).toBeVisible();
+  await expect(page.locator("#nearby-list-panel").getByText("Gammelvej 1", { exact: true })).toHaveCount(0);
+  expect([...new Set(pinnedRequests)].sort()).toEqual(["222_31/5", "222_32/5"]);
   expect(nearbyRequests).toHaveLength(0);
 });

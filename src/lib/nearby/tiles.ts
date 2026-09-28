@@ -226,6 +226,15 @@ export function rankNearbyGroupsFromTiles(
   });
 }
 
+/**
+ * The public revision counter from a revision key such as "<publication>:42".
+ * It increases with every public data change, so the larger one is newer.
+ */
+export function revisionCounter(revision: string): number | null {
+  const counter = Number(revision.slice(revision.lastIndexOf(":") + 1));
+  return revision.includes(":") && Number.isSafeInteger(counter) && counter > 0 ? counter : null;
+}
+
 export function isNearbyTilePayload(value: unknown, tile: string): value is NearbyTilePayload {
   if (!value || typeof value !== "object") return false;
   const payload = value as Partial<NearbyTilePayload>;

@@ -8,6 +8,7 @@ import {
   nearbyTileContract,
   parseTileKey,
   rankNearbyGroupsFromTiles,
+  revisionCounter,
   surroundingTileKeys,
   tileKeyFor,
   type NearbyTilePayload,
@@ -119,4 +120,11 @@ test("tile payload validation rejects malformed data", () => {
   assert.equal(isNearbyTilePayload({ ...tile([]), contract: "other" }, key), false);
   assert.equal(isNearbyTilePayload({ ...tile([]), rows: [["a", "A", "1", "B", "x", 1, 1, null]] }, key), false);
   assert.equal(isNearbyTilePayload(null, key), false);
+});
+
+test("revision counters are read from the revision key and compare by age", () => {
+  assert.equal(revisionCounter("0b9c-publication:42"), 42);
+  assert.equal(revisionCounter("aggregate:7"), 7);
+  assert.ok(revisionCounter("p:10")! > revisionCounter("p:9")!, "numeric, not lexicographic");
+  for (const invalid of ["rev", "p:", "p:0", "p:-1", "p:1.5", "p:abc"]) assert.equal(revisionCounter(invalid), null, invalid);
 });

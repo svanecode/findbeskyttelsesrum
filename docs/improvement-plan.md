@@ -237,6 +237,7 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 - Payload (Brotli, as browsers receive it) for the 3×3 block: Copenhagen centre 149 KB (the densest block), Aarhus 51 KB, Mors 13 KB. All tiles were CDN hits after the first request. The slugs are about half of it; dropping them would need a second lookup step and isn't worth it yet.
 - Time to first result on a phone profile, Copenhagen: 1.3–1.5 s via tiles versus 1.9–2.5 s via the POST search, with no position sent.
 - Decided during implementation: no revision in the tile URL. Tiles use the same 5-minute CDN lifetime as the country map (after the #40 review), so there is no 409 flow. The client falls back to POST if the 9 tiles report mixed revisions.
+- Revised 2026-09-28 (full review M6): after a publication the 9 tiles expire at different times, so every search fell back to POST for up to about six minutes. The client now refetches only the older tiles at `/api/app-v2/nearby/tiles/<tile>/<revision counter>`. The server answers that URL only while the revision is current (else 409 with `currentRevision`), so it is cached for a day. POST remains the fallback if the revisions still differ.
 
 **Original spike note.** Measure gzip size of the 9 Copenhagen tiles. Target ≤ 150 KB total. If it's larger, halve the tile size and load 5×5 around the centre, or drop `applicationCodeLabel` into a code → label dictionary.
 
