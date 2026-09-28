@@ -227,7 +227,7 @@ Effort: XS < 1 h, S ≤ ½ day, M ≤ 2 days, L > 2 days.
 
 - Tile grid: 0.25° latitude × 0.40° longitude (≈ 28 × 26 km). Tile key = `floor(lat/0.25)_floor(lng/0.40)`.
 - Endpoint `GET /api/app-v2/nearby/tiles/<revision>/<tileKey>` returns a compact columnar JSON: `{revision, rows: {slug[], addressLine1[], postalCode[], city[], lat[], lng[], capacity[], applicationCodeLabel[]}}`, built from the same public view as `get_nearby_shelters_public_v2` (identical eligibility). Cache: `public, s-maxage=31536000, immutable`. A mismatched revision → 409 with `currentRevision` (same contract as the country map).
-- Client loads the user's tile + 8 neighbours (guaranteed coverage ≥ 26 km radius), ranks with Haversine, groups by the **same key** (`address_line1 + postal_code + city`, representative = nearest) and takes 10.
+- Client loads the user's tile + 8 neighbours (guaranteed coverage ≥ about 23 km radius in Denmark; computed exactly at runtime by `guaranteedCoverageMeters`), ranks with Haversine, groups by the **same key** (`address_line1 + postal_code + city`, representative = nearest) and takes 10.
 - If fewer than 10 groups fall inside the guaranteed radius, or any tile fails, fall back to the existing POST endpoint. The POST endpoint stays as the fallback and as the contract for `scripts/read/app-v2-nearby-api.ts`.
 - Current revision comes from the existing public revision read (as the country map does).
 
