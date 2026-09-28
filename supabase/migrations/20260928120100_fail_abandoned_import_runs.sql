@@ -3,8 +3,11 @@
 -- 'running' forever. Such a run blocked resume and showed as running in
 -- /admin/drift indefinitely. The workflow's concurrency group allows only one
 -- import at a time and caps it at six hours, so a run still 'running' after
--- seven hours has been abandoned. Mark it failed before the next run starts,
--- which makes its staged pages resumable like any other failed run.
+-- seven hours has been abandoned. Mark it failed before the next run starts.
+-- finished_at records when the workflow would have stopped it (started_at plus
+-- six hours), not now: resume only considers runs that finished in the last
+-- 14 days, so a recently lost run becomes resumable while months-old ones do
+-- not, and their staging rows are pruned below.
 create or replace function app_v2.prune_datafordeler_import_candidates_v1()
 returns integer
 language plpgsql
@@ -18,7 +21,7 @@ begin
   update app_v2.import_runs run
   set
     status = 'failed',
-    finished_at = timezone('utc', now()),
+    finished_at = least(timezone('utc', now()), run.started_at + interval '6 hours'),
     error_summary = 'Import run abandoned without finishing (runner lost or timed out)'
   where run.source_name = 'datafordeler-bbr-dar'
     and run.status = 'running'
