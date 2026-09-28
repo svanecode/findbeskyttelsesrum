@@ -6,6 +6,7 @@ import "leaflet.markercluster";
 import { useMap } from "react-leaflet";
 
 import type { CountryMapClusterFeature } from "@/types/country-map";
+import { prefersReducedMotion } from "@/lib/ui/reduced-motion";
 
 type Props = {
   clusters: CountryMapClusterFeature[];
@@ -100,7 +101,7 @@ export default function ServerClusterLayer({ clusters }: Props) {
       }
 
       map.fitBounds(combinedBounds.pad(0.25), {
-        animate: true,
+        animate: !prefersReducedMotion(),
         maxZoom: Math.min(map.getZoom() + 3, 18),
       });
     });
@@ -130,7 +131,7 @@ export default function ServerClusterLayer({ clusters }: Props) {
         }
 
         map.fitBounds(L.latLngBounds(southWest, northEast).pad(0.25), {
-          animate: true,
+          animate: !prefersReducedMotion(),
           maxZoom: Math.min(map.getZoom() + 3, 18),
         });
       });

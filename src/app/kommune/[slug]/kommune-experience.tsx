@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ui } from '@/components/ui-classes'
 import { getMunicipalityPagePath } from '@/lib/municipalities/pagination'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
+import { scrollBehavior } from '@/lib/ui/reduced-motion'
 
 const KommuneMap = dynamic(() => import('./kommune-map'), { ssr: false })
 
@@ -149,7 +150,7 @@ export default function KommuneExperience({
                         setMapActivated(true)
                         setSelectedGroupKey(group.groupKey)
                         if (window.matchMedia('(max-width: 1023px)').matches) {
-                          document.getElementById('municipality-map')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          document.getElementById('municipality-map')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
                         }
                       }}
                       className={`${ui.secondaryAction} shrink-0 py-2 disabled:cursor-wait disabled:opacity-60`}
@@ -243,7 +244,7 @@ export default function KommuneExperience({
               const group = groups.find((item) => item.groupKey === key)
               if (group) {
                 setQuery('')
-                requestAnimationFrame(() => document.getElementById(`kommune-group-${group.primarySlug}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+                requestAnimationFrame(() => document.getElementById(`kommune-group-${group.primarySlug}`)?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }))
               }
             }}
           />

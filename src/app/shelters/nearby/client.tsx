@@ -26,6 +26,7 @@ import {
 } from '@/lib/nearby/tiles'
 import { trackProductMetric } from '@/lib/analytics/product-metrics'
 import { NearbyFitBounds } from './nearby-fit-bounds'
+import { scrollBehavior } from '@/lib/ui/reduced-motion'
 
 setupLeafletDefaults(L)
 
@@ -636,7 +637,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                               selectionReturnRef.current = null
                               setSelectedShelterId(shelter.id)
                               setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
-                              if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                              if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
                             },
                           }}
                         >
