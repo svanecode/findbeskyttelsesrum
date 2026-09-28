@@ -82,6 +82,39 @@ test("municipality parity performs both reads with only the canonical publishabl
   }
 });
 
+test("exclusions parity prints counts only unless details are requested locally", async () => {
+  const server = await serve((request, response) => {
+    const path = new URL(request.url ?? "/", "http://localhost").pathname;
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify(
+      path.endsWith("/excluded_shelters")
+        ? [{
+            id: "legacy-1", address: "Skjultvej 7, 9999 Hemmeligby", vejnavn: "Skjultvej", husnummer: "7",
+            postnummer: "9999", bygning_id: "bygning-hemmelig", reason: null, created_at: null, created_by: null,
+          }]
+        : path.endsWith("/shelters")
+          ? [{
+              id: "shelter-1", slug: "registrering-hemmelig", name: "Skjultvej 7", address_line1: "Skjultvej 7",
+              postal_code: "9999", city: "Hemmeligby", import_state: "active",
+              canonical_source_name: "datafordeler", canonical_source_reference: "bygning-hemmelig",
+            }]
+          : [],
+    ));
+  });
+  const env = { NEXT_PUBLIC_SUPABASE_URL: server.url, SUPABASE_SECRET_KEY: "test-server-key" };
+  try {
+    const { stdout } = await runScript("parity:exclusions", [], env);
+    assert.match(stdout, /legacy exclusions: 1/);
+    assert.match(stdout, /strong source-reference candidates: 1/);
+    assert.doesNotMatch(stdout, /Skjultvej|Hemmeligby|9999|registrering-hemmelig|bygning-hemmelig/);
+
+    const { stdout: details } = await runScript("parity:exclusions", ["--details"], env);
+    assert.match(details, /registrering-hemmelig Skjultvej 7, 9999 Hemmeligby/);
+  } finally {
+    await server.close();
+  }
+});
+
 test("nearby probe sends coordinates in POST JSON and propagates API failures", async () => {
   const requests: Array<{ method: string | undefined; url: string | undefined; body: string }> = [];
   let status = 200;
