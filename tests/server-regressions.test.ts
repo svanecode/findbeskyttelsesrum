@@ -13,6 +13,10 @@ import { loadServerModule } from "./support/load-server-module";
 const require = createRequire(import.meta.url);
 const nextServer = require("next/server") as typeof import("next/server");
 
+function healthRequest(search = "") {
+  return new Request(`https://findbeskyttelsesrum.dk/api/health${search}`);
+}
+
 test("readiness observes an outage after a healthy response and recovers on the next successful read", async (t) => {
   t.mock.method(console, "error", () => undefined);
   const nextCache = require("next/cache") as Record<string, unknown>;
@@ -33,7 +37,7 @@ test("readiness observes an outage after a healthy response and recovers on the 
   };
   let unavailable = false;
   let reads = 0;
-  const route = await loadServerModule<{ GET: () => Promise<Response> }>(
+  const route = await loadServerModule<{ GET: (request: Request) => Promise<Response> }>(
     new URL("../src/app/api/health/route.ts", import.meta.url),
     {
       "next/cache": nextCache,
@@ -47,6 +51,7 @@ test("readiness observes an outage after a healthy response and recovers on the 
         getAppV2PublicDataRevision: async () => ({ publicationId: "publication", cacheKey: "publication:1" }),
       },
       "@/lib/operations/heartbeat-limits": await import("../src/lib/operations/heartbeat-limits"),
+      "@/lib/rate-limit-secret": await import("../src/lib/rate-limit-secret"),
       "@/lib/operations/operational-health": {
         getOperationalHealth: async () => ({ heartbeatFound: true, status: "ok", isFresh: true }),
       },
@@ -56,17 +61,17 @@ test("readiness observes an outage after a healthy response and recovers on the 
   process.env.VERCEL_ENV = "preview";
   try {
     await workAsyncStorage.run(workStore, async () => {
-      assert.equal((await route.GET()).status, 200);
+      assert.equal((await route.GET(healthRequest())).status, 200);
       await Promise.all(Object.values(workStore.pendingRevalidates));
       workStore.pendingRevalidates = {};
       unavailable = true;
-      const failed = await route.GET();
+      const failed = await route.GET(healthRequest());
       await Promise.all(Object.values(workStore.pendingRevalidates));
       assert.equal(failed.status, 503, "a warmed cache must not conceal a failed dependency read");
       assert.deepEqual((await failed.json()).database, { reachable: false });
       assert.equal(failed.headers.get("Cache-Control"), "private, no-store");
       unavailable = false;
-      const recovered = await route.GET();
+      const recovered = await route.GET(healthRequest());
       assert.equal(recovered.status, 200);
       assert.match(recovered.headers.get("Cache-Control") ?? "", /s-maxage=30, must-revalidate/);
       assert.equal(reads, 3);
@@ -77,22 +82,24 @@ test("readiness observes an outage after a healthy response and recovers on the 
   }
 });
 
-test("a late heartbeat warns, while a missing or day-old heartbeat degrades readiness", async () => {
+test("a late heartbeat warns, while a missing or day-old heartbeat or missing limiter secret degrades readiness", async () => {
   const nextCache = require("next/cache") as Record<string, unknown>;
   let operationalHealth: Record<string, unknown> = {};
-  const route = await loadServerModule<{ GET: () => Promise<Response> }>(
+  let statsReads = 0;
+  const route = await loadServerModule<{ GET: (request: Request) => Promise<Response> }>(
     new URL("../src/app/api/health/route.ts", import.meta.url),
     {
       "next/cache": nextCache,
       "@/lib/supabase/app-v2-queries": {
-        getAppV2PublicDataStats: async () => ({
-          publicRegistrations: 1000,
-          latestPublicImportAt: new Date().toISOString(),
-        }),
+        getAppV2PublicDataStats: async () => {
+          statsReads += 1;
+          return { publicRegistrations: 1000, latestPublicImportAt: new Date().toISOString() };
+        },
         getAppV2CurrentDatasetPublication: async () => ({ publicationId: "publication", isConsistent: true }),
         getAppV2PublicDataRevision: async () => ({ publicationId: "publication", cacheKey: "publication:1" }),
       },
       "@/lib/operations/heartbeat-limits": await import("../src/lib/operations/heartbeat-limits"),
+      "@/lib/rate-limit-secret": await import("../src/lib/rate-limit-secret"),
       "@/lib/operations/operational-health": {
         getOperationalHealth: async () => operationalHealth,
       },
@@ -102,30 +109,51 @@ test("a late heartbeat warns, while a missing or day-old heartbeat degrades read
   process.env.VERCEL_ENV = "preview";
   try {
     operationalHealth = { heartbeatFound: true, status: "ok", isFresh: true, ageMinutes: 20 };
-    const fresh = await route.GET();
+    const fresh = await route.GET(healthRequest());
     assert.equal(fresh.status, 200);
     assert.equal((await fresh.json()).warnings, undefined);
 
     operationalHealth = { heartbeatFound: true, status: "ok", isFresh: false, ageMinutes: 600 };
-    const late = await route.GET();
+    const late = await route.GET(healthRequest());
     const lateBody = await late.json();
     assert.equal(late.status, 200, "GitHub cron delays must not report the site as down");
     assert.equal(lateBody.status, "ok");
     assert.deepEqual(lateBody.warnings, ["trusted_operational_heartbeat_is_late"]);
 
     operationalHealth = { heartbeatFound: true, status: "ok", isFresh: false, ageMinutes: 1_500 };
-    const stale = await route.GET();
+    const stale = await route.GET(healthRequest());
     assert.equal(stale.status, 503);
     assert.deepEqual((await stale.json()).degradationReasons, ["trusted_operational_heartbeat_is_stale"]);
 
     operationalHealth = { heartbeatFound: true, status: "ok", isFresh: false, ageMinutes: null };
-    assert.equal((await route.GET()).status, 503, "an unknown heartbeat age must not be treated as late");
+    assert.equal((await route.GET(healthRequest())).status, 503, "an unknown heartbeat age must not be treated as late");
 
     operationalHealth = { heartbeatFound: false, status: null, isFresh: false, ageMinutes: null };
-    assert.equal((await route.GET()).status, 503);
+    assert.equal((await route.GET(healthRequest())).status, 503);
 
     operationalHealth = { heartbeatFound: true, status: "error", isFresh: true, ageMinutes: 5 };
-    assert.equal((await route.GET()).status, 503);
+    assert.equal((await route.GET(healthRequest())).status, 503);
+
+    operationalHealth = { heartbeatFound: true, status: "ok", isFresh: true, ageMinutes: 20 };
+    const readsBefore = statsReads;
+    const busted = await route.GET(healthRequest("?cache=bust"));
+    assert.equal(busted.status, 400, "a query string must not bypass the CDN cache");
+    assert.equal(busted.headers.get("Cache-Control"), "private, no-store");
+    assert.equal(statsReads, readsBefore, "a rejected query string costs no database reads");
+
+    const oldSecret = process.env.RATE_LIMIT_HASH_SECRET;
+    process.env.VERCEL_ENV = "production";
+    try {
+      delete process.env.RATE_LIMIT_HASH_SECRET;
+      const withoutSecret = await (await route.GET(healthRequest())).json();
+      assert.ok(withoutSecret.degradationReasons.includes("rate_limit_hash_secret_missing"));
+      process.env.RATE_LIMIT_HASH_SECRET = "x".repeat(32);
+      const withSecret = await (await route.GET(healthRequest())).json();
+      assert.ok(!withSecret.degradationReasons?.includes("rate_limit_hash_secret_missing"));
+    } finally {
+      if (oldSecret === undefined) delete process.env.RATE_LIMIT_HASH_SECRET;
+      else process.env.RATE_LIMIT_HASH_SECRET = oldSecret;
+    }
   } finally {
     if (oldEnvironment === undefined) delete process.env.VERCEL_ENV;
     else process.env.VERCEL_ENV = oldEnvironment;

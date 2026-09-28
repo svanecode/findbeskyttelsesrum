@@ -5,6 +5,7 @@ import {
 } from "@/lib/supabase/app-v2-queries";
 import { getOperationalHeartbeatLimits } from "@/lib/operations/heartbeat-limits";
 import { getOperationalHealth } from "@/lib/operations/operational-health";
+import { isRateLimitHashSecretUsable } from "@/lib/rate-limit-secret";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -47,7 +48,15 @@ function healthResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Any query string would bypass the CDN cache and cost four database reads.
+  if (new URL(request.url).search) {
+    return Response.json(
+      { error: { code: "unexpected_query", message: "Sundhedskontrollen tager ingen queryparametre." } },
+      { status: 400, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
   const checkedAt = new Date().toISOString();
   const maximumDataAgeHours = positiveNumber(
     process.env.HEALTH_MAX_DATA_AGE_HOURS,
@@ -109,6 +118,10 @@ export async function GET() {
           degradationReasons.push("trusted_operational_heartbeat_is_stale");
         }
       }
+    }
+    if (!isRateLimitHashSecretUsable()) {
+      // Contact and report forms return 503 without the shared limiter.
+      degradationReasons.push("rate_limit_hash_secret_missing");
     }
     if (application.environment === "production") {
       if (!application.gitSha) degradationReasons.push("production_git_sha_missing");
