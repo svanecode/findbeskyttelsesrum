@@ -230,7 +230,9 @@ test("the compact footer links to accurate privacy and reporting guidance", asyn
   assert.match(privacyPage, /queryparametre og fragmenter/);
   assert.match(privacyPage, /privat moderationskø/);
   assert.match(privacyPage, /kræver netforbindelse/);
-  assert.match(privacyPage, /tilbyder ikke en offlinekopi/);
+  assert.doesNotMatch(privacyPage, /tilbyder ikke en offlinekopi/);
+  assert.match(privacyPage, /Viser gemte data/);
+  assert.match(privacyPage, /intet om din position eller søgning/);
   assert.match(privacyPage, /Dataansvarlig og kontakt/);
   assert.match(privacyPage, /Retsgrundlaget/);
   assert.match(privacyPage, /Dine rettigheder/);
