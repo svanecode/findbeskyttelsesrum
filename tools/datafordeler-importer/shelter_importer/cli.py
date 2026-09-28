@@ -6,7 +6,9 @@ import argparse
 import json
 import logging
 import os
+import signal
 from pathlib import Path
+from types import FrameType
 
 from dotenv import load_dotenv
 
@@ -42,7 +44,15 @@ def _write_summary(path: str | None, payload: dict[str, object]) -> None:
     Path(path).write_text(output + "\n", encoding="utf-8")
 
 
+def _interrupt_on_sigterm(signum: int, frame: FrameType | None) -> None:
+    """Treat SIGTERM like Ctrl-C so the run is marked failed, not left running."""
+    del signum, frame
+    raise KeyboardInterrupt
+
+
 def main(argv: list[str] | None = None) -> int:
+    # GitHub Actions cancels and times out jobs with SIGTERM before SIGKILL.
+    signal.signal(signal.SIGTERM, _interrupt_on_sigterm)
     load_dotenv()
     args = _parser().parse_args(argv)
     summary_path = args.summary or os.getenv("SUMMARY_PATH")
