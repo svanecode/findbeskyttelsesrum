@@ -20,6 +20,9 @@ export default function ModerationPagination({
     return `${basePath}?${query}` as Route;
   }
 
+  // A single page needs no navigation; the filter tabs already show the count.
+  if (totalPages <= 1) return null;
+
   const linkClass = "inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300";
   return (
     <nav className="my-6 flex flex-wrap items-center gap-3" aria-label="Sider i køen">

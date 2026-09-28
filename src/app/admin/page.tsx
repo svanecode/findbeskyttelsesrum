@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import AdminHeader from "@/components/admin/AdminHeader";
 import ModerationPagination from "@/components/ModerationPagination";
 import { parseModerationPage } from "@/lib/moderation/pagination";
 
@@ -42,6 +43,11 @@ const outcomeLabels: Record<string, string> = {
   excluded: "Registreringen er ekskluderet",
   corrected: "Data er rettet",
   rejected: "Rapporten er afvist",
+};
+
+const errorMessages: Record<string, string> = {
+  note_required: "Skriv en begrundelse på mindst 5 tegn for at afslutte, afvise, rette eller ekskludere. Ingen data blev ændret.",
+  moderation_failed: "Handlingen kunne ikke gennemføres, fx fordi rapporten allerede er behandlet. Ingen data blev ændret.",
 };
 
 function formatDate(value: string | null) {
@@ -99,10 +105,12 @@ function QueueCard({ report, returnPage, returnStatus }: {
           <dt className="font-medium text-gray-400">Modtaget</dt>
           <dd className="mt-1 text-gray-200">{formatDate(report.createdAt)}</dd>
         </div>
-        <div>
-          <dt className="font-medium text-gray-400">Ældre kontaktmail</dt>
-          <dd className="mt-1 break-all text-gray-200">{report.contactEmail ?? "Ikke indsamlet eller allerede slettet"}</dd>
-        </div>
+        {report.contactEmail ? (
+          <div>
+            <dt className="font-medium text-gray-400">Ældre kontaktmail</dt>
+            <dd className="mt-1 break-all text-gray-200">{report.contactEmail}</dd>
+          </div>
+        ) : null}
         <div className="sm:col-span-2">
           <dt className="font-medium text-gray-400">Borgerens beskrivelse</dt>
           <dd className="mt-1 whitespace-pre-wrap leading-6 text-gray-100">{report.message}</dd>
@@ -119,23 +127,7 @@ function QueueCard({ report, returnPage, returnStatus }: {
         </div>
       ) : null}
 
-      <div className="mt-5">
-        {report.status === "open" ? (
-          <form action={moderateReportAction}>
-            <input type="hidden" name="reportId" value={report.id} />
-            <input type="hidden" name="returnPage" value={returnPage} />
-            <input type="hidden" name="returnStatus" value={returnStatus ?? ""} />
-            <button
-              type="submit"
-              name="action"
-              value="start_review"
-              className="inline-flex min-h-[44px] items-center rounded-lg border border-blue-400/30 bg-blue-500/10 px-4 text-sm font-semibold text-blue-100 hover:bg-blue-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
-            >
-              Tag under behandling
-            </button>
-          </form>
-        ) : null}
-
+      <div className="mt-5 border-t border-white/10 pt-5">
         {isFinal ? (
           <form action={moderateReportAction}>
             <input type="hidden" name="reportId" value={report.id} />
@@ -151,57 +143,69 @@ function QueueCard({ report, returnPage, returnStatus }: {
             </button>
           </form>
         ) : (
-          <form action={moderateReportAction} className="mt-5 border-t border-white/10 pt-5">
+          <form action={moderateReportAction}>
             <input type="hidden" name="reportId" value={report.id} />
             <input type="hidden" name="returnPage" value={returnPage} />
             <input type="hidden" name="returnStatus" value={returnStatus ?? ""} />
             <label htmlFor={`note-${report.id}`} className="block text-sm font-semibold text-gray-200">
               Moderatorens begrundelse
             </label>
+            <p id={`note-help-${report.id}`} className="mt-1 text-xs leading-5 text-gray-400">
+              Krævet (mindst 5 tegn) for at afslutte, afvise, rette eller ekskludere. Gemmes i auditsporet.
+            </p>
             <textarea
               id={`note-${report.id}`}
               name="note"
               rows={3}
+              required
               minLength={5}
               maxLength={1000}
+              aria-describedby={`note-help-${report.id}`}
               className="mt-2 w-full rounded-lg border border-white/20 bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/30"
               placeholder="Beskriv kontrollen og beslutningen."
             />
 
-            <details className="mt-4 rounded-lg border border-white/10 bg-black/20 p-4">
-              <summary className="cursor-pointer font-medium text-gray-200">Ret registreret kapacitet</summary>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-400">
-                En adresse kan først rettes, når nye koordinater og korrekt kommune er valideret samlet. Ekskludér registreringen ved en adressefejl, indtil kilden er rettet.
-              </p>
-              <input type="hidden" name="addressLine1" value={report.shelter.addressLine1} />
-              <input type="hidden" name="postalCode" value={report.shelter.postalCode} />
-              <input type="hidden" name="city" value={report.shelter.city} />
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <label className="text-sm text-gray-300">
-                  Registrerede pladser
-                  <input name="capacity" defaultValue={report.shelter.capacity} type="number" min={0} max={2000000} className="mt-1 min-h-[44px] w-full rounded-lg border border-white/20 bg-black/30 px-3 text-white outline-none focus:border-orange-400" />
-                </label>
-              </div>
-              <button
-                type="submit"
-                name="action"
-                value="correct"
-                className="mt-4 inline-flex min-h-[44px] items-center rounded-lg bg-orange-500 px-4 text-sm font-semibold text-[#0a0a0a] hover:bg-orange-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300"
-              >
-                Gem kapacitet og afslut
-              </button>
-            </details>
-
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
+              {report.status === "open" ? (
+                <button type="submit" name="action" value="start_review" formNoValidate className="inline-flex min-h-[44px] items-center rounded-lg border border-blue-400/30 bg-blue-500/10 px-4 text-sm font-semibold text-blue-100 hover:bg-blue-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
+                  Tag under behandling
+                </button>
+              ) : null}
               <button type="submit" name="action" value="resolve_no_change" className="inline-flex min-h-[44px] items-center rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">
                 Afslut uden ændring
               </button>
               <button type="submit" name="action" value="reject" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-semibold text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
                 Afvis rapport
               </button>
-              <button type="submit" name="action" value="exclude" className="inline-flex min-h-[44px] items-center rounded-lg border border-red-400/30 bg-red-500/10 px-4 text-sm font-semibold text-red-100 hover:bg-red-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300">
-                Ekskludér registrering
-              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <details className="rounded-lg border border-white/10 bg-black/20 p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-gray-200">Ret registreret kapacitet</summary>
+                <p className="mt-3 text-sm leading-6 text-gray-400">
+                  En adresse kan først rettes, når nye koordinater og korrekt kommune er valideret samlet. Ekskludér registreringen ved en adressefejl, indtil kilden er rettet.
+                </p>
+                <input type="hidden" name="addressLine1" value={report.shelter.addressLine1} />
+                <input type="hidden" name="postalCode" value={report.shelter.postalCode} />
+                <input type="hidden" name="city" value={report.shelter.city} />
+                <label className="mt-3 block text-sm text-gray-300">
+                  Registrerede pladser
+                  <input name="capacity" defaultValue={report.shelter.capacity} type="number" min={0} max={2000000} className="mt-1 min-h-[44px] w-full rounded-lg border border-white/20 bg-black/30 px-3 text-white outline-none focus:border-orange-400" />
+                </label>
+                <button type="submit" name="action" value="correct" className="mt-3 inline-flex min-h-[44px] items-center rounded-lg bg-orange-500 px-4 text-sm font-semibold text-[#0a0a0a] hover:bg-orange-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
+                  Gem kapacitet og afslut
+                </button>
+              </details>
+
+              <details className="rounded-lg border border-red-400/20 bg-red-500/[0.04] p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-red-100">Ekskludér registrering</summary>
+                <p className="mt-3 text-sm leading-6 text-gray-300">
+                  Registreringen fjernes fra søgning, kort og sin offentlige side, indtil eksklusionen ophæves. Importen kan ikke gøre den synlig igen.
+                </p>
+                <button type="submit" name="action" value="exclude" className="mt-3 inline-flex min-h-[44px] items-center rounded-lg border border-red-400/30 bg-red-500/10 px-4 text-sm font-semibold text-red-100 hover:bg-red-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300">
+                  Bekræft eksklusion og afslut
+                </button>
+              </details>
             </div>
           </form>
         )}
@@ -227,31 +231,10 @@ export default async function AdminPage({
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
       <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-wide text-orange-300">Privat administration</p>
-            <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Moderationskø</h1>
-            <p className="mt-3 text-sm text-gray-400">
-              Logget ind som {profile.providerLogin} · MFA bekræftet · {profile.role === "owner" ? "Ejer" : "Moderator"}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/admin/kontakt" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
-              Kontaktkø
-            </Link>
-            <Link href="/admin/drift" className="inline-flex min-h-[44px] items-center rounded-lg border border-orange-400/30 bg-orange-500/10 px-4 text-sm font-medium text-orange-100 hover:bg-orange-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
-              Datadrift
-            </Link>
-            <form action={signOutModeratorAction}>
-              <button type="submit" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
-                Log ud
-              </button>
-            </form>
-          </div>
-        </header>
+        <AdminHeader current="reports" title="Fejlrapporter" profile={profile} signOutAction={signOutModeratorAction} />
 
         {params.updated ? <p className="mt-6 rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-100" role="status">Handlingen er gemt med auditspor.</p> : null}
-        {params.error ? <p className="mt-6 rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-100" role="alert">Handlingen kunne ikke gennemføres. Ingen data blev ændret.</p> : null}
+        {params.error ? <p className="mt-6 rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-100" role="alert">{errorMessages[params.error] ?? errorMessages.moderation_failed}</p> : null}
 
         <nav className="mt-7 flex flex-wrap gap-2" aria-label="Filtrér moderationskø">
           <Link href="/admin" aria-current={!selectedStatus ? "page" : undefined} className={`inline-flex min-h-[44px] items-center rounded-lg border px-3 text-sm font-medium ${!selectedStatus ? "border-orange-400/40 bg-orange-500/10 text-orange-100" : "border-white/10 text-gray-300 hover:bg-white/5"}`}>

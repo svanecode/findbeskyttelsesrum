@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import AdminHeader from "@/components/admin/AdminHeader";
 import ModerationPagination from "@/components/ModerationPagination";
 import { parseModerationPage } from "@/lib/moderation/pagination";
 
@@ -15,6 +16,7 @@ import {
   type ModerationPrivacyContactCase,
 } from "@/lib/moderation/privacy-contacts";
 
+import { signOutModeratorAction } from "../actions";
 import { moderatePrivacyContactAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -190,26 +192,10 @@ export default async function PrivacyContactAdminPage({
   return (
     <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#0a0a0a] text-white">
       <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-wide text-orange-300">Privat administration</p>
-            <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Kontaktkø</h1>
-            <p className="mt-3 text-sm text-gray-400">
-              Logget ind som {profile.providerLogin} · MFA bekræftet · {profile.role === "owner" ? "Ejer" : "Moderator"}
-            </p>
-          </div>
-          <nav className="flex flex-wrap gap-2" aria-label="Administration">
-            <Link href="/admin" className="inline-flex min-h-[44px] items-center rounded-lg border border-white/15 px-4 text-sm font-medium text-gray-200 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
-              Fejlrapporter
-            </Link>
-            <Link href="/admin/drift" className="inline-flex min-h-[44px] items-center rounded-lg border border-orange-400/30 bg-orange-500/10 px-4 text-sm font-medium text-orange-100 hover:bg-orange-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300">
-              Datadrift
-            </Link>
-          </nav>
-        </header>
+        <AdminHeader current="contact" title="Kontaktkø" profile={profile} signOutAction={signOutModeratorAction} />
 
         {params.updated ? <p className="mt-6 rounded-lg border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-100" role="status">Kontaktkøen er opdateret med auditspor.</p> : null}
-        {params.error ? <p className="mt-6 rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-100" role="alert">Handlingen kunne ikke gennemføres. Ingen data blev ændret.</p> : null}
+        {params.error ? <p className="mt-6 rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-100" role="alert">{params.error === "invalid_message" ? "Svaret må højst være 4.000 tegn. Ingen data blev ændret." : "Handlingen kunne ikke gennemføres, fx fordi sagen allerede er ændret, eller bekræftelsen ikke matchede sagsnummeret. Ingen data blev ændret."}</p> : null}
 
         <nav className="mt-7 flex flex-wrap gap-2" aria-label="Filtrér kontaktkø">
           <Link href="/admin/kontakt" aria-current={!selectedStatus ? "page" : undefined} className={`inline-flex min-h-[44px] items-center rounded-lg border px-3 text-sm font-medium ${!selectedStatus ? "border-orange-400/40 bg-orange-500/10 text-orange-100" : "border-white/10 text-gray-300 hover:bg-white/5"}`}>

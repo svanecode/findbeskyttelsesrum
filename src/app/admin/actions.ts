@@ -8,6 +8,9 @@ import { moderationQueueReturnPath } from "@/lib/moderation/pagination";
 import { reportStatuses } from "@/lib/moderation/reports";
 import { revalidatePublicData } from "@/lib/moderation/revalidate-public-data";
 
+// Actions that close a report; the database requires a 5-1000 character note for these.
+const closingActions = new Set(["resolve_no_change", "reject", "exclude", "correct"]);
+
 const reportIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function optionalText(formData: FormData, key: string) {
@@ -22,13 +25,18 @@ export async function moderateReportAction(formData: FormData) {
   const action = optionalText(formData, "action");
   if (!reportId || !reportIdPattern.test(reportId) || !action) redirect(returnPath({ error: "invalid_action" }));
 
+  const note = optionalText(formData, "note");
+  const closes = closingActions.has(action);
+  if (closes && (!note || note.length < 5 || note.length > 1000)) redirect(returnPath({ error: "note_required" }));
+
   const { supabase } = await requireModerator(true);
   const rawCapacity = optionalText(formData, "capacity");
   const capacity = rawCapacity && /^\d+$/.test(rawCapacity) ? Number(rawCapacity) : null;
   const { error } = await supabase.schema("app_v2").rpc("moderate_shelter_report_v1", {
     p_report_id: reportId,
     p_action: action,
-    p_note: optionalText(formData, "note"),
+    // A note typed before "Tag under behandling" is not a decision; keep it out of the audit trail.
+    p_note: closes ? note : null,
     p_address_line1: optionalText(formData, "addressLine1"),
     p_postal_code: optionalText(formData, "postalCode"),
     p_city: optionalText(formData, "city"),
