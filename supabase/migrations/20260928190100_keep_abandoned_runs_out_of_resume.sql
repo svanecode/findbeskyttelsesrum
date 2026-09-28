@@ -1,10 +1,13 @@
--- An importer killed without a chance to clean up (runner loss, or the
--- workflow's 360-minute timeout escalating to SIGKILL) left its run
--- 'running' forever. Such a run blocked resume and showed as running in
--- /admin/drift indefinitely. The workflow's concurrency group allows only one
--- import at a time and caps it at six hours, so a run still 'running' after
--- seven hours has been abandoned. Mark it failed before the next run starts,
--- which makes its staged pages resumable like any other failed run.
+-- Replaces the cleanup from 20260928120100 without editing that migration, so
+-- environments that already recorded its version still receive the change.
+--
+-- Production had nine import runs stuck as 'running' since March. Setting
+-- their finished_at to now would put them inside the importer's 14-day resume
+-- window, so a manual --resume-latest could pick a months-old checkpoint whose
+-- publication is then rejected as older than the current dataset. Record when
+-- the workflow timeout would have stopped the run (started_at plus six hours)
+-- instead: a recently lost run stays resumable, old ones do not, and their
+-- staging rows are pruned in the same call.
 create or replace function app_v2.prune_datafordeler_import_candidates_v1()
 returns integer
 language plpgsql
@@ -18,7 +21,7 @@ begin
   update app_v2.import_runs run
   set
     status = 'failed',
-    finished_at = timezone('utc', now()),
+    finished_at = least(timezone('utc', now()), run.started_at + interval '6 hours'),
     error_summary = 'Import run abandoned without finishing (runner lost or timed out)'
   where run.source_name = 'datafordeler-bbr-dar'
     and run.status = 'running'
