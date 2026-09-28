@@ -238,7 +238,10 @@ test("the compact footer links to accurate privacy and reporting guidance", asyn
   assert.match(privacyPage, /Dine rettigheder/);
   assert.match(privacyPage, /24 måneder/);
   assert.match(privacyPage, /5 år/);
-  assert.match(privacyPage, /eventuelt samtykkebehov skal dokumenteres/);
+  assert.match(privacyPage, /id="samtykke"/);
+  assert.match(privacyPage, /<ConsentSettings \/>/);
+  assert.match(privacyPage, /dit samtykke efter artikel 6, stk\. 1,\s+litra a/);
+  assert.match(footer, /\/privatliv#samtykke/);
   assert.match(dataPage, /id="rapportering"/);
   assert.match(dataPage, /Kildeangivelse:/);
   assert.match(dataPage, /brugsvilkår for BBR/);

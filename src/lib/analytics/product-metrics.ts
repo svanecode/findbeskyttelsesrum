@@ -1,3 +1,5 @@
+import { hasStatisticsConsent } from "@/lib/consent";
+
 export const productMetricEventNames = [
   "address_search_started",
   "address_search_error",
@@ -58,6 +60,8 @@ export function parseProductMetricPayload(value: unknown): ProductMetricPayload 
 
 export function trackProductMetric(eventName: ProductMetricEventName, durationMs?: number) {
   if (process.env.NODE_ENV !== "production") return;
+  // Anonymous counters are optional processing: nothing is sent before consent.
+  if (!hasStatisticsConsent()) return;
 
   const payload = parseProductMetricPayload({ eventName, ...(durationMs === undefined ? {} : { durationMs }) });
   if (!payload) return;

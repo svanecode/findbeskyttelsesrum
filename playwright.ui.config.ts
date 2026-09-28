@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { consentGivenStorageState } from "./e2e/consent-state";
+
 /**
  * Secret-free browser checks for contributors and AI agents.
  *
@@ -29,6 +31,7 @@ export default defineConfig({
     timezoneId: "Europe/Copenhagen",
     screenshot: "only-on-failure",
     serviceWorkers: "block",
+    storageState: consentGivenStorageState(baseURL),
   },
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"], launchOptions } },
