@@ -111,7 +111,6 @@ export default function ServerClusterLayer({ clusters }: Props) {
       const marker = L.marker([cluster.latitude, cluster.longitude], {
         icon: clusterIcon(cluster.count),
         title: label,
-        alt: label,
         keyboard: false,
         registrationCount: cluster.count,
         registrationCapacity: cluster.capacity,

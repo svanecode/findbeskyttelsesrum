@@ -176,7 +176,6 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
                 position={[group.latitude as number, group.longitude as number]}
                 icon={icon}
                 title={`${group.addressLine1}, ${group.postalCode} ${group.city}`}
-                alt={`BBR-registrering ved ${group.addressLine1}`}
                 eventHandlers={{
                   click: () => onMarkerClick(group.groupKey),
                 }}

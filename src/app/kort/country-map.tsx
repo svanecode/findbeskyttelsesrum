@@ -251,7 +251,6 @@ export default function CountryMap({
         const marker = L.marker([s.latitude, s.longitude], {
           icon,
           title: `${s.addressLine1}, ${s.postalCode} ${s.city}`.trim(),
-          alt: `BBR-registrering ved ${s.addressLine1}`,
           keyboard: false,
         });
         // Match kommune-kortets popup sizing (use popup-html + shared CSS)

@@ -624,14 +624,14 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                   {shouldRenderMap ? (
                     <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom={false}>
                       <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
-                      <Marker position={[lat, lng]} icon={userLocationIcon} title="Søgepunkt" alt="Søgepunkt på kortet" />
+                      <Marker position={[lat, lng]} icon={userLocationIcon} title="Søgepunkt" />
                       {shelters.map((shelter, index) => shelter.location ? (
                         <Marker
                           key={shelter.id}
                           position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
                           icon={getNumberedShelterIcon(index + 1, selectedShelterId === shelter.id)}
-                          title={getAddressLine(shelter)}
-                          alt={`Nummer ${index + 1}: BBR-registrering ved ${getAddressLine(shelter)}`}
+                          // Leaflet ignores alt on div icons; title is the marker's accessible name.
+                          title={`${index + 1}. ${getAddressLine(shelter)}`}
                           eventHandlers={{
                             click: () => {
                               selectionReturnRef.current = null
