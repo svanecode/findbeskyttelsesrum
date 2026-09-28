@@ -118,6 +118,29 @@ test("exclusions parity prints counts only unless details are requested locally"
   }
 });
 
+test("municipality parity is skipped, not failed, once the legacy table is gone", async () => {
+  const server = await serve((request, response) => {
+    const path = new URL(request.url ?? "/", "http://localhost").pathname;
+    response.setHeader("Content-Type", "application/json");
+    if (path.endsWith("/kommunekoder")) {
+      response.statusCode = 404;
+      response.end(JSON.stringify({ code: "PGRST205", message: "Could not find the table 'public.kommunekoder' in the schema cache" }));
+      return;
+    }
+    response.end(JSON.stringify([{ id: "test-municipality", code: "0101", slug: "kobenhavn", name: "København" }]));
+  });
+  try {
+    const { stdout } = await runScript("parity:municipalities", [], {
+      NEXT_PUBLIC_SUPABASE_URL: server.url,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+      SUPABASE_SECRET_KEY: "test-server-key",
+    });
+    assert.match(stdout, /result: skipped/);
+  } finally {
+    await server.close();
+  }
+});
+
 test("the allowlist export writes an idempotent, quoted seed migration", async () => {
   const server = await serve((request, response) => {
     assert.equal(new URL(request.url ?? "/", "http://localhost").pathname, "/rest/v1/application_code_eligibility");
