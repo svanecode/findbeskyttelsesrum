@@ -28,7 +28,7 @@ export default function PrivacyPage() {
             Du behøver ikke en konto for at bruge Find Beskyttelsesrum. Denne side forklarer, hvilke oplysninger de
             enkelte funktioner behandler, hvorfor de behandles, hvem der modtager dem, og hvornår de slettes.
           </p>
-          <p className="text-sm text-gray-500">Senest opdateret 30. august 2026.</p>
+          <p className="text-sm text-gray-400">Senest opdateret 28. september 2026.</p>
         </header>
 
         <div className="mt-10 border-b border-white/10">
@@ -71,8 +71,8 @@ export default function PrivacyPage() {
               midlertidig værdi i browserens hukommelse, som forsvinder ved genindlæsning.
             </p>
             <p className={secondaryParagraphClassName}>
-              Så siden kan bruges uden net, gemmer din browser en kopi af sidens filer og de offentlige kortfliser, du
-              senest har hentet. Kortfliserne indeholder kun offentlige registreringer for et område på ca. 28 × 26 km og
+              Så siden kan bruges uden net, gemmer din browser en kopi af sidens filer, offentlige sider, du har besøgt,
+              og de offentlige kortfliser, du senest har hentet. Kortfliserne indeholder kun offentlige registreringer for et område på ca. 28 × 26 km og
               intet om din position eller søgning. Kopien bliver på din enhed, sendes ikke til tjenesten og kan slettes
               under browserens indstillinger for webstedsdata.
             </p>
@@ -211,8 +211,12 @@ export default function PrivacyPage() {
           <section className={sectionClassName} aria-labelledby="storage-heading">
             <h2 id="storage-heading" className="text-lg font-semibold">Netforbindelse og lokal lagring</h2>
             <p className={paragraphClassName}>
-              Tjenesten er en almindelig hjemmeside og kræver netforbindelse. Den tilbyder ikke en offlinekopi af
-              registreringerne eller kortet, så ældre data ikke kan forveksles med den seneste dataimport.
+              Tjenesten er en almindelig hjemmeside og kræver netforbindelse for adressesøgning, kort og de seneste
+              data. Som reserve gemmer din browser en begrænset kopi af sidens filer, nogle af de sider, du har besøgt,
+              og de offentlige kortfliser, du senest har hentet. Hvis netværket ikke svarer, kan &quot;Brug min
+              placering&quot; bruge de gemte fliser. Resultaterne mærkes da &quot;Viser gemte data&quot; med datoen for
+              kopien, så ældre data ikke forveksles med den seneste dataimport. Hvad kopien indeholder, står under
+              adresse- og placeringssøgning ovenfor.
             </p>
           </section>
 

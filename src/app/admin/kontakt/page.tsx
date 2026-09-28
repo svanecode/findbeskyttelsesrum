@@ -87,7 +87,7 @@ function QueueCard({ contactCase, returnPage, returnStatus }: {
               <p className={message.authorType === "moderator" ? "font-semibold text-emerald-200" : "font-semibold text-gray-300"}>
                 {message.authorType === "moderator" ? "Moderator" : "Besøgende"}
               </p>
-              <time dateTime={message.createdAt} className="text-gray-500">{formatDate(message.createdAt)}</time>
+              <time dateTime={message.createdAt} className="text-gray-400">{formatDate(message.createdAt)}</time>
             </div>
             <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-gray-100">{message.message}</p>
           </div>
@@ -145,7 +145,7 @@ function QueueCard({ contactCase, returnPage, returnStatus }: {
                 <label htmlFor={`contact-reply-${contactCase.id}`} className="block text-sm font-semibold text-gray-200">
                   Svar til den besøgende
                 </label>
-                <span className="text-xs text-gray-500">Maks. 4.000 tegn</span>
+                <span className="text-xs text-gray-400">Maks. 4.000 tegn</span>
               </div>
               <textarea
                 id={`contact-reply-${contactCase.id}`}
@@ -153,7 +153,7 @@ function QueueCard({ contactCase, returnPage, returnStatus }: {
                 required
                 rows={6}
                 maxLength={4_000}
-                className="mt-2 min-h-36 w-full rounded-lg border border-white/20 bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-gray-500 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/30"
+                className="mt-2 min-h-36 w-full rounded-lg border border-white/20 bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/30"
                 placeholder="Skriv et svar, som vises i den private sag."
               />
               <div className="mt-3 flex flex-wrap gap-2">
@@ -164,7 +164,7 @@ function QueueCard({ contactCase, returnPage, returnStatus }: {
                   {"Luk sag"}
                 </button>
               </div>
-              <p className="mt-2 text-xs leading-5 text-gray-500">Hvis der står tekst i feltet, sendes den som afsluttende svar, når sagen lukkes.</p>
+              <p className="mt-2 text-xs leading-5 text-gray-400">Hvis der står tekst i feltet, sendes den som afsluttende svar, når sagen lukkes.</p>
             </form>
           </>
         )}

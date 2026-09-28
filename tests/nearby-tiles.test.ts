@@ -8,6 +8,7 @@ import {
   nearbyTileContract,
   parseTileKey,
   rankNearbyGroupsFromTiles,
+  revisionCounter,
   surroundingTileKeys,
   tileKeyFor,
   type NearbyTilePayload,
@@ -78,6 +79,16 @@ test("ranking groups by address, orders by distance and sums capacity", () => {
   }
 });
 
+test("equal-distance ties use Danish alphabetical order whatever the runtime locale", () => {
+  // In en-US "æ" sorts before "z"; in Danish it comes after. Server and device must agree.
+  const ranked = rankNearbyGroupsFromTiles([tile([
+    row("registrering-ae", "Ærøvej 1", 55.677, 12.569),
+    row("registrering-z", "Zinnavej 1", 55.677, 12.569),
+    row("registrering-a", "Algade 1", 55.677, 12.569),
+  ])], origin, { limit: 10, radiusMeters: 1000 });
+  assert.deepEqual(ranked?.map((group) => group.address.line1), ["Algade 1", "Zinnavej 1", "Ærøvej 1"]);
+});
+
 test("duplicate rows from overlapping tile edges are counted once", () => {
   const shared = row("dup", "Kantvej 1", 55.677, 12.569);
   const many = Array.from({ length: 10 }, (_, index) => row(`n${index}`, `Nærvej ${index}`, 55.6765 + index * 0.0005, 12.5683));
@@ -109,4 +120,11 @@ test("tile payload validation rejects malformed data", () => {
   assert.equal(isNearbyTilePayload({ ...tile([]), contract: "other" }, key), false);
   assert.equal(isNearbyTilePayload({ ...tile([]), rows: [["a", "A", "1", "B", "x", 1, 1, null]] }, key), false);
   assert.equal(isNearbyTilePayload(null, key), false);
+});
+
+test("revision counters are read from the revision key and compare by age", () => {
+  assert.equal(revisionCounter("0b9c-publication:42"), 42);
+  assert.equal(revisionCounter("aggregate:7"), 7);
+  assert.ok(revisionCounter("p:10")! > revisionCounter("p:9")!, "numeric, not lexicographic");
+  for (const invalid of ["rev", "p:", "p:0", "p:-1", "p:1.5", "p:abc"]) assert.equal(revisionCounter(invalid), null, invalid);
 });

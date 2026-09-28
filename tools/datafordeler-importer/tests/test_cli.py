@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 from pathlib import Path
 
 from shelter_importer import cli
@@ -67,3 +69,29 @@ def test_finalize_latest_does_not_require_datafordeler_credentials(
     assert payload["publication_status"] == "published"
     assert payload["recovery_status"] == "published"
     assert payload["publicationId"] == "publication-1"
+
+
+def test_sigterm_is_handled_like_an_interrupt(
+    monkeypatch, tmp_path: Path
+) -> None:
+    def terminated(
+        cls: type[ImportConfig], *, require_database: bool, require_source: bool
+    ) -> ImportConfig:
+        del cls, require_database, require_source
+        os.kill(os.getpid(), signal.SIGTERM)
+        raise AssertionError("SIGTERM should interrupt before this line")
+
+    previous = signal.getsignal(signal.SIGTERM)
+    monkeypatch.setattr(ImportConfig, "from_env", classmethod(terminated))
+    summary_path = tmp_path / "summary.json"
+    try:
+        exit_code = cli.main(
+            ["--dry-run", "--max-pages", "1", "--summary", str(summary_path)]
+        )
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert exit_code == 130
+    assert payload["status"] == "failed"
+    assert payload["error_summary"] == "Importer interrupted"

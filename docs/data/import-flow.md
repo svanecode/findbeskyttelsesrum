@@ -25,7 +25,7 @@ Failed and interrupted technical runs never change the public shelter baseline. 
 
 Failed staging sets expire after 14 days and are pruned when a new run starts, keeping storage bounded on the free database plan.
 
-If source traversal is complete but the atomic publication call fails technically, `--finalize-latest` calls the service-only `retry_latest_completed_datafordeler_publication_v1()` operation. It never contacts Datafordeler and only accepts a failed staging run whose explicit completion flag, counters, checkpoint and retained candidate count all agree. Partial and quality-rejected runs are ineligible.
+If source traversal is complete but the atomic publication call fails technically, `--finalize-latest` selects the run with the service-only `get_latest_completed_datafordeler_import_v1()` and publishes exactly that run with `retry_completed_datafordeler_publication_v1(uuid)`. Replaying it returns the original result. (The earlier combined `retry_latest_completed_datafordeler_publication_v1()` is retired and revoked.) It never contacts Datafordeler and only accepts a failed staging run whose explicit completion flag, counters, checkpoint and retained candidate count all agree. Partial and quality-rejected runs are ineligible.
 
 ## Quality gates
 

@@ -39,7 +39,7 @@ Public shelter URLs use the immutable shelter UUID and never change with address
 - `publish_datafordeler_import_v3`: service-role-only BBR/DAR mapping gate and atomic promotion.
 - `publish_datafordeler_import_v2`: retired compatibility signature that always rejects direct publication.
 - `copy_datafordeler_import_candidates_v1`: service-role-only safe resume helper.
-- `retry_latest_completed_datafordeler_publication_v1`: service-role-only finalization of a fully staged source scan after a technical publication failure.
+- `get_latest_completed_datafordeler_import_v1` and `retry_completed_datafordeler_publication_v1(uuid)`: service-role-only selection and idempotent finalization of one fully staged source scan after a technical publication failure. The combined `retry_latest_completed_datafordeler_publication_v1` is retired.
 - `get_import_operations_v1`: minimal MFA-protected operational overview.
 - `rollback_dataset_publication_v1`: MFA owner-only atomic restore with audit event.
 - `record_product_metric_v1`: service-only atomic increment of a privacy-safe hourly counter.

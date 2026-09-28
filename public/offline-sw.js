@@ -101,13 +101,20 @@ async function trim(cacheName) {
   for (let index = 0; index < excess; index += 1) await cache.delete(keys[index]);
 }
 
+/** Saving is best effort: a full or blocked cache must never cost the visitor the response. */
+async function save(cache, cacheName, key, response) {
+  try {
+    await cache.put(key, response);
+    await trim(cacheName);
+  } catch {
+    // Quota exceeded, private mode or an evicted cache; the network response still stands.
+  }
+}
+
 async function networkFirst(request, cacheName, key) {
   const cache = await caches.open(cacheName);
   const network = fetch(request).then(async (response) => {
-    if (response.ok) {
-      await cache.put(key, stamp(response));
-      await trim(cacheName);
-    }
+    if (response.ok) await save(cache, cacheName, key, stamp(response));
     return response;
   });
 
@@ -136,9 +143,6 @@ async function cacheFirst(request, cacheName) {
   const cached = await cache.match(request);
   if (cached) return cached;
   const response = await fetch(request);
-  if (response.ok) {
-    await cache.put(request, response.clone());
-    await trim(cacheName);
-  }
+  if (response.ok) await save(cache, cacheName, request, response.clone());
   return response;
 }

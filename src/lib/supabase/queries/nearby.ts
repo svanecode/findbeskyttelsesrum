@@ -271,7 +271,7 @@ function groupNearbyRows(
 
   return Array.from(groups.entries())
     .map(([groupKey, groupRows]) => {
-      const sortedRows = [...groupRows].sort((a, b) => a.distanceMeters - b.distanceMeters || a.slug.localeCompare(b.slug));
+      const sortedRows = [...groupRows].sort((a, b) => a.distanceMeters - b.distanceMeters || a.slug.localeCompare(b.slug, "da-DK"));
       const representativeShelter = sortedRows[0];
 
       if (!representativeShelter) {
@@ -303,7 +303,7 @@ function groupNearbyRows(
         applicationCodeLabels,
       };
     })
-    .sort((a, b) => a.distanceMeters - b.distanceMeters || a.groupKey.localeCompare(b.groupKey))
+    .sort((a, b) => a.distanceMeters - b.distanceMeters || a.groupKey.localeCompare(b.groupKey, "da-DK"))
     .slice(0, limit);
 }
 

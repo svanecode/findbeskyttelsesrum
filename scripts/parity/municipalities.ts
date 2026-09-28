@@ -58,6 +58,9 @@ async function readLegacyMunicipalities(url: string, anonKey: string) {
   const { data, error } = await supabase.from("kommunekoder").select("kode, slug, navn").order("kode");
 
   if (error) {
+    // No migration creates the legacy table. Once it is dropped there is
+    // nothing to compare, which must not fail the import after publication.
+    if (error.code === "PGRST205" || error.code === "42P01") return null;
     throw new Error(`Could not read legacy public.kommunekoder: ${error.message}`);
   }
 
@@ -125,6 +128,12 @@ async function main() {
     readLegacyMunicipalities(url, publishableKey),
     readAppV2Municipalities(url, secretKey),
   ]);
+
+  if (legacyRows === null) {
+    console.log(`[parity:municipalities] app_v2 rows: ${appV2Rows.length}`);
+    console.log("[parity:municipalities] result: skipped (legacy public.kommunekoder no longer exists)");
+    return;
+  }
 
   const normalizedAppV2Rows = normalizeAppV2Rows(appV2Rows);
   const legacyByCode = new Map(legacyRows.map((row) => [row.kode, row]));

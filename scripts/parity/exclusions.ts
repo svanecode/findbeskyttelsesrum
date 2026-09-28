@@ -55,6 +55,9 @@ type MatchCandidate = {
 };
 
 const sampleLimit = 10;
+// Excluded registrations are hidden from the public on purpose, and this script runs in public CI logs.
+// Addresses, slugs and source references are printed only when a maintainer asks for them locally.
+const showDetails = process.argv.slice(2).includes("--details");
 const databasePageSize = 1000;
 
 function getSupabaseEnv(): SupabaseParityEnv {
@@ -228,6 +231,10 @@ async function readExistingAppV2Exclusions(url: string, secretKey: string) {
 
 function printCandidates(title: string, candidates: MatchCandidate[], formatter: (candidate: MatchCandidate) => string) {
   console.log(`${title}: ${candidates.length}`);
+
+  if (!showDetails) {
+    return;
+  }
 
   if (candidates.length === 0) {
     console.log("  none");
@@ -421,9 +428,11 @@ async function main() {
 
   console.log(`unresolved legacy exclusions: ${unresolvedLegacyRows.length}`);
 
-  if (unresolvedLegacyRows.length === 0) {
-    console.log("  none");
-  } else {
+  if (showDetails) {
+    if (unresolvedLegacyRows.length === 0) {
+      console.log("  none");
+    }
+
     for (const row of unresolvedLegacyRows.slice(0, sampleLimit)) {
       console.log(`  - ${formatLegacy(row)}`);
     }
@@ -434,6 +443,9 @@ async function main() {
   }
 
   console.log("");
+  if (!showDetails) {
+    console.log("[parity:exclusions] counts only; run locally with --details to list the matched rows.");
+  }
   console.log("[parity:exclusions] result: read-only report only; no writes or migrations were attempted.");
 }
 

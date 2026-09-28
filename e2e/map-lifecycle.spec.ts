@@ -79,7 +79,7 @@ test("nærkortet bevarer brugerens zoom efter langsomme kortfliser og markørval
   await settleTiles(page, mapSelector);
   expect(await currentTileZoom(page, mapSelector)).toBe(initialZoom + 1);
 
-  await page.locator(`${mapSelector} .shelter-marker[title="Rådhuspladsen 1"]`).click();
+  await page.locator(`${mapSelector} .shelter-marker[title="1. Rådhuspladsen 1"]`).click();
   await settleTiles(page, mapSelector);
   expect(await currentTileZoom(page, mapSelector)).toBe(initialZoom + 1);
 });

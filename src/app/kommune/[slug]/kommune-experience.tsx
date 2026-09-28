@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { ui } from '@/components/ui-classes'
-import { getMunicipalityPagePath } from '@/lib/municipalities/pagination'
+import { getMunicipalityPagePath, municipalityPageLinks } from '@/lib/municipalities/pagination'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
+import { scrollBehavior } from '@/lib/ui/reduced-motion'
 
 const KommuneMap = dynamic(() => import('./kommune-map'), { ssr: false })
 
@@ -115,8 +116,12 @@ export default function KommuneExperience({
               ? 'Ingen adresser'
               : `Viser adresse ${pagination.firstItemNumber.toLocaleString('da-DK')}–${pagination.lastItemNumber.toLocaleString('da-DK')} af ${pagination.totalItems.toLocaleString('da-DK')}`}
         </p>
+        <p className="mt-1 text-xs leading-5 text-gray-400">
+          Kun registreringer med mindst 40 pladser vises.{' '}
+          <Link href="/om-data#hvilke-registreringer" className={ui.textLink}>Læs hvorfor</Link>
+        </p>
         {pagination.totalPages > 1 ? (
-          <p className="mt-1 text-xs leading-5 text-gray-500">
+          <p className="mt-1 text-xs leading-5 text-gray-400">
             Søgningen og kortet omfatter adresserne på denne side. Brug sidelinkene for at se resten af kommunen.
           </p>
         ) : null}
@@ -149,7 +154,7 @@ export default function KommuneExperience({
                         setMapActivated(true)
                         setSelectedGroupKey(group.groupKey)
                         if (window.matchMedia('(max-width: 1023px)').matches) {
-                          document.getElementById('municipality-map')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          document.getElementById('municipality-map')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
                         }
                       }}
                       className={`${ui.secondaryAction} shrink-0 py-2 disabled:cursor-wait disabled:opacity-60`}
@@ -206,7 +211,11 @@ export default function KommuneExperience({
                   Forrige
                 </Link>
               ) : null}
-              {Array.from({ length: pagination.totalPages }, (_, index) => index + 1).map((page) => (
+              {municipalityPageLinks(pagination.currentPage, pagination.totalPages).map((page, index) => page === 'gap' ? (
+                <span key={`gap-${index}`} className="inline-flex min-h-[44px] items-center px-1 text-gray-400" aria-hidden>
+                  …
+                </span>
+              ) : (
                 <Link
                   key={page}
                   href={getMunicipalityPagePath(municipalitySlug, page)}
@@ -243,7 +252,7 @@ export default function KommuneExperience({
               const group = groups.find((item) => item.groupKey === key)
               if (group) {
                 setQuery('')
-                requestAnimationFrame(() => document.getElementById(`kommune-group-${group.primarySlug}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+                requestAnimationFrame(() => document.getElementById(`kommune-group-${group.primarySlug}`)?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }))
               }
             }}
           />

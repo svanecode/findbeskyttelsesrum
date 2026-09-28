@@ -57,7 +57,7 @@ function CaseConversation({ contactCase }: { contactCase: PrivacyContactCase }) 
             <p className={message.authorType === "moderator" ? "font-semibold text-emerald-200" : "font-semibold text-gray-300"}>
               {message.authorType === "moderator" ? "Svar fra Find Beskyttelsesrum" : "Din besked"}
             </p>
-            <time className="text-gray-500" dateTime={message.createdAt}>{formatDate(message.createdAt)}</time>
+            <time className="text-gray-400" dateTime={message.createdAt}>{formatDate(message.createdAt)}</time>
           </div>
           <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-gray-200">{message.message}</p>
         </article>

@@ -6,7 +6,7 @@ import {
   normalizeContactAccessKey,
   normalizeContactReference,
 } from "@/lib/contact/privacy-contact";
-import { readContactJsonBody } from "@/lib/contact/privacy-contact-api";
+import { maximumContactBodyBytes, readContactJsonBody } from "@/lib/contact/privacy-contact-api";
 import { isSameOriginRequest } from "@/lib/http/request-context";
 import { appendPrivacyContactMessage, getPrivacyContactCase } from "@/lib/contact/privacy-contact-server";
 import { consumeDistributedRateLimit } from "@/lib/distributed-rate-limit";
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   if (!rateLimit(request, limitConfig, "privacy-contact-message")) {
     return json({ error: "Du har sendt for mange beskeder. Prøv igen senere." }, 429, 3600);
   }
-  const body = await readContactJsonBody<IncomingMessage>(request, 8_192);
+  const body = await readContactJsonBody<IncomingMessage>(request, maximumContactBodyBytes);
   if (!body) return json({ error: "Beskeden kunne ikke læses eller var for stor." }, 400);
   if (typeof body.website === "string" && body.website.trim()) return json({ success: true }, 201);
 

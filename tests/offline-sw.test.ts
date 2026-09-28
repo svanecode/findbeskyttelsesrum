@@ -6,7 +6,7 @@ import vm from "node:vm";
 type FetchHandler = (event: { request: Request; respondWith: (value: Promise<Response>) => void }) => void;
 
 /** Runs public/offline-sw.js with in-memory caches and a controllable network. */
-async function loadWorker(network: (request: Request) => Promise<Response>, options: { instantTimeout?: boolean } = {}) {
+async function loadWorker(network: (request: Request) => Promise<Response>, options: { instantTimeout?: boolean; failingPut?: boolean } = {}) {
   const source = await readFile(new URL("../public/offline-sw.js", import.meta.url), "utf8");
   const stores = new Map<string, Map<string, Response>>();
   const keyOf = (input: Request | string) => (typeof input === "string" ? new URL(input, "https://findbeskyttelsesrum.dk").pathname : new URL(input.url).pathname);
@@ -19,6 +19,7 @@ async function loadWorker(network: (request: Request) => Promise<Response>, opti
           return store.get(keyOf(input))?.clone();
         },
         async put(input: Request | string, response: Response) {
+          if (options.failingPut) throw new DOMException("Quota exceeded", "QuotaExceededError");
           store.set(keyOf(input), response);
         },
         async keys() {
@@ -158,4 +159,13 @@ test("transient server errors fall back to the saved copy, other errors pass thr
   status = 404;
   const missing = await worker.dispatch("https://findbeskyttelsesrum.dk/api/app-v2/nearby/tiles/222_31");
   assert.equal(missing?.status, 404);
+});
+
+test("a cache that refuses to save never costs the visitor the network response", async () => {
+  const worker = await loadWorker(async () => page("fresh"), { failingPut: true });
+  const navigation = await worker.dispatch("https://findbeskyttelsesrum.dk/", { mode: "navigate" });
+  assert.equal(navigation?.status, 200);
+  assert.equal(await navigation?.text(), "fresh");
+  const asset = await worker.dispatch("https://findbeskyttelsesrum.dk/_next/static/chunks/app.js");
+  assert.equal(await asset?.text(), "fresh");
 });

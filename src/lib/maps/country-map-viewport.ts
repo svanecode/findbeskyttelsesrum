@@ -61,8 +61,10 @@ export function countryMapGridCell(zoom: number) {
 
 /**
  * The area the browser requests for a visible viewport: a 20 % margin for
- * small pans, snapped outward to the zoom level's fixed grid so visitors
- * looking at the same area send identical, CDN-cacheable URLs.
+ * small pans, snapped outward to the zoom level's fixed grid. The URL space
+ * per zoom is finite and every cell is a whole multiple of the server step;
+ * visitors share a URL only when all four padded edges snap to the same cells
+ * (measured: about 20-30 % for equal viewports, rarely across screen sizes).
  */
 export function createBufferedCountryMapViewport(viewport: CountryMapViewport): CountryMapViewport {
   const zoom = Math.round(viewport.zoom);

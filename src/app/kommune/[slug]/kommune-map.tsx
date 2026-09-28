@@ -9,6 +9,7 @@ import type { MapTileStatus } from '@/components/ResilientMapTileLayer'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
 import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
+import { prefersReducedMotion } from '@/lib/ui/reduced-motion'
 
 const MapContainer = dynamic(
   () => import('react-leaflet').then((mod) => mod.MapContainer),
@@ -81,7 +82,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
     const selectedGroup = groups.find((group) => group.groupKey === selectedGroupKey)
     if (selectedGroup?.latitude != null && selectedGroup.longitude != null) {
       map.flyTo([selectedGroup.latitude, selectedGroup.longitude], Math.max(map.getZoom(), 14), {
-        animate: true,
+        animate: !prefersReducedMotion(),
         duration: 0.6,
       })
       return
@@ -175,7 +176,6 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
                 position={[group.latitude as number, group.longitude as number]}
                 icon={icon}
                 title={`${group.addressLine1}, ${group.postalCode} ${group.city}`}
-                alt={`BBR-registrering ved ${group.addressLine1}`}
                 eventHandlers={{
                   click: () => onMarkerClick(group.groupKey),
                 }}

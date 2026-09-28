@@ -48,6 +48,6 @@ Final CI outcomes and rollout evidence are recorded in [PR #37](https://github.c
 
 ## Rollout
 
-The four additive migrations were applied before updating the scheduled importer or deploying the new admin queues. Existing public routes and the original publication RPC signature remain compatible; the unsafe no-argument recovery mutation is retired. Updating application files in Git does not itself deploy the Vercel site, whose repository release process uses a separate deployment step. Production smoke monitoring compares the deployed SHA with `main`, so it will flag the version mismatch until the Vercel release is completed.
+The four additive migrations were applied before updating the scheduled importer or deploying the new admin queues. Existing public routes and the original publication RPC signature remain compatible; the unsafe no-argument recovery mutation is retired. Production smoke monitoring compares the deployed SHA with `main`, so it flags a mismatch until the Vercel deployment of the latest commit is live. (Corrected 2026-09-28: every commit on `main` deploys to production automatically through Vercel's Git integration; this note previously described a separate deployment step.)
 
 The original `.playwright-mcp/` directory is unrelated to this change and is not included in the commit.

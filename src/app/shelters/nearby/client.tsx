@@ -20,10 +20,13 @@ import {
   isNearbyTilePayload,
   parseTileKey,
   rankNearbyGroupsFromTiles,
+  revisionCounter,
   surroundingTileKeys,
+  type NearbyTilePayload,
 } from '@/lib/nearby/tiles'
 import { trackProductMetric } from '@/lib/analytics/product-metrics'
 import { NearbyFitBounds } from './nearby-fit-bounds'
+import { scrollBehavior } from '@/lib/ui/reduced-motion'
 
 setupLeafletDefaults(L)
 
@@ -131,8 +134,8 @@ function getNearbyLoadErrorMessage(error: unknown) {
 
 // Loads the CDN-cached tiles around the position and ranks them on the
 // device. Returns null whenever the result cannot be guaranteed identical to
-// the server search (outside the tile grid, a failed tile, mixed data
-// revisions, or too few results inside the loaded block).
+// the server search (outside the tile grid, a failed tile, revisions that stay
+// mixed after a refresh, or too few results inside the loaded block).
 // Set by public/offline-sw.js on tiles it serves from its cache.
 const offlineCachedAtHeader = 'X-Offline-Cached-At'
 
@@ -142,21 +145,35 @@ type TileSearchResult = {
   savedAt: string | null
 }
 
+async function fetchTile(key: string, path: string, cachedAt: string[]): Promise<NearbyTilePayload> {
+  const response = await fetch(path)
+  if (!response.ok) throw new Error(`nearby tile ${key} failed with status ${response.status}`)
+  const savedAt = response.headers.get(offlineCachedAtHeader)
+  if (savedAt) cachedAt.push(savedAt)
+  const payload: unknown = await response.json()
+  if (!isNearbyTilePayload(payload, key)) throw new Error(`nearby tile ${key} returned an invalid payload`)
+  return payload
+}
+
 async function fetchNearbyFromTiles(lat: number, lng: number): Promise<TileSearchResult | null> {
   const keys = surroundingTileKeys(lat, lng)
   if (keys.some((key) => parseTileKey(key) === null)) return null
 
   const cachedAt: string[] = []
-  const tiles = await Promise.all(keys.map(async (key) => {
-    const response = await fetch(`/api/app-v2/nearby/tiles/${key}`)
-    if (!response.ok) throw new Error(`nearby tile ${key} failed with status ${response.status}`)
-    const savedAt = response.headers.get(offlineCachedAtHeader)
-    if (savedAt) cachedAt.push(savedAt)
-    const payload: unknown = await response.json()
-    if (!isNearbyTilePayload(payload, key)) throw new Error(`nearby tile ${key} returned an invalid payload`)
-    return payload
-  }))
-  if (new Set(tiles.map((tile) => tile.revision)).size !== 1) return null
+  let tiles = await Promise.all(keys.map((key) => fetchTile(key, `/api/app-v2/nearby/tiles/${key}`, cachedAt)))
+
+  // Right after a publication some tiles are still cached from the previous
+  // revision. Fetch only those again, pinned to the newest revision seen.
+  if (new Set(tiles.map((tile) => tile.revision)).size !== 1) {
+    const counters = tiles.map((tile) => revisionCounter(tile.revision))
+    if (counters.some((counter) => counter === null)) return null
+    const newest = tiles[counters.indexOf(Math.max(...(counters as number[])))]!.revision
+    const newestCounter = revisionCounter(newest)!
+    tiles = await Promise.all(tiles.map((tile, index) => tile.revision === newest
+      ? tile
+      : fetchTile(keys[index]!, `/api/app-v2/nearby/tiles/${keys[index]}/${newestCounter}`, cachedAt)))
+    if (new Set(tiles.map((tile) => tile.revision)).size !== 1) return null
+  }
 
   const groups = rankNearbyGroupsFromTiles(tiles, { latitude: lat, longitude: lng }, {
     limit: nearbyResultLimit,
@@ -607,20 +624,20 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                   {shouldRenderMap ? (
                     <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom={false}>
                       <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
-                      <Marker position={[lat, lng]} icon={userLocationIcon} title="Søgepunkt" alt="Søgepunkt på kortet" />
+                      <Marker position={[lat, lng]} icon={userLocationIcon} title="Søgepunkt" />
                       {shelters.map((shelter, index) => shelter.location ? (
                         <Marker
                           key={shelter.id}
                           position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
                           icon={getNumberedShelterIcon(index + 1, selectedShelterId === shelter.id)}
-                          title={getAddressLine(shelter)}
-                          alt={`Nummer ${index + 1}: BBR-registrering ved ${getAddressLine(shelter)}`}
+                          // Leaflet ignores alt on div icons; title is the marker's accessible name.
+                          title={`${index + 1}. ${getAddressLine(shelter)}`}
                           eventHandlers={{
                             click: () => {
                               selectionReturnRef.current = null
                               setSelectedShelterId(shelter.id)
                               setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
-                              if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                              if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
                             },
                           }}
                         >

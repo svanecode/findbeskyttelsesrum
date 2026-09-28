@@ -10,7 +10,7 @@ Gennemgå registret hvert kvartal og ved hver større release. Opdatér datoen n
 | Datafordeler (BBR + DAR) | Daglig import af registreringer | Data bliver gamle; `/api/health` bliver `degraded` efter 48 timer | Seneste publicerede datasæt bliver stående | Datafordelerens driftsstatus og nyheder; importworkflowet opretter en GitHub-issue ved fejl. |
 | OpenStreetMap-tiles og embed | Kortbaggrund og kort på detaljesiden | Kort uden baggrund | Resultatlisten virker uden kort; kortfejl giver "Til resultatlisten" | [OSM tile usage policy](https://operations.osmfoundation.org/policies/tiles/). Tiles hentes først, når et kort vises. |
 | Supabase | Database, offentlige RPC'er, moderation og login | Nærhedssøgning, kort og sider fejler | Statisk genererede sider serveres fra cache | Supabase status og projektets advisors; `/api/health` returnerer `503`. |
-| Vercel | Hosting, CDN, funktioner, analytics | Siden er nede | Ingen | Vercel status. Produktion deployes manuelt; forrige deployment er rollback-kandidat. |
+| Vercel | Hosting, CDN, funktioner, analytics | Siden er nede | Ingen | Vercel status. Hver commit på `main` udgives automatisk til produktion via Vercels Git-integration; forrige deployment er rollback-kandidat. |
 | GitHub Actions | CI, daglig import, produktionskontrol og heartbeat | Import og kontrol kører ikke | Heartbeat-advarsel efter 8 timer, `503` efter 24 timer | GitHub afvikler planlagte workflows forsinket; se `external-monitoring.md`. |
 | UptimeRobot (gratis) | Uafhængig kontrol af `/api/health` | Ingen ekstern alarm | GitHub-kontrollen | Se `external-monitoring.md`. |
 

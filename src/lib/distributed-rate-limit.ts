@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import type { NextRequest } from "next/server";
 
 import { getClientAddress } from "@/lib/http/request-context";
+import { getRateLimitHashSecret, isRateLimitHashSecretUsable } from "@/lib/rate-limit-secret";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 
 type DistributedRateLimitConfig = {
@@ -31,19 +32,6 @@ function unavailableDecision(windowMs: number): DistributedRateLimitDecision {
   };
 }
 
-function getRateLimitHashSecret() {
-  const secret = process.env.RATE_LIMIT_HASH_SECRET?.trim();
-  if (secret && secret.length >= 32) return secret;
-
-  const isProduction = process.env.VERCEL_ENV === "production"
-    || (!process.env.VERCEL_ENV && process.env.NODE_ENV === "production");
-  if (isProduction) {
-    throw new Error("RATE_LIMIT_HASH_SECRET must contain at least 32 characters in production.");
-  }
-
-  return `findbeskyttelsesrum-non-production-rate-limit-secret-v1:${process.env.VERCEL_DEPLOYMENT_ID ?? "local"}`;
-}
-
 /**
  * Shared database-backed limiter for expensive or write-oriented API routes.
  * It fails open to the existing in-process limiter if Supabase is unavailable.
@@ -55,6 +43,11 @@ export async function consumeDistributedRateLimit(
 ): Promise<DistributedRateLimitDecision> {
   const clientAddress = getClientAddress(request);
   if (!clientAddress) return unavailableDecision(config.windowMs);
+  if (!isRateLimitHashSecretUsable()) {
+    // Reported by /api/health as well, so a missing secret is not silent.
+    console.error("[rate-limit] RATE_LIMIT_HASH_SECRET is missing or shorter than 32 characters.", { namespace });
+    return unavailableDecision(config.windowMs);
+  }
 
   const windowSeconds = Math.max(1, Math.min(86_400, Math.ceil(config.windowMs / 1_000)));
   const maxRequests = Math.max(1, Math.min(10_000, Math.trunc(config.maxRequests)));

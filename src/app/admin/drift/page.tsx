@@ -143,7 +143,7 @@ export default async function AdminOperationsPage({
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Kommuner</dt><dd className="mt-1 text-2xl font-semibold">{countFormat.format(current?.municipalityCount ?? 0)}</dd></div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">BBR→DAR-kobling</dt><dd className="mt-1 text-2xl font-semibold">{currentMappingCoverage === null ? "—" : `${currentMappingCoverage.toLocaleString("da-DK", { maximumFractionDigits: 3 })}%`}</dd></div>
           </dl>
-          <p className="mt-4 text-xs leading-5 text-gray-500">Driften bruger kun gratis funktioner i den eksisterende Supabase-database, GitHub Actions og den eksterne uptime-kontrol.</p>
+          <p className="mt-4 text-xs leading-5 text-gray-400">Driften bruger kun gratis funktioner i den eksisterende Supabase-database, GitHub Actions og den eksterne uptime-kontrol.</p>
         </section>
 
         <section className="mt-8 rounded-xl border border-white/10 bg-white/[0.04] p-5 sm:p-6" aria-labelledby="monitoring-heading">
@@ -162,7 +162,7 @@ export default async function AdminOperationsPage({
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Kilde</dt><dd className="mt-1 text-lg font-semibold">{operationalHealth?.source === "github-production-smoke" ? "GitHub produktionskontrol" : operationalHealth?.source === "manual-release" ? "Manuel releasekontrol" : "—"}</dd></div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Git-version</dt><dd className="mt-1 font-mono text-sm font-semibold">{operationalHealth?.gitSha?.slice(0, 12) ?? "—"}</dd></div>
           </dl>
-          <p className="mt-4 text-xs leading-5 text-gray-500">
+          <p className="mt-4 text-xs leading-5 text-gray-400">
             Kun den betroede serverbaserede produktionskontrol kan oprette heartbeat. Besøgendes produktmålinger kan ikke holde driftsstatus kunstigt grøn.
           </p>
         </section>
@@ -183,9 +183,9 @@ export default async function AdminOperationsPage({
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Resultater med fund</dt><dd className="mt-1 text-2xl font-semibold">{percentage(metricCount("nearby_results_loaded"), resultLoads)}%</dd></div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Afvist GPS-adgang</dt><dd className="mt-1 text-2xl font-semibold">{percentage(metricCount("geolocation_denied"), gpsDecisions)}%</dd></div>
             <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Gennemsnitlig resultatindlæsning</dt><dd className="mt-1 text-2xl font-semibold">{averageNearbyMs > 0 ? `${(averageNearbyMs / 1000).toLocaleString("da-DK", { maximumFractionDigits: 1 })} sek.` : "—"}</dd></div>
-            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Registrerede tekniske fejl</dt><dd className="mt-1 text-2xl font-semibold">{countFormat.format(errorCount)}</dd><dd className="mt-1 text-xs text-gray-500">{countFormat.format(metricCount("report_submitted"))} brugerrapporter indsendt</dd></div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-4"><dt className="text-xs text-gray-400">Registrerede tekniske fejl</dt><dd className="mt-1 text-2xl font-semibold">{countFormat.format(errorCount)}</dd><dd className="mt-1 text-xs text-gray-400">{countFormat.format(metricCount("report_submitted"))} brugerrapporter indsendt</dd></div>
           </dl>
-          <p className="mt-4 text-xs leading-5 text-gray-500">
+          <p className="mt-4 text-xs leading-5 text-gray-400">
             Kun timevise tællere gemmes. Målingerne indeholder ikke IP-adresser, bruger-id, adresser, koordinater, søgetekst eller fulde URL’er.
           </p>
         </section>
@@ -228,7 +228,7 @@ export default async function AdminOperationsPage({
                     <p className="font-medium">{formatDate(publication.publishedAt)}</p>
                     <p className="mt-1 text-sm text-gray-400">{publicationSourceLabel(publication)} · {countFormat.format(publication.recordCount)} registreringer</p>
                   </div>
-                  {publication.isCurrent ? <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-100">Aktiv</span> : publication.snapshotAvailable ? <span className="rounded-full border border-white/15 px-3 py-1 text-xs text-gray-300">Kan gendannes</span> : <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-gray-500">Historik</span>}
+                  {publication.isCurrent ? <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-100">Aktiv</span> : publication.snapshotAvailable ? <span className="rounded-full border border-white/15 px-3 py-1 text-xs text-gray-300">Kan gendannes</span> : <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-gray-400">Historik</span>}
                 </div>
                 {profile.role === "owner" && !publication.isCurrent && publication.snapshotAvailable ? (
                   <details className="mt-4 rounded-lg border border-red-400/20 bg-red-500/5 p-4">
