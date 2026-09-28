@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 
@@ -110,6 +113,32 @@ test("exclusions parity prints counts only unless details are requested locally"
 
     const { stdout: details } = await runScript("parity:exclusions", ["--details"], env);
     assert.match(details, /registrering-hemmelig Skjultvej 7, 9999 Hemmeligby/);
+  } finally {
+    await server.close();
+  }
+});
+
+test("the allowlist export writes an idempotent, quoted seed migration", async () => {
+  const server = await serve((request, response) => {
+    assert.equal(new URL(request.url ?? "/", "http://localhost").pathname, "/rest/v1/application_code_eligibility");
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify([
+      { source_name: "datafordeler-bbr-dar", application_code: "210", label: "Erhvervs' produktion",
+        is_nearby_eligible: true, rule_source: "legacy_public_anvendelseskoder", notes: null },
+      { source_name: "datafordeler-bbr-dar", application_code: "910", label: "Garage",
+        is_nearby_eligible: false, rule_source: "legacy_public_anvendelseskoder", notes: "n" },
+    ]));
+  });
+  const output = join(await mkdtemp(join(tmpdir(), "eligibility-")), "seed.sql");
+  try {
+    const { stdout } = await runScript("export:application-codes", [output], {
+      NEXT_PUBLIC_SUPABASE_URL: server.url, SUPABASE_SECRET_KEY: "test-server-key",
+    });
+    assert.match(stdout, /wrote 2 rows \(1 eligible\)/);
+    const migration = await readFile(output, "utf8");
+    assert.match(migration, /'Erhvervs'' produktion', true/);
+    assert.match(migration, /'910', 'Garage', false, 'legacy_public_anvendelseskoder', 'n'\)/);
+    assert.match(migration, /on conflict \(source_name, application_code\) do nothing;/);
   } finally {
     await server.close();
   }
