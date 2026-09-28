@@ -116,7 +116,7 @@ export default function KommuneExperience({
               : `Viser adresse ${pagination.firstItemNumber.toLocaleString('da-DK')}–${pagination.lastItemNumber.toLocaleString('da-DK')} af ${pagination.totalItems.toLocaleString('da-DK')}`}
         </p>
         {pagination.totalPages > 1 ? (
-          <p className="mt-1 text-xs leading-5 text-gray-500">
+          <p className="mt-1 text-xs leading-5 text-gray-400">
             Søgningen og kortet omfatter adresserne på denne side. Brug sidelinkene for at se resten af kommunen.
           </p>
         ) : null}

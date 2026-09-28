@@ -28,7 +28,7 @@ export default function PrivacyPage() {
             Du behøver ikke en konto for at bruge Find Beskyttelsesrum. Denne side forklarer, hvilke oplysninger de
             enkelte funktioner behandler, hvorfor de behandles, hvem der modtager dem, og hvornår de slettes.
           </p>
-          <p className="text-sm text-gray-500">Senest opdateret 28. september 2026.</p>
+          <p className="text-sm text-gray-400">Senest opdateret 28. september 2026.</p>
         </header>
 
         <div className="mt-10 border-b border-white/10">

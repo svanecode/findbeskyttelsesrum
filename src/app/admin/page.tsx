@@ -115,7 +115,7 @@ function QueueCard({ report, returnPage, returnStatus }: {
             {outcomeLabels[report.resolutionOutcome] ?? report.resolutionOutcome}
           </p>
           {report.resolutionNote ? <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-300">{report.resolutionNote}</p> : null}
-          <p className="mt-2 text-xs text-gray-500">Senest behandlet {formatDate(report.reviewedAt)}</p>
+          <p className="mt-2 text-xs text-gray-400">Senest behandlet {formatDate(report.reviewedAt)}</p>
         </div>
       ) : null}
 
@@ -164,7 +164,7 @@ function QueueCard({ report, returnPage, returnStatus }: {
               rows={3}
               minLength={5}
               maxLength={1000}
-              className="mt-2 w-full rounded-lg border border-white/20 bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-gray-500 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/30"
+              className="mt-2 w-full rounded-lg border border-white/20 bg-black/30 px-3 py-3 text-sm text-white outline-none placeholder:text-gray-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-400/30"
               placeholder="Beskriv kontrollen og beslutningen."
             />
 

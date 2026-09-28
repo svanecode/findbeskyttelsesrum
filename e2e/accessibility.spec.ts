@@ -93,3 +93,10 @@ test("kontaktformularen består automatiske WCAG A/AA-kontroller", async ({ page
   await expect(page.getByRole("heading", { name: "Kontakt uden e-mail" })).toBeVisible();
   await expectNoAccessibilityViolations(page, testInfo);
 });
+
+test("privatlivssiden består automatiske WCAG A/AA-kontroller", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Privatlivssiden kontrolleres i én browserprofil.");
+  await page.goto("/privatliv");
+  await expect(page.getByRole("heading", { level: 1, name: "Privatliv og personoplysninger" })).toBeVisible();
+  await expectNoAccessibilityViolations(page, testInfo);
+});

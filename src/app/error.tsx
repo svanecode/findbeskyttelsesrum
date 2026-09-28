@@ -46,7 +46,7 @@ export default function AppError({
             Gå til forsiden
           </Link>
         </div>
-        {error.digest ? <p className="mt-5 text-xs text-gray-500">Fejlkode: {error.digest}</p> : null}
+        {error.digest ? <p className="mt-5 text-xs text-gray-400">Fejlkode: {error.digest}</p> : null}
       </section>
     </main>
   )
