@@ -232,3 +232,26 @@ test("health and the admin operations page share one heartbeat threshold", async
   const operationalHealth = await readFile(new URL("../src/lib/operations/operational-health.ts", import.meta.url), "utf8");
   assert.match(operationalHealth, /maximumAgeMinutes = getOperationalHeartbeatLimits\(\)\.warningAgeMinutes/);
 });
+
+test("a maximum-length contact message in multi-byte characters is not rejected as too large", async () => {
+  const contactApi = await loadServerModule<{
+    maximumContactBodyBytes: number;
+    readContactJsonBody: <T>(request: NextRequest, maximumBytes: number) => Promise<T | null>;
+  }>(new URL("../src/lib/contact/privacy-contact-api.ts", import.meta.url), {
+    "next/server": nextServer,
+    "@/lib/http/read-bounded-request-text": { readBoundedRequestText },
+  });
+  const body = JSON.stringify({
+    category: "other",
+    subject: "€".repeat(120),
+    message: "€".repeat(3_999) + "\u0001",
+    website: "",
+  });
+  const request = new nextServer.NextRequest("https://findbeskyttelsesrum.dk/api/app-v2/privacy-contact/cases", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
+  const parsed = await contactApi.readContactJsonBody<{ message: string }>(request, contactApi.maximumContactBodyBytes);
+  assert.equal(parsed?.message.length, 4_000);
+});
