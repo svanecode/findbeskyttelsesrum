@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ConsentSettings } from "@/components/ConsentBanner";
 import GlobalFooter from "@/components/GlobalFooter";
 import { ui } from "@/components/ui-classes";
 import { getPrivacyController } from "@/lib/privacy/controller";
@@ -71,10 +72,10 @@ export default function PrivacyPage() {
               midlertidig værdi i browserens hukommelse, som forsvinder ved genindlæsning.
             </p>
             <p className={secondaryParagraphClassName}>
-              Så siden kan bruges uden net, gemmer din browser en kopi af sidens filer, offentlige sider, du har besøgt,
+              Hvis du tillader offlinekopien, gemmer din browser en kopi af sidens filer, offentlige sider, du har besøgt,
               og de offentlige kortfliser, du senest har hentet. Kortfliserne indeholder kun offentlige registreringer for et område på ca. 28 × 26 km og
-              intet om din position eller søgning. Kopien bliver på din enhed, sendes ikke til tjenesten og kan slettes
-              under browserens indstillinger for webstedsdata.
+              intet om din position eller søgning. Kopien bliver på din enhed og sendes ikke til tjenesten. Trækker du
+              samtykket tilbage, slettes kopien, og du kan også slette den under browserens indstillinger for webstedsdata.
             </p>
             <p className={secondaryParagraphClassName}>
               Formålet er at levere den søgning, du beder om. Retsgrundlaget er den dataansvarliges legitime interesse i
@@ -100,7 +101,9 @@ export default function PrivacyPage() {
           <section className={sectionClassName} aria-labelledby="analytics-heading">
             <h2 id="analytics-heading" className="text-lg font-semibold">Analyse og aggregerede målinger</h2>
             <p className={paragraphClassName}>
-              Vercel Web Analytics og Speed Insights bruges til overordnet trafik- og ydelsesmåling. Før en sideadresse
+              Målingerne i dette afsnit starter først, når du har givet samtykke til anonym statistik, og stopper, hvis
+              du trækker samtykket tilbage. Vercel Web Analytics og Speed Insights bruges til overordnet trafik- og
+              ydelsesmåling. Før en sideadresse
               sendes til analyse, fjernes queryparametre og fragmenter. Vercel beskriver Web Analytics som cookie-fri og
               aggregeret, men modtager stadig den tekniske forbindelse, der er nødvendig for at levere målingen.
             </p>
@@ -111,13 +114,8 @@ export default function PrivacyPage() {
               privat kanal og kan ikke oprettes af almindelige besøgende.
             </p>
             <p className={secondaryParagraphClassName}>
-              Formålet er at opdage fejl og forbedre tjenesten. Retsgrundlaget er den dataansvarliges legitime interesse
-              i stabilitet og produktforbedring efter artikel 6, stk. 1, litra f.
-            </p>
-            <p className={secondaryParagraphClassName}>
-              Vurderingen af analyseopsætningen, den tekniske lagring og et eventuelt samtykkebehov skal dokumenteres og
-              revurderes, når leverandører, målemetoder eller formål ændres. Hvis en ændring kræver samtykke, må den
-              pågældende måling først aktiveres, når en egnet samtykkeløsning er på plads.
+              Formålet er at opdage fejl og forbedre tjenesten. Retsgrundlaget er dit samtykke efter artikel 6, stk. 1,
+              litra a. Afviser du, virker søgningen på samme måde, blot uden at din brug tælles med.
             </p>
           </section>
 
@@ -212,12 +210,24 @@ export default function PrivacyPage() {
             <h2 id="storage-heading" className="text-lg font-semibold">Netforbindelse og lokal lagring</h2>
             <p className={paragraphClassName}>
               Tjenesten er en almindelig hjemmeside og kræver netforbindelse for adressesøgning, kort og de seneste
-              data. Som reserve gemmer din browser en begrænset kopi af sidens filer, nogle af de sider, du har besøgt,
+              data. Har du tilladt offlinekopien, gemmer din browser som reserve en begrænset kopi af sidens filer, nogle af de sider, du har besøgt,
               og de offentlige kortfliser, du senest har hentet. Hvis netværket ikke svarer, kan &quot;Brug min
               placering&quot; bruge de gemte fliser. Resultaterne mærkes da &quot;Viser gemte data&quot; med datoen for
               kopien, så ældre data ikke forveksles med den seneste dataimport. Hvad kopien indeholder, står under
               adresse- og placeringssøgning ovenfor.
             </p>
+          </section>
+
+          <section id="samtykke" className={`${sectionClassName} scroll-mt-24`} aria-labelledby="consent-heading">
+            <h2 id="consent-heading" className="text-lg font-semibold">Cookies og samtykke</h2>
+            <p className={paragraphClassName}>
+              Tjenesten bruger ikke cookies til markedsføring eller sporing på tværs af websteder. Ved dit første besøg
+              spørger vi, om du vil tillade to valgfrie ting: anonym statistik og en offlinekopi på din enhed. Indtil du
+              har valgt, er begge slået fra. Dit valg gemmes i browserens lokale lager, så vi ikke spørger igen; det er
+              nødvendigt for at huske valget og kræver derfor ikke samtykke. Du kan ændre eller trække samtykket tilbage
+              her når som helst, og det er lige så let som at give det.
+            </p>
+            <ConsentSettings />
           </section>
 
           <section className={sectionClassName}>

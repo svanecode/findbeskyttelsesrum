@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
+import ConsentBanner from "@/components/ConsentBanner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import SiteHeader from "@/components/SiteHeader";
 import OfflineSupport from "@/components/OfflineSupport";
@@ -113,6 +114,7 @@ export default function RootLayout({
           {children}
           {process.env.NODE_ENV === "production" ? <VercelWebMetrics /> : null}
           {process.env.NODE_ENV === "production" ? <OfflineSupport /> : null}
+          <ConsentBanner />
         </ErrorBoundary>
       </body>
     </html>

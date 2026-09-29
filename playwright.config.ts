@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { consentGivenStorageState } from "./e2e/consent-state";
+
 const localBaseUrl = "http://127.0.0.1:3100";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? localBaseUrl;
 const startsLocalServer = !process.env.PLAYWRIGHT_BASE_URL;
@@ -28,6 +30,7 @@ export default defineConfig({
     // The offline worker would intercept requests that tests mock with
     // page.route; the offline spec opts back in explicitly.
     serviceWorkers: "block",
+    storageState: consentGivenStorageState(baseURL),
   },
   projects: [
     {

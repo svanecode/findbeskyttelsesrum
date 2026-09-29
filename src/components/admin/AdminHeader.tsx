@@ -3,11 +3,12 @@ import Link from "next/link";
 
 import type { ModeratorProfile } from "@/lib/moderation/auth";
 
-type AdminSection = "reports" | "contact" | "drift";
+type AdminSection = "reports" | "contact" | "statistics" | "drift";
 
 const sections: Array<{ id: AdminSection; href: Route; label: string }> = [
   { id: "reports", href: "/admin", label: "Fejlrapporter" },
   { id: "contact", href: "/admin/kontakt", label: "Kontaktkø" },
+  { id: "statistics", href: "/admin/statistik", label: "Statistik" },
   { id: "drift", href: "/admin/drift", label: "Datadrift" },
 ];
 
