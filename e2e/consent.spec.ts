@@ -40,23 +40,25 @@ test("Tillad alle gemmer valget, så dialogen ikke vises igen", async ({ page })
   await expect(consentDialog(page)).toBeHidden();
 
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("findbeskyttelsesrum.consent.v1") ?? "null"));
-  expect(stored).toMatchObject({ version: 1, statistics: true, offline: true });
+  expect(stored).toMatchObject({ version: 1, statistics: true });
+  expect(stored).not.toHaveProperty("offline");
 
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Se registrerede beskyttelsesrum nær dig" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find beskyttelsesrum nær dig" })).toBeVisible();
   await expect(consentDialog(page)).toBeHidden();
 });
 
-test("Tilpas valg gemmer kun det, der er slået til", async ({ page }) => {
+test("Tilpas valg gemmer kun det, der er slået til, og offlinekopien er ikke et samtykkevalg", async ({ page }) => {
   await page.goto("/");
   const dialog = consentDialog(page);
   await dialog.getByRole("button", { name: "Tilpas valg" }).click();
-  await dialog.getByRole("checkbox", { name: /Offlinekopi/ }).check();
+  await expect(dialog.getByRole("checkbox")).toHaveCount(1);
+  await dialog.getByRole("checkbox", { name: /Anonym statistik/ }).check();
   await dialog.getByRole("button", { name: "Gem valg" }).click();
   await expect(dialog).toBeHidden();
 
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("findbeskyttelsesrum.consent.v1") ?? "null"));
-  expect(stored).toMatchObject({ statistics: false, offline: true });
+  expect(stored).toMatchObject({ statistics: true });
 });
 
 test("privatlivssiden kan læses uden dialog, og valget kan ændres dér", async ({ page }) => {
@@ -66,10 +68,10 @@ test("privatlivssiden kan læses uden dialog, og valget kan ændres dér", async
   await expect(section.getByText("Du har ikke truffet et valg endnu.")).toBeVisible();
 
   await section.getByRole("button", { name: "Tillad alle" }).click();
-  await expect(section.getByText(/anonym statistik tilladt, offlinekopi tilladt\. Dit valg er gemt\./)).toBeVisible();
+  await expect(section.getByText(/anonym statistik tilladt\. Dit valg er gemt\./)).toBeVisible();
 
   await section.getByRole("button", { name: "Kun nødvendige" }).click();
-  await expect(section.getByText(/anonym statistik fravalgt, offlinekopi fravalgt/)).toBeVisible();
+  await expect(section.getByText(/anonym statistik fravalgt/)).toBeVisible();
   await expect(section.getByRole("checkbox", { name: /Anonym statistik/ })).not.toBeChecked();
 });
 
@@ -92,11 +94,10 @@ test("Kun nødvendige sender ingen målinger og installerer ingen offlinekopi", 
   await consentDialog(page).getByRole("button", { name: "Kun nødvendige" }).click();
   await expect(consentDialog(page)).toBeHidden();
 
-  const addressInput = page.getByRole("combobox", { name: "Adresse, by eller postnummer" });
+  const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
   await addressInput.fill("Rådhuspladsen 1");
   await page.getByRole("option", { name: selectedAddressLabel }).click();
-  await page.getByRole("button", { name: "Søg", exact: true }).click();
-  await expect(page.getByText("120 BBR-registrerede pladser")).toBeVisible();
+  await expect(page.getByText(/120 pladser/)).toBeVisible();
 
   // Longer than the idle delay before analytics and the offline worker would start.
   await page.waitForTimeout(5000);

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 type NavItem = { href: Route; label: string; active: (p: string) => boolean }
 
 const NAV: NavItem[] = [
-  { href: '/', label: 'Søg', active: (p) => p === '/' || p.startsWith('/shelters/nearby') },
+  { href: '/', label: 'Søg', active: (p) => p === '/' || p.startsWith('/naer-dig') },
   { href: '/kort', label: 'Landskort', active: (p) => p === '/kort' },
   {
     href: '/kommune',
@@ -79,7 +79,7 @@ export default function SiteHeader() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-[max(1rem,env(safe-area-inset-left,0px))] py-3 pr-[max(1rem,env(safe-area-inset-right,0px))] sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="break-safe font-space-grotesk text-sm font-semibold tracking-tight text-gray-100 transition-colors hover:text-white sm:text-base"
+          className="break-safe text-sm font-semibold tracking-tight text-gray-100 transition-colors hover:text-white sm:text-base"
         >
           Find Beskyttelsesrum
         </Link>

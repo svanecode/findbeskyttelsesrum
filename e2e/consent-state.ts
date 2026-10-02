@@ -12,7 +12,7 @@ export function consentGivenStorageState(baseURL: string) {
         localStorage: [
           {
             name: "findbeskyttelsesrum.consent.v1",
-            value: JSON.stringify({ version: 1, statistics: true, offline: true, decidedAt: "2026-09-28T00:00:00.000Z" }),
+            value: JSON.stringify({ version: 1, statistics: true, decidedAt: "2026-09-28T00:00:00.000Z" }),
           },
         ],
       },

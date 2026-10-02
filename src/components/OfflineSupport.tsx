@@ -2,45 +2,43 @@
 
 import { useEffect } from "react";
 
-import { useConsent } from "@/lib/use-consent";
-
-async function removeOfflineCopy() {
-  const registrations = await navigator.serviceWorker.getRegistrations();
-  await Promise.all(
-    registrations
-      .filter((registration) => registration.active?.scriptURL.endsWith("/offline-sw.js") ?? true)
-      .map((registration) => registration.unregister()),
-  );
-  if ("caches" in window) {
-    const names = await caches.keys();
-    await Promise.all(names.filter((name) => name.startsWith("offline-v")).map((name) => caches.delete(name)));
-  }
-}
+import { migrateLegacyOfflineConsent, offlineWorkerPath, readOfflineCopy, removeOfflineCopy } from "@/lib/offline-copy";
+import { useOfflineCopy } from "@/lib/use-offline-copy";
 
 /**
- * Registers the offline fallback worker (public/offline-sw.js) in production,
- * but only once the visitor has allowed the offline copy. Registration waits
- * until the page is idle so it never competes with the first search. The
- * worker only caches public pages, static assets and public nearby tiles.
- * Declining (or withdrawing) removes the worker and everything it stored.
+ * Keeps the offline worker (public/offline-sw.js) in step with the visitor's
+ * own choice to save an offline copy. With a saved copy, the worker is
+ * registered once the page is idle, so it keeps the copy fresh on later
+ * visits. Without one, any earlier worker and its caches are removed. The
+ * statistics consent plays no part.
  */
 export default function OfflineSupport() {
-  const consent = useConsent();
-  const decision = consent === "pending" || consent === null ? null : consent.offline;
+  const copy = useOfflineCopy();
+  const hasCopy = copy === "pending" ? null : copy !== null;
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    if (decision === null) return;
-    if (decision === false) {
-      removeOfflineCopy().catch(() => {
-        // Best effort; the worker also only serves public data.
+    if (hasCopy === null) return;
+    // A visitor who allowed the old "offlinekopi" consent keeps the copy. The
+    // migration must finish before the decision below, which otherwise still
+    // sees "no copy" from this render and would delete the migrated one.
+    migrateLegacyOfflineConsent();
+    if (!hasCopy && !readOfflineCopy()) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        // Checked again: a copy saved meanwhile must not be removed.
+        if (readOfflineCopy()) return;
+        if (registrations.some((registration) => registration.active?.scriptURL.endsWith(offlineWorkerPath))) {
+          return removeOfflineCopy();
+        }
+      }).catch(() => {
+        // Best effort; the worker only serves public data.
       });
       return;
     }
     if (window.location.pathname.startsWith("/admin")) return;
 
     const register = () => {
-      navigator.serviceWorker.register("/offline-sw.js", { scope: "/" }).catch(() => {
+      navigator.serviceWorker.register(offlineWorkerPath, { scope: "/" }).catch(() => {
         // Offline support is an enhancement; the site works without it.
       });
     };
@@ -52,7 +50,7 @@ export default function OfflineSupport() {
     const onLoad = () => window.setTimeout(register, 3000);
     window.addEventListener("load", onLoad, { once: true });
     return () => window.removeEventListener("load", onLoad);
-  }, [decision]);
+  }, [hasCopy]);
 
   return null;
 }

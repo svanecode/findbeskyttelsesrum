@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next'
 import {
   getAppV2MunicipalitySlugs,
   getAppV2PublicDataStats,
-  getAppV2PublicSitemapShelters,
+  getAppV2PublicSitemapReadableShelters,
 } from '@/lib/supabase/app-v2-queries'
 import {
   buildCoreSitemapRoutes,
@@ -18,7 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [stats, municipalitySlugs, shelters] = await Promise.all([
     getAppV2PublicDataStats(),
     getAppV2MunicipalitySlugs(),
-    getAppV2PublicSitemapShelters(),
+    getAppV2PublicSitemapReadableShelters(),
   ])
   const dataDrivenLastModified = stats.latestPublicImportAt
 
@@ -26,7 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...buildCoreSitemapRoutes(baseUrl, dataDrivenLastModified),
     ...buildMunicipalitySitemapRoutes(baseUrl, municipalitySlugs, dataDrivenLastModified),
     ...shelters.map((row) => ({
-      url: `${baseUrl}/beskyttelsesrum/${row.slug}`,
+      url: `${baseUrl}${row.path}`,
       ...(row.lastModified ? { lastModified: row.lastModified } : {}),
       changeFrequency: 'weekly' as const,
       priority: 0.72,

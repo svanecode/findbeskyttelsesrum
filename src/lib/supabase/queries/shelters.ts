@@ -3,7 +3,15 @@ import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 import { SupabaseConfigurationError } from "@/lib/supabase/env";
 import { isMissingPublicRpcError } from "@/lib/supabase/public-rpc-errors";
 import { cache } from "react";
-import { getStableShelterSlug } from "@/lib/shelter-public-url";
+import {
+  getCanonicalShelterSlugs,
+  getReadableShelterBaseSlug,
+  getShortShelterId,
+  getStableShelterSlug,
+  isStableShelterSlug,
+  readableSlugPostcodes,
+  readableSlugShortId,
+} from "@/lib/shelter-public-url";
 import { normalizeMunicipality, normalizePublicShelter, normalizeShelter, sitemapShelterPageSize } from "./shared";
 import type { MunicipalitySummaryRow, PublicShelterRow, ShelterRow } from "./shared";
 
@@ -254,3 +262,153 @@ export async function getAppV2PublicRelatedShelters(input: {
 
   return Array.from(related.values(), normalizeRelatedShelter);
 }
+
+type ReadableShelterRow = {
+  id: string;
+  slug: string;
+  address_line1: string;
+  postal_code: string;
+  city: string;
+  capacity: number;
+};
+
+async function getPublicRegistrationsInPostcode(postalCode: string) {
+  const pub = createAppV2PublicClient();
+  const { data, error } = await pub
+    .from("shelter_public_v2")
+    .select("id, slug, address_line1, postal_code, city, capacity")
+    .eq("postal_code", postalCode)
+    .limit(2000);
+  if (error) throw new Error(`Could not load public app_v2 shelters in ${postalCode}: ${error.message}`);
+  return ((data ?? []) as ReadableShelterRow[]).map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    addressLine1: row.address_line1,
+    postalCode: row.postal_code,
+    city: row.city,
+    capacity: row.capacity,
+  }));
+}
+
+/**
+ * Finds the registration behind a readable path such as
+ * "ryesgade-18-8000-aarhus-c" or "ryesgade-22a-8000-aarhus-c-281be9".
+ * Returns its stable slug and canonical readable slug, or null.
+ */
+export const resolveReadableShelterSlug = cache(async function resolveReadableShelterSlug(slug: string) {
+  if (isStableShelterSlug(slug)) return null;
+  const shortId = readableSlugShortId(slug);
+
+  for (const postalCode of readableSlugPostcodes(slug)) {
+    const registrations = await getPublicRegistrationsInPostcode(postalCode);
+    if (registrations.length === 0) continue;
+    const canonical = getCanonicalShelterSlugs(registrations);
+
+    const exact = registrations.find((registration) => canonical.get(registration.id) === slug);
+    if (exact) return { stableSlug: exact.slug, canonicalSlug: slug };
+
+    if (shortId) {
+      const base = slug.slice(0, -(shortId.length + 1));
+      const match = registrations.find((registration) =>
+        getShortShelterId(registration.id) === shortId && getReadableShelterBaseSlug(registration) === base);
+      if (match) return { stableSlug: match.slug, canonicalSlug: canonical.get(match.id)! };
+    }
+  }
+  return null;
+});
+
+/** The canonical readable slug for a registration, from the registrations at its address. */
+export async function getCanonicalReadableSlug(shelter: { id: string; addressLine1: string; postalCode: string; city: string; capacity: number }) {
+  const registrations = await getPublicRegistrationsInPostcode(shelter.postalCode);
+  const base = getReadableShelterBaseSlug(shelter);
+  const sameAddress = registrations.filter((registration) => getReadableShelterBaseSlug(registration) === base);
+  if (!sameAddress.some((registration) => registration.id === shelter.id)) sameAddress.push({ ...shelter, slug: "" });
+  return getCanonicalShelterSlugs(sameAddress).get(shelter.id)!;
+}
+
+export type AppV2SitemapReadableShelterRow = {
+  path: string;
+  lastModified?: Date;
+};
+
+/** Sitemap rows with readable detail paths. */
+export async function getAppV2PublicSitemapReadableShelters(): Promise<AppV2SitemapReadableShelterRow[]> {
+  const pub = createAppV2PublicClient();
+  const [sitemapRows, registrations] = await Promise.all([
+    getAppV2PublicSitemapShelters(),
+    (async () => {
+      const out: ReadableShelterRow[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await pub
+          .from("shelter_public_v2")
+          .select("id, slug, address_line1, postal_code, city, capacity")
+          .order("id", { ascending: true })
+          .range(from, from + sitemapShelterPageSize - 1);
+        if (error) throw new Error(`Could not load app_v2 shelters for readable sitemap paths: ${error.message}`);
+        const rows = (data ?? []) as ReadableShelterRow[];
+        out.push(...rows);
+        if (rows.length < sitemapShelterPageSize) break;
+        from += sitemapShelterPageSize;
+      }
+      return out;
+    })(),
+  ]);
+
+  const canonical = getCanonicalShelterSlugs(registrations.map((row) => ({
+    id: row.id,
+    addressLine1: row.address_line1,
+    postalCode: row.postal_code,
+    city: row.city,
+    capacity: row.capacity,
+  })));
+  const readableByStable = new Map(registrations.map((row) => [row.slug, canonical.get(row.id)!]));
+
+  return sitemapRows.map((row) => ({
+    path: `/beskyttelsesrum/${encodeURIComponent(readableByStable.get(row.slug) ?? row.slug)}`,
+    ...(row.lastModified ? { lastModified: row.lastModified } : {}),
+  }));
+}
+
+/**
+ * An earlier readable path of a registration that is still public, from the
+ * path history in app_v2. Returns its stable slug, or null. Before the
+ * migration that adds the history is applied, this quietly finds nothing.
+ */
+export const resolveShelterPathAlias = cache(async function resolveShelterPathAlias(slug: string) {
+  const pub = createAppV2PublicClient();
+  const { data, error } = await pub.rpc("resolve_shelter_path_alias_v1", { p_path_slug: slug }).maybeSingle();
+  if (error) {
+    if (isMissingPublicRpcError(error)) return null;
+    throw new Error(`Could not resolve readable path alias "${slug}": ${error.message}`);
+  }
+  return (data as { stable_slug: string } | null)?.stable_slug ?? null;
+});
+
+export type RetiredShelter = {
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+/** The last address of a registration removed from BBR, found by any path it has had. */
+export const resolveRetiredShelter = cache(async function resolveRetiredShelter(slug: string): Promise<RetiredShelter | null> {
+  const pub = createAppV2PublicClient();
+  const { data, error } = await pub.rpc("resolve_retired_shelter_v1", { p_slug: slug }).maybeSingle();
+  if (error) {
+    if (isMissingPublicRpcError(error)) return null;
+    throw new Error(`Could not resolve removed registration "${slug}": ${error.message}`);
+  }
+  const row = data as { address_line1: string; postal_code: string; city: string; latitude: number | string | null; longitude: number | string | null } | null;
+  if (!row) return null;
+  const toNumber = (value: number | string | null) => (value === null ? null : Number(value));
+  return {
+    addressLine1: row.address_line1,
+    postalCode: row.postal_code,
+    city: row.city,
+    latitude: toNumber(row.latitude),
+    longitude: toNumber(row.longitude),
+  };
+});

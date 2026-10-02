@@ -1,8 +1,5 @@
-import Link from 'next/link'
 import { notFound, permanentRedirect } from 'next/navigation'
 
-import GlobalFooter from '@/components/GlobalFooter'
-import { ui } from '@/components/ui-classes'
 import {
   getMunicipalityPagePath,
   paginateMunicipalityGroups,
@@ -14,10 +11,10 @@ import {
   groupMunicipalityShelters,
   type AppV2MunicipalityShelter,
 } from '@/lib/supabase/app-v2-queries'
-import { serializeJsonLd } from '@/lib/seo/json-ld'
 import { siteUrl } from '@/lib/seo/site'
 import { getShelterPublicDisplayName } from '@/lib/shelter-display-name'
-import KommuneExperience from './kommune-experience'
+import { getCanonicalShelterSlugs, getShelterPublicPath } from '@/lib/shelter-public-url'
+import KommuneView from './kommune-view'
 export { generateMetadata } from './metadata'
 
 export const revalidate = 3600
@@ -67,6 +64,7 @@ function buildKommunePageJsonLd(
     },
   }
 
+  const readableSlugs = getCanonicalShelterSlugs(shelters)
   const topShelters = shelters
     .filter(hasShelterAddressForJsonLd)
     .sort((a, b) => b.capacity - a.capacity)
@@ -83,7 +81,7 @@ function buildKommunePageJsonLd(
       item: {
         '@type': 'Place',
         name: getShelterPublicDisplayName(shelter.name, shelter.addressLine1),
-        url: `${siteUrl}/beskyttelsesrum/${shelter.slug}`,
+        url: `${siteUrl}${getShelterPublicPath(readableSlugs.get(shelter.id) ?? shelter.slug)}`,
         address: {
           '@type': 'PostalAddress',
           streetAddress: shelter.addressLine1,
@@ -124,8 +122,6 @@ export default async function KommunePage({ params }: Props) {
   )
   const pageShelters = shelters.filter((shelter) => pageShelterIds.has(shelter.id))
   const pagePath = getMunicipalityPagePath(municipality.slug, pagination.currentPage)
-  const publicShelterCount = shelters.length
-  const totalCapacity = shelters.reduce((sum, shelter) => sum + shelter.capacity, 0)
   const kommuneJsonLd = buildKommunePageJsonLd(
     municipality,
     pageShelters,
@@ -134,57 +130,11 @@ export default async function KommunePage({ params }: Props) {
   )
 
   return (
-    <main id="main-content" tabIndex={-1} className={ui.page}>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: serializeJsonLd(kommuneJsonLd),
-        }}
-        suppressHydrationWarning
-      />
-      <div className="border-b border-white/10 bg-[var(--surface-inset)]">
-        <div className="mx-auto max-w-7xl px-4 py-3 text-sm text-gray-400 sm:px-6 lg:px-8">
-          <Link href="/kommune" className="transition-colors hover:text-white">
-            Kommuneoversigt
-          </Link>
-          <span className="mx-2 text-gray-600" aria-hidden>
-            ›
-          </span>
-          <span className="font-medium text-white">{municipality.name}</span>
-        </div>
-      </div>
-
-      {/* Header */}
-      <header className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-        <p className={ui.eyebrow}>
-          Kommune
-        </p>
-        <h1 className={`mt-2 ${ui.pageTitle}`}>
-          BBR-registreringer i {municipality.name}
-        </h1>
-
-        <p className="mt-3 text-lg text-gray-300">
-          {publicShelterCount === 1
-            ? '1 BBR-registrering'
-            : `${publicShelterCount.toLocaleString('da-DK')} BBR-registreringer`}
-          <span className="text-gray-400"> · </span>
-          {totalCapacity === 1
-            ? '1 BBR-registreret plads'
-            : `${totalCapacity.toLocaleString('da-DK')} BBR-registrerede pladser`}
-        </p>
-      </header>
-
-      {/* Map experience */}
-      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
-        <KommuneExperience
-          groups={pagination.items}
-          municipalityName={municipality.name}
-          municipalitySlug={municipality.slug}
-          pagination={pagination}
-        />
-      </section>
-
-      <GlobalFooter />
-    </main>
+    <KommuneView
+      municipality={municipality}
+      shelters={shelters}
+      pagination={pagination}
+      jsonLd={kommuneJsonLd}
+    />
   )
 }

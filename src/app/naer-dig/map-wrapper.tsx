@@ -11,6 +11,7 @@ import {
   saveNearbySearchContext,
   type NearbySearchContext,
 } from '@/lib/nearby/search-context'
+import { readOfflineCopy } from '@/lib/offline-copy'
 
 const ShelterMapClient = dynamic(
   () => import('./client'),
@@ -94,7 +95,16 @@ function readInitialSearch(): SearchState {
   }
 
   const context = loadNearbySearchContext()
-  return context ? { kind: 'ready', context } : { kind: 'missing' }
+  if (context) return { kind: 'ready', context }
+
+  // A search the visitor saved for offline use opens here when the tab has none.
+  const saved = readOfflineCopy()?.search
+  if (saved) {
+    saveNearbySearchContext(saved)
+    const restored = loadNearbySearchContext()
+    if (restored) return { kind: 'ready', context: restored }
+  }
+  return { kind: 'missing' }
 }
 
 export default function MapWrapper() {

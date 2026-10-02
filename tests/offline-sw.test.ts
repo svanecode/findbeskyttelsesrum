@@ -67,17 +67,32 @@ async function loadWorker(network: (request: Request) => Promise<Response>, opti
     return responded ? await (responded as Promise<Response>) : null;
   }
 
-  return { dispatch, stores };
+  /** Sends the page's "save" message and resolves with the worker's reply. */
+  async function message(data: unknown) {
+    let waited: Promise<unknown> = Promise.resolve();
+    const reply = new Promise<unknown>((resolve) => {
+      const port = { postMessage: resolve };
+      (handlers.message as unknown as (event: unknown) => void)({
+        data,
+        ports: [port],
+        waitUntil: (promise: Promise<unknown>) => { waited = promise; },
+      });
+    });
+    await waited;
+    return reply;
+  }
+
+  return { dispatch, message, stores };
 }
 
 const page = (body: string) => new Response(body, { status: 200, headers: { "Content-Type": "text/html" } });
 
 test("online navigations come from the network and are saved with a timestamp", async () => {
   const worker = await loadWorker(async () => page("fresh"));
-  const response = await worker.dispatch("https://findbeskyttelsesrum.dk/shelters/nearby?x=1", { mode: "navigate" });
+  const response = await worker.dispatch("https://findbeskyttelsesrum.dk/naer-dig?x=1", { mode: "navigate" });
   assert.equal(await response?.text(), "fresh");
   assert.equal(response?.headers.get("X-Offline-Cached-At"), null, "live responses are not marked as saved");
-  const saved = worker.stores.get("offline-v1-pages")?.get("/shelters/nearby");
+  const saved = worker.stores.get("offline-v1-pages")?.get("/naer-dig");
   assert.ok(saved?.headers.get("X-Offline-Cached-At"));
 });
 
@@ -168,4 +183,25 @@ test("a cache that refuses to save never costs the visitor the network response"
   assert.equal(await navigation?.text(), "fresh");
   const asset = await worker.dispatch("https://findbeskyttelsesrum.dk/_next/static/chunks/app.js");
   assert.equal(await asset?.text(), "fresh");
+});
+
+test("saving an offline copy stores pages, the files they reference and tiles", async () => {
+  const requested: string[] = [];
+  const worker = await loadWorker(async (request) => {
+    requested.push(new URL(request.url).pathname);
+    if (request.url.includes("/tiles/")) return Response.json({ contract: "nearby-tile-v1" });
+    if (request.url.includes("/_next/static/")) return new Response("asset");
+    return page('<script src="/_next/static/chunks/app.js"></script>');
+  });
+
+  const reply = await worker.message({
+    type: "save-offline-copy",
+    urls: ["/", "/naer-dig", "/api/app-v2/nearby/tiles/222_31", "/api/metrics", "https://example.com/x"],
+  });
+
+  assert.deepEqual({ ...(reply as object) }, { saved: 4, failed: 0 });
+  assert.ok(worker.stores.get("offline-v1-pages")?.get("/naer-dig"));
+  assert.ok(worker.stores.get("offline-v1-static")?.get("/_next/static/chunks/app.js"));
+  assert.ok(worker.stores.get("offline-v1-tiles")?.get("/api/app-v2/nearby/tiles/222_31"));
+  assert.ok(!requested.includes("/api/metrics"), "other APIs are never saved");
 });

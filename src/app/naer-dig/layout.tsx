@@ -4,7 +4,7 @@ export const metadata = createPageMetadata({
   title: "Registreringer i nærheden",
   description:
     "Orienterende kort og liste over BBR-registrerede sikringsrumspladser i nærheden.",
-  path: "/shelters/nearby",
+  path: "/naer-dig",
   index: false,
   follow: false,
 });

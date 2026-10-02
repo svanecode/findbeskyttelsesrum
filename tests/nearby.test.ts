@@ -44,10 +44,10 @@ test("nearby search context validates coordinates and expires tab-local searches
 test("analytics URLs omit address, coordinates and all other query data", () => {
   assert.deepEqual(
     stripLocationDataFromMetric({
-      url: "/shelters/nearby?lat=55.67&lng=12.56&q=Testvej%201",
+      url: "/naer-dig?lat=55.67&lng=12.56&q=Testvej%201",
       name: "pageview",
     }),
-    { url: "https://findbeskyttelsesrum.dk/shelters/nearby", name: "pageview" },
+    { url: "https://findbeskyttelsesrum.dk/naer-dig", name: "pageview" },
   );
   assert.equal(
     stripLocationDataFromMetric({ url: "https://findbeskyttelsesrum.dk/om-data#filter" })?.url,

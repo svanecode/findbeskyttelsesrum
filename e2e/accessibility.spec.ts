@@ -36,14 +36,14 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test("forsiden består automatiske WCAG A/AA-kontroller", async ({ page }, testInfo) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Se registrerede beskyttelsesrum nær dig" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find beskyttelsesrum nær dig" })).toBeVisible();
   await expectNoAccessibilityViolations(page, testInfo);
 });
 
 test("åben autocomplete består automatiske WCAG A/AA-kontroller", async ({ page }, testInfo) => {
   await mockAddressSearch(page);
   await page.goto("/");
-  await page.getByRole("combobox", { name: "Adresse, by eller postnummer" }).fill("Rådhuspladsen 1");
+  await page.getByRole("combobox", { name: "Eller søg på en adresse" }).fill("Rådhuspladsen 1");
   await expect(page.getByRole("option", { name: selectedAddressLabel })).toBeVisible();
   await expectNoAccessibilityViolations(page, testInfo);
 });
@@ -51,8 +51,8 @@ test("åben autocomplete består automatiske WCAG A/AA-kontroller", async ({ pag
 test("resultatsiden består automatiske WCAG A/AA-kontroller", async ({ page }, testInfo) => {
   await installNearbySearchContext(page);
   await mockNearby(page);
-  await page.goto("/shelters/nearby");
-  await expect(page.getByText("120 BBR-registrerede pladser")).toBeVisible();
+  await page.goto("/naer-dig");
+  await expect(page.getByText(/120 pladser/)).toBeVisible();
   await expectNoAccessibilityViolations(page, testInfo);
 });
 
@@ -67,14 +67,21 @@ test("mobilmenuen består kontrollen i åben tilstand", async ({ page }, testInf
 test("detaljesiden og den åbne rapportformular består kontrollen", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Den databasebaserede detaljekontrol køres én gang.");
   await page.goto(`/beskyttelsesrum/${knownShelterSlug}`);
-  await expect(page.getByRole("heading", { name: /Registrering ved/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Åbn i Google Maps", exact: true })).toBeVisible();
+  // The stable link redirects to the readable address path.
+  await expect(page).toHaveURL((url) => !url.pathname.includes("registrering-"));
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Vis vej i Google Maps/ })).toBeVisible();
   // OpenStreetMap is contacted only after the visitor asks for the map.
-  await expect(page.locator('iframe[src*="openstreetmap.org"]')).toHaveCount(0);
-  await page.route("https://www.openstreetmap.org/export/embed.html**", (route) =>
-    route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Kort</title>" }));
+  const tileRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().startsWith("https://tile.openstreetmap.org/")) tileRequests.push(request.url());
+  });
+  await expect(page.locator(".nearby-map")).toHaveCount(0);
+  expect(tileRequests).toHaveLength(0);
   await page.getByRole("link", { name: "Vis på kort", exact: true }).click();
-  await expect(page.locator('iframe[src*="openstreetmap.org/export/embed.html"]')).toBeVisible();
+  // The same Leaflet map as the result page, with the registration as the orange pin.
+  await expect(page.locator(".nearby-map .shelter-marker-selected")).toBeVisible();
+  await expect.poll(() => tileRequests.length).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Rapportér fejl ved registreringen" }).click();
   await expect(page.getByRole("heading", { name: "Rapportér en mulig fejl" })).toBeVisible();
   await expectNoAccessibilityViolations(page, testInfo);

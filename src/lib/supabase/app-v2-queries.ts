@@ -13,5 +13,5 @@ export { getAppV2MunicipalitySummaries, getAppV2MunicipalitySlugs, getAppV2Publi
 export type { AppV2MunicipalityShelter, AppV2MunicipalityShelterGroup } from "./queries/municipalities";
 export { getAppV2PublicCountryMapFeatures, getAppV2CountryShelterMarkers, getAppV2PublicCountryShelterMarkers, getAppV2PublicCountryShelterMarkersInBounds } from "./queries/country-map";
 export type { AppV2CountryShelterMarker, AppV2CountryMapCluster, AppV2CountryMapMarkerFeature, AppV2CountryMapFeature, AppV2CountryMapFeatureResult, AppV2CountryShelterMarkerBounds, AppV2CountryMapFeatureRequest } from "./queries/country-map";
-export { getAppV2PublicSitemapShelters, getAppV2ShelterBySlug, getAppV2PublicShelterBySlug, resolveAppV2PublicShelter, getAppV2PublicRelatedShelters } from "./queries/shelters";
-export type { AppV2RelatedShelter, AppV2SitemapShelterRow } from "./queries/shelters";
+export { getAppV2PublicSitemapShelters, getAppV2PublicSitemapReadableShelters, getAppV2ShelterBySlug, getAppV2PublicShelterBySlug, resolveAppV2PublicShelter, resolveReadableShelterSlug, resolveShelterPathAlias, resolveRetiredShelter, getCanonicalReadableSlug, getAppV2PublicRelatedShelters } from "./queries/shelters";
+export type { AppV2RelatedShelter, AppV2SitemapShelterRow, AppV2SitemapReadableShelterRow, RetiredShelter } from "./queries/shelters";

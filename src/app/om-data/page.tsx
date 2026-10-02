@@ -92,7 +92,6 @@ export default async function DataPage() {
       <ProductMetricView eventName="data_explanation_opened" />
       <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <header className="mb-10 max-w-3xl space-y-5">
-          <p className={ui.eyebrow}>Data</p>
           <h1 className={ui.pageTitle}>Datagrundlag</h1>
           <p className="text-lg leading-8 text-gray-300">
             Find Beskyttelsesrum er et uafhængigt orienteringsværktøj baseret på BBR-registreringer af
@@ -326,6 +325,10 @@ export default async function DataPage() {
             <p className="mt-3 text-sm leading-6 text-gray-300">
               En BBR-registrering og dens kapacitet er ikke en garanti for adgang, klargøring, myndighedsgodkendelse
               eller aktuel fysisk stand. Kort, søgelister og kommuneoversigter er orienterende og er ikke anbefalinger.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              Kortet er ikke en evakueringsanvisning. Ved varsling skal du gå indenfor og følge information fra
+              myndighederne.
             </p>
           </section>
 

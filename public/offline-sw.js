@@ -1,18 +1,20 @@
 /*
  * Offline fallback for Find Beskyttelsesrum (OFFLINE-01).
  *
- * Purpose: a returning visitor on a congested or dead network still sees the
- * site and, via "Brug min placering", results computed from public tiles
- * they loaded earlier. Rules, in order of importance:
+ * Purpose: a visitor who chose "Gem til brug uden net" still sees the site
+ * on a congested or dead network, with results computed from public tiles
+ * saved earlier. The page registers this worker only after that choice
+ * (src/lib/offline-copy.ts) and sends it the URLs to save. Rules, in order
+ * of importance:
  *
  * 1. Never make the online site worse. Pages and tiles are network-first; the
  *    cache is only used when the network fails or is too slow.
  * 2. Only three kinds of same-origin GET are touched: page navigations,
  *    hashed /_next/static assets and /api/app-v2/nearby/tiles/*. Everything
  *    else (other APIs, admin, auth, third parties) is left to the browser.
- * 3. Nothing personal is stored: pages are public HTML, tiles are public
- *    registration data for a ~28 km area. The search position stays in the
- *    tab's sessionStorage as before.
+ * 3. Nothing personal is stored here: pages are public HTML, tiles are public
+ *    registration data for a ~28 km area. A saved search lives in the page's
+ *    localStorage, which the visitor can delete with the copy.
  *
  * Recovery: to remove this worker from all browsers, replace this file with
  * a version whose activate handler deletes the caches and calls
@@ -25,11 +27,11 @@ const staticCache = `${version}-static`;
 const tileCache = `${version}-tiles`;
 const cachedAtHeader = "X-Offline-Cached-At";
 
-const precachedPages = ["/", "/shelters/nearby", "/om-data", "/privatliv"];
+const precachedPages = ["/", "/naer-dig", "/om-data", "/privatliv"];
 const networkTimeoutMs = 6000;
 // Server trouble the saved copy should cover; other statuses (e.g. 404) pass through.
 const transientStatuses = new Set([429, 500, 502, 503, 504]);
-const maximumEntries = { [pageCache]: 20, [staticCache]: 200, [tileCache]: 45 };
+const maximumEntries = { [pageCache]: 20, [staticCache]: 300, [tileCache]: 45 };
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -80,6 +82,74 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(networkFirst(request, tileCache, url.pathname));
   }
 });
+
+/*
+ * "Gem til brug uden net": the page sends the URLs to save (pages, the
+ * site's static files, nearby tiles) and gets back how many were saved.
+ * Script and style files that a saved page references are saved too.
+ */
+self.addEventListener("message", (event) => {
+  const data = event.data;
+  const port = event.ports && event.ports[0];
+  if (!data || data.type !== "save-offline-copy" || !Array.isArray(data.urls) || !port) return;
+  event.waitUntil(
+    saveUrls(data.urls).then(
+      (result) => port.postMessage(result),
+      () => port.postMessage({ saved: 0, failed: data.urls.length }),
+    ),
+  );
+});
+
+/** Which cache, and under which key, a same-origin URL belongs in; null for anything else. */
+function cacheTarget(url) {
+  if (url.origin !== self.location.origin) return null;
+  if (url.pathname.startsWith("/_next/static/")) return { cacheName: staticCache, key: url.pathname + url.search };
+  if (url.pathname.startsWith("/api/app-v2/nearby/tiles/") && !url.search) return { cacheName: tileCache, key: url.pathname };
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/admin") || url.pathname.startsWith("/auth")) return null;
+  return { cacheName: pageCache, key: pageKey(url), isPage: true };
+}
+
+const staticReferencePattern = /\/_next\/static\/[^"'\s)\\]+\.(?:js|css|woff2)/g;
+
+async function saveUrls(urls) {
+  let saved = 0;
+  let failed = 0;
+  const queue = urls.slice(0, 300);
+  const seen = new Set();
+  while (queue.length > 0) {
+    const raw = queue.shift();
+    let url;
+    try {
+      url = new URL(raw, self.location.origin);
+    } catch {
+      failed += 1;
+      continue;
+    }
+    const target = cacheTarget(url);
+    if (!target || seen.has(target.key)) continue;
+    seen.add(target.key);
+    try {
+      const response = await fetch(url.href, { cache: target.isPage ? "no-store" : "default", credentials: "same-origin" });
+      if (!response.ok) {
+        failed += 1;
+        continue;
+      }
+      if (target.isPage) {
+        const html = await response.clone().text();
+        for (const match of html.match(staticReferencePattern) || []) {
+          if (queue.length < 300) queue.push(match);
+        }
+      }
+      const cache = await caches.open(target.cacheName);
+      await cache.put(target.key, stamp(response));
+      saved += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  await Promise.all([pageCache, staticCache, tileCache].map((name) => trim(name)));
+  return { saved, failed };
+}
 
 /** Navigations are cached per path without query or hash. */
 function pageKey(url) {

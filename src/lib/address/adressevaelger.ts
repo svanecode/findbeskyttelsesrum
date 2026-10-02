@@ -9,6 +9,14 @@
  */
 import { isWithinDenmarkMapBounds } from "@/lib/maps/denmark-bounds";
 
+import {
+  alternateAaSpelling,
+  loadPostalAreaTable,
+  normalizePlaceText,
+  parseLocality,
+  type ParsedLocality,
+} from "./locality";
+
 export const adressevaelgerOrigin = "https://adressevaelger.dk";
 
 // Klimadatastyrelsen asks every client to use this shared, public token until
@@ -24,7 +32,9 @@ const utmZone32Etrs89 = "+proj=utm +zone=32 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 
  */
 export type AddressSuggestion =
   | { kind: "street"; label: string; refineText: string; caret: number }
-  | { kind: "address"; id: string; label: string };
+  | { kind: "address"; id: string; label: string }
+  // A postcode as a whole, searched from the middle of its registrations.
+  | { kind: "area"; id: string; label: string; latitude: number; longitude: number };
 
 export type ResolvedAddress = {
   label: string;
@@ -97,9 +107,9 @@ export function dedupeAddressSuggestions(suggestions: AddressSuggestion[], limit
   const result: AddressSuggestion[] = [];
 
   for (const suggestion of suggestions) {
-    const key = suggestion.kind === "address"
-      ? `address:${suggestion.id}`
-      : `street:${suggestion.label.toLocaleLowerCase("da-DK")}`;
+    const key = suggestion.kind === "street"
+      ? `street:${suggestion.label.toLocaleLowerCase("da-DK")}`
+      : `${suggestion.kind}:${suggestion.id}`;
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(suggestion);
@@ -107,6 +117,45 @@ export function dedupeAddressSuggestions(suggestions: AddressSuggestion[], limit
   }
 
   return result;
+}
+
+async function fetchSuggestions(
+  text: string,
+  maximum: number,
+  options: { signal?: AbortSignal; municipalityCodes?: string[] },
+): Promise<AddressSuggestion[]> {
+  const url = new URL("/husnumre/soeg", adressevaelgerOrigin);
+  url.searchParams.set("tekst", text);
+  url.searchParams.set("maksimum", String(maximum));
+  if (options.municipalityCodes?.length) {
+    url.searchParams.set("kommunekode", options.municipalityCodes.join(","));
+  }
+  url.searchParams.set("token", getToken());
+
+  const json = await readAdressevaelgerJson(await fetch(url, { signal: options.signal }), "search");
+  if (!Array.isArray(json.fund)) {
+    throw new Error("Adressevælger search returned an unexpected response");
+  }
+
+  return json.fund
+    .map(parseAddressSuggestion)
+    .filter((suggestion): suggestion is AddressSuggestion => suggestion !== null);
+}
+
+/** Results whose label names the typed place ("Aarhus" in "8000 Aarhus C") come first. */
+function rankByPlace(suggestions: AddressSuggestion[], placeKey: string) {
+  if (!placeKey) return suggestions;
+  const matches = (suggestion: AddressSuggestion) => normalizePlaceText(suggestion.label).includes(placeKey);
+  return [...suggestions.filter(matches), ...suggestions.filter((suggestion) => !matches(suggestion))];
+}
+
+async function readLocality(query: string): Promise<ParsedLocality | null> {
+  try {
+    return parseLocality(query, await loadPostalAreaTable());
+  } catch {
+    // Without the table the search still works, just without town ranking.
+    return null;
+  }
 }
 
 export async function searchAddresses(
@@ -117,21 +166,75 @@ export async function searchAddresses(
   if (trimmedQuery.length < 2) return [];
 
   const limit = Math.min(Math.max(Math.trunc(options.limit ?? 5), 1), 20);
-  const url = new URL("/husnumre/soeg", adressevaelgerOrigin);
-  url.searchParams.set("tekst", trimmedQuery);
-  url.searchParams.set("maksimum", String(Math.min(limit * 2, 20)));
-  url.searchParams.set("token", getToken());
+  const maximum = Math.min(limit * 2, 20);
+  const locality = await readLocality(trimmedQuery);
 
-  const json = await readAdressevaelgerJson(await fetch(url, { signal: options.signal }), "search");
-  if (!Array.isArray(json.fund)) {
-    throw new Error("Adressevælger search returned an unexpected response");
+  // Only a postcode or town: offer the area itself, then any streets with that name.
+  if (locality && !locality.street) {
+    const areas: AddressSuggestion[] = locality.areas.map((area) => ({
+      kind: "area",
+      id: area.postnr,
+      label: `${area.postnr} ${area.name}`,
+      latitude: area.latitude,
+      longitude: area.longitude,
+    }));
+    const streets = /^\d/.test(trimmedQuery)
+      ? []
+      : await fetchSuggestions(trimmedQuery, maximum, options).catch((error) => {
+        if (areas.length === 0 || options.signal?.aborted) throw error;
+        return [];
+      });
+    return dedupeAddressSuggestions([...areas, ...streets], limit);
   }
 
-  const parsed = json.fund
-    .map(parseAddressSuggestion)
-    .filter((suggestion): suggestion is AddressSuggestion => suggestion !== null);
+  const requests: Array<Promise<AddressSuggestion[]>> = [];
+  if (locality) {
+    // The municipality filter also makes Adressevælger match "aa" against "å".
+    requests.push(fetchSuggestions(locality.street, maximum, { ...options, municipalityCodes: locality.municipalityCodes }));
+  }
+  requests.push(fetchSuggestions(trimmedQuery, maximum, options));
+  const alternate = locality ? null : alternateAaSpelling(trimmedQuery);
+  if (alternate) requests.push(fetchSuggestions(alternate, maximum, options));
 
-  return dedupeAddressSuggestions(parsed, limit);
+  // One failed extra lookup must not cost the visitor the others.
+  const settled = await Promise.allSettled(requests);
+  const fulfilled = settled.filter((result) => result.status === "fulfilled");
+  if (fulfilled.length === 0) throw (settled[0] as PromiseRejectedResult).reason;
+  const [first, ...rest] = settled.map((result) => result.status === "fulfilled" ? result.value : []);
+  const merged = locality
+    ? [...rankByPlace(first ?? [], locality.placeKey), ...rest.flat()]
+    : interleave(first ?? [], rest[0] ?? []);
+
+  return dedupeAddressSuggestions(merged, limit);
+}
+
+/** Alternates two result lists so both spellings of "aa"/"å" are represented near the top. */
+function interleave(primary: AddressSuggestion[], secondary: AddressSuggestion[]) {
+  if (secondary.length === 0) return primary;
+  const result: AddressSuggestion[] = [];
+  const length = Math.max(primary.length, secondary.length);
+  for (let index = 0; index < length; index += 1) {
+    if (primary[index]) result.push(primary[index]!);
+    if (secondary[index]) result.push(secondary[index]!);
+  }
+  return result;
+}
+
+/**
+ * The suggestion a free-text search can take without asking: the only result,
+ * or the one whose label is exactly what was typed (case, "aa"/"å", commas
+ * and spacing ignored). Streets are never taken, because they still need a
+ * house number.
+ */
+export function pickUnambiguousSuggestion(query: string, suggestions: AddressSuggestion[]) {
+  const choosable = suggestions.filter(
+    (suggestion): suggestion is Exclude<AddressSuggestion, { kind: "street" }> => suggestion.kind !== "street",
+  );
+  const typed = normalizePlaceText(query);
+  const exact = choosable.filter((suggestion) => normalizePlaceText(suggestion.label) === typed);
+  if (exact.length === 1) return exact[0]!;
+  if (suggestions.length === 1 && choosable.length === 1) return choosable[0]!;
+  return null;
 }
 
 export async function convertUtm32ToWgs84(easting: number, northing: number) {

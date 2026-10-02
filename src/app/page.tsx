@@ -2,8 +2,9 @@ import Link from 'next/link'
 
 import AddressSearch from '@/components/AddressSearch'
 import GlobalFooter from '@/components/GlobalFooter'
-import OfficialGuidanceLinks from '@/components/OfficialGuidanceLinks'
+import OfflineCopyControl from '@/components/OfflineCopyControl'
 import { ui } from '@/components/ui-classes'
+import { officialGuidanceLinks } from '@/lib/official-guidance'
 import { createPageMetadata } from '@/lib/seo/metadata'
 
 export const revalidate = 600
@@ -11,7 +12,7 @@ export const revalidate = 600
 export const metadata = createPageMetadata({
   title: 'Find Beskyttelsesrum | Se BBR-registreringer nær dig',
   description:
-    'Orientér dig i BBR-registreringer af sikringsrumspladser. Adgang, klargøring og fysisk stand er ikke bekræftet.',
+    'Find adresser med registrerede sikringsrumspladser i BBR nær dig. Adgang, klargøring og fysisk stand er ikke bekræftet.',
   path: '/',
   absoluteTitle: true,
   keywords: [
@@ -28,65 +29,42 @@ export const metadata = createPageMetadata({
 export default async function Home() {
   return (
     <main id="main-content" tabIndex={-1} className={`flex min-h-mobile-viewport flex-col ${ui.page}`}>
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-8 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
-        {/* Phones: heading, one-line caveat, then search, so "Brug min placering" is
-            reached first; the full explanation follows the search. Desktop keeps the
-            explanation in the left column beside the search. */}
-        <section
-          className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(28rem,1.1fr)] lg:gap-x-14 lg:gap-y-5"
-          aria-labelledby="home-heading"
-        >
-          <header className="max-w-xl lg:col-start-1 lg:row-start-1 lg:pt-6">
-            <p className={ui.eyebrow}>Uafhængigt orienteringsværktøj</p>
-            <h1 id="home-heading" className={`mt-3 ${ui.pageTitle}`}>
-              Se registrerede beskyttelsesrum nær dig
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-gray-300 lg:hidden">
-              BBR-registreringer: offentlig adgang, klargøring og stand er ikke bekræftet.
-            </p>
-          </header>
+      <div className="mx-auto w-full max-w-7xl flex-1 px-4 pb-10 pt-6 sm:px-6 sm:pt-12 lg:px-8 lg:pt-16">
+        <section className="max-w-[40rem]" aria-labelledby="home-heading">
+          <h1 id="home-heading" className={ui.pageTitle}>
+            Find beskyttelsesrum nær dig
+          </h1>
+          <p className="mt-2 text-base leading-7 text-gray-300">
+            Adresser med registrerede sikringsrumspladser i BBR. Vi kan ikke se, om rummene er åbne.
+          </p>
 
-          <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-            <div className={`${ui.panel} p-5 sm:p-7`}>
-              <div suppressHydrationWarning className="relative z-20">
-                <AddressSearch />
-              </div>
-            </div>
-
-            <nav
-              className="mt-3 grid grid-cols-2 items-center gap-2 text-sm text-gray-400 sm:flex sm:flex-wrap sm:gap-x-1 sm:gap-y-0"
-              aria-label="Andre måder at søge på"
-            >
-              <span className="col-span-2 sm:mr-1">Kender du ikke adressen?</span>
-              <Link href="/kommune" className={ui.secondaryAction + ' sm:border-0 sm:bg-transparent sm:font-medium sm:text-gray-300'}>Kommuner</Link>
-              <Link href="/kort" className={ui.secondaryAction + ' sm:border-0 sm:bg-transparent sm:font-medium sm:text-gray-300'}>Landskort</Link>
-            </nav>
+          <div suppressHydrationWarning className="relative z-20 mt-6">
+            <AddressSearch />
           </div>
 
-          <div className="max-w-xl lg:col-start-1 lg:row-start-2">
-            <p className={ui.lead}>
-              Søg i BBR&apos;s registreringer af sikringsrumspladser. En registrering er ikke en garanti for offentlig adgang,
-              klargøring eller aktuel fysisk stand.
+          <aside className="mt-8 border-l-2 border-l-[var(--accent)] pl-4" aria-labelledby="emergency-guidance-heading">
+            <p className="text-base leading-7 text-gray-100">
+              <strong id="emergency-guidance-heading" className="font-semibold text-white">Ved varsling:</strong>{' '}
+              Gå indenfor, og følg myndighedernes information.{' '}
+              {officialGuidanceLinks.map((link, index) => (
+                <span key={link.href}>
+                  {index > 0 ? <span className="text-gray-400" aria-hidden="true"> · </span> : null}
+                  <a href={link.href} target="_blank" rel="noopener noreferrer" className={ui.textLink}>
+                    {link.shortLabel}
+                    <span className="sr-only"> (åbner i en ny fane)</span>
+                  </a>
+                </span>
+              ))}
             </p>
-            <p className="mt-4 max-w-lg text-sm leading-6 text-gray-400">
-              Resultaterne viser registeroplysninger ved adresser – ikke åbne, kontrollerede eller anviste opholdssteder.
-            </p>
-          </div>
+          </aside>
+
+          <nav className="mt-6 flex flex-wrap gap-x-6 text-base" aria-label="Andre måder at finde registreringer">
+            <Link href="/kort" className={`${ui.textLink} inline-flex min-h-[44px] items-center`}>Se landskort</Link>
+            <Link href="/kommune" className={`${ui.textLink} inline-flex min-h-[44px] items-center`}>Find en kommune</Link>
+          </nav>
+
+          <OfflineCopyControl className="mt-4 border-t border-white/10 pt-3" />
         </section>
-
-        <aside
-          className="mt-8 grid gap-2 border-y border-white/10 py-5 text-sm leading-6 sm:grid-cols-[auto_1fr] sm:gap-x-5 lg:mt-12"
-          aria-labelledby="emergency-guidance-heading"
-        >
-          <h2 id="emergency-guidance-heading" className="font-semibold text-gray-100">Ved varsling</h2>
-          <div className="max-w-3xl">
-            <p className="text-gray-400">
-              Gå indenfor, og følg information fra myndighederne. Kortet er til orientering og er ikke en
-              evakueringsanvisning.
-            </p>
-            <OfficialGuidanceLinks className="mt-2" />
-          </div>
-        </aside>
       </div>
 
       <GlobalFooter />

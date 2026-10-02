@@ -24,20 +24,22 @@ test("adresseflowet viser resultater uden steddata i URL'en", { tag: "@full-stac
   await mockNearby(page);
 
   await page.goto("/");
-  const addressInput = page.getByRole("combobox", { name: "Adresse, by eller postnummer" });
+  const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
   await addressInput.fill("Rådhuspladsen 1");
-  await page.getByRole("option", { name: selectedAddressLabel }).click();
-  await expect(page.getByText(`Valgt adresse: ${selectedAddressLabel}`)).toBeVisible();
-
   const nearbyRequestPromise = page.waitForRequest(
     (request) => request.method() === "POST" && new URL(request.url()).pathname === "/api/app-v2/nearby/grouped",
   );
-  await page.getByRole("button", { name: "Søg", exact: true }).click();
+  // Choosing a suggestion searches at once.
+  await page.getByRole("option", { name: selectedAddressLabel }).click();
 
-  await expect(page).toHaveURL((url) => url.pathname === "/shelters/nearby" && url.search === "");
-  await expect(page.getByRole("heading", { name: "Registrerede sikringsrumspladser i nærheden" })).toBeVisible();
+  await expect(page).toHaveURL((url) => url.pathname === "/naer-dig" && url.search === "");
+  const resultHeading = page.getByRole("heading", { name: "Nærmeste registrerede sikringsrum" });
+  await expect(resultHeading).toBeVisible();
+  // The page starts at the top with focus on the result heading.
+  await expect(resultHeading).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
   await expect(page.getByText("Rådhuspladsen 1", { exact: true })).toBeVisible();
-  await expect(page.getByText("120 BBR-registrerede pladser")).toBeVisible();
+  await expect(page.getByText(/120 pladser/)).toBeVisible();
 
   const nearbyRequest = await nearbyRequestPromise;
   expect(new URL(nearbyRequest.url()).search).toBe("");
@@ -64,16 +66,16 @@ test("gamle links renses straks for adresse og koordinater", async ({ page }) =>
   await mockNearby(page);
 
   await page.goto(
-    "/shelters/nearby?lat=55.6761&lng=12.5683&q=Privat%20Testadresse%201",
+    "/naer-dig?lat=55.6761&lng=12.5683&q=Privat%20Testadresse%201",
   );
 
-  await expect(page).toHaveURL((url) => url.pathname === "/shelters/nearby" && url.search === "");
-  await expect(page.getByText("Søgeområde: Privat Testadresse 1")).toBeVisible();
+  await expect(page).toHaveURL((url) => url.pathname === "/naer-dig" && url.search === "");
+  await expect(page.getByText("Ved Privat Testadresse 1")).toBeVisible();
   await expect(page.getByText("Rådhuspladsen 1", { exact: true })).toBeVisible();
 });
 
 test("direkte resultatlink uden fanesøgning forklarer privatlivsvalget", async ({ page }) => {
-  await page.goto("/shelters/nearby");
+  await page.goto("/naer-dig");
 
   await expect(page.getByRole("heading", { name: "Start en ny søgning" })).toBeVisible();
   await expect(page.getByText(/adresse og position ikke i linket/)).toBeVisible();
@@ -88,13 +90,13 @@ test("mobilvisningen skifter mellem liste og kort", async ({ page }, testInfo) =
   await installNearbySearchContext(page);
   await mockNearby(page);
 
-  await page.goto("/shelters/nearby");
+  await page.goto("/naer-dig");
   const listTab = page.getByRole("tab", { name: "Liste" });
   const mapTab = page.getByRole("tab", { name: "Kort" });
 
   await expect(listTab).toHaveAttribute("aria-selected", "true");
   await expect.poll(() => tileRequests.length).toBe(0);
-  await page.getByRole("button", { name: "Vis på kort" }).click();
+  await page.getByRole("button", { name: /^Vis .* på kort$/ }).click();
   await expect(mapTab).toHaveAttribute("aria-selected", "true");
   await expect.poll(() => tileRequests.length).toBeGreaterThan(0);
   await expect(page.getByLabel("Valgt registrering")).toContainText("Rådhuspladsen 1");
@@ -138,17 +140,17 @@ test("et vejnavn indsnævrer søgningen til et husnummer", async ({ page }) => {
   });
 
   await page.goto("/");
-  const addressInput = page.getByRole("combobox", { name: "Adresse, by eller postnummer" });
+  const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
   await addressInput.fill("Rådhusp");
   await page.getByRole("option", { name: "Rådhuspladsen 1550 København V" }).click();
 
   await expect(addressInput).toHaveValue("Rådhuspladsen , 1550 København V");
   await expect(addressInput).toBeFocused();
   expect(await addressInput.evaluate((input: HTMLInputElement) => input.selectionStart)).toBe(14);
-  await page.getByRole("option", { name: selectedAddressLabel }).click();
-  await expect(page.getByText(`Valgt adresse: ${selectedAddressLabel}`)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Søg", exact: true })).toBeEnabled();
+  await expect(page.getByRole("option", { name: selectedAddressLabel })).toBeVisible();
   expect(searches).toContain("Rådhuspladsen , 1550 København V");
+  await page.getByRole("option", { name: selectedAddressLabel }).click();
+  await expect(page).toHaveURL((url) => url.pathname === "/naer-dig");
 });
 
 test("første resultat er synligt uden at scrolle, og kortet fylder skærmen", async ({ page }, testInfo) => {
@@ -156,11 +158,11 @@ test("første resultat er synligt uden at scrolle, og kortet fylder skærmen", a
   await installNearbySearchContext(page);
   await mockNearby(page);
 
-  await page.goto("/shelters/nearby");
-  const firstResult = page.locator("#nearby-list-panel article").first();
+  await page.goto("/naer-dig");
+  const firstResult = page.locator("#nearby-list-panel ol > li").first();
   await expect(firstResult).toBeVisible();
   const viewport = page.viewportSize();
-  const heading = await firstResult.getByRole("heading").boundingBox();
+  const heading = await firstResult.getByRole("link").first().boundingBox();
   expect(viewport).not.toBeNull();
   expect(heading).not.toBeNull();
   expect(heading!.y + heading!.height).toBeLessThanOrEqual(viewport!.height);
@@ -201,10 +203,10 @@ test("resultater beregnes i browseren fra kortfliser uden at sende positionen", 
     });
   });
 
-  await page.goto("/shelters/nearby");
+  await page.goto("/naer-dig");
 
   await expect(page.locator("#nearby-list-panel").getByText("Flisevej 1", { exact: true })).toBeVisible();
-  await expect(page.locator("#nearby-list-panel article")).toHaveCount(10);
+  await expect(page.locator("#nearby-list-panel ol > li")).toHaveCount(10);
   // Dev mode mounts twice; compare the set of tiles.
   expect([...new Set(tileRequests)].sort()).toEqual(["221_30", "221_31", "221_32", "222_30", "222_31", "222_32", "223_30", "223_31", "223_32"]);
   expect(nearbyRequests).toHaveLength(0);
@@ -240,7 +242,7 @@ test("fliser fra før en publicering hentes igen i den nye version i stedet for 
     });
   });
 
-  await page.goto("/shelters/nearby");
+  await page.goto("/naer-dig");
 
   await expect(page.locator("#nearby-list-panel").getByText("Flisevej 1", { exact: true })).toBeVisible();
   await expect(page.locator("#nearby-list-panel").getByText("Gammelvej 1", { exact: true })).toHaveCount(0);
@@ -248,29 +250,61 @@ test("fliser fra før en publicering hentes igen i den nye version i stedet for 
   expect(nearbyRequests).toHaveLength(0);
 });
 
-test("Enter søger igen, når der endnu ikke er valgt en adresse", async ({ page }) => {
-  let searches = 0;
+test("Enter og Søg gør det samme: ét entydigt match søges straks", async ({ page }) => {
   await mockAddressSearch(page);
-  await page.unroute("https://adressevaelger.dk/husnumre/soeg**");
-  await page.route("https://adressevaelger.dk/husnumre/soeg**", async (route) => {
-    searches += 1;
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ status: "ok", beskrivelse: "", fund: [{ type: "husnummer", id: "0a3f507a-ec01-32b8-e044-0003ba298018", titel: selectedAddressLabel }] }),
-    });
-  });
+  await mockNearby(page);
+
+  for (const submit of ["Enter", "click"] as const) {
+    await page.goto("/");
+    const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
+    const searchButton = page.getByRole("button", { name: "Søg", exact: true });
+    await expect(searchButton).toBeEnabled();
+    await addressInput.fill("Rådhuspladsen 1, 1550");
+    if (submit === "Enter") await addressInput.press("Enter");
+    else await searchButton.click();
+    await expect(page).toHaveURL((url) => url.pathname === "/naer-dig");
+    await expect(page.getByText("Ved " + selectedAddressLabel)).toBeVisible();
+  }
+});
+
+test("tvetydig fritekst viser forslag med en instruktion, der annonceres", async ({ page }) => {
+  await mockAddressSearch(page, [
+    { type: "husnummer", id: "0a3f507a-ec01-32b8-e044-0003ba298018", titel: "Rådhuspladsen 1, 1550 København V" },
+    { type: "husnummer", id: "0a3f5096-c91e-32b8-e044-0003ba298018", titel: "Rådhuspladsen 1, 8000 Aarhus C" },
+  ]);
+  await mockNearby(page);
 
   await page.goto("/");
-  const addressInput = page.getByRole("combobox", { name: "Adresse, by eller postnummer" });
+  const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
   await addressInput.fill("Rådhuspladsen 1");
-  await expect(page.getByRole("option", { name: selectedAddressLabel })).toBeVisible();
   await addressInput.press("Escape");
-  await expect(page.getByRole("option", { name: selectedAddressLabel })).toHaveCount(0);
-  const searchesBeforeEnter = searches;
+  await page.getByRole("button", { name: "Søg", exact: true }).click();
 
+  await expect(page.getByRole("status").filter({ hasText: "Vælg den rigtige adresse på listen." })).toBeVisible();
+  await expect(page.getByRole("option")).toHaveCount(2);
+  await expect(page).toHaveURL((url) => url.pathname === "/");
+
+  // The list works with the arrow keys and Escape, and Enter on a suggestion searches at once.
+  await addressInput.press("ArrowDown");
+  await addressInput.press("ArrowDown");
+  await addressInput.press("ArrowUp");
+  await expect(page.getByRole("option").first()).toHaveAttribute("aria-selected", "true");
+  await addressInput.press("Escape");
+  await expect(page.getByRole("option")).toHaveCount(0);
+  await addressInput.press("ArrowDown");
   await addressInput.press("Enter");
+  await expect(page).toHaveURL((url) => url.pathname === "/naer-dig");
 
-  await expect(page.getByRole("option", { name: selectedAddressLabel })).toBeVisible();
-  expect(searches).toBeGreaterThan(searchesBeforeEnter);
+  // Back on the front page the chosen address is still in the field, ready to correct.
+  await page.goBack();
+  await expect(page.getByRole("combobox", { name: "Eller søg på en adresse" })).toHaveValue("Rådhuspladsen 1, 1550 København V");
+});
+
+test("tom søgning giver en fejltekst ved feltet i stedet for en deaktiveret knap", async ({ page }) => {
+  await page.goto("/");
+  const searchButton = page.getByRole("button", { name: "Søg", exact: true });
+  await expect(searchButton).toBeEnabled();
+  await searchButton.click();
+  await expect(page.getByText("Skriv en adresse, et postnummer eller en by.")).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Eller søg på en adresse" })).toBeFocused();
 });

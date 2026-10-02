@@ -2,19 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import dynamic from 'next/dynamic'
+import type { Route } from 'next'
 import Link from 'next/link'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import '@/styles/leaflet-overrides.css'
 
 import GlobalFooter from '@/components/GlobalFooter'
 import MapUnavailableNotice from '@/components/MapUnavailableNotice'
-import RegistrationNotice, { RegistrationNoticeLine } from '@/components/RegistrationNotice'
+import OfflineCopyControl from '@/components/OfflineCopyControl'
 import type { MapTileStatus } from '@/components/ResilientMapTileLayer'
 import { ui } from '@/components/ui-classes'
-import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
-import { setupLeafletDefaults } from '@/lib/leaflet/setup-defaults'
 import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
 import {
   isNearbyTilePayload,
@@ -25,51 +21,16 @@ import {
   type NearbyTilePayload,
 } from '@/lib/nearby/tiles'
 import { trackProductMetric } from '@/lib/analytics/product-metrics'
-import { NearbyFitBounds } from './nearby-fit-bounds'
 import { scrollBehavior } from '@/lib/ui/reduced-motion'
+import { getReadableGroupPrimaryPath, getReadableShelterPathFromStable } from '@/lib/shelter-public-url'
 
-setupLeafletDefaults(L)
-
-const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
-const Popup = dynamic(() => import('react-leaflet').then((mod) => mod.Popup), { ssr: false })
-const ResilientMapTileLayer = dynamic(() => import('@/components/ResilientMapTileLayer'), { ssr: false })
+const ShelterMap = dynamic(() => import('@/components/ShelterMap'), { ssr: false })
 
 const nearbyResultLimit = 10
 const nearbyRadiusKm = 50
-
-const createDivIcon = (className: string, html: string, size = 40) =>
-  L.divIcon({
-    className,
-    html,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -size / 2],
-  })
-
-const userLocationIcon = createDivIcon(
-  'user-location-marker',
-  '<div class="nearby-map-pin-user" aria-hidden="true"></div>',
-  44,
-)
-
-// Pins carry the result's number so the map and the list can be matched at a
-// glance; icons are cached because Leaflet compares them by identity.
-const numberedShelterIcons = new Map<string, L.DivIcon>()
-
-function getNumberedShelterIcon(number: number, selected: boolean) {
-  const key = `${number}:${selected ? 'selected' : 'default'}`
-  let icon = numberedShelterIcons.get(key)
-  if (!icon) {
-    icon = createDivIcon(
-      selected ? 'shelter-marker-selected' : 'shelter-marker',
-      `<div class="${selected ? 'nearby-map-pin-shelter-hover' : 'nearby-map-pin-shelter'}" aria-hidden="true">${number}</div>`,
-      44,
-    )
-    numberedShelterIcons.set(key, icon)
-  }
-  return icon
-}
+// When nothing lies within the normal radius (a postcode far from any
+// registration), search once more this far out rather than show an empty list.
+const widenedRadiusKm = 100
 
 function formatDistanceKm(distanceKm: number) {
   if (!Number.isFinite(distanceKm)) return ''
@@ -81,12 +42,12 @@ function formatBuildingUse(shelter: NearbyResultShelter) {
   return shelter.typeLabel?.trim() || null
 }
 
-function getBuildingUseLabels(shelter: NearbyResultShelter) {
-  return Array.from(new Set((shelter.typeLabels ?? []).map((label) => label.trim()).filter(Boolean)))
-}
-
-function getDetailSlug(shelter: NearbyResultShelter) {
-  return shelter.representativeSlug ?? shelter.registrations?.[0]?.slug ?? null
+/** Readable detail path for the address: the registration with the most places. */
+function getDetailPath(shelter: NearbyResultShelter): Route | null {
+  const address = { addressLine1: getAddressLine(shelter), postalCode: shelter.postnummer ?? '', city: shelter.city ?? '' }
+  const registrations = shelter.registrations ?? []
+  if (registrations.length > 0) return getReadableGroupPrimaryPath(address, registrations) as Route | null
+  return shelter.representativeSlug ? getReadableShelterPathFromStable({ slug: shelter.representativeSlug, ...address }) as Route : null
 }
 
 function getAddressLine(shelter: NearbyResultShelter) {
@@ -99,7 +60,7 @@ function getPostalLine(shelter: NearbyResultShelter) {
 
 function formatCapacity(capacity: number | undefined) {
   if (typeof capacity !== 'number') return 'Kapacitet ikke oplyst'
-  return `${capacity.toLocaleString('da-DK')} ${capacity === 1 ? 'BBR-registreret plads' : 'BBR-registrerede pladser'}`
+  return `${capacity.toLocaleString('da-DK')} ${capacity === 1 ? 'plads' : 'pladser'}`
 }
 
 class NearbyRequestError extends Error {
@@ -189,11 +150,11 @@ function formatSavedAt(value: string) {
   return new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(date)
 }
 
-async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<NearbyResultShelter[]> {
+async function fetchAppV2GroupedShelters(lat: number, lng: number, radiusKm?: number): Promise<NearbyResultShelter[]> {
   const response = await fetch('/api/app-v2/nearby/grouped', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lat, lng, limit: nearbyResultLimit }),
+    body: JSON.stringify(radiusKm ? { lat, lng, limit: nearbyResultLimit, radius: radiusKm * 1000 } : { lat, lng, limit: nearbyResultLimit }),
     cache: 'no-store',
   }).catch(() => {
     throw new NearbyConnectionError('app_v2 grouped nearby got no response')
@@ -227,8 +188,10 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const [isRetryingBusy, setIsRetryingBusy] = useState(false)
   // Set when results were built while offline or from the worker's saved tiles.
   const [savedDataNotice, setSavedDataNotice] = useState<{ savedAt: string | null } | null>(null)
+  const [isWidened, setIsWidened] = useState(false)
   const [srMapSelection, setSrMapSelection] = useState('')
   const shelterRefs = useRef<Record<string, HTMLElement | null>>({})
+  const headingRef = useRef<HTMLHeadingElement | null>(null)
   const listTabRef = useRef<HTMLButtonElement | null>(null)
   const mapTabRef = useRef<HTMLButtonElement | null>(null)
   const listPanelRef = useRef<HTMLElement | null>(null)
@@ -239,14 +202,22 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const selectionReturnRef = useRef<HTMLElement | null>(null)
   const srMapSelectionClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const offlineTileUrls = useMemo(
+    () => surroundingTileKeys(lat, lng).map((key) => `/api/app-v2/nearby/tiles/${key}`),
+    [lat, lng],
+  )
+
   const selectedShelter = useMemo(
     () => shelters.find((shelter) => shelter.id === selectedShelterId) ?? null,
     [selectedShelterId, shelters],
   )
 
+  // A new search starts at the top with focus on the result heading, so
+  // keyboard and screen reader users land where the results begin.
   useEffect(() => {
-    ensureLeafletPopupStyles()
-  }, [])
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+    headingRef.current?.focus({ preventScroll: true })
+  }, [lat, lng])
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1024px)')
@@ -296,10 +267,20 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         setLoadError(null)
         setIsRetryingBusy(false)
         setSavedDataNotice(null)
+        setIsWidened(false)
         const tileData = await fetchNearbyFromTiles(lat, lng).catch(() => null)
-        const shelterData = tileData?.shelters ?? await fetchWithOneBusyRetry()
+        let shelterData = tileData?.shelters ?? await fetchWithOneBusyRetry()
+        let widened = false
+        if (shelterData.length === 0) {
+          const wider = await fetchAppV2GroupedShelters(lat, lng, widenedRadiusKm).catch(() => [])
+          if (wider.length > 0) {
+            shelterData = wider
+            widened = true
+          }
+        }
         if (isMounted) {
           setShelters(shelterData)
+          setIsWidened(widened)
           // The browser's own short HTTP cache can answer offline too, so being
           // offline always earns the notice, with a date when the worker knows it.
           const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -422,24 +403,23 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
     <main id="main-content" tabIndex={-1} className={ui.page}>
       <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <header className="mb-3 sm:mb-4">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link href="/" className="-ml-2 inline-flex touch-target items-center justify-center rounded-lg p-2 text-gray-400 transition-colors hover:bg-white/[0.05] hover:text-white" aria-label="Tilbage til forsiden">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </Link>
-            <h1 className="break-safe font-space-grotesk text-xl font-semibold tracking-tight sm:text-2xl">Registrerede sikringsrumspladser i nærheden</h1>
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 text-sm">
-            {originLabel ? <span className="break-safe text-gray-300">Søgeområde: {originLabel}</span> : null}
-            <Link href="/" className="inline-flex min-h-[44px] items-center text-white underline underline-offset-4 hover:decoration-white/70">Skift adresse</Link>
-          </div>
-          <p className="max-w-2xl text-xs leading-5 text-gray-400 sm:text-sm">
-            Op til {nearbyResultLimit} adresser inden for {nearbyRadiusKm} km, sorteret efter afstand i luftlinje.
+          <h1
+            ref={headingRef}
+            tabIndex={-1}
+            id="nearby-results-heading"
+            className="break-safe text-[1.75rem] font-semibold leading-[1.15] tracking-tight text-white focus:outline-none sm:text-4xl"
+          >
+            Nærmeste registrerede sikringsrum
+          </h1>
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 text-base text-gray-300">
+            {originLabel ? <span className="break-safe">Ved {originLabel}</span> : null}
+            <Link href="/" className={`${ui.textLink} inline-flex min-h-[44px] items-center`}>Skift adresse</Link>
+          </p>
+          <p className="text-sm leading-6 text-gray-400">
+            Adgang og stand er ikke bekræftet. Op til {nearbyResultLimit} adresser inden for {nearbyRadiusKm} km i luftlinje.{' '}
+            <Link href="/om-data" className={ui.textLink}>Om data</Link>
           </p>
         </header>
-
-        <RegistrationNoticeLine className="mb-3 sm:mb-4" />
 
         <div className="sticky top-[calc(4.5rem+env(safe-area-inset-top,0px))] z-30 mb-4 grid grid-cols-2 rounded-lg border border-white/10 bg-[var(--surface-inset)] p-1 lg:hidden" role="tablist" aria-label="Vælg resultatvisning">
           <button
@@ -481,7 +461,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             tabIndex={-1}
             className={`${mobileView === 'list' ? 'block' : 'hidden'} order-1 space-y-3 lg:block`}
           >
-            <h2 id="nearby-results-heading" className="sr-only">Resultater sorteret efter afstand</h2>
+            <h2 className="sr-only">Resultater sorteret efter afstand</h2>
 
             {savedDataNotice && !loadError && !isLoading ? (
               <div className="rounded-lg border border-yellow-600/40 bg-yellow-900/20 p-3 text-sm leading-6 text-yellow-100" role="status">
@@ -508,11 +488,11 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                 <p className="text-sm text-gray-400">
                   {isRetryingBusy ? 'Mange søger lige nu – prøver igen om et øjeblik …' : 'Henter BBR-registreringer …'}
                 </p>
-                {[0, 1, 2].map((index) => <div key={index} className="h-40 animate-pulse rounded-lg border border-white/5 bg-white/[0.06] motion-reduce:animate-none" aria-hidden="true" />)}
+                {[0, 1, 2].map((index) => <div key={index} className="h-14 animate-pulse rounded-md bg-white/[0.06] motion-reduce:animate-none" aria-hidden="true" />)}
               </div>
             ) : shelters.length === 0 ? (
               <div className={`${ui.panel} p-4`} role="status" aria-live="polite">
-                <p className="text-lg font-semibold text-white">Ingen registreringer i resultatet</p>
+                <p className="text-lg font-semibold text-white">Ingen registreringer inden for {widenedRadiusKm} km</p>
                 <p className="mt-2 text-gray-300">Prøv en anden adresse. Du kan også gennemse pr. kommune. Følg altid myndighedernes anvisninger.</p>
                 <p className="mt-2 text-sm text-gray-400">
                   Oversigten viser kun registreringer med mindst 40 pladser.{' '}
@@ -526,79 +506,67 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             ) : (
               <>
                 <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{srMapSelection}</div>
-                {shelters.map((shelter, index) => {
-                  const detailSlug = getDetailSlug(shelter)
-                  const buildingUse = formatBuildingUse(shelter)
-                  const buildingUseLabels = getBuildingUseLabels(shelter)
-                  const registrations = shelter.registrations ?? []
-                  const hasExtraDetails = Boolean(buildingUse) || registrations.length > 1
+                {isWidened ? (
+                  <p className="border-l-2 border-yellow-500 pl-3 text-sm leading-6 text-yellow-100" role="status">
+                    Der er ingen registreringer inden for {nearbyRadiusKm} km. Her er de nærmeste inden for {widenedRadiusKm} km.
+                  </p>
+                ) : null}
+                <ol className="divide-y divide-white/10 border-y border-white/10">
+                  {shelters.map((shelter, index) => {
+                    const detailPath = getDetailPath(shelter)
+                    const isSelected = selectedShelterId === shelter.id
+                    const registrationCount = shelter.registrations?.length ?? shelter.shelter_count ?? 1
 
-                  return (
-                    <article
-                      key={shelter.id}
-                      ref={(element) => { shelterRefs.current[shelter.id] = element }}
-                      className={`min-w-0 rounded-xl border bg-[var(--surface-row)] p-4 sm:p-5 ${selectedShelterId === shelter.id ? 'border-orange-500/60' : 'border-white/10'}`}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="flex items-center gap-2">
-                          <span className="nearby-result-number" aria-hidden="true">{index + 1}</span>
-                          <span className="sr-only">Nummer {index + 1} på kortet: </span>
-                          <span className="text-sm font-semibold text-orange-300">{formatDistanceKm(shelter.distance)} i luftlinje</span>
-                        </span>
-                        {typeof shelter.shelter_count === 'number' && shelter.shelter_count > 1 ? <span className="rounded-md bg-white/5 px-2 py-1 text-xs text-gray-300">{shelter.shelter_count} registreringer</span> : null}
-                      </div>
-                      <h3 className="break-safe mt-2 text-lg font-semibold text-white">{getAddressLine(shelter)}</h3>
-                      <p className="mt-1 text-sm text-gray-300">{getPostalLine(shelter)}</p>
-                      <p className="mt-3 text-lg font-semibold text-white">
-                        {formatCapacity(shelter.total_capacity)}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-gray-400">Adgang ikke bekræftet · Stand ikke verificeret</p>
-
-                      {hasExtraDetails ? (
-                        <details className="mt-3 border-t border-white/10 pt-3 text-sm">
-                          <summary className="min-h-[44px] cursor-pointer py-2 font-medium text-gray-200">Flere registrerede oplysninger</summary>
-                          <div className="pb-1 text-gray-300">
-                            {buildingUseLabels.length > 1 ? (
-                              <div>
-                                <p>Flere registrerede bygningsanvendelser:</p>
-                                <ul className="mt-1 list-disc space-y-1 pl-5">
-                                  {buildingUseLabels.map((label) => <li key={label}>{label}</li>)}
-                                </ul>
-                              </div>
-                            ) : buildingUse ? <p>Bygningens anvendelse: {buildingUse}</p> : null}
-                            {registrations.length > 1 ? (
-                              <ul className="mt-2 space-y-1">
-                                {registrations.map((registration, index) => (
-                                  <li key={registration.id}>
-                                    <Link href={`/beskyttelsesrum/${registration.slug}`} className="inline-flex min-h-[44px] items-center underline underline-offset-4 hover:text-white">
-                                      Registrering {index + 1}: {registration.capacity.toLocaleString('da-DK')} {registration.capacity === 1 ? 'plads' : 'pladser'}
-                                    </Link>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        </details>
-                      ) : null}
-
-                      {/* Two equal, quiet actions side by side: ten orange buttons in a row
-                          competed with each other and doubled the list's length on phones. */}
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3">
-                        {detailSlug ? (
-                          <Link href={`/beskyttelsesrum/${detailSlug}`} className={ui.secondaryAction}>Se detaljer</Link>
-                        ) : (
-                          <span className="inline-flex min-h-[44px] items-center text-sm text-gray-400">Detaljeside er ikke tilgængelig</span>
-                        )}
-                        {shelter.location ? <button type="button" onClick={(event) => showShelterOnMap(shelter, event.currentTarget)} className={ui.secondaryAction}>Vis på kort</button> : null}
-                      </div>
-                    </article>
-                  )
-                })}
+                    return (
+                      <li
+                        key={shelter.id}
+                        ref={(element) => { shelterRefs.current[shelter.id] = element }}
+                        className={`flex min-w-0 items-start gap-3 py-3 pr-1 ${isSelected ? '-ml-3 border-l-2 border-l-[var(--accent)] pl-[10px]' : ''}`}
+                      >
+                        <span className={`nearby-result-number mt-0.5 ${isSelected ? '' : 'nearby-result-number-quiet'}`} aria-hidden="true">{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="sr-only">Nummer {index + 1} på kortet: </span>
+                            {detailPath ? (
+                              <Link href={detailPath} className="break-safe text-base font-semibold text-white underline decoration-white/30 underline-offset-4 hover:decoration-white">
+                                {getAddressLine(shelter)}
+                              </Link>
+                            ) : (
+                              <span className="break-safe text-base font-semibold text-white">{getAddressLine(shelter)}</span>
+                            )}
+                            <span className="text-sm font-medium text-gray-200">{formatDistanceKm(shelter.distance)}</span>
+                          </p>
+                          <p className="text-sm text-gray-400">
+                            {getPostalLine(shelter)}
+                            <span aria-hidden="true"> · </span>
+                            <span className="sr-only">, </span>
+                            {formatCapacity(shelter.total_capacity)}
+                            {registrationCount > 1 ? ` · ${registrationCount} registreringer` : ''}
+                          </p>
+                        </div>
+                        {shelter.location ? (
+                          <button
+                            type="button"
+                            onClick={(event) => showShelterOnMap(shelter, event.currentTarget)}
+                            className="-my-1 inline-flex min-h-[44px] shrink-0 items-center rounded-lg px-2 text-sm text-gray-300 underline underline-offset-4 hover:text-white"
+                            aria-label={`Vis ${getAddressLine(shelter)} på kort`}
+                          >
+                            Vis på kort
+                          </button>
+                        ) : null}
+                      </li>
+                    )
+                  })}
+                </ol>
                 <p className="pt-1 text-sm text-gray-400">
                   Kun registreringer med mindst 40 pladser vises.{' '}
                   <Link href="/om-data#hvilke-registreringer" className={ui.textLink}>Læs hvorfor</Link>
                 </p>
-                <RegistrationNotice className="mt-3" />
+                <OfflineCopyControl
+                  className="pt-2"
+                  extraUrls={offlineTileUrls}
+                  search={{ label: originLabel ?? 'Gemt søgning', latitude: lat, longitude: lng }}
+                />
               </>
             )}
           </section>
@@ -622,39 +590,38 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
               >
                 <div className="absolute inset-0 overflow-hidden rounded-lg border border-white/10">
                   {shouldRenderMap ? (
-                    <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom={false}>
-                      <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
-                      <Marker position={[lat, lng]} icon={userLocationIcon} title="Søgepunkt" />
-                      {shelters.map((shelter, index) => shelter.location ? (
-                        <Marker
-                          key={shelter.id}
-                          position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
-                          icon={getNumberedShelterIcon(index + 1, selectedShelterId === shelter.id)}
-                          // Leaflet ignores alt on div icons; title is the marker's accessible name.
-                          title={`${index + 1}. ${getAddressLine(shelter)}`}
-                          eventHandlers={{
-                            click: () => {
-                              selectionReturnRef.current = null
-                              setSelectedShelterId(shelter.id)
-                              setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
-                              if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
-                            },
-                          }}
-                        >
-                          <Popup className="fb-popup">
-                            <div dangerouslySetInnerHTML={{ __html: buildLeafletPopupHtml({
-                              title: getAddressLine(shelter),
-                              usageLine: formatBuildingUse(shelter) ?? '',
-                              postalLine: getPostalLine(shelter),
-                              capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
-                              href: getDetailSlug(shelter) ? `/beskyttelsesrum/${getDetailSlug(shelter)}` : null,
-                              linkLabel: 'Se detaljer',
-                            }) }} />
-                          </Popup>
-                        </Marker>
-                      ) : null)}
-                      <NearbyFitBounds userLocation={[lat, lng]} shelters={shelters} />
-                    </MapContainer>
+                    <ShelterMap
+                      ref={mapRef}
+                      center={[lat, lng]}
+                      zoom={13}
+                      searchPoint={[lat, lng]}
+                      fitToMarkers
+                      tileRetryKey={tileRetryKey}
+                      onTileStatusChange={handleTileStatusChange}
+                      markers={shelters.flatMap((shelter, index) => shelter.location ? [{
+                        id: shelter.id,
+                        position: [shelter.location.coordinates[1], shelter.location.coordinates[0]] as [number, number],
+                        label: String(index + 1),
+                        title: `${index + 1}. ${getAddressLine(shelter)}`,
+                        selected: selectedShelterId === shelter.id,
+                        popupHtml: buildLeafletPopupHtml({
+                          title: getAddressLine(shelter),
+                          usageLine: formatBuildingUse(shelter) ?? '',
+                          postalLine: getPostalLine(shelter),
+                          capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
+                          href: getDetailPath(shelter),
+                          linkLabel: 'Se detaljer',
+                        }),
+                      }] : [])}
+                      onMarkerClick={(id) => {
+                        const shelter = shelters.find((item) => item.id === id)
+                        if (!shelter) return
+                        selectionReturnRef.current = null
+                        setSelectedShelterId(shelter.id)
+                        setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
+                        if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
+                      }}
+                    />
                   ) : (
                     <div className="flex h-full items-center justify-center bg-[var(--surface-elevated)] p-6 text-center" role="status">
                       <p className="max-w-sm text-sm leading-6 text-gray-300">Kortet indlæses først, når du vælger kortvisningen.</p>
@@ -663,9 +630,9 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                 </div>
 
                 {shouldRenderMap ? (
-                  <div className="pointer-events-none absolute right-2 top-2 z-[700] rounded-lg border border-white/15 bg-[#141619]/95 px-3 py-2 text-xs leading-5 text-gray-200 shadow-lg" aria-hidden="true">
+                  <div className="pointer-events-none absolute right-2 top-2 z-[700] rounded-lg border border-white/15 bg-[#141619]/95 px-3 py-2 text-sm leading-6 text-gray-200 shadow-lg" aria-hidden="true">
                     <p className="flex items-center gap-2"><span className="nearby-legend-search" />Søgepunkt</p>
-                    <p className="flex items-center gap-2"><span className="nearby-result-number nearby-legend-number">1</span>Nummer i listen</p>
+                    <p className="flex items-center gap-2"><span className="nearby-result-number nearby-result-number-quiet nearby-legend-number">1</span>Nummer i listen</p>
                   </div>
                 ) : null}
 
@@ -681,10 +648,9 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                     <p className="mt-2 font-semibold text-white">
                       {formatCapacity(selectedShelter.total_capacity)}
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-gray-400">Adgang ikke bekræftet · Stand ikke verificeret</p>
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button type="button" onClick={() => selectMobileView('list', true)} className={ui.secondaryAction}>Til listen</button>
-                      {getDetailSlug(selectedShelter) ? <Link href={`/beskyttelsesrum/${getDetailSlug(selectedShelter)}`} className={ui.primaryAction}>Se detaljer</Link> : null}
+                      {getDetailPath(selectedShelter) ? <Link href={getDetailPath(selectedShelter)!} className={ui.primaryAction}>Se detaljer</Link> : null}
                     </div>
                   </aside>
                 ) : null}

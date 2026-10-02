@@ -277,7 +277,7 @@ export default function PrivacyContactPortal() {
               <button type="button" onClick={copyCredentials} className={ui.secondaryAction}>Kopiér sagsoplysninger</button>
               <button type="button" onClick={() => void loadCase(createdCredentials)} className={ui.secondaryAction}>Åbn sagen</button>
             </div>
-            {copyStatus ? <p className="mt-3 text-xs leading-5 text-gray-300" aria-live="polite">{copyStatus}</p> : null}
+            {copyStatus ? <p className="mt-3 text-sm leading-6 text-gray-300" aria-live="polite">{copyStatus}</p> : null}
           </div>
         ) : null}
       </section>
@@ -327,7 +327,7 @@ export default function PrivacyContactPortal() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 ref={caseHeadingRef} tabIndex={-1} className="text-lg font-semibold text-white">{contactCase.subject}</h3>
-                <p className="mt-1 text-xs text-gray-400">{contactCase.reference} · {categoryLabels[contactCase.category]}</p>
+                <p className="mt-1 text-sm text-gray-400">{contactCase.reference} · {categoryLabels[contactCase.category]}</p>
               </div>
               <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(contactCase.status)}`}>
                 {statusLabels[contactCase.status]}

@@ -56,7 +56,8 @@ export function contentSecurityPolicyValue({
     `img-src 'self' data: blob: ${osmTileOrigin}`,
     "font-src 'self' data:",
     `connect-src ${connectSrc.join(' ')}`,
-    "frame-src https://www.openstreetmap.org",
+    // Every map is a Leaflet map with tiles as images; nothing is framed.
+    "frame-src 'none'",
     "media-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
@@ -84,6 +85,9 @@ const nextConfig = {
     return [
       { source: "/land", destination: "/kommune", permanent: true },
       { source: "/tell-me-more", destination: "/om-data", permanent: true },
+      // Renamed to a Danish path. Next.js keeps the query string, so old
+      // ?lat=&lng= links still reach the page, which strips them on arrival.
+      { source: "/shelters/nearby", destination: "/naer-dig", permanent: true },
     ];
   },
   typescript: {

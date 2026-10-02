@@ -54,7 +54,7 @@ test("nærkortet bevarer brugerens zoom efter langsomme kortfliser og markørval
     ],
   });
 
-  await page.goto("/shelters/nearby");
+  await page.goto("/naer-dig");
   await expect(page.locator("#nearby-list-panel").getByText("Yderadresse 1", { exact: true })).toBeAttached();
   if (testInfo.project.name.startsWith("mobile-")) {
     await page.getByRole("tab", { name: "Kort", exact: true }).click();
@@ -122,7 +122,7 @@ test("første mobilvalg fokuserer adressen efter kommunekortets lazy loading", {
     // One click: Playwright waits until hydration enables the button.
     await firstSelection.click();
 
-    await expect(firstSelection.locator("xpath=ancestor::li[1]")).toHaveClass(/border-orange-400\/60/);
+    await expect(firstSelection.locator("xpath=ancestor::li[1]")).toHaveClass(/border-l-\[var\(--accent\)\]/);
     await expect(page.locator("#municipality-map .leaflet-container")).toBeAttached();
     await expect.poll(() => currentTileZoom(page, "#municipality-map")).toBeGreaterThanOrEqual(14);
   } finally {

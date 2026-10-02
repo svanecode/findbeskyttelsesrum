@@ -16,11 +16,9 @@ function Choices({ onSaved, showCustomize = true }: { onSaved?: () => void; show
   const current = readConsent();
   const [customizing, setCustomizing] = useState(!showCustomize);
   const [statistics, setStatistics] = useState(current?.statistics ?? false);
-  const [offline, setOffline] = useState(current?.offline ?? false);
   const statisticsId = useId();
-  const offlineId = useId();
 
-  const save = (choice: { statistics: boolean; offline: boolean }) => {
+  const save = (choice: { statistics: boolean }) => {
     saveConsent(choice);
     onSaved?.();
   };
@@ -37,29 +35,22 @@ function Choices({ onSaved, showCustomize = true }: { onSaved?: () => void; show
               (Vercel Web Analytics og Speed Insights samt tjenestens egne tællere) uden cookies, adresse eller position.
             </label>
           </div>
-          <div className="flex gap-3 rounded-lg border border-white/10 bg-black/20 p-3">
-            <input id={offlineId} type="checkbox" checked={offline} onChange={(event) => setOffline(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-orange-500" />
-            <label htmlFor={offlineId} className="text-sm leading-6 text-gray-200">
-              <span className="font-semibold text-white">Offlinekopi.</span> Browseren gemmer sidens filer og de senest hentede
-              offentlige kortfliser på din enhed, så søgning med &quot;Brug min placering&quot; kan virke uden net.
-            </label>
-          </div>
           <div className="flex gap-3 rounded-lg border border-white/10 p-3 text-sm leading-6 text-gray-400">
             <svg aria-hidden viewBox="0 0 20 20" className="mt-1 h-5 w-5 shrink-0 rounded bg-white/15 p-0.5 text-gray-200" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M4 10.5l4 4 8-9" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <p><span className="font-semibold text-gray-200">Nødvendige funktioner</span> er altid slået til: din søgning i den aktuelle fane og dette valg.</p>
+            <p><span className="font-semibold text-gray-200">Nødvendige funktioner</span> er altid slået til: din søgning i den aktuelle fane og dette valg. En offlinekopi gemmes kun, når du selv vælger &quot;Gem til brug uden net&quot;.</p>
           </div>
-          <button type="button" onClick={() => save({ statistics, offline })} className={`${choiceButton} w-full`}>
+          <button type="button" onClick={() => save({ statistics })} className={`${choiceButton} w-full`}>
             Gem valg
           </button>
         </fieldset>
       ) : null}
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <button type="button" onClick={() => save({ statistics: true, offline: true })} className={choiceButton}>
+        <button type="button" onClick={() => save({ statistics: true })} className={choiceButton}>
           Tillad alle
         </button>
-        <button type="button" onClick={() => save({ statistics: false, offline: false })} className={choiceButton}>
+        <button type="button" onClick={() => save({ statistics: false })} className={choiceButton}>
           Kun nødvendige
         </button>
       </div>
@@ -107,11 +98,11 @@ export default function ConsentBanner() {
     >
       <h2 id={titleId} className="text-xl font-semibold">Cookies og samtykke</h2>
       <p className="mt-3 text-sm leading-6 text-gray-300">
-        Søgningen virker fuldt ud, uanset hvad du vælger. Med dit samtykke tæller vi anonymt, hvordan tjenesten bruges, og
-        gemmer en offlinekopi på din enhed. Vi bruger ikke cookies til markedsføring eller sporing.
+        Søgningen virker fuldt ud, uanset hvad du vælger. Med dit samtykke tæller vi anonymt, hvordan tjenesten bruges.
+        Vi bruger ikke cookies til markedsføring eller sporing. Siden kan gemmes til brug uden net, uanset dit valg.
       </p>
       <Choices />
-      <p className="mt-3 text-xs leading-5 text-gray-400">
+      <p className="mt-3 text-sm leading-6 text-gray-400">
         Du kan altid ændre dit valg under{" "}
         <Link href="/privatliv#samtykke" className="underline underline-offset-4 hover:text-white">Privatliv</Link>.
       </p>
@@ -131,7 +122,7 @@ export function ConsentSettings() {
       <p className="text-sm leading-6 text-gray-300" role="status">
         {consent === null
           ? "Du har ikke truffet et valg endnu. Indtil da er kun nødvendige funktioner slået til."
-          : `Dit nuværende valg: anonym statistik ${consent.statistics ? "tilladt" : "fravalgt"}, offlinekopi ${consent.offline ? "tilladt" : "fravalgt"}.`}
+          : `Dit nuværende valg: anonym statistik ${consent.statistics ? "tilladt" : "fravalgt"}.`}
         {saved ? " Dit valg er gemt." : ""}
       </p>
       <Choices key={consent === null ? "none" : consent.decidedAt} showCustomize={false} onSaved={() => setSaved(true)} />

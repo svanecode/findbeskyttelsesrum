@@ -89,7 +89,7 @@ const routes = [
   { route: "/beskyttelsesrum/[slug]", routeKey: "/beskyttelsesrum/[slug]/page", entryHint: "/src/app/beskyttelsesrum/[slug]/page" },
   { route: "/om-data", routeKey: "/om-data/page", entryHint: "/src/app/om-data/page" },
   { route: "/kort", routeKey: "/kort/page", entryHint: "/src/app/kort/page" },
-  { route: "/shelters/nearby", routeKey: "/shelters/nearby/page", entryHint: "/src/app/shelters/nearby/page" },
+  { route: "/naer-dig", routeKey: "/naer-dig/page", entryHint: "/src/app/naer-dig/page" },
 ];
 
 const rows = [];

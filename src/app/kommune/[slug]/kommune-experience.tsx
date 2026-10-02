@@ -1,12 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import dynamic from 'next/dynamic'
+import Form from 'next/form'
 import Link from 'next/link'
 import { ui } from '@/components/ui-classes'
 import { getMunicipalityPagePath, municipalityPageLinks } from '@/lib/municipalities/pagination'
+import { getMunicipalitySearchPath, municipalitySearchMaxLength } from '@/lib/municipalities/search'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
 import { scrollBehavior } from '@/lib/ui/reduced-motion'
+import { getReadableGroupPaths } from '@/lib/shelter-public-url'
+import type { Route } from 'next'
 
 const KommuneMap = dynamic(() => import('./kommune-map'), { ssr: false })
 
@@ -25,6 +29,13 @@ interface Props {
     firstItemNumber: number
     lastItemNumber: number
   }
+  /** The search the list was filtered by on the server, or "" for the whole municipality. */
+  searchQuery: string
+  hasAnyRegistrations: boolean
+}
+
+function formatPlaces(capacity: number) {
+  return `${capacity.toLocaleString('da-DK')} ${capacity === 1 ? 'plads' : 'pladser'}`
 }
 
 export default function KommuneExperience({
@@ -32,22 +43,21 @@ export default function KommuneExperience({
   municipalityName,
   municipalitySlug,
   pagination,
+  searchQuery,
+  hasAnyRegistrations,
 }: Props) {
   const isHydrated = useSyncExternalStore(subscribeToHydration, hydratedSnapshot, serverHydratedSnapshot)
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
   const [mapActivated, setMapActivated] = useState(false)
   const mapSectionRef = useRef<HTMLElement | null>(null)
-  const filteredGroups = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase('da-DK')
-    if (!normalizedQuery) return groups
-    return groups.filter((group) =>
-      [group.addressLine1, group.postalCode, group.city, ...group.applicationCodeLabels]
-        .join(' ')
-        .toLocaleLowerCase('da-DK')
-        .includes(normalizedQuery),
-    )
-  }, [groups, query])
+  const pageHref = (page: number) => searchQuery
+    ? getMunicipalitySearchPath(municipalitySlug, searchQuery, page)
+    : getMunicipalityPagePath(municipalitySlug, page)
+  const countLabel = pagination.totalItems === 0
+    ? ''
+    : pagination.totalPages > 1
+      ? `${pagination.firstItemNumber.toLocaleString('da-DK')}–${pagination.lastItemNumber.toLocaleString('da-DK')} af ${pagination.totalItems.toLocaleString('da-DK')}`
+      : `${pagination.totalItems.toLocaleString('da-DK')}`
 
   useEffect(() => {
     if (mapActivated) return
@@ -69,82 +79,109 @@ export default function KommuneExperience({
     return () => observer.disconnect()
   }, [mapActivated])
 
-  if (groups.length === 0) {
+  if (!hasAnyRegistrations) {
     return (
-      <div className={`${ui.panel} p-6 sm:p-8`} role="status">
+      <div className="max-w-2xl" role="status">
         <h2 className="text-xl font-semibold text-white">Ingen viste BBR-registreringer i {municipalityName}</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-300">
+        <p className="mt-3 text-base leading-7 text-gray-300">
           Der er ingen registreringer fra denne kommune i den offentlige oversigt lige nu. Det dokumenterer ikke, at
           kommunen er uden sikringsrum eller offentlige beskyttelsesrum.
         </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Link href="/kommune" className={ui.primaryAction}>
-            Se andre kommuner
-          </Link>
-          <Link href="/" className={ui.quietAction}>
-            Søg efter en adresse
-          </Link>
-        </div>
+        <p className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-base">
+          <Link href="/kommune" className={ui.textLink}>Se andre kommuner</Link>
+          <Link href="/" className={ui.textLink}>Søg på en adresse</Link>
+        </p>
       </div>
     )
   }
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+    <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <section aria-labelledby="municipality-list-heading">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="municipality-list-heading" className="text-xl font-semibold text-white">Adresser i {municipalityName}</h2>
-          <a href="#municipality-map" onClick={() => setMapActivated(true)} className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium text-white underline-offset-4 hover:bg-white/10 hover:underline lg:hidden">
-            Vis kort
-          </a>
+        <Form action={`/kommune/${encodeURIComponent(municipalitySlug)}`} role="search" aria-label={`Søg i ${municipalityName}`}>
+          <label htmlFor="municipality-shelter-search" className="block text-base font-medium text-gray-100">
+            Søg i alle adresser i {municipalityName}
+          </label>
+          <div className="mt-2 flex gap-2">
+            <input
+              id="municipality-shelter-search"
+              name="q"
+              type="search"
+              enterKeyHint="search"
+              defaultValue={searchQuery}
+              key={searchQuery}
+              maxLength={municipalitySearchMaxLength}
+              placeholder="Vejnavn, postnummer eller by"
+              className={`${ui.input} min-w-0 flex-1`}
+            />
+            <button type="submit" className={`${ui.secondaryAction} shrink-0 px-5`}>Søg</button>
+          </div>
+        </Form>
+
+        <div className="mt-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 id="municipality-list-heading" className="text-lg font-semibold text-white">
+            {searchQuery ? <>Resultater for &quot;{searchQuery}&quot;</> : <>Adresser i {municipalityName}</>}
+            {countLabel ? <span className="ml-2 text-base font-normal text-gray-400">{countLabel}</span> : null}
+          </h2>
+          {searchQuery ? (
+            <Link href={getMunicipalityPagePath(municipalitySlug, 1)} className={`${ui.textLink} text-sm`}>Ryd søgning</Link>
+          ) : (
+            <a href="#municipality-map" onClick={() => setMapActivated(true)} className={`${ui.textLink} text-sm lg:hidden`}>
+              Vis kort
+            </a>
+          )}
         </div>
-        <label htmlFor="municipality-shelter-search" className="mt-4 block text-sm font-medium text-gray-200">
-          Søg på denne side
-        </label>
-        <input
-          id="municipality-shelter-search"
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Adresse, postnummer eller by"
-          className={`mt-2 ${ui.input}`}
-        />
-        <p className="mt-2 text-sm text-gray-400" role="status" aria-live="polite">
-          {query.trim()
-            ? `${filteredGroups.length.toLocaleString('da-DK')} ${filteredGroups.length === 1 ? 'adresse' : 'adresser'} på denne side`
-            : pagination.totalItems === 0
-              ? 'Ingen adresser'
-              : `Viser adresse ${pagination.firstItemNumber.toLocaleString('da-DK')}–${pagination.lastItemNumber.toLocaleString('da-DK')} af ${pagination.totalItems.toLocaleString('da-DK')}`}
-        </p>
-        <p className="mt-1 text-xs leading-5 text-gray-400">
+        <p className="mt-1 text-sm leading-6 text-gray-400">
           Kun registreringer med mindst 40 pladser vises.{' '}
           <Link href="/om-data#hvilke-registreringer" className={ui.textLink}>Læs hvorfor</Link>
         </p>
-        {pagination.totalPages > 1 ? (
-          <p className="mt-1 text-xs leading-5 text-gray-400">
-            Søgningen og kortet omfatter adresserne på denne side. Brug sidelinkene for at se resten af kommunen.
-          </p>
-        ) : null}
 
-        {filteredGroups.length === 0 ? (
-          <div className={`mt-4 ${ui.panelInset} p-5`}>
-            <p className="font-medium text-white">Ingen adresser matcher din søgning</p>
-            <button type="button" onClick={() => setQuery('')} className="mt-3 inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-semibold text-white underline underline-offset-4 hover:bg-white/10">
-              Ryd søgningen
-            </button>
+        {groups.length === 0 ? (
+          <div className="mt-6 border-t border-white/10 pt-5" role="status">
+            <p className="text-base font-medium text-white">
+              Ingen registreringer i {municipalityName} matcher &apos;{searchQuery}&apos;
+            </p>
+            <p className="mt-2 text-base leading-7 text-gray-300">
+              Søg på adressen fra <Link href="/" className={ui.textLink}>forsiden</Link> for at se de nærmeste registreringer,
+              eller <Link href={getMunicipalityPagePath(municipalitySlug, 1)} className={ui.textLink}>se alle adresser i {municipalityName}</Link>.
+            </p>
           </div>
         ) : (
-          <ul className="mt-4 space-y-3">
-            {filteredGroups.map((group) => (
-              <li
-                id={`kommune-group-${group.primarySlug}`}
-                key={group.groupKey}
-                className={`rounded-xl border p-4 [content-visibility:auto] [contain-intrinsic-size:0_220px] ${selectedGroupKey === group.groupKey ? 'border-orange-400/60 bg-orange-500/10' : 'border-white/10 bg-[var(--surface-elevated)]'}`}
-              >
-                <div className="flex min-w-0 flex-col items-start gap-2 md:flex-row md:justify-between md:gap-3">
+          <ul className="mt-4 divide-y divide-white/10 border-y border-white/10">
+            {groups.map((group) => {
+              const selected = selectedGroupKey === group.groupKey
+              const extraRegistrations = group.shelters.filter((shelter) => shelter.slug !== group.primarySlug)
+              const paths = getReadableGroupPaths(group, group.shelters)
+              const pathOf = (slug: string) => (paths.get(slug) ?? `/beskyttelsesrum/${slug}`) as Route
+              return (
+                <li
+                  id={`kommune-group-${group.primarySlug}`}
+                  key={group.groupKey}
+                  className={`flex min-w-0 items-start justify-between gap-3 py-3 [content-visibility:auto] [contain-intrinsic-size:0_88px] ${selected ? 'border-l-2 border-l-[var(--accent)] pl-3' : ''}`}
+                >
                   <div className="min-w-0">
-                    <h3 className="break-safe font-semibold text-white">{group.addressLine1}</h3>
-                    <p className="mt-1 text-sm text-gray-300">{group.postalCode} {group.city}</p>
+                    <Link href={pathOf(group.primarySlug)} className="break-safe text-base font-semibold text-white underline decoration-white/30 underline-offset-4 hover:decoration-white">
+                      {group.addressLine1}
+                    </Link>
+                    <p className="mt-0.5 text-sm text-gray-300">
+                      {group.postalCode} {group.city}
+                      <span className="text-gray-500"> · </span>
+                      {formatPlaces(group.totalCapacity)}
+                    </p>
+                    {group.applicationCodeLabel ? <p className="text-sm text-gray-400">{group.applicationCodeLabel}</p> : null}
+                    {extraRegistrations.length > 0 ? (
+                      <p className="text-sm text-gray-400">
+                        {group.shelterCount} registreringer på adressen:{' '}
+                        {group.shelters.map((shelter, index) => (
+                          <span key={shelter.id}>
+                            {index > 0 ? ', ' : ''}
+                            <Link href={pathOf(shelter.slug)} className="underline underline-offset-4 hover:text-white">
+                              {formatPlaces(shelter.capacity)}
+                            </Link>
+                          </span>
+                        ))}
+                      </p>
+                    ) : null}
                   </div>
                   {group.latitude != null && group.longitude != null ? (
                     <button
@@ -157,57 +194,26 @@ export default function KommuneExperience({
                           document.getElementById('municipality-map')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
                         }
                       }}
-                      className={`${ui.secondaryAction} shrink-0 py-2 disabled:cursor-wait disabled:opacity-60`}
+                      className={`${ui.quietAction} shrink-0 disabled:cursor-wait disabled:opacity-60`}
                       aria-label={`Vis ${group.addressLine1} på kortet`}
                     >
                       Vis på kort
                     </button>
                   ) : null}
-                </div>
-                <p className="mt-3 text-sm text-gray-300">
-                  {group.shelterCount === 1 ? '1 BBR-registrering' : `${group.shelterCount} BBR-registreringer`}
-                  <span className="text-gray-400"> · </span>
-                  {group.totalCapacity.toLocaleString('da-DK')} {group.totalCapacity === 1 ? 'registreret plads' : 'registrerede pladser'}
-                </p>
-                {group.applicationCodeLabels.length > 1 ? (
-                  <details className="mt-2 text-sm text-gray-400">
-                    <summary className="min-h-[44px] cursor-pointer py-2 font-medium text-gray-300">Flere registrerede bygningsanvendelser</summary>
-                    <ul className="list-disc space-y-1 pl-5">
-                      {group.applicationCodeLabels.map((label) => <li key={label}>{label}</li>)}
-                    </ul>
-                  </details>
-                ) : group.applicationCodeLabel ? <p className="mt-1 text-sm text-gray-400">{group.applicationCodeLabel}</p> : null}
-                <ul className="mt-3 space-y-2">
-                  {group.shelters.map((shelter, index) => (
-                    <li key={shelter.id}>
-                      <Link
-                        href={`/beskyttelsesrum/${shelter.slug}`}
-                        className="flex min-h-[44px] min-w-0 items-center justify-between gap-3 rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white transition-colors hover:bg-white/[0.08]"
-                      >
-                        <span>{group.shelters.length === 1 ? 'Se detaljer' : `Registrering ${index + 1}`}</span>
-                        <span className="shrink-0 text-gray-300">{shelter.capacity.toLocaleString('da-DK')} {shelter.capacity === 1 ? 'plads' : 'pladser'}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         )}
 
         {pagination.totalPages > 1 ? (
-          <nav className="mt-6 border-t border-white/10 pt-5" aria-label="Sider med adresser i kommunen">
+          <nav className="mt-6" aria-label={searchQuery ? 'Sider med søgeresultater' : 'Sider med adresser i kommunen'}>
             <p className="mb-3 text-sm text-gray-400">
               Side {pagination.currentPage.toLocaleString('da-DK')} af {pagination.totalPages.toLocaleString('da-DK')}
             </p>
             <div className="flex flex-wrap gap-2">
               {pagination.currentPage > 1 ? (
-                <Link
-                  href={getMunicipalityPagePath(municipalitySlug, pagination.currentPage - 1)}
-                  prefetch={false}
-                  className={ui.secondaryAction}
-                  rel="prev"
-                >
+                <Link href={pageHref(pagination.currentPage - 1)} prefetch={false} className={ui.secondaryAction} rel="prev">
                   Forrige
                 </Link>
               ) : null}
@@ -218,9 +224,9 @@ export default function KommuneExperience({
               ) : (
                 <Link
                   key={page}
-                  href={getMunicipalityPagePath(municipalitySlug, page)}
+                  href={pageHref(page)}
                   prefetch={false}
-                  className={page === pagination.currentPage ? ui.primaryAction : ui.secondaryAction}
+                  className={page === pagination.currentPage ? `${ui.secondaryAction} border-white/60 bg-white/[0.12]` : ui.secondaryAction}
                   aria-current={page === pagination.currentPage ? 'page' : undefined}
                   aria-label={`Side ${page}`}
                 >
@@ -228,12 +234,7 @@ export default function KommuneExperience({
                 </Link>
               ))}
               {pagination.currentPage < pagination.totalPages ? (
-                <Link
-                  href={getMunicipalityPagePath(municipalitySlug, pagination.currentPage + 1)}
-                  prefetch={false}
-                  className={ui.secondaryAction}
-                  rel="next"
-                >
+                <Link href={pageHref(pagination.currentPage + 1)} prefetch={false} className={ui.secondaryAction} rel="next">
                   Næste
                 </Link>
               ) : null}
@@ -242,31 +243,42 @@ export default function KommuneExperience({
         ) : null}
       </section>
 
-      <section ref={mapSectionRef} id="municipality-map" className="h-[60vh] min-h-[420px] scroll-mt-24 lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]" aria-label={`Kort over BBR-registreringer af sikringsrumspladser i ${municipalityName}`}>
-        {mapActivated ? (
-          <KommuneMap
-            groups={groups}
-            selectedGroupKey={selectedGroupKey}
-            onMarkerClick={(key) => {
-              setSelectedGroupKey(key)
-              const group = groups.find((item) => item.groupKey === key)
-              if (group) {
-                setQuery('')
-                requestAnimationFrame(() => document.getElementById(`kommune-group-${group.primarySlug}`)?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }))
-              }
-            }}
-          />
-        ) : (
-          <div className={`flex h-full items-center justify-center p-6 text-center ${ui.panel}`} role="status">
-            <div className="max-w-sm">
-              <p className="text-sm leading-6 text-gray-300">Kortet indlæses først, når det nærmer sig skærmen.</p>
-              <button type="button" disabled={!isHydrated} onClick={() => setMapActivated(true)} className={`${ui.secondaryAction} mt-4 disabled:cursor-wait disabled:opacity-60`}>
-                Indlæs kort
-              </button>
-            </div>
+      {groups.length > 0 ? (
+        <section
+          ref={mapSectionRef}
+          id="municipality-map"
+          className="scroll-mt-24 lg:sticky lg:top-24"
+          aria-labelledby="municipality-map-heading"
+        >
+          <h2 id="municipality-map-heading" className="mb-2 text-sm text-gray-300">
+            Kortet viser {pagination.totalPages > 1 ? `adresse ${countLabel}` : 'adresserne'} fra listen{searchQuery ? ' med søgeresultater' : ''}.
+          </h2>
+          <div className="h-[60vh] min-h-[420px] lg:h-[calc(100vh-10rem)]">
+            {mapActivated ? (
+              <KommuneMap
+                groups={groups}
+                selectedGroupKey={selectedGroupKey}
+                onMarkerClick={(key) => {
+                  setSelectedGroupKey(key)
+                  const group = groups.find((item) => item.groupKey === key)
+                  if (group) {
+                    requestAnimationFrame(() => document.getElementById(`kommune-group-${group.primarySlug}`)?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }))
+                  }
+                }}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-lg border border-white/10 p-6 text-center" role="status">
+                <div className="max-w-sm">
+                  <p className="text-sm leading-6 text-gray-300">Kortet indlæses først, når det nærmer sig skærmen.</p>
+                  <button type="button" disabled={!isHydrated} onClick={() => setMapActivated(true)} className={`${ui.secondaryAction} mt-4 disabled:cursor-wait disabled:opacity-60`}>
+                    Indlæs kort
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </section>
+        </section>
+      ) : null}
     </div>
   )
 }
