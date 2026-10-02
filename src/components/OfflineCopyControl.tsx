@@ -24,6 +24,20 @@ type Status = "idle" | "saving" | "removing" | "error";
 const subscribeNever = () => () => {};
 
 /**
+ * The result page and its map load as separate chunks, nested several levels
+ * deep, and a phone fetches the map only when the "Kort" tab is opened.
+ * Loading them from their own import sites (the bundler names chunks per
+ * site) puts the same files among those the copy keeps, so the map also
+ * works offline. Resolves false when a chunk could not be fetched, so the
+ * visitor gets the partial-copy message.
+ */
+function loadNearbyChunks() {
+  return import("@/app/naer-dig/map-wrapper")
+    .then((mod) => mod.preloadNearbyResultPage())
+    .then(() => true, () => false);
+}
+
+/**
  * "Gem til brug uden net": a choice the visitor makes, separate from the
  * statistics consent. Shows when the copy was saved and lets the visitor
  * update or delete it.
@@ -48,9 +62,10 @@ export default function OfflineCopyControl({ extraUrls, search, className = "" }
     setStatus("saving");
     setMessage("");
     try {
+      const chunksLoaded = await loadNearbyChunks();
       const { failed } = await saveOfflineCopy({ extraUrls, search });
       setStatus("idle");
-      setMessage(failed > 0 ? "Gemt. Enkelte dele kunne ikke hentes og virker kun med net." : "Gemt. Siden virker nu også uden net.");
+      setMessage(failed > 0 || !chunksLoaded ? "Gemt. Enkelte dele kunne ikke hentes og virker kun med net." : "Gemt. Siden virker nu også uden net.");
     } catch {
       setStatus("error");
       setMessage("Siden kunne ikke gemmes. Tjek forbindelsen, og prøv igen.");

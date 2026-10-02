@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { ConsentSettings } from "@/components/ConsentBanner";
-import GlobalFooter from "@/components/GlobalFooter";
 import { ui } from "@/components/ui-classes";
 import { getPrivacyController } from "@/lib/privacy/controller";
 import { createPageMetadata } from "@/lib/seo/metadata";
@@ -247,7 +246,6 @@ export default function PrivacyPage() {
         </div>
       </div>
 
-      <GlobalFooter />
     </main>
   );
 }

@@ -6,7 +6,7 @@ import MapWrapper from './map-wrapper'
 
 function NearbySuspenseFallback() {
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
+    <main id="main-content" tabIndex={-1} className="flex-1 bg-[var(--surface-page)] text-white">
       <div className="mx-auto max-w-7xl p-4">
         <div className="mb-6 flex items-center gap-3">
           <div className="h-10 w-10 shrink-0 rounded-lg bg-white/5" />

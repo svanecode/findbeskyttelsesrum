@@ -189,3 +189,41 @@ test("the live postcode table is validated before use", async () => {
   assert.equal(isPostalAreaTable({ postnumre: [["6857", "Blåvand"]], kommuner: [] }), false);
   assert.equal(isPostalAreaTable({ error: { code: "postal_areas_unavailable" } }), false);
 });
+
+test("a hanging address lookup fails with a visible error instead of spinning forever", async () => {
+  const { resolveAddress, adressevaelgerTimeoutMs } = await import("../src/lib/address/adressevaelger");
+  assert.equal(adressevaelgerTimeoutMs, 10_000);
+  globalThis.fetch = ((_input: unknown, init?: RequestInit) => new Promise((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+  })) as typeof fetch;
+  const realSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((callback: () => void) => realSetTimeout(callback, 0)) as typeof setTimeout;
+  try {
+    await assert.rejects(
+      resolveAddress({ kind: "address", id: "x", label: "Testvej 1" }),
+      (error: unknown) => error instanceof Error && !(error instanceof DOMException) && /did not answer/.test(error.message),
+    );
+  } finally {
+    globalThis.setTimeout = realSetTimeout;
+  }
+});
+
+test("the time limit also covers a response body that stalls", async () => {
+  const { resolveAddress } = await import("../src/lib/address/adressevaelger");
+  // Headers arrive at once; the body never finishes until the request is aborted.
+  globalThis.fetch = ((_input: unknown, init?: RequestInit) => Promise.resolve(new Response(new ReadableStream({
+    start(controller) {
+      init?.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")));
+    },
+  }), { status: 200 }))) as typeof fetch;
+  const realSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((callback: () => void) => realSetTimeout(callback, 0)) as typeof setTimeout;
+  try {
+    await assert.rejects(
+      resolveAddress({ kind: "address", id: "x", label: "Testvej 1" }),
+      (error: unknown) => error instanceof Error && /did not answer/.test(error.message),
+    );
+  } finally {
+    globalThis.setTimeout = realSetTimeout;
+  }
+});

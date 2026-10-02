@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const pageSuffix = requestedPage > 1 ? ` – side ${requestedPage}` : ''
 
   return createPageMetadata({
-    title: `BBR-registreringer i ${kommuneName}${pageSuffix}`,
+    title: `Beskyttelsesrum i ${kommuneName}${pageSuffix}`,
     description: `Lokalt overblik over BBR-registreringer af sikringsrumspladser i ${kommuneName}${pageSuffix} — adresser, liste, kort og detaljesider.`,
     path: getMunicipalityPagePath(kommune.slug, requestedPage),
     keywords: [

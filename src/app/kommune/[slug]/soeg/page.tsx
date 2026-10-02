@@ -36,7 +36,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
   const query = parseMunicipalitySearchQuery(q)
   return createPageMetadata({
-    title: query ? `Søgning efter "${query}" i ${municipality.name}` : `BBR-registreringer i ${municipality.name}`,
+    title: query ? `Søgning efter "${query}" i ${municipality.name}` : `Beskyttelsesrum i ${municipality.name}`,
     description: `Søg i BBR-registreringer af sikringsrumspladser i ${municipality.name}.`,
     // Search pages point search engines at the municipality page.
     path: getMunicipalityPagePath(municipality.slug, 1),

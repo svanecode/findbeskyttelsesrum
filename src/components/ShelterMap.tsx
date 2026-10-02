@@ -20,10 +20,18 @@ import { setupLeafletDefaults } from '@/lib/leaflet/setup-defaults'
 
 setupLeafletDefaults(L)
 
-const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
-const Popup = dynamic(() => import('react-leaflet').then((mod) => mod.Popup), { ssr: false })
-const ResilientMapTileLayer = dynamic(() => import('@/components/ResilientMapTileLayer'), { ssr: false })
+const loadReactLeaflet = () => import('react-leaflet')
+const loadTileLayer = () => import('@/components/ResilientMapTileLayer')
+
+const MapContainer = dynamic(() => loadReactLeaflet().then((mod) => mod.MapContainer), { ssr: false })
+const Marker = dynamic(() => loadReactLeaflet().then((mod) => mod.Marker), { ssr: false })
+const Popup = dynamic(() => loadReactLeaflet().then((mod) => mod.Popup), { ssr: false })
+const ResilientMapTileLayer = dynamic(loadTileLayer, { ssr: false })
+
+/** Loads the map's lazy parts now, so an offline copy can keep them (OfflineCopyControl). */
+export function preloadShelterMapParts() {
+  return Promise.all([loadReactLeaflet(), loadTileLayer()])
+}
 
 export type ShelterMapMarker = {
   id: string

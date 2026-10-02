@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import GlobalFooter from "@/components/GlobalFooter";
 import { getOptionalModeratorSession } from "@/lib/moderation/auth";
 
 import LoginButton from "./login-button";
@@ -50,7 +49,6 @@ export default async function AdminLoginPage({
           </div>
         </section>
       </div>
-      <GlobalFooter />
     </main>
   );
 }

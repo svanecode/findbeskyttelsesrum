@@ -1,4 +1,3 @@
-import GlobalFooter from "@/components/GlobalFooter";
 import { ui } from "@/components/ui-classes";
 import { createPageMetadata } from "@/lib/seo/metadata";
 
@@ -24,7 +23,6 @@ export default function ContactPage() {
 
         <PrivacyContactPortal />
       </div>
-      <GlobalFooter />
     </main>
   );
 }

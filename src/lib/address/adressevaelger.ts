@@ -50,6 +50,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** How long one Adressevælger request may take before the visitor is told it failed. */
+export const adressevaelgerTimeoutMs = 10_000;
+
 async function readAdressevaelgerJson(response: Response, context: string) {
   if (!response.ok) {
     throw new Error(`Adressevælger ${context} failed with status ${response.status}`);
@@ -68,6 +71,35 @@ async function readAdressevaelgerJson(response: Response, context: string) {
   }
 
   return json;
+}
+
+/**
+ * One request with a time limit that covers both headers and body. On a
+ * congested network a request can hang for minutes; after the limit it fails
+ * with an ordinary Error (not an AbortError), so the search shows "Prøv igen"
+ * instead of a spinner. The caller's own signal still aborts it as before.
+ */
+async function requestAdressevaelgerJson(url: URL, context: string, signal?: AbortSignal) {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, adressevaelgerTimeoutMs);
+  const forwardAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener("abort", forwardAbort, { once: true });
+  try {
+    return await readAdressevaelgerJson(await fetch(url, { signal: controller.signal }), context);
+  } catch (error) {
+    if (timedOut) throw new Error(`Adressevælger did not answer within ${adressevaelgerTimeoutMs} ms`);
+    // A cancelled search stays an AbortError, also when the body was cut off.
+    if (signal?.aborted) throw signal.reason ?? error;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", forwardAbort);
+  }
 }
 
 export function parseAddressSuggestion(raw: unknown): AddressSuggestion | null {
@@ -132,7 +164,7 @@ async function fetchSuggestions(
   }
   url.searchParams.set("token", getToken());
 
-  const json = await readAdressevaelgerJson(await fetch(url, { signal: options.signal }), "search");
+  const json = await requestAdressevaelgerJson(url, "search", options.signal);
   if (!Array.isArray(json.fund)) {
     throw new Error("Adressevælger search returned an unexpected response");
   }
@@ -278,6 +310,6 @@ export async function resolveAddress(
   const url = new URL(`/husnumre/${encodeURIComponent(suggestion.id)}`, adressevaelgerOrigin);
   url.searchParams.set("token", getToken());
 
-  const json = await readAdressevaelgerJson(await fetch(url, { signal: options.signal }), "lookup");
+  const json = await requestAdressevaelgerJson(url, "lookup", options.signal);
   return parseResolvedAddress(json, suggestion.label);
 }

@@ -4,7 +4,6 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-import GlobalFooter from '@/components/GlobalFooter'
 import { parseNearbySearchParams } from '@/lib/nearby/parse-nearby-search-params'
 import {
   loadNearbySearchContext,
@@ -13,13 +12,20 @@ import {
 } from '@/lib/nearby/search-context'
 import { readOfflineCopy } from '@/lib/offline-copy'
 
+const loadNearbyClient = () => import('./client')
+
 const ShelterMapClient = dynamic(
-  () => import('./client'),
+  loadNearbyClient,
   {
     ssr: false,
     loading: () => <SearchLoading />,
   },
 )
+
+/** Loads the result page and its map now, so an offline copy can keep them (OfflineCopyControl). */
+export function preloadNearbyResultPage() {
+  return loadNearbyClient().then((mod) => mod.preloadNearbyMap())
+}
 
 type SearchState =
   | { kind: 'loading' }
@@ -29,7 +35,7 @@ type SearchState =
 
 function SearchLoading() {
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
+    <main id="main-content" tabIndex={-1} className="flex-1 bg-[var(--surface-page)] text-white">
       <div className="mx-auto max-w-7xl p-4" role="status" aria-live="polite">
         <div className="mb-6 h-9 w-64 max-w-[75%] animate-pulse rounded bg-white/10 motion-reduce:animate-none" />
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -44,7 +50,7 @@ function SearchLoading() {
 
 function SearchUnavailable({ invalid = false }: { invalid?: boolean }) {
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
+    <main id="main-content" tabIndex={-1} className="flex-1 bg-[var(--surface-page)] text-white">
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <h1 className="text-2xl font-bold sm:text-3xl">
           {invalid ? 'Søgningen kunne ikke åbnes' : 'Start en ny søgning'}
@@ -61,7 +67,6 @@ function SearchUnavailable({ invalid = false }: { invalid?: boolean }) {
           Søg igen
         </Link>
       </div>
-      <GlobalFooter />
     </main>
   )
 }

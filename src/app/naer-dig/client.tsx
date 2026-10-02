@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic'
 import type { Route } from 'next'
 import Link from 'next/link'
 
-import GlobalFooter from '@/components/GlobalFooter'
 import MapUnavailableNotice from '@/components/MapUnavailableNotice'
 import OfflineCopyControl from '@/components/OfflineCopyControl'
 import type { MapTileStatus } from '@/components/ResilientMapTileLayer'
@@ -24,7 +23,13 @@ import { trackProductMetric } from '@/lib/analytics/product-metrics'
 import { scrollBehavior } from '@/lib/ui/reduced-motion'
 import { getReadableGroupPrimaryPath, getReadableShelterPathFromStable } from '@/lib/shelter-public-url'
 
-const ShelterMap = dynamic(() => import('@/components/ShelterMap'), { ssr: false })
+const loadShelterMap = () => import('@/components/ShelterMap')
+const ShelterMap = dynamic(loadShelterMap, { ssr: false })
+
+/** Loads the map and its lazy parts now; a phone otherwise fetches them only on the "Kort" tab. */
+export function preloadNearbyMap() {
+  return loadShelterMap().then((mod) => mod.preloadShelterMapParts())
+}
 
 const nearbyResultLimit = 10
 const nearbyRadiusKm = 50
@@ -668,7 +673,6 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         </div>
       </div>
 
-      <GlobalFooter />
     </main>
   )
 }

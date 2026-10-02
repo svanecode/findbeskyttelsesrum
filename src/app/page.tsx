@@ -1,7 +1,6 @@
 import Link from 'next/link'
 
 import AddressSearch from '@/components/AddressSearch'
-import GlobalFooter from '@/components/GlobalFooter'
 import OfflineCopyControl from '@/components/OfflineCopyControl'
 import { ui } from '@/components/ui-classes'
 import { officialGuidanceLinks } from '@/lib/official-guidance'
@@ -10,7 +9,7 @@ import { createPageMetadata } from '@/lib/seo/metadata'
 export const revalidate = 600
 
 export const metadata = createPageMetadata({
-  title: 'Find Beskyttelsesrum | Se BBR-registreringer nær dig',
+  title: 'Find beskyttelsesrum nær dig | Find Beskyttelsesrum',
   description:
     'Find adresser med registrerede sikringsrumspladser i BBR nær dig. Adgang, klargøring og fysisk stand er ikke bekræftet.',
   path: '/',
@@ -28,7 +27,7 @@ export const metadata = createPageMetadata({
 
 export default async function Home() {
   return (
-    <main id="main-content" tabIndex={-1} className={`flex min-h-mobile-viewport flex-col ${ui.page}`}>
+    <main id="main-content" tabIndex={-1} className={`flex flex-col ${ui.page}`}>
       <div className="mx-auto w-full max-w-7xl flex-1 px-4 pb-10 pt-6 sm:px-6 sm:pt-12 lg:px-8 lg:pt-16">
         <section className="max-w-[40rem]" aria-labelledby="home-heading">
           <h1 id="home-heading" className={ui.pageTitle}>
@@ -67,7 +66,6 @@ export default async function Home() {
         </section>
       </div>
 
-      <GlobalFooter />
     </main>
   )
 }

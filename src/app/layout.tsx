@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import ConsentBanner from "@/components/ConsentBanner";
+import GlobalFooter from "@/components/GlobalFooter";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import SiteHeader from "@/components/SiteHeader";
 import OfflineSupport from "@/components/OfflineSupport";
@@ -25,7 +26,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Find Beskyttelsesrum | Se BBR-registreringer nær dig",
+    default: "Find beskyttelsesrum nær dig | Find Beskyttelsesrum",
     template: "%s | Find Beskyttelsesrum"
   },
   description:
@@ -96,7 +97,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd) }}
         />
       </head>
-      <body className="font-inter antialiased">
+      <body className="flex min-h-mobile-viewport flex-col bg-[var(--surface-page)] font-inter antialiased">
         <ErrorBoundary>
           <a
             href="#main-content"
@@ -106,6 +107,8 @@ export default function RootLayout({
           </a>
           <SiteHeader />
           {children}
+          {/* Outside main, so every page has header, main and footer landmarks. */}
+          <GlobalFooter />
           {process.env.NODE_ENV === "production" ? <VercelWebMetrics /> : null}
           {process.env.NODE_ENV === "production" ? <OfflineSupport /> : null}
           <ConsentBanner />

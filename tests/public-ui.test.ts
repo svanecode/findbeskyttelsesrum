@@ -459,3 +459,49 @@ test("privacy copy documents mail-free contact and bounded retention", async () 
   assert.match(privacyPage, /auditspor slettes efter 5 år/);
   assert.doesNotMatch(privacyPage, /mailto:/);
 });
+
+test("the footer is a landmark of its own, outside every page's main", async () => {
+  const layout = await readFile(layoutUrl, "utf8");
+  assert.match(layout, /\{children\}\s*\n\s*\{\/\*[^*]*\*\/\}\s*\n\s*<GlobalFooter \/>/);
+  for (const url of [homePageUrl, detailPageUrl, nearbyPageUrl, privacyPageUrl, dataPageUrl, countryMapPageUrl]) {
+    assert.doesNotMatch(await readFile(url, "utf8"), /<GlobalFooter/);
+  }
+});
+
+test("titles, headings and map help use the agreed wording", async () => {
+  const [home, kort, municipalityView, municipalityMetadata, notFound, detailMap] = await Promise.all([
+    readFile(homePageUrl, "utf8"),
+    readFile(countryMapPageUrl, "utf8"),
+    readFile(new URL("../src/app/kommune/[slug]/kommune-view.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/kommune/[slug]/metadata.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/not-found.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/components/ShelterDetailMap.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(home, /title: 'Find beskyttelsesrum nær dig \| Find Beskyttelsesrum'/);
+  assert.match(home, /absoluteTitle: true/);
+  assert.match(kort, /Kortet kan ikke bruges med tastatur\. Brug/);
+  assert.match(kort, /href="\/kommune"/);
+  assert.match(municipalityView, />Beskyttelsesrum i \{municipality\.name\}</);
+  assert.match(municipalityMetadata, /`Beskyttelsesrum i \$\{kommuneName\}/);
+  assert.match(notFound, /<AddressSearch \/>/);
+  // One action shows the map: the page's "Vis på kort" link; the placeholder has no button of its own.
+  assert.doesNotMatch(detailMap, /Vis kortet/);
+});
+
+test("an offline copy keeps the map chunks a phone has not opened yet", async () => {
+  const [control, wrapper, client, map] = await Promise.all([
+    readFile(new URL("../src/components/OfflineCopyControl.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/naer-dig/map-wrapper.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/naer-dig/client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/components/ShelterMap.tsx", import.meta.url), "utf8"),
+  ]);
+  // Preloads must reuse the loaders behind dynamic(), since chunks are named per import site.
+  assert.match(control, /const chunksLoaded = await loadNearbyChunks\(\);\s+const \{ failed \} = await saveOfflineCopy/);
+  // A chunk that could not be fetched gives the partial-copy message, not "virker nu også uden net".
+  assert.match(control, /\.then\(\(\) => true, \(\) => false\)/);
+  assert.match(control, /failed > 0 \|\| !chunksLoaded \?/);
+  assert.match(wrapper, /dynamic\(\s*loadNearbyClient,/);
+  assert.match(client, /dynamic\(loadShelterMap,/);
+  assert.match(map, /dynamic\(loadTileLayer,/);
+  assert.match(map, /loadReactLeaflet\(\)\.then\(\(mod\) => mod\.MapContainer\)/);
+});

@@ -1,4 +1,3 @@
-import GlobalFooter from "@/components/GlobalFooter";
 import { ui } from "@/components/ui-classes";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { getAppV2MunicipalitySummaries } from "@/lib/supabase/app-v2-queries";
@@ -47,7 +46,6 @@ export default async function MunicipalityOverviewPage() {
         <MunicipalityList municipalities={municipalities} />
       </div>
 
-      <GlobalFooter />
     </main>
   );
 }
