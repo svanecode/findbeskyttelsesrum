@@ -11,7 +11,7 @@ export function MapErrorBoundary({ children }: Props) {
   return (
     <ErrorBoundary
       fallback={
-        <main id="main-content" tabIndex={-1} className="min-h-screen bg-[var(--surface-page)] text-white">
+        <main id="main-content" tabIndex={-1} className="flex-1 bg-[var(--surface-page)] text-white">
           <div className="mx-auto max-w-7xl p-4">
             <div className="rounded-lg border border-red-500/30 bg-red-900/20 p-6">
               <h1 className="mb-4 text-2xl font-bold text-red-400">Kortet kunne ikke indlæses</h1>

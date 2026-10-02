@@ -1,5 +1,6 @@
 export const ui = {
-  page: "min-h-screen bg-[var(--surface-page)] text-white",
+  // The body is a column; main takes the space above the footer.
+  page: "flex-1 bg-[var(--surface-page)] text-white",
   panel: "rounded-xl border border-white/10 bg-[var(--surface-elevated)]",
   panelInset: "rounded-lg border border-white/10 bg-[var(--surface-inset)]",
   pageTitle:

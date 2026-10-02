@@ -6,7 +6,6 @@ import dynamic from 'next/dynamic'
 import MapUnavailableNotice from './MapUnavailableNotice'
 import type { MapTileStatus } from './ResilientMapTileLayer'
 import { shelterMapSectionId } from './shelter-map-section'
-import { ui } from './ui-classes'
 
 const ShelterMap = dynamic(() => import('./ShelterMap'), { ssr: false })
 
@@ -22,7 +21,7 @@ type Props = {
  * registration as the selected (orange) pin. OpenStreetMap is only contacted
  * after the visitor asks for the map, as the privacy page promises; until then
  * a placeholder with the address keeps the same height, so the page does not
- * jump.
+ * jump. The page's single "Vis på kort" link (#registrering-kort) opens it.
  */
 export default function ShelterDetailMap({ latitude, longitude, addressLabel }: Props) {
   const [isActive, setIsActive] = useState(false)
@@ -33,9 +32,17 @@ export default function ShelterDetailMap({ latitude, longitude, addressLabel }: 
     const activateFromHash = () => {
       if (window.location.hash === `#${shelterMapSectionId}`) setIsActive(true)
     }
+    // A second click on the link does not change the hash, so listen for it too.
+    const activateFromLink = (event: MouseEvent) => {
+      if ((event.target as Element | null)?.closest?.(`a[href="#${shelterMapSectionId}"]`)) setIsActive(true)
+    }
     activateFromHash()
     window.addEventListener('hashchange', activateFromHash)
-    return () => window.removeEventListener('hashchange', activateFromHash)
+    document.addEventListener('click', activateFromLink)
+    return () => {
+      window.removeEventListener('hashchange', activateFromHash)
+      document.removeEventListener('click', activateFromLink)
+    }
   }, [])
 
   const retry = useCallback(() => {
@@ -63,10 +70,9 @@ export default function ShelterDetailMap({ latitude, longitude, addressLabel }: 
       ) : (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="break-safe text-base font-medium text-white">{addressLabel}</p>
-          <p className="max-w-xs text-sm leading-6 text-gray-300">Kortet hentes fra OpenStreetMap, når du vælger at vise det.</p>
-          <button type="button" onClick={() => setIsActive(true)} className={ui.secondaryAction}>
-            Vis kortet
-          </button>
+          <p className="max-w-xs text-sm leading-6 text-gray-300">
+            Vælg &quot;Vis på kort&quot; for at hente kortet fra OpenStreetMap.
+          </p>
         </div>
       )}
     </div>

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import GlobalFooter from "@/components/GlobalFooter";
 import { requireModerator } from "@/lib/moderation/auth";
 
 import MfaPanel from "./mfa-panel";
@@ -28,7 +27,6 @@ export default async function AdminMfaPage() {
           </div>
         </section>
       </div>
-      <GlobalFooter />
     </main>
   );
 }

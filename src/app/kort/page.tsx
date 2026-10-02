@@ -1,4 +1,4 @@
-import GlobalFooter from "@/components/GlobalFooter";
+import Link from "next/link";
 import ProductMetricView from "@/components/ProductMetricView";
 import { ui } from "@/components/ui-classes";
 import { createPageMetadata } from "@/lib/seo/metadata";
@@ -53,12 +53,13 @@ export default async function CountryMapPage() {
             </div>
           </dl>
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-gray-400">
-            Kortet er bedst med mus eller touch. For præcis søgning efter BBR-registreringer i nærheden, brug forsiden.
+            Kortet kan ikke bruges med tastatur. Brug{" "}
+            <Link href="/" className={ui.textLink}>søgningen</Link> eller{" "}
+            <Link href="/kommune" className={ui.textLink}>kommuneoversigten</Link>.
           </p>
         </div>
       </section>
 
-      <GlobalFooter />
     </main>
   );
 }

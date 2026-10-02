@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import GlobalFooter from "@/components/GlobalFooter";
 import OfficialGuidanceLinks from "@/components/OfficialGuidanceLinks";
 import ProductMetricView from "@/components/ProductMetricView";
 import { ui } from "@/components/ui-classes";
@@ -399,7 +398,6 @@ export default async function DataPage() {
         </div>
       </div>
 
-      <GlobalFooter />
     </main>
   );
 }

@@ -50,6 +50,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** How long one Adressevælger request may take before the visitor is told it failed. */
+export const adressevaelgerTimeoutMs = 10_000;
+
+/**
+ * fetch with a time limit. On a congested network a request can hang for
+ * minutes; after the limit it fails with an ordinary Error (not an AbortError),
+ * so the search shows "Prøv igen" instead of a spinner. The caller's own
+ * signal still aborts it as before.
+ */
+async function fetchWithTimeout(url: URL, signal?: AbortSignal) {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, adressevaelgerTimeoutMs);
+  const forwardAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener("abort", forwardAbort, { once: true });
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch (error) {
+    if (timedOut) throw new Error(`Adressevælger did not answer within ${adressevaelgerTimeoutMs} ms`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", forwardAbort);
+  }
+}
+
 async function readAdressevaelgerJson(response: Response, context: string) {
   if (!response.ok) {
     throw new Error(`Adressevælger ${context} failed with status ${response.status}`);
@@ -132,7 +162,7 @@ async function fetchSuggestions(
   }
   url.searchParams.set("token", getToken());
 
-  const json = await readAdressevaelgerJson(await fetch(url, { signal: options.signal }), "search");
+  const json = await readAdressevaelgerJson(await fetchWithTimeout(url, options.signal), "search");
   if (!Array.isArray(json.fund)) {
     throw new Error("Adressevælger search returned an unexpected response");
   }
@@ -278,6 +308,6 @@ export async function resolveAddress(
   const url = new URL(`/husnumre/${encodeURIComponent(suggestion.id)}`, adressevaelgerOrigin);
   url.searchParams.set("token", getToken());
 
-  const json = await readAdressevaelgerJson(await fetch(url, { signal: options.signal }), "lookup");
+  const json = await readAdressevaelgerJson(await fetchWithTimeout(url, options.signal), "lookup");
   return parseResolvedAddress(json, suggestion.label);
 }

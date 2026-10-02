@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
 
-import GlobalFooter from "@/components/GlobalFooter";
 import ReportShelterIssue from "@/components/ReportShelterIssue";
 import ProductMetricView from "@/components/ProductMetricView";
 import ShelterDetailMap from "@/components/ShelterDetailMap";
@@ -352,7 +351,6 @@ export default async function ShelterDetailPage({ params }: Props) {
         </article>
       </div>
 
-      <GlobalFooter />
     </main>
   );
 }

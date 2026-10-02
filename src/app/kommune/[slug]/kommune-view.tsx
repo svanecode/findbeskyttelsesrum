@@ -1,6 +1,5 @@
 import Link from 'next/link'
 
-import GlobalFooter from '@/components/GlobalFooter'
 import { ui } from '@/components/ui-classes'
 import { serializeJsonLd } from '@/lib/seo/json-ld'
 import type { AppV2MunicipalityShelter, AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
@@ -48,7 +47,7 @@ export default function KommuneView({ municipality, shelters, pagination, search
       </div>
 
       <header className="mx-auto max-w-7xl px-4 pb-6 pt-4 sm:px-6 lg:px-8">
-        <h1 className={ui.pageTitle}>BBR-registreringer i {municipality.name}</h1>
+        <h1 className={ui.pageTitle}>Beskyttelsesrum i {municipality.name}</h1>
         <p className="mt-2 text-base text-gray-300">
           {publicShelterCount === 1
             ? '1 BBR-registrering'
@@ -71,7 +70,6 @@ export default function KommuneView({ municipality, shelters, pagination, search
         />
       </section>
 
-      <GlobalFooter />
     </main>
   )
 }

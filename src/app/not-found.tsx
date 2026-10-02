@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
-import GlobalFooter from "@/components/GlobalFooter";
+import AddressSearch from "@/components/AddressSearch";
 import { ui } from "@/components/ui-classes";
 
 export const metadata: Metadata = {
@@ -10,31 +10,27 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/** A shared link that leads nowhere should still lead straight to a search. */
 export default function NotFound() {
   return (
     <main id="main-content" tabIndex={-1} className={ui.page}>
-      <div className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-4 py-16 sm:px-6 lg:px-8">
-        <h1 className={`mt-2 ${ui.pageTitle}`}>Siden findes ikke</h1>
-        <p className="mt-4 text-lg leading-relaxed text-gray-300">
-          Tjek adressen, eller gå til forsiden eller kommuneoversigten.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/"
-            className={ui.primaryAction}
-          >
-            Forside
-          </Link>
-          <Link
-            href="/kommune"
-            className={ui.secondaryAction}
-          >
-            Kommuneoversigt
-          </Link>
-        </div>
-      </div>
+      <div className="mx-auto w-full max-w-7xl px-4 pb-12 pt-8 sm:px-6 sm:pt-12 lg:px-8">
+        <section className="max-w-[40rem]" aria-labelledby="not-found-heading">
+          <h1 id="not-found-heading" className={ui.pageTitle}>Siden findes ikke</h1>
+          <p className="mt-2 text-base leading-7 text-gray-300">
+            Adressen er forkert eller findes ikke længere. Søg efter beskyttelsesrum nær dig her.
+          </p>
 
-      <GlobalFooter />
+          <div suppressHydrationWarning className="relative z-20 mt-6">
+            <AddressSearch />
+          </div>
+
+          <nav className="mt-6 flex flex-wrap gap-x-6 text-base" aria-label="Andre veje videre">
+            <Link href="/" className={`${ui.textLink} inline-flex min-h-[44px] items-center`}>Til forsiden</Link>
+            <Link href="/kommune" className={`${ui.textLink} inline-flex min-h-[44px] items-center`}>Find en kommune</Link>
+          </nav>
+        </section>
+      </div>
     </main>
   );
 }
