@@ -4,9 +4,10 @@ import type { MunicipalityRow, PostalAreaRow, PostalAreaTable } from "@/lib/addr
 /**
  * Every Danish postcode with a position (app_v2.postal_area_public_v1, filled
  * at each import) and the municipalities, in the compact shape the address
- * search uses. Returns null when the view is not there yet.
+ * search uses. Throws when the view cannot be read, so a failure is never
+ * cached as an empty table.
  */
-export async function getAppV2PublicPostalAreaTable(): Promise<PostalAreaTable | null> {
+export async function getAppV2PublicPostalAreaTable(): Promise<PostalAreaTable> {
   const pub = createAppV2PublicClient();
   const [areas, municipalities] = await Promise.all([
     pub
@@ -16,7 +17,9 @@ export async function getAppV2PublicPostalAreaTable(): Promise<PostalAreaTable |
       .limit(5000),
     pub.from("municipality_public_v2").select("code, name").order("code", { ascending: true }),
   ]);
-  if (areas.error || municipalities.error) return null;
+  if (areas.error || municipalities.error) {
+    throw new Error(`Could not load public postcodes: ${(areas.error ?? municipalities.error)!.message}`);
+  }
 
   const postnumre: PostalAreaRow[] = (areas.data ?? []).map((row) => [
     String(row.postnr),
@@ -26,5 +29,6 @@ export async function getAppV2PublicPostalAreaTable(): Promise<PostalAreaTable |
     Math.round(Number(row.longitude) * 10_000) / 10_000,
   ]);
   const kommuner: MunicipalityRow[] = (municipalities.data ?? []).map((row) => [String(row.code), String(row.name)]);
-  return postnumre.length > 0 ? { postnumre, kommuner } : null;
+  if (postnumre.length === 0) throw new Error("The public postcode table is empty.");
+  return { postnumre, kommuner };
 }

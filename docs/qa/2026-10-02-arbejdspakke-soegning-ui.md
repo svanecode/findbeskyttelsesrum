@@ -126,7 +126,7 @@ Svar på de åbne spørgsmål er implementeret på samme gren.
 
 1. **Forslag søger med det samme.** Klik eller Enter på et adresse- eller postnummerforslag søger straks (`src/components/AddressSearch.tsx`). Vejforslag udfylder stadig feltet, så man kan skrive husnummer. Tilbage på forsiden står den søgte adresse i feltet. "Søg" bruges til fritekst efter A2.
 2. **Alle postnumre, opdateret ved hver import.**
-   - Ny tabel `app_v2.postal_areas` med det offentlige view `postal_area_public_v1` (migration `20261002120000_...`).
+   - Ny tabel `app_v2.postal_areas` med det offentlige view `postal_area_public_v1` (migration `20261002085614_...`).
    - Importeren henter alle DAR-postnumre efter hver publicering (`tools/datafordeler-importer`). Postnumre uden registreringer får positionen fra én aktuel DAR-adresse. Postnumre med registreringer bruger gennemsnittet af dem.
    - Appen henter tabellen fra `/api/app-v2/postal-areas` (CDN-cache) og falder tilbage til den indbyggede fil.
    - Finder nærhedssøgningen intet inden for 50 km, søger den igen ud til 100 km og siger det tydeligt.
@@ -141,6 +141,17 @@ SQL-reglen for læsbare adresser er kontrolleret mod TypeScript-reglen. MD5 over
 
 Test: 160 unit-tests, 41 importer-tests (ruff og mypy), 24 databasetests (pgTAP på en lokal Postgres med hele migrationshistorikken), e2e Chromium 102 bestået.
 
-Kræver handling:
-- Migrationen er ikke kørt i produktion. Koden virker uden den: aliaser og 410 er slået fra, og postnumre bruger den indbyggede fil. Den skal køres før merge, som README beskriver.
-- Importerens DAR-felter til positioner (`DAR_Husnummer.adgangspunkt` og `DAR_Adressepunkt.position`) kan ikke afprøves herfra, fordi miljøet ikke har nogen Datafordeler-nøgle. Trinnet kan ikke få importen til at fejle. Fejler det, får postnumrene ingen position og vises ikke som område, før det er rettet. Tjek loggen efter første kørsel.
+Migration i produktion: `20261002085614_postal_areas_path_aliases_and_review` blev kørt 2. oktober 2026 kl. 08:56 UTC. Efter kørslen:
+
+| Kontrol | Resultat |
+|---|---|
+| Læsbare adresser i `shelter_path_aliases` | 10.104 (alle aktuelle) |
+| Postnumre i `postal_area_public_v1` | 573 indtil første import efter merge, hvor DAR tilføjer resten |
+| Par i `registration_duplicate_review_v1` | 62 |
+| Stier til fjernede registreringer (hash-liste) | 76 |
+| Anonym adgang til alias-tabellen | Nej |
+| Lokal build mod produktion | Fjernet registrering svarer 410 med sidste adresse; `/api/app-v2/postal-areas` svarer 200 |
+
+Supabase-advisors viser de nye offentlige RPC'er og views i samme kategori som de eksisterende (`shelter_public_v2`, `resolve_public_shelter_slug_alias_v1`). Det er bevidst: de er smalle opslag uden adgang til tabellerne.
+
+Ikke verificeret: Importerens DAR-felter til positioner (`DAR_Husnummer.adgangspunkt` og `DAR_Adressepunkt.position`) kan ikke afprøves herfra, fordi miljøet ikke har nogen Datafordeler-nøgle. Trinnet kan ikke få importen til at fejle. Fejler det, får postnumre uden registreringer ingen position og vises ikke som område. Tjek loggen efter første kørsel.
