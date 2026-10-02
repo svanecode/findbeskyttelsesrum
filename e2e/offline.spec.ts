@@ -90,3 +90,33 @@ test("uden gemte data for området forklarer siden, at man er offline", { tag: "
   // headless Chromium keeps navigator.onLine true here.
   await expect(page.getByRole("alert").filter({ hasText: "ingen gemte data for dette område" })).toBeVisible();
 });
+
+test("en tidligere ja til offlinekopi i samtykket beholder kopien efter skiftet", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Offlineflowet kontrolleres i én motor.");
+  // A visitor from before the split: the old consent allowed the offline copy
+  // and the worker is installed, but there is no offline-copy record yet.
+  await page.goto("/");
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.register("/offline-sw.js", { scope: "/" });
+    await navigator.serviceWorker.ready;
+    window.localStorage.removeItem("findbeskyttelsesrum.offline-copy.v1");
+    window.localStorage.setItem(
+      "findbeskyttelsesrum.consent.v1",
+      JSON.stringify({ version: 1, statistics: false, offline: true, decidedAt: "2026-09-28T10:00:00.000Z" }),
+    );
+  });
+
+  await page.reload();
+  // Longer than the idle delay before the worker is registered or removed.
+  await page.waitForTimeout(4500);
+
+  const state = await page.evaluate(async () => ({
+    record: window.localStorage.getItem("findbeskyttelsesrum.offline-copy.v1"),
+    consent: JSON.parse(window.localStorage.getItem("findbeskyttelsesrum.consent.v1") ?? "{}") as Record<string, unknown>,
+    workers: (await navigator.serviceWorker.getRegistrations()).length,
+  }));
+  expect(JSON.parse(state.record ?? "null")).toMatchObject({ version: 1, savedAt: "2026-09-28T10:00:00.000Z" });
+  expect(state.consent).not.toHaveProperty("offline");
+  expect(state.workers).toBe(1);
+  await expect(page.getByText(/^Gemt 28\. sep\. 2026/)).toBeVisible();
+});

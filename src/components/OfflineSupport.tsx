@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { migrateLegacyOfflineConsent, offlineWorkerPath, removeOfflineCopy } from "@/lib/offline-copy";
+import { migrateLegacyOfflineConsent, offlineWorkerPath, readOfflineCopy, removeOfflineCopy } from "@/lib/offline-copy";
 import { useOfflineCopy } from "@/lib/use-offline-copy";
 
 /**
@@ -17,14 +17,16 @@ export default function OfflineSupport() {
   const hasCopy = copy === "pending" ? null : copy !== null;
 
   useEffect(() => {
-    migrateLegacyOfflineConsent();
-  }, []);
-
-  useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     if (hasCopy === null) return;
-    if (!hasCopy) {
+    // A visitor who allowed the old "offlinekopi" consent keeps the copy. The
+    // migration must finish before the decision below, which otherwise still
+    // sees "no copy" from this render and would delete the migrated one.
+    migrateLegacyOfflineConsent();
+    if (!hasCopy && !readOfflineCopy()) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
+        // Checked again: a copy saved meanwhile must not be removed.
+        if (readOfflineCopy()) return;
         if (registrations.some((registration) => registration.active?.scriptURL.endsWith(offlineWorkerPath))) {
           return removeOfflineCopy();
         }
