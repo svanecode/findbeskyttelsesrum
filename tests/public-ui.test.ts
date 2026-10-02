@@ -496,7 +496,10 @@ test("an offline copy keeps the map chunks a phone has not opened yet", async ()
     readFile(new URL("../src/components/ShelterMap.tsx", import.meta.url), "utf8"),
   ]);
   // Preloads must reuse the loaders behind dynamic(), since chunks are named per import site.
-  assert.match(control, /await loadNearbyChunks\(\);\s+const \{ failed \} = await saveOfflineCopy/);
+  assert.match(control, /const chunksLoaded = await loadNearbyChunks\(\);\s+const \{ failed \} = await saveOfflineCopy/);
+  // A chunk that could not be fetched gives the partial-copy message, not "virker nu også uden net".
+  assert.match(control, /\.then\(\(\) => true, \(\) => false\)/);
+  assert.match(control, /failed > 0 \|\| !chunksLoaded \?/);
   assert.match(wrapper, /dynamic\(\s*loadNearbyClient,/);
   assert.match(client, /dynamic\(loadShelterMap,/);
   assert.match(map, /dynamic\(loadTileLayer,/);
