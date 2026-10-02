@@ -89,7 +89,7 @@ test("all municipalities and address pages are linked in server-rendered paginat
   await page.goto("/kommune");
 
   const municipalityLinks = page
-    .getByRole("region", { name: "Find kommune" })
+    .getByRole("region", { name: "Kommuner" })
     .locator('a[href^="/kommune/"]');
   await expect(municipalityLinks).toHaveCount(98);
   await expect(page.getByRole("button", { name: "Vis flere kommuner" })).toHaveCount(0);
@@ -127,4 +127,41 @@ test("all municipalities and address pages are linked in server-rendered paginat
     expect(redirectDestinations.length).toBeGreaterThan(0);
     expect(redirectDestinations.every((destination) => destination === "/kommune/kobenhavn")).toBe(true);
   }
+});
+
+test("kommunesøgningen dækker hele kommunen og kan deles som link", { tag: "@full-stack" }, async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Den databasebaserede kommunesøgning køres én gang.");
+  await quietThirdPartyRequests(page);
+
+  // An address that is only on a late page without a search.
+  await page.goto("/kommune/aarhus/side/14");
+  const lateAddress = (await page.locator('li[id^="kommune-group-"] a').first().textContent())!.trim();
+
+  await page.goto("/kommune/aarhus");
+  await page.getByRole("searchbox", { name: "Søg i alle adresser i Aarhus" }).fill(lateAddress);
+  await page.getByRole("button", { name: "Søg", exact: true }).click();
+
+  await expect(page).toHaveURL((url) => url.pathname === "/kommune/aarhus" && url.searchParams.get("q") === lateAddress);
+  const results = page.locator('li[id^="kommune-group-"]');
+  await expect(results.getByRole("link", { name: lateAddress, exact: true })).toBeVisible();
+  await page.reload();
+  await expect(results.getByRole("link", { name: lateAddress, exact: true })).toBeVisible();
+  await expect(page.getByText("Søgningen og kortet omfatter adresserne på denne side")).toHaveCount(0);
+
+  await page.goto("/kommune/aarhus?q=xyzzy");
+  await expect(page.getByText("Ingen registreringer i Aarhus matcher 'xyzzy'")).toBeVisible();
+  await expect(page.getByRole("link", { name: "forsiden" })).toHaveAttribute("href", "/");
+});
+
+test("gamle adresser svarer med permanent redirect til de nye", { tag: "@full-stack" }, async ({ request }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Redirects kontrolleres én gang.");
+  const nearby = await request.get("/shelters/nearby", { maxRedirects: 0 });
+  expect(nearby.status()).toBe(308);
+  expect(nearby.headers().location).toBe("/naer-dig");
+
+  const detail = await request.get(`/beskyttelsesrum/${knownShelterSlug}`, { maxRedirects: 0 });
+  expect(detail.status()).toBe(308);
+  const readable = detail.headers().location!;
+  expect(readable).toMatch(/^\/beskyttelsesrum\/[a-z0-9-]+-\d{4}-[a-z0-9-]+$/);
+  expect((await request.get(readable, { maxRedirects: 0 })).status()).toBe(200);
 });

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Inter } from "next/font/google";
 import ConsentBanner from "@/components/ConsentBanner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import SiteHeader from "@/components/SiteHeader";
@@ -14,12 +14,6 @@ const inter = Inter({
   display: "swap",
   fallback: ["system-ui", "sans-serif"],
   variable: "--font-inter",
-});
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  display: "swap",
-  fallback: ["system-ui", "sans-serif"],
-  variable: "--font-space-grotesk",
 });
 
 export const viewport: Viewport = {
@@ -94,7 +88,7 @@ export default function RootLayout({
   const websiteJsonLd = getWebsiteJsonLd();
 
   return (
-    <html lang="da" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+    <html lang="da" className={inter.variable}>
       <head>
         <script
           type="application/ld+json"

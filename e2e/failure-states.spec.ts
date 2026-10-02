@@ -52,7 +52,7 @@ test("fejl i adressesøgningen efterlader GPS som tydeligt alternativ", async ({
   });
 
   await page.goto("/");
-  await page.getByRole("combobox", { name: "Adresse, by eller postnummer" }).fill("Testvej 1");
+  await page.getByRole("combobox", { name: "Eller søg på en adresse" }).fill("Testvej 1");
 
   await expect(page.getByRole("alert").filter({ hasText: "Adressesøgningen er ikke tilgængelig" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Brug min placering/ })).toBeEnabled();
@@ -64,7 +64,7 @@ test("forbigående fejl i adressesøgningen låser ikke adressesøgningen", asyn
   });
 
   await page.goto("/");
-  const combobox = page.getByRole("combobox", { name: "Adresse, by eller postnummer" });
+  const combobox = page.getByRole("combobox", { name: "Eller søg på en adresse" });
   await combobox.fill("Rådhuspladsen");
   const alert = page.getByRole("alert").filter({ hasText: "Adressesøgningen er ikke tilgængelig" });
   await expect(alert).toBeVisible();
@@ -86,11 +86,11 @@ test("fejl ved opslag af adressens placering kan prøves igen", async ({ page })
   });
 
   await page.goto("/");
-  await page.getByRole("combobox", { name: "Adresse, by eller postnummer" }).fill("Rådhuspladsen 1");
+  await page.getByRole("combobox", { name: "Eller søg på en adresse" }).fill("Rådhuspladsen 1");
   await page.getByRole("option", { name: "Rådhuspladsen 1, 1550 København V" }).click();
 
   await expect(page.getByRole("alert").filter({ hasText: "Adressesøgningen er ikke tilgængelig" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Søg", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Søg", exact: true })).toBeEnabled();
 });
 
 test("GPS-timeout falder tilbage til netværksposition", async ({ page }) => {
@@ -120,17 +120,17 @@ test("GPS-timeout falder tilbage til netværksposition", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /Brug min placering/ }).click();
 
-  await expect(page).toHaveURL((url) => url.pathname === "/shelters/nearby");
+  await expect(page).toHaveURL((url) => url.pathname === "/naer-dig");
 });
 
 test("tom adressesøgning forklarer næste skridt", async ({ page }) => {
   await mockAddressSearch(page, []);
 
   await page.goto("/");
-  await page.getByRole("combobox", { name: "Adresse, by eller postnummer" }).fill("Findesikkevej");
+  await page.getByRole("combobox", { name: "Eller søg på en adresse" }).fill("Findesikkevej");
 
-  await expect(page.getByRole("status")).toContainText("Ingen adresser fundet");
-  await expect(page.getByRole("button", { name: "Søg", exact: true })).toBeDisabled();
+  await expect(page.getByRole("status").filter({ hasText: "Ingen adresser fundet" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Søg", exact: true })).toBeEnabled();
 });
 
 for (const status of [429, 502, 504]) {
@@ -138,7 +138,7 @@ for (const status of [429, 502, 504]) {
     await installNearbySearchContext(page);
     await mockNearby(page, status, { error: { code: `test_${status}` } });
 
-    await page.goto("/shelters/nearby");
+    await page.goto("/naer-dig");
 
     await expect(
       page.getByRole("alert").filter({ hasText: "Vi kunne ikke hente BBR-registreringerne lige nu" }),
@@ -172,7 +172,7 @@ test("en kortvarig 429 prøves automatisk igen én gang", async ({ page }) => {
     await route.fallback();
   });
 
-  await page.goto("/shelters/nearby");
+  await page.goto("/naer-dig");
 
   await expect(page.getByText("Mange søger lige nu")).toBeVisible();
   await expect(page.locator("#nearby-list-panel").getByText("Rådhuspladsen 1", { exact: true })).toBeVisible();
@@ -192,7 +192,7 @@ test("en lang Retry-After prøves ikke automatisk igen", async ({ page }) => {
     });
   });
 
-  await page.goto("/shelters/nearby");
+  await page.goto("/naer-dig");
 
   await expect(page.getByRole("alert").filter({ hasText: "Vent et minut, og prøv igen" })).toBeVisible();
   await expect(page.getByText("Mange søger lige nu")).toHaveCount(0);
@@ -209,8 +209,8 @@ test("kortfejl bevarer resultatlisten som fallback", async ({ page }, testInfo) 
     await route.fulfill({ status: 503, contentType: "text/plain", body: "tile unavailable" });
   });
 
-  await page.goto("/shelters/nearby");
-  await page.getByRole("button", { name: "Vis på kort" }).click();
+  await page.goto("/naer-dig");
+  await page.getByRole("button", { name: /^Vis .* på kort$/ }).click();
 
   const mapError = page.getByRole("alert").filter({ hasText: "Kortbaggrunden er ikke tilgængelig" });
   await expect(mapError).toBeVisible();
@@ -252,8 +252,8 @@ test("kortfejl gendanner fokus til den brugte kortkontrol efter retry", async ({
     });
   });
 
-  await page.goto("/shelters/nearby");
-  await page.getByRole("button", { name: "Vis på kort" }).click();
+  await page.goto("/naer-dig");
+  await page.getByRole("button", { name: /^Vis .* på kort$/ }).click();
   const zoomIn = page.locator(".nearby-map .leaflet-control-zoom-in");
   await expect(zoomIn).toBeVisible();
   await zoomIn.focus();

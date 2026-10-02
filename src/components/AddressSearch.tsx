@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import LoadingSpinner from './LoadingSpinner'
 import { ui } from './ui-classes'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
+  pickUnambiguousSuggestion,
   resolveAddress,
   searchAddresses,
   type AddressSuggestion,
@@ -16,6 +17,11 @@ import { trackProductMetric, type ProductMetricEventName } from '@/lib/analytics
 const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'
 
 const ADDRESS_LISTBOX_ID = 'address-suggestions'
+const SUGGESTION_LIMIT = 5
+
+export const chooseFromListMessage = 'Vælg den rigtige adresse på listen.'
+const emptyQueryMessage = 'Skriv en adresse, et postnummer eller en by.'
+const noResultsMessage = 'Ingen adresser fundet. Prøv med vejnavn, husnummer og postnummer, eller find kommunen.'
 
 type SelectedAddress = {
   label: string
@@ -64,9 +70,14 @@ async function getCurrentPosition() {
   }
 }
 
+function suggestionKey(suggestion: AddressSuggestion) {
+  return suggestion.kind === 'street' ? `street-${suggestion.label}` : `${suggestion.kind}-${suggestion.id}`
+}
+
 export default function AddressSearch() {
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
+  const [suggestionsQuery, setSuggestionsQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -74,8 +85,8 @@ export default function AddressSearch() {
   const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [gpsError, setGpsError] = useState<string | null>(null)
+  const [fieldMessage, setFieldMessage] = useState<string | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
-  const [hasNoResults, setHasNoResults] = useState(false)
   const [retryToken, setRetryToken] = useState(0)
   const [resolvingLabel, setResolvingLabel] = useState<string | null>(null)
   const router = useRouter()
@@ -84,6 +95,10 @@ export default function AddressSearch() {
   const containerRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const resolveControllerRef = useRef<AbortController | null>(null)
+  const resolvePromiseRef = useRef<Promise<SelectedAddress | null> | null>(null)
+  const submittingRef = useRef(false)
+  const fieldMessageId = useId()
+  const hasQuery = query.trim().length > 0
 
   const navigateToNearby = useCallback(
     (search: SelectedAddress, successMetric: ProductMetricEventName) => {
@@ -100,21 +115,56 @@ export default function AddressSearch() {
 
       setSearchError(null)
       trackProductMetric(successMetric)
-      router.push('/shelters/nearby')
+      router.push('/naer-dig')
     },
     [router],
   )
 
+  const resolveSuggestion = useCallback(
+    async (suggestion: Exclude<AddressSuggestion, { kind: 'street' }>): Promise<SelectedAddress | null> => {
+      if (suggestion.kind === 'area') {
+        return { label: `${suggestion.label} (postnummer)`, latitude: suggestion.latitude, longitude: suggestion.longitude }
+      }
+
+      resolveControllerRef.current?.abort()
+      const controller = new AbortController()
+      resolveControllerRef.current = controller
+      setResolvingLabel(suggestion.label)
+      setIsLoading(true)
+      const pending = (async () => {
+        try {
+          const resolved = await resolveAddress(suggestion, { signal: controller.signal })
+          if (controller.signal.aborted) return null
+          setHasFailed(false)
+          return resolved
+        } catch (error) {
+          if (isAbortError(error) || controller.signal.aborted) return null
+          trackProductMetric('address_search_error')
+          setHasFailed(true)
+          handleError(error instanceof Error ? error : new Error('Address lookup failed'), 'Address lookup failed')
+          return null
+        } finally {
+          if (!controller.signal.aborted) {
+            setResolvingLabel(null)
+            setIsLoading(false)
+          }
+        }
+      })()
+      resolvePromiseRef.current = pending
+      return pending
+    },
+    [handleError],
+  )
+
+  /** Puts a chosen suggestion in the field. Streets keep the caret where the house number goes. */
   const selectSuggestion = useCallback(
     async (suggestion: AddressSuggestion) => {
       setIsOpen(false)
       setActiveIndex(null)
-      setHasNoResults(false)
+      setFieldMessage(null)
       setSearchError(null)
 
       if (suggestion.kind === 'street') {
-        // A street needs a house number: list its numbers and put the caret
-        // where the visitor types the number.
         setSelectedAddress(null)
         setQuery(suggestion.refineText)
         requestAnimationFrame(() => {
@@ -126,72 +176,98 @@ export default function AddressSearch() {
         return
       }
 
-      resolveControllerRef.current?.abort()
-      const controller = new AbortController()
-      resolveControllerRef.current = controller
       setSelectedAddress(null)
-      setResolvingLabel(suggestion.label)
       setQuery(suggestion.label)
-      setIsLoading(true)
-      try {
-        const resolved = await resolveAddress(suggestion, { signal: controller.signal })
-        if (controller.signal.aborted) return
-        setSelectedAddress(resolved)
-        setQuery(resolved.label)
-        setHasFailed(false)
-      } catch (error) {
-        if (isAbortError(error) || controller.signal.aborted) return
-        trackProductMetric('address_search_error')
-        setHasFailed(true)
-        handleError(error instanceof Error ? error : new Error('Address lookup failed'), 'Address lookup failed')
-      } finally {
-        if (!controller.signal.aborted) {
-          setResolvingLabel(null)
-          setIsLoading(false)
-        }
-      }
+      const resolved = await resolveSuggestion(suggestion)
+      if (!resolved) return
+      setSelectedAddress(resolved)
+      setQuery(suggestion.kind === 'area' ? suggestion.label : resolved.label)
     },
-    [handleError],
+    [resolveSuggestion],
   )
 
-  const canSubmit = selectedAddress !== null
+  /**
+   * The one search action behind both the "Søg" button and Enter:
+   * 1. a chosen suggestion is searched,
+   * 2. free text with exactly one clear match takes it and searches,
+   * 3. otherwise the suggestions open with an instruction to choose.
+   */
+  const runSearch = useCallback(async () => {
+    if (submittingRef.current) return
+    const trimmed = query.trim()
+    setSearchError(null)
 
-  const handleSubmit = useCallback(
-    async (event: Pick<FormEvent, 'preventDefault'>) => {
-      event.preventDefault()
+    if (!trimmed) {
+      setFieldMessage(emptyQueryMessage)
+      inputRef.current?.focus()
+      return
+    }
 
-      if (!canSubmit) {
-        if (query.trim().length < 2) {
-          inputRef.current?.focus()
-          return
-        }
+    submittingRef.current = true
+    try {
+      if (selectedAddress) {
+        trackProductMetric('address_search_started')
+        navigateToNearby(selectedAddress, 'address_selected')
+        return
+      }
 
-        try {
+      if (resolvingLabel && resolvingLabel === trimmed && resolvePromiseRef.current) {
+        const resolved = await resolvePromiseRef.current
+        if (resolved) {
           trackProductMetric('address_search_started')
-          setIsLoading(true)
-          const results = await searchAddresses(query, { limit: 5 })
+          navigateToNearby(resolved, 'address_selected')
+        }
+        return
+      }
+
+      trackProductMetric('address_search_started')
+      let results = suggestionsQuery === trimmed ? suggestions : null
+      if (!results) {
+        abortControllerRef.current?.abort()
+        setIsLoading(true)
+        try {
+          results = await searchAddresses(trimmed, { limit: SUGGESTION_LIMIT })
           setSuggestions(results)
-          setIsOpen(results.length > 0)
-          setActiveIndex(results.length > 0 ? 0 : null)
-          setHasNoResults(results.length === 0)
+          setSuggestionsQuery(trimmed)
           setHasFailed(false)
         } catch (error) {
           trackProductMetric('address_search_error')
           setHasFailed(true)
           handleError(error instanceof Error ? error : new Error('Address search failed'), 'Address search failed')
+          return
         } finally {
           setIsLoading(false)
         }
+      }
+
+      const pick = pickUnambiguousSuggestion(trimmed, results)
+      if (pick) {
+        setIsOpen(false)
+        setQuery(pick.label)
+        const resolved = await resolveSuggestion(pick)
+        if (resolved) navigateToNearby(resolved, 'address_selected')
         return
       }
 
-      if (selectedAddress) {
-        trackProductMetric('address_search_started')
-        navigateToNearby(selectedAddress, 'address_selected')
+      if (results.length === 0) {
+        setIsOpen(false)
+        setFieldMessage(noResultsMessage)
+        return
       }
-    },
-    [canSubmit, handleError, navigateToNearby, query, selectedAddress],
-  )
+
+      setIsOpen(true)
+      setActiveIndex(null)
+      setFieldMessage(chooseFromListMessage)
+      inputRef.current?.focus()
+    } finally {
+      submittingRef.current = false
+    }
+  }, [handleError, navigateToNearby, query, resolveSuggestion, resolvingLabel, selectedAddress, suggestions, suggestionsQuery])
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    void runSearch()
+  }
 
   const handleLocationClick = async () => {
     trackProductMetric('geolocation_requested')
@@ -226,10 +302,11 @@ export default function AddressSearch() {
 
   useEffect(() => {
     abortControllerRef.current?.abort()
-    if (selectedAddress?.label === query.trim() || resolvingLabel === query.trim()) {
+    const trimmed = query.trim()
+    if (selectedAddress?.label === trimmed || resolvingLabel === trimmed || suggestionsQuery === trimmed) {
       return
     }
-    if (query.trim().length < 2) {
+    if (trimmed.length < 2) {
       return
     }
 
@@ -238,17 +315,18 @@ export default function AddressSearch() {
     const timeoutId = setTimeout(async () => {
       setIsLoading(true)
       try {
-        const results = await searchAddresses(query, { signal: controller.signal, limit: 5 })
+        const results = await searchAddresses(trimmed, { signal: controller.signal, limit: SUGGESTION_LIMIT })
+        if (controller.signal.aborted) return
         setSuggestions(results)
+        setSuggestionsQuery(trimmed)
         setIsOpen(results.length > 0)
         setActiveIndex(null)
         setHasFailed(false)
-        setHasNoResults(results.length === 0)
+        setFieldMessage(results.length === 0 ? noResultsMessage : null)
       } catch (error) {
         if (!isAbortError(error)) {
           trackProductMetric('address_search_error')
           setHasFailed(true)
-          setHasNoResults(false)
           handleError(
             error instanceof Error ? error : new Error('Address search failed'),
             'Address search failed',
@@ -265,7 +343,7 @@ export default function AddressSearch() {
       clearTimeout(timeoutId)
       controller.abort()
     }
-  }, [query, handleError, selectedAddress?.label, resolvingLabel, retryToken])
+  }, [query, handleError, selectedAddress?.label, resolvingLabel, suggestionsQuery, retryToken])
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -289,15 +367,17 @@ export default function AddressSearch() {
       setActiveIndex(null)
       return
     }
-    if (event.key === 'Enter') {
-      if (isOpen && activeIndex !== null && suggestions[activeIndex]) {
-        event.preventDefault()
-        void selectSuggestion(suggestions[activeIndex])
-      } else if (!canSubmit) {
-        // The submit button stays disabled until an address is chosen, and a
-        // disabled default button blocks implicit submission. Search instead.
-        void handleSubmit(event)
-      }
+    // Enter on a highlighted suggestion chooses it; otherwise the form submits
+    // and runs the same search as the button.
+    if (event.key === 'Enter' && isOpen && activeIndex !== null && suggestions[activeIndex]) {
+      event.preventDefault()
+      void selectSuggestion(suggestions[activeIndex])
+      return
+    }
+    if (event.key === 'ArrowDown' && !isOpen && suggestions.length > 0 && suggestionsQuery === query.trim()) {
+      event.preventDefault()
+      setIsOpen(true)
+      setActiveIndex(0)
       return
     }
     if (!isOpen || suggestions.length === 0) {
@@ -312,73 +392,45 @@ export default function AddressSearch() {
     }
   }
 
+  const describedBy = [fieldMessage ? fieldMessageId : null, hasFailed ? 'address-search-error' : null].filter(Boolean).join(' ') || undefined
+
   return (
-    <div className="space-y-4 sm:space-y-5">
+    <div>
       <button
         type="button"
         onClick={handleLocationClick}
-        className={`${ui.primaryAction} touch-target w-full gap-3 py-4 disabled:opacity-60`}
+        className={`${hasQuery ? ui.secondaryAction : ui.primaryAction} touch-target w-full gap-3 py-3.5 text-base disabled:opacity-60 sm:w-auto sm:min-w-[16rem]`}
         disabled={gpsLoading}
-        aria-label="Brug min placering til at se registreringer i nærheden"
+        aria-describedby="location-privacy-note"
       >
         {gpsLoading ? <LoadingSpinner size="sm" text="Henter din position..." /> : (
           <>
-            <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="currentColor"/></svg>
-            <span className="text-sm sm:text-base font-medium">Brug min placering</span>
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="currentColor"/></svg>
+            <span>Brug min placering</span>
           </>
         )}
       </button>
 
-      <p className="text-center text-xs leading-5 text-gray-400 sm:text-sm">
-        Din placering bruges kun til denne søgning og gemmes ikke i linket.
+      <p id="location-privacy-note" className="mt-2 text-sm text-gray-400">
+        Din placering gemmes ikke.
       </p>
 
       {gpsError ? (
-        <div className="rounded-lg border border-yellow-600/30 bg-yellow-900/20 p-3 text-sm text-yellow-100" role="alert">
+        <p className="mt-3 border-l-2 border-yellow-500 pl-3 text-sm leading-6 text-yellow-100" role="alert">
           {gpsError}
-        </div>
+        </p>
       ) : null}
 
-      <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-[0.12em] text-gray-400" aria-hidden="true">
-        <span className="h-px flex-1 bg-white/10" />
-        <span>eller</span>
-        <span className="h-px flex-1 bg-white/10" />
-      </div>
-
-      <div ref={containerRef} className="relative w-full">
-        {hasFailed && (
-          <div id="address-search-error" className="mb-2 p-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg text-yellow-200 text-sm" role="alert">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-              <div className="flex-1">
-                <p className="font-medium">Adressesøgningen er ikke tilgængelig</p>
-                <p className="text-xs mt-1 opacity-80">Prøv igen om lidt, eller brug din placering ovenfor.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setHasFailed(false)
-                  setRetryToken((token) => token + 1)
-                  inputRef.current?.focus()
-                }}
-                className="ml-2 inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg bg-yellow-600/25 px-3 py-2 text-xs font-medium text-yellow-100 transition-colors hover:bg-yellow-600/40"
-              >
-                Prøv igen
-              </button>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="autocomplete-container w-full space-y-2">
-          <label htmlFor="adresse" className="block text-sm font-medium text-gray-200">
-            Adresse, by eller postnummer
+      <div ref={containerRef} className="relative mt-6 w-full">
+        <form onSubmit={handleSubmit} className="autocomplete-container w-full" noValidate>
+          <label htmlFor="adresse" className="block text-base font-medium text-gray-100">
+            Eller søg på en adresse
           </label>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="mt-2 flex gap-2">
             <div className="relative min-w-0 flex-1">
-              <svg className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 transform text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               {isLoading && (
-                <div className="absolute right-3 top-1/2 z-10 -translate-y-1/2 transform">
+                <div className="absolute right-2 top-1/2 z-10 -translate-y-1/2 transform">
                   <LoadingSpinner size="sm" />
                 </div>
               )}
@@ -387,9 +439,12 @@ export default function AddressSearch() {
                 ref={inputRef}
                 type="text"
                 id="adresse"
-                placeholder="Vejnavn, by eller postnr."
-                className={`${ui.input} touch-target py-3 pl-12 pr-11 transition-colors disabled:opacity-50 sm:py-4 sm:pl-14 sm:pr-12`}
-                aria-describedby={hasFailed ? 'address-search-error' : hasNoResults ? 'address-no-results' : undefined}
+                name="adresse"
+                enterKeyHint="search"
+                placeholder="Adresse, by eller postnummer"
+                className={`${ui.input} touch-target py-3 pl-3 pr-9 sm:pl-4`}
+                aria-describedby={describedBy}
+                aria-invalid={fieldMessage === emptyQueryMessage ? true : undefined}
                 role="combobox"
                 aria-haspopup="listbox"
                 aria-autocomplete="list"
@@ -401,25 +456,30 @@ export default function AddressSearch() {
                     : undefined
                 }
                 autoComplete="off"
-                minLength={2}
                 value={query}
                 onChange={(event) => {
                   const nextQuery = event.target.value
                   setQuery(nextQuery)
                   resolveControllerRef.current?.abort()
+                  resolvePromiseRef.current = null
                   setResolvingLabel(null)
                   setSelectedAddress(null)
                   setSearchError(null)
-                  setHasNoResults(false)
+                  setFieldMessage(null)
                   if (nextQuery.trim().length < 2) {
                     abortControllerRef.current?.abort()
                     setSuggestions([])
+                    setSuggestionsQuery('')
                     setIsOpen(false)
                     setActiveIndex(null)
                     setIsLoading(false)
                   }
                 }}
-                onFocus={() => setIsOpen(suggestions.length > 0 && !selectedAddress)}
+                // Focus only ever opens the list. runSearch focuses the field right
+                // after opening it, when this handler still sees the previous render.
+                onFocus={() => {
+                  if (suggestions.length > 0 && !selectedAddress && suggestionsQuery === query.trim()) setIsOpen(true)
+                }}
                 onKeyDown={handleKeyDown}
               />
 
@@ -430,60 +490,64 @@ export default function AddressSearch() {
                   role="listbox"
                   aria-label="Adresseforslag"
                 >
-                  {suggestions.map((suggestion, index) => {
-                    const key = suggestion.kind === 'address' ? suggestion.id : `street-${suggestion.label}`
-
-                    return (
-                      <div
-                        key={key}
-                        id={`address-option-${index}`}
-                        role="option"
-                        aria-selected={activeIndex === index}
-                        className={`cursor-pointer border-b border-white/10 px-2.5 py-2.5 text-base text-white last:border-b-0 sm:py-2 ${activeIndex === index ? 'bg-[var(--surface-row-hover)]' : 'hover:bg-[var(--surface-row-hover)]'}`}
-                        onMouseEnter={() => setActiveIndex(index)}
-                        onMouseDown={(event) => {
-                          event.preventDefault()
-                          void selectSuggestion(suggestion)
-                        }}
-                      >
-                        {suggestion.label}
-                      </div>
-                    )
-                  })}
+                  {suggestions.map((suggestion, index) => (
+                    <div
+                      key={suggestionKey(suggestion)}
+                      id={`address-option-${index}`}
+                      role="option"
+                      aria-selected={activeIndex === index}
+                      className={`cursor-pointer border-b border-white/10 px-3 py-3 text-base text-white last:border-b-0 ${activeIndex === index ? 'bg-[var(--surface-row-hover)]' : 'hover:bg-[var(--surface-row-hover)]'}`}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        void selectSuggestion(suggestion)
+                      }}
+                    >
+                      {suggestion.label}
+                      {suggestion.kind === 'area' ? <span className="text-gray-400"> · postnummer</span> : null}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
             <button
               type="submit"
-              disabled={!canSubmit}
-              className={`${ui.primaryAction} min-h-[48px] sm:min-w-28`}
+              className={`${hasQuery ? ui.primaryAction : ui.secondaryAction} min-h-[48px] shrink-0 px-4 sm:px-5`}
             >
               Søg
             </button>
           </div>
         </form>
 
-        {hasNoResults ? (
-          <p id="address-no-results" className="mt-3 text-sm text-gray-200" role="status">
-            Ingen adresser fundet. Prøv med vejnavn og by eller søg efter kommunen.
-          </p>
+        {/* Always in the DOM so screen readers announce changes to it. */}
+        <div id={fieldMessageId} className="text-sm leading-6 text-gray-100" role="status" aria-live="polite">
+          {fieldMessage ? <p className="mt-2">{fieldMessage}</p> : null}
+        </div>
+
+        {hasFailed ? (
+          <div id="address-search-error" className="mt-2 border-l-2 border-yellow-500 pl-3 text-sm leading-6 text-yellow-100" role="alert">
+            <p>Adressesøgningen er ikke tilgængelig lige nu. Prøv igen, eller brug din placering.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setHasFailed(false)
+                setSuggestionsQuery('')
+                setRetryToken((token) => token + 1)
+                inputRef.current?.focus()
+              }}
+              className="inline-flex min-h-[44px] items-center font-medium text-white underline underline-offset-4"
+            >
+              Prøv igen
+            </button>
+          </div>
         ) : null}
 
         {searchError ? (
-          <p className="mt-3 rounded-lg border border-yellow-600/30 bg-yellow-900/20 p-3 text-sm text-yellow-100" role="alert">
+          <p className="mt-2 border-l-2 border-yellow-500 pl-3 text-sm leading-6 text-yellow-100" role="alert">
             {searchError}
           </p>
         ) : null}
-
-        {selectedAddress && (
-          <div className="mt-3 p-3 bg-success-bg border border-success/30 rounded-lg" role="status" aria-live="polite">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-success success-animation" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-              <p className="text-sm sm:text-base text-success font-medium">Valgt adresse: <span className="text-white">{selectedAddress.label}</span></p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

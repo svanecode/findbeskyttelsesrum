@@ -23,7 +23,6 @@ export default function PrivacyPage() {
     <main id="main-content" tabIndex={-1} className={ui.page}>
       <div className="mx-auto min-h-screen w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <header className="max-w-2xl space-y-4">
-          <p className={ui.eyebrow}>Om tjenesten</p>
           <h1 className={ui.pageTitle}>Privatliv og personoplysninger</h1>
           <p className="text-lg leading-8 text-gray-300">
             Du behøver ikke en konto for at bruge Find Beskyttelsesrum. Denne side forklarer, hvilke oplysninger de
@@ -72,10 +71,13 @@ export default function PrivacyPage() {
               midlertidig værdi i browserens hukommelse, som forsvinder ved genindlæsning.
             </p>
             <p className={secondaryParagraphClassName}>
-              Hvis du tillader offlinekopien, gemmer din browser en kopi af sidens filer, offentlige sider, du har besøgt,
-              og de offentlige kortfliser, du senest har hentet. Kortfliserne indeholder kun offentlige registreringer for et område på ca. 28 × 26 km og
-              intet om din position eller søgning. Kopien bliver på din enhed og sendes ikke til tjenesten. Trækker du
-              samtykket tilbage, slettes kopien, og du kan også slette den under browserens indstillinger for webstedsdata.
+              Vælger du &quot;Gem til brug uden net&quot;, gemmer din browser en kopi af sidens filer, nogle offentlige sider
+              og de offentlige kortfliser omkring din søgning. Kortfliserne indeholder kun offentlige registreringer for et
+              område på ca. 28 × 26 km. Gemmer du fra en resultatside, gemmes også den søgning (adressetekst og
+              koordinater) i browserens lokale lager, så den kan åbnes uden net. Kopien bliver på din enhed og sendes ikke
+              til tjenesten. Den gemmes kun, fordi du selv beder om det, og den er ikke en del af samtykket til statistik.
+              Du sletter den med &quot;Slet kopien&quot; på forsiden eller resultatsiden eller under browserens
+              indstillinger for webstedsdata.
             </p>
             <p className={secondaryParagraphClassName}>
               Formålet er at levere den søgning, du beder om. Retsgrundlaget er den dataansvarliges legitime interesse i
@@ -210,10 +212,11 @@ export default function PrivacyPage() {
             <h2 id="storage-heading" className="text-lg font-semibold">Netforbindelse og lokal lagring</h2>
             <p className={paragraphClassName}>
               Tjenesten er en almindelig hjemmeside og kræver netforbindelse for adressesøgning, kort og de seneste
-              data. Har du tilladt offlinekopien, gemmer din browser som reserve en begrænset kopi af sidens filer, nogle af de sider, du har besøgt,
-              og de offentlige kortfliser, du senest har hentet. Hvis netværket ikke svarer, kan &quot;Brug min
-              placering&quot; bruge de gemte fliser. Resultaterne mærkes da &quot;Viser gemte data&quot; med datoen for
-              kopien, så ældre data ikke forveksles med den seneste dataimport. Hvad kopien indeholder, står under
+              data. Har du valgt &quot;Gem til brug uden net&quot;, har din browser en kopi af forsiden, resultatsiden, de
+              offentlige kortfliser omkring din søgning og eventuelt den gemte søgning. Hvis netværket ikke svarer, bruges
+              kopien. Resultaterne mærkes da &quot;Viser gemte data&quot; med datoen for kopien, så ældre data ikke
+              forveksles med den seneste dataimport. Funktioner, der kræver net, som adressesøgning og kortbaggrund,
+              siger det, når de ikke kan bruges. Hvad kopien indeholder, står under
               adresse- og placeringssøgning ovenfor.
             </p>
           </section>
@@ -222,8 +225,8 @@ export default function PrivacyPage() {
             <h2 id="consent-heading" className="text-lg font-semibold">Cookies og samtykke</h2>
             <p className={paragraphClassName}>
               Tjenesten bruger ikke cookies til markedsføring eller sporing på tværs af websteder. Ved dit første besøg
-              spørger vi, om du vil tillade to valgfrie ting: anonym statistik og en offlinekopi på din enhed. Indtil du
-              har valgt, er begge slået fra. Dit valg gemmes i browserens lokale lager, så vi ikke spørger igen; det er
+              spørger vi, om du vil tillade anonym statistik. Indtil du har valgt, er den slået fra. Offlinekopien er
+              ikke en del af samtykket; den gemmes kun, når du selv vælger &quot;Gem til brug uden net&quot;. Dit valg gemmes i browserens lokale lager, så vi ikke spørger igen; det er
               nødvendigt for at huske valget og kræver derfor ikke samtykke. Du kan ændre eller trække samtykket tilbage
               her når som helst, og det er lige så let som at give det.
             </p>

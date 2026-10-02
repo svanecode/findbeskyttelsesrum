@@ -1,12 +1,15 @@
 /**
  * The visitor's choice for optional processing. Storing this choice is itself
- * strictly necessary, so it needs no consent. Everything optional (anonymous
- * statistics, the offline copy) stays off until the matching flag is true.
+ * strictly necessary, so it needs no consent. Anonymous statistics stay off
+ * until `statistics` is true. The offline copy is no longer part of this
+ * choice (see src/lib/offline-copy.ts); `offline` is only read from choices
+ * stored before that change.
  */
 export type ConsentChoice = {
   version: 1;
   statistics: boolean;
-  offline: boolean;
+  /** Legacy: set by the old "offlinekopi" consent option. */
+  offline?: boolean;
   decidedAt: string;
 };
 
@@ -17,8 +20,13 @@ function parseConsent(raw: string | null): ConsentChoice | null {
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as Partial<ConsentChoice>;
-    if (value?.version !== 1 || typeof value.statistics !== "boolean" || typeof value.offline !== "boolean") return null;
-    return { version: 1, statistics: value.statistics, offline: value.offline, decidedAt: String(value.decidedAt ?? "") };
+    if (value?.version !== 1 || typeof value.statistics !== "boolean") return null;
+    return {
+      version: 1,
+      statistics: value.statistics,
+      ...(typeof value.offline === "boolean" ? { offline: value.offline } : {}),
+      decidedAt: String(value.decidedAt ?? ""),
+    };
   } catch {
     return null;
   }
@@ -46,8 +54,8 @@ export function readConsent(): ConsentChoice | null {
   return cachedChoice;
 }
 
-export function saveConsent(choice: { statistics: boolean; offline: boolean }) {
-  const value: ConsentChoice = { version: 1, ...choice, decidedAt: new Date().toISOString() };
+export function saveConsent(choice: { statistics: boolean }) {
+  const value: ConsentChoice = { version: 1, statistics: choice.statistics, decidedAt: new Date().toISOString() };
   memoryChoice = value;
   try {
     window.localStorage.setItem(consentStorageKey, JSON.stringify(value));

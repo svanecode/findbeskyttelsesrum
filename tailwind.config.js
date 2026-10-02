@@ -8,7 +8,6 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        'space-grotesk': ['var(--font-space-grotesk)', 'system-ui', 'sans-serif'],
         inter: ['var(--font-inter)', 'system-ui', 'sans-serif'],
       },
       colors: {

@@ -2,10 +2,9 @@ export const ui = {
   page: "min-h-screen bg-[var(--surface-page)] text-white",
   panel: "rounded-xl border border-white/10 bg-[var(--surface-elevated)]",
   panelInset: "rounded-lg border border-white/10 bg-[var(--surface-inset)]",
-  eyebrow: "text-xs font-semibold uppercase tracking-[0.14em] text-gray-400",
   pageTitle:
-    "break-words font-space-grotesk text-3xl font-semibold leading-[1.08] tracking-[-0.03em] text-white sm:text-4xl lg:text-5xl",
-  sectionTitle: "break-words font-space-grotesk text-xl font-semibold tracking-[-0.015em] text-white",
+    "break-words text-[1.75rem] font-semibold leading-[1.15] tracking-[-0.01em] text-white sm:text-4xl lg:text-[2.5rem]",
+  sectionTitle: "break-words text-xl font-semibold text-white",
   lead: "max-w-2xl text-base leading-7 text-gray-300 sm:text-lg sm:leading-8",
   input:
     "min-h-[48px] w-full rounded-lg border border-white/15 bg-[var(--surface-input)] px-4 text-base text-white placeholder:text-gray-400 focus:border-[var(--accent)] focus:bg-[var(--surface-input-focus)] focus:outline-none",

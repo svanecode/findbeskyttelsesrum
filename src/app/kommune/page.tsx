@@ -30,7 +30,6 @@ export default async function MunicipalityOverviewPage() {
     <main id="main-content" tabIndex={-1} className={ui.page}>
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
         <header className="mb-8 max-w-3xl space-y-4 sm:mb-10">
-          <p className={ui.eyebrow}>Find lokalt</p>
           <h1 className={ui.pageTitle}>
             Kommuneoversigt
           </h1>

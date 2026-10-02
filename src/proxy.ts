@@ -14,6 +14,15 @@ export async function proxy(request: NextRequest) {
 
   let response = NextResponse.next({ request })
 
+  // /kommune/<slug>?q=... searches the whole municipality on the server. The
+  // plain municipality pages stay static; only searches reach the dynamic route.
+  const municipalitySearch = /^\/kommune\/([^/]+)(?:\/side\/\d+)?\/?$/.exec(pathname)
+  if (municipalitySearch && request.nextUrl.searchParams.get('q')?.trim()) {
+    const target = request.nextUrl.clone()
+    target.pathname = `/kommune/${municipalitySearch[1]}/soeg`
+    response = NextResponse.rewrite(target, { request })
+  }
+
   if (pathname.startsWith('/admin') || pathname.startsWith('/auth')) {
     const { url, publishableKey } = getSupabasePublicEnv()
     const supabase = createServerClient(url, publishableKey, {

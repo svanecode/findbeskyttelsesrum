@@ -26,12 +26,11 @@ export default function AppError({
   return (
     <main id="main-content" tabIndex={-1} className={`${ui.page} flex items-center justify-center px-4 py-16`}>
       <section className={`${ui.panel} w-full max-w-lg p-6 text-center sm:p-8`} aria-labelledby="app-error-title">
-        <p className={ui.eyebrow}>Midlertidig fejl</p>
         <h1
           id="app-error-title"
           ref={headingRef}
           tabIndex={-1}
-          className="mt-3 font-space-grotesk text-3xl font-semibold outline-none"
+          className="mt-3 text-3xl font-semibold outline-none"
         >
           Siden kunne ikke vises
         </h1>

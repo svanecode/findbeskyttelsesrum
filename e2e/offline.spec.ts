@@ -1,10 +1,15 @@
-import { expect, test, type BrowserContext } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 /**
- * The offline worker only registers in production builds, so this runs in CI
- * (playwright.config.ts) against real public data.
+ * The offline copy is the visitor's own action ("Gem til brug uden net") and
+ * works whatever they chose for statistics. These tests run against a
+ * production build and real public data.
  */
-test.use({ serviceWorkers: "allow" });
+test.use({
+  serviceWorkers: "allow",
+  // "Kun nødvendige": no statistics consent.
+  storageState: { cookies: [], origins: [] },
+});
 
 /**
  * A real outage. context.setOffline alone does not reach the service worker's
@@ -16,14 +21,6 @@ async function simulateOutage(context: BrowserContext) {
   await context.setOffline(true);
 }
 
-// Runs before every page load; keeps a context the test changed later.
-function setSearchContextOnce(value: Record<string, unknown>) {
-  const key = "findbeskyttelsesrum.nearby-search.v1";
-  if (!window.sessionStorage.getItem(key)) {
-    window.sessionStorage.setItem(key, JSON.stringify({ ...value, createdAt: Date.now() }));
-  }
-}
-
 const searchContext = {
   version: 1,
   latitude: 55.6761,
@@ -31,41 +28,56 @@ const searchContext = {
   label: "Rådhuspladsen 1, 1550 København V",
 };
 
-test("gemte kortfliser viser resultater uden net med tydelig markering", { tag: "@full-stack" }, async ({ page, context }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Offlineflowet kontrolleres i én motor.");
-  await context.addInitScript(setSearchContextOnce, searchContext);
-
-  // First visit online: the worker installs and caches the page, its assets and the tiles.
-  await page.goto("/");
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
+async function declineStatisticsAndSearch(page: Page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("findbeskyttelsesrum.consent.v1", JSON.stringify({ version: 1, statistics: false, decidedAt: "2026-10-01T00:00:00.000Z" }));
   });
-  await page.reload();
-  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
-  await page.goto("/shelters/nearby");
-  await expect(page.locator("#nearby-list-panel article").first()).toBeVisible();
-  await expect(page.getByText("Viser gemte data")).toHaveCount(0);
+  await page.goto("/");
+  await page.evaluate((value) => {
+    window.sessionStorage.setItem("findbeskyttelsesrum.nearby-search.v1", JSON.stringify({ ...value, createdAt: Date.now() }));
+  }, searchContext);
+  await page.goto("/naer-dig");
+  await expect(page.locator("#nearby-list-panel ol > li").first()).toBeVisible();
+}
+
+test("uden statistiksamtykke kan siden gemmes og bruges uden net", { tag: "@full-stack" }, async ({ page, context }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Offlineflowet kontrolleres i én motor.");
+  await declineStatisticsAndSearch(page);
+
+  await page.getByRole("button", { name: "Gem til brug uden net" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Siden virker nu også uden net." })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/^Gemt \d+\. \w+\.? \d{4}/)).toBeVisible();
 
   await simulateOutage(context);
-  await page.reload();
 
-  await expect(page.locator("#nearby-list-panel article").first()).toBeVisible();
+  // The front page opens offline.
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Find beskyttelsesrum nær dig" })).toBeVisible();
+
+  // The saved search opens offline, even in a tab without the search.
+  await page.evaluate(() => window.sessionStorage.clear());
+  await page.goto("/naer-dig");
+  await expect(page.locator("#nearby-list-panel ol > li").first()).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "Viser gemte data" })).toBeVisible();
 });
 
-test("uden gemte data forklarer siden, at man er offline", { tag: "@full-stack" }, async ({ page, context }, testInfo) => {
+test("uden gemt kopi registreres ingen offline-worker", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Offlineflowet kontrolleres i én motor.");
-  await context.addInitScript(setSearchContextOnce, searchContext);
-
   await page.goto("/");
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-  });
-  await page.goto("/shelters/nearby");
-  await expect(page.locator("#nearby-list-panel article").first()).toBeVisible();
+  // Longer than the idle delay before the worker would register.
+  await page.waitForTimeout(4500);
+  const registrations = await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length);
+  expect(registrations).toBe(0);
+});
+
+test("uden gemte data for området forklarer siden, at man er offline", { tag: "@full-stack" }, async ({ page, context }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Offlineflowet kontrolleres i én motor.");
+  await declineStatisticsAndSearch(page);
+  await page.getByRole("button", { name: "Gem til brug uden net" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Siden virker nu også uden net." })).toBeVisible({ timeout: 30_000 });
 
   await simulateOutage(context);
-  // Search a different area whose tiles were never cached.
+  // Search a different area whose tiles were never saved.
   await page.evaluate(() => {
     window.sessionStorage.setItem(
       "findbeskyttelsesrum.nearby-search.v1",

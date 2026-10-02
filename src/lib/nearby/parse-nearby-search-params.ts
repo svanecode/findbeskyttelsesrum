@@ -4,7 +4,7 @@ export type NearbyCoordsParseResult =
   | { kind: "ok"; lat: string; lng: string };
 
 /**
- * Single server-side parse for /shelters/nearby query params (lat/lng).
+ * Single server-side parse for /naer-dig query params (lat/lng).
  */
 export function parseNearbySearchParams(sp: {
   lat?: string | string[];

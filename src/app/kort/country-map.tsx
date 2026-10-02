@@ -21,6 +21,7 @@ import type { Anvendelseskode } from "@/types/anvendelseskode";
 import { buildLeafletPopupHtml } from "@/lib/leaflet/popup-html";
 import { denmarkMaxBounds } from "@/lib/maps/denmark-bounds";
 import { getShelterPublicDisplayName } from "@/lib/shelter-display-name";
+import { getReadableShelterPathFromStable } from "@/lib/shelter-public-url";
 import {
   countryMapViewportContains,
   createBufferedCountryMapViewport,
@@ -58,13 +59,12 @@ function buildPopupHtml(shelter: CountryMapShelterMarker, anvendelse: string) {
   const title = shelter.addressLine1?.trim()
     ? shelter.addressLine1.trim()
     : getShelterPublicDisplayName(shelter.name, shelter.addressLine1 ?? "");
-  const slugSeg = encodeURIComponent(shelter.slug);
   return buildLeafletPopupHtml({
     title,
     usageLine: anvendelse,
     postalLine,
     capacity: shelter.capacity,
-    href: `/beskyttelsesrum/${slugSeg}`,
+    href: getReadableShelterPathFromStable(shelter),
   });
 }
 

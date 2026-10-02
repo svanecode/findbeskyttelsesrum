@@ -1,10 +1,10 @@
 import { notFound, permanentRedirect } from "next/navigation";
+import { cache } from "react";
 import type { Metadata } from "next";
+import type { Route } from "next";
 import Link from "next/link";
 
 import GlobalFooter from "@/components/GlobalFooter";
-import BackLinkButton from "@/components/BackLinkButton";
-import RegistrationNotice, { RegistrationStatusLabels } from "@/components/RegistrationNotice";
 import ReportShelterIssue from "@/components/ReportShelterIssue";
 import ProductMetricView from "@/components/ProductMetricView";
 import ShelterOsmEmbedMap from "@/components/ShelterOsmEmbedMap";
@@ -15,14 +15,37 @@ import { getBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { siteUrl } from "@/lib/seo/site";
 import { getShelterPublicDisplayName } from "@/lib/shelter-display-name";
-import { getShelterPublicPath } from "@/lib/shelter-public-url";
+import { getReadableShelterPathFromStable, getShelterPublicPath } from "@/lib/shelter-public-url";
 import {
   getAppV2PublicRelatedShelters,
+  getAppV2PublicShelterBySlug,
+  getCanonicalReadableSlug,
   resolveAppV2PublicShelter,
+  resolveReadableShelterSlug,
   type AppV2PublicShelterDetail,
 } from "@/lib/supabase/app-v2-queries";
 
 const municipalityContactUrl = "https://www.borger.dk/om-borger-dk/Find-en-myndighed";
+
+/**
+ * Finds the registration for a detail path. Readable paths
+ * ("ryesgade-18-8000-aarhus-c") are looked up first; stable
+ * ("registrering-<id>") and older importer slugs still resolve and are
+ * redirected to the readable path.
+ */
+const resolveShelterPage = cache(async function resolveShelterPage(slug: string) {
+  const readable = await resolveReadableShelterSlug(slug);
+  if (readable) {
+    const shelter = await getAppV2PublicShelterBySlug(readable.stableSlug);
+    if (!shelter) return null;
+    return { shelter, canonicalSlug: readable.canonicalSlug, redirect: readable.canonicalSlug !== slug };
+  }
+
+  const legacy = await resolveAppV2PublicShelter(slug);
+  if (!legacy) return null;
+  const canonicalSlug = await getCanonicalReadableSlug(legacy.shelter);
+  return { shelter: legacy.shelter, canonicalSlug, redirect: true };
+});
 
 type Props = {
   params: Promise<{
@@ -44,9 +67,9 @@ function getShelterCanonicalPath(slug: string) {
   return getShelterPublicPath(slug);
 }
 
-function getGoogleMapsPlaceHref(shelter: AppV2PublicShelterDetail) {
+function getGoogleMapsDirectionsHref(shelter: AppV2PublicShelterDetail) {
   if (shelter.latitude === null || shelter.longitude === null) return null;
-  return `https://www.google.com/maps/search/?api=1&query=${shelter.latitude},${shelter.longitude}`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${shelter.latitude},${shelter.longitude}`;
 }
 
 function formatDataDate(value: string | null) {
@@ -60,14 +83,14 @@ function formatDataDate(value: string | null) {
   }).format(date);
 }
 
-function getJsonLd(shelter: AppV2PublicShelterDetail, displayName: string) {
+function getJsonLd(shelter: AppV2PublicShelterDetail, displayName: string, canonicalSlug: string) {
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Place",
     name: displayName,
     description:
       "BBR-registrering af sikringsrumspladser. Offentlig adgang, klargøring og aktuel fysisk stand er ikke bekræftet.",
-    url: `${siteUrl}${getShelterCanonicalPath(shelter.slug)}`,
+    url: `${siteUrl}${getShelterCanonicalPath(canonicalSlug)}`,
     address: {
       "@type": "PostalAddress",
       streetAddress: shelter.addressLine1,
@@ -106,10 +129,10 @@ function getJsonLd(shelter: AppV2PublicShelterDetail, displayName: string) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const resolution = await resolveAppV2PublicShelter(slug);
+  const resolution = await resolveShelterPage(slug);
   const shelter = resolution?.shelter ?? null;
 
-  if (!shelter) {
+  if (!resolution || !shelter) {
     return {
       title: "Beskyttelsesrum ikke fundet",
       robots: { index: false, follow: false },
@@ -117,20 +140,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const address = getShelterAddress(shelter);
-  const title = `BBR-registrering ved ${shelter.addressLine1}`;
+  const title = `${shelter.addressLine1}, ${shelter.postalCode} ${shelter.city}: BBR-registrering`;
   const description = `${address}. ${shelter.capacity.toLocaleString("da-DK")} BBR-registrerede sikringsrumspladser. Adgang og fysisk stand er ikke bekræftet.`;
 
   return createPageMetadata({
     title,
     description,
-    path: getShelterCanonicalPath(shelter.slug),
+    path: getShelterCanonicalPath(resolution.canonicalSlug),
   });
 }
 
 export default async function ShelterDetailPage({ params }: Props) {
   const { slug } = await params;
   const [resolution, anvendelseskoder] = await Promise.all([
-    resolveAppV2PublicShelter(slug),
+    resolveShelterPage(slug),
     getAnvendelseskoder(),
   ]);
 
@@ -138,13 +161,13 @@ export default async function ShelterDetailPage({ params }: Props) {
     notFound();
   }
 
-  const { shelter } = resolution;
-  if (resolution.isAlias) {
-    permanentRedirect(getShelterCanonicalPath(shelter.slug));
+  const { shelter, canonicalSlug } = resolution;
+  if (resolution.redirect) {
+    permanentRedirect(getShelterCanonicalPath(canonicalSlug));
   }
 
   const displayName = getShelterPublicDisplayName(shelter.name, shelter.addressLine1);
-  const jsonLd = getJsonLd(shelter, displayName);
+  const jsonLd = getJsonLd(shelter, displayName, canonicalSlug);
   const breadcrumbJsonLd = getBreadcrumbJsonLd([
     { name: "Forside", url: siteUrl },
     {
@@ -152,14 +175,14 @@ export default async function ShelterDetailPage({ params }: Props) {
       url: `${siteUrl}/kommune/${shelter.municipality.slug}`,
     },
     {
-      name: `Registrering ved ${shelter.addressLine1}`,
-      url: `${siteUrl}${getShelterCanonicalPath(shelter.slug)}`,
+      name: shelter.addressLine1,
+      url: `${siteUrl}${getShelterCanonicalPath(canonicalSlug)}`,
     },
   ]);
   const anvendelseRaw = getAnvendelseskodeBeskrivelse(shelter.sourceApplicationCode, anvendelseskoder).trim();
   const anvendelseLabel = anvendelseRaw || null;
   const hasCoords = shelter.latitude !== null && shelter.longitude !== null;
-  const mapHref = hasCoords ? getGoogleMapsPlaceHref(shelter) : null;
+  const directionsHref = hasCoords ? getGoogleMapsDirectionsHref(shelter) : null;
   const relatedShelters = await getAppV2PublicRelatedShelters({
     shelterId: shelter.id,
     municipalityId: shelter.municipality.id,
@@ -184,173 +207,139 @@ export default async function ShelterDetailPage({ params }: Props) {
           __html: serializeJsonLd(breadcrumbJsonLd),
         }}
       />
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-        <article className="space-y-8">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-12 pt-6 sm:px-6 sm:pt-10 lg:px-8">
+        <article>
           <nav aria-label="Brødkrummer">
             <ol className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400">
               <li>
-                <Link className="transition hover:text-white" href="/">
+                <Link className="hover:text-white" href="/">
                   Forside
                 </Link>
               </li>
               <li aria-hidden="true">/</li>
               <li>
-                <Link
-                  className="transition hover:text-white"
-                  href={`/kommune/${shelter.municipality.slug}`}
-                >
+                <Link className="hover:text-white" href={`/kommune/${shelter.municipality.slug}`}>
                   {shelter.municipality.name}
                 </Link>
               </li>
               <li aria-hidden="true">/</li>
               <li className="break-safe min-w-0 text-gray-200" aria-current="page">
-                Registrering ved {shelter.addressLine1}
+                {shelter.addressLine1}
               </li>
             </ol>
           </nav>
 
-          <nav className="flex items-center gap-2 sm:gap-3" aria-label="Side">
-            <BackLinkButton
-              fallbackHref={`/kommune/${shelter.municipality.slug}`}
-              label={`Tilbage til ${shelter.municipality.name}`}
-              shortLabel="Tilbage"
-            />
-          </nav>
-
-          <header className="space-y-4">
-            <p className="text-sm uppercase tracking-wide text-gray-300">BBR-registrering</p>
-            <h1 className={ui.pageTitle}>
-              Registrering ved {shelter.addressLine1}
-            </h1>
-            <p className="text-lg text-gray-300">
+          <header className="mt-4">
+            <h1 className={ui.pageTitle}>{shelter.addressLine1}</h1>
+            <p className="mt-2 text-base leading-7 text-gray-200">
               {shelter.postalCode} {shelter.city}
+              <span className="text-gray-500" aria-hidden="true"> · </span>
+              <span className="sr-only">, </span>
+              <strong className="font-semibold text-white">{shelter.capacity.toLocaleString("da-DK")} registrerede pladser</strong>
+              {anvendelseLabel ? (
+                <>
+                  <span className="text-gray-500" aria-hidden="true"> · </span>
+                  <span className="sr-only">, </span>
+                  {anvendelseLabel}
+                </>
+              ) : null}
             </p>
-            <RegistrationStatusLabels />
+            <p className="mt-1 text-sm leading-6 text-gray-400">
+              Adgang og stand er ikke bekræftet.{" "}
+              <Link href="/om-data" className={ui.textLink}>Læs om data</Link>.
+            </p>
           </header>
 
-          <RegistrationNotice />
-
-          <section className={`${ui.panel} p-5 sm:p-6`}>
-            <h2 className="text-lg font-semibold text-white">Registrerede oplysninger</h2>
-
-            <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className={`${ui.panelInset} p-4`}>
-                <dt className="text-sm text-gray-300">Registrerede pladser</dt>
-                <dd className="mt-1 text-base font-medium text-white">
-                  {shelter.capacity.toLocaleString("da-DK")} pladser
-                </dd>
-              </div>
-              <div className={`${ui.panelInset} p-4`}>
-                <dt className="text-sm text-gray-300">Bygningens registrerede anvendelse</dt>
-                <dd className="mt-1 text-base font-medium text-white">{anvendelseLabel ?? "Ikke oplyst"}</dd>
-              </div>
-              <div className={`${ui.panelInset} p-4`}>
-                <dt className="text-sm text-gray-300">Datakilde</dt>
-                <dd className="mt-1 text-base font-medium text-white">BBR og DAR via Datafordeler</dd>
-              </div>
-              <div className={`${ui.panelInset} p-4`}>
-                <dt className="text-sm text-gray-300">Seneste dataimport</dt>
-                <dd className="mt-1 text-base font-medium text-white">{formatDataDate(shelter.lastImportedAt)}</dd>
-              </div>
-              <div className={`${ui.panelInset} p-4`}>
-                <dt className="text-sm text-gray-300">Offentlig adgang</dt>
-                <dd className="mt-1 text-base font-medium text-white">Ikke oplyst i datasættet</dd>
-              </div>
-              <div className={`${ui.panelInset} p-4`}>
-                <dt className="text-sm text-gray-300">Aktuel fysisk stand</dt>
-                <dd className="mt-1 text-base font-medium text-white">Ikke verificeret</dd>
-              </div>
-            </dl>
-
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              {hasCoords ? (
-                <a
-                  href={`#${shelterMapSectionId}`}
-                  className={ui.primaryAction}
-                >
-                  Vis på kort
-                </a>
-              ) : null}
-              {mapHref ? (
-                <a
-                  href={mapHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={ui.secondaryAction}
-                >
-                  Åbn i Google Maps
-                </a>
-              ) : null}
-              <a
-                href={municipalityContactUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={ui.secondaryAction}
-              >
-                Find kommunen på Borger.dk
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {directionsHref ? (
+              <a href={directionsHref} target="_blank" rel="noopener noreferrer" className={ui.primaryAction}>
+                Vis vej i Google Maps
+                <span className="sr-only"> (åbner i en ny fane)</span>
               </a>
-              <Link
-                href={`/kommune/${shelter.municipality.slug}`}
-                className={ui.quietAction}
-              >
-                Se andre registreringer i {shelter.municipality.name}
-              </Link>
-            </div>
-          </section>
+            ) : null}
+            {hasCoords ? (
+              <a href={`#${shelterMapSectionId}`} className={ui.secondaryAction}>
+                Vis på kort
+              </a>
+            ) : null}
+          </div>
 
           {hasCoords ? (
-            <section id={shelterMapSectionId} className={`scroll-mt-24 p-5 sm:p-6 ${ui.panel}`}>
-              <h2 className="text-lg font-semibold text-white">Kort</h2>
-              <div className="mt-4">
-                <ShelterOsmEmbedMap
-                  latitude={shelter.latitude!}
-                  longitude={shelter.longitude!}
-                  title={`Kort over ${displayName}`}
-                />
-              </div>
+            <section id={shelterMapSectionId} className="mt-6 scroll-mt-24" aria-label="Kort">
+              <ShelterOsmEmbedMap
+                latitude={shelter.latitude!}
+                longitude={shelter.longitude!}
+                title={`Kort over ${displayName}`}
+                addressLabel={`${shelter.addressLine1}, ${shelter.postalCode} ${shelter.city}`}
+              />
             </section>
           ) : (
-            <section className={`${ui.panel} p-5 sm:p-6`}>
-              <h2 className="text-lg font-semibold text-white">Kort</h2>
-              <p className="mt-2 text-sm text-gray-300">
-                Der er ingen koordinater til denne registrering i det viste datasæt.
-              </p>
-            </section>
+            <p className="mt-6 text-sm text-gray-300">
+              Der er ingen koordinater til denne registrering i det viste datasæt.
+            </p>
           )}
 
-          <section className={`${ui.panel} p-5 sm:p-6`}>
-            <h2 className="text-lg font-semibold text-white">Er noget forkert?</h2>
-            <p className="mt-2 text-sm leading-6 text-gray-300">
-              Send en observation til moderationskøen. Rapporten ændrer ikke registreringen automatisk.
+          <section className="mt-8" aria-labelledby="registration-facts-heading">
+            <h2 id="registration-facts-heading" className={ui.sectionTitle}>Registrerede oplysninger</h2>
+            <dl className="mt-3 divide-y divide-white/10 border-y border-white/10 text-base">
+              {[
+                ["Registrerede pladser", `${shelter.capacity.toLocaleString("da-DK")} pladser`],
+                ["Bygningens registrerede anvendelse", anvendelseLabel ?? "Ikke oplyst"],
+                ["Offentlig adgang", "Ikke oplyst i datasættet"],
+                ["Aktuel fysisk stand", "Ikke verificeret"],
+                ["Datakilde", "BBR og DAR via Datafordeler"],
+                ["Seneste dataimport", formatDataDate(shelter.lastImportedAt)],
+              ].map(([term, value]) => (
+                <div key={term} className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:justify-between sm:gap-4">
+                  <dt className="text-gray-400">{term}</dt>
+                  <dd className="text-white sm:text-right">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-sm leading-6 text-gray-400">
+              Spørgsmål om adgang til rummet: kontakt ejeren af bygningen eller{" "}
+              <a href={municipalityContactUrl} target="_blank" rel="noopener noreferrer" className={ui.textLink}>kommunen via Borger.dk</a>.
             </p>
-            <div className="mt-4">
-              <ReportShelterIssue shelterId={shelter.id} shelterAddress={shelter.addressLine1} />
-            </div>
           </section>
 
           {relatedShelters.length > 0 ? (
-            <section className={`${ui.panel} p-5 sm:p-6`}>
-              <h2 className="text-lg font-semibold text-white">Andre registreringer i samme område</h2>
-              <ul className="mt-4 divide-y divide-white/10 border-y border-white/10">
+            <section className="mt-8" aria-labelledby="related-heading">
+              <h2 id="related-heading" className={ui.sectionTitle}>Andre registreringer i området</h2>
+              <ul className="mt-3 divide-y divide-white/10 border-y border-white/10">
                 {relatedShelters.map((related) => (
                   <li key={related.id}>
                     <Link
-                      href={`/beskyttelsesrum/${related.slug}`}
-                      className="flex min-h-[64px] items-center justify-between gap-4 py-3 text-sm hover:text-orange-200"
+                      href={getReadableShelterPathFromStable(related) as Route}
+                      className="flex min-h-[56px] items-center justify-between gap-4 py-2.5 text-base hover:bg-white/[0.04]"
                     >
                       <span>
-                        <span className="break-safe block font-medium text-white">{related.addressLine1}</span>
-                        <span className="mt-1 block text-gray-400">{related.postalCode} {related.city}</span>
+                        <span className="break-safe block font-medium text-white underline decoration-white/30 underline-offset-4">{related.addressLine1}</span>
+                        <span className="block text-sm text-gray-400">{related.postalCode} {related.city}</span>
                       </span>
-                      <span className="shrink-0 text-right text-gray-300">
+                      <span className="shrink-0 text-right text-sm text-gray-300">
                         {related.capacity.toLocaleString("da-DK")} pladser
                       </span>
                     </Link>
                   </li>
                 ))}
               </ul>
+              <p className="mt-3 text-sm">
+                <Link href={`/kommune/${shelter.municipality.slug}`} className={ui.textLink}>
+                  Alle registreringer i {shelter.municipality.name}
+                </Link>
+              </p>
             </section>
           ) : null}
+
+          <section className="mt-8" aria-labelledby="report-heading">
+            <h2 id="report-heading" className={ui.sectionTitle}>Er noget forkert?</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-300">
+              Send en observation til moderationskøen. Rapporten ændrer ikke registreringen automatisk.
+            </p>
+            <div className="mt-3">
+              <ReportShelterIssue shelterId={shelter.id} shelterAddress={shelter.addressLine1} />
+            </div>
+          </section>
         </article>
       </div>
 

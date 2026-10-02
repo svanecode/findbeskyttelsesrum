@@ -163,7 +163,7 @@ export default function ReportShelterIssue({ shelterId, shelterAddress }: Props)
             <input id="shelter-report-website" name="website" tabIndex={-1} autoComplete="off" />
           </div>
 
-          <p className="text-xs leading-5 text-gray-400">
+          <p className="text-sm leading-6 text-gray-400">
             Der indsamles ikke navn eller e-mail. Undlad CPR-nummer og andre følsomme oplysninger. En rapport ændrer ikke data automatisk.
           </p>
 

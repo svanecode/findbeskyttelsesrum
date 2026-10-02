@@ -10,6 +10,7 @@ import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-querie
 import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
 import { prefersReducedMotion } from '@/lib/ui/reduced-motion'
+import { getReadableGroupPaths } from '@/lib/shelter-public-url'
 
 const MapContainer = dynamic(
   () => import('react-leaflet').then((mod) => mod.MapContainer),
@@ -188,7 +189,7 @@ export default function KommuneMap({ groups, selectedGroupKey, onMarkerClick }: 
                         usageLine: group.applicationCodeLabel || '',
                         postalLine: `${group.postalCode} ${group.city}`.trim(),
                         capacity: group.totalCapacity,
-                        href: group.shelterCount === 1 ? `/beskyttelsesrum/${group.primarySlug}` : null,
+                        href: group.shelterCount === 1 ? getReadableGroupPaths(group, group.shelters).get(group.primarySlug) ?? null : null,
                       }),
                     }}
                   />

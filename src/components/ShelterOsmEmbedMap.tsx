@@ -8,6 +8,8 @@ type Props = {
   latitude: number;
   longitude: number;
   title: string;
+  /** Shown in the placeholder, which keeps the map's height so the page does not jump. */
+  addressLabel?: string;
 };
 
 /** Small bbox around a point for OSM embed (lon,lat order in bbox). */
@@ -17,7 +19,7 @@ function osmEmbedSrc(latitude: number, longitude: number) {
   return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${latitude}%2C${longitude}`;
 }
 
-export default function ShelterOsmEmbedMap({ latitude, longitude, title }: Props) {
+export default function ShelterOsmEmbedMap({ latitude, longitude, title, addressLabel }: Props) {
   // OpenStreetMap is only contacted after the visitor asks for the map, as the
   // privacy page promises.
   const [isActive, setIsActive] = useState(false);
@@ -33,7 +35,7 @@ export default function ShelterOsmEmbedMap({ latitude, longitude, title }: Props
   }, []);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-[color:var(--surface-inset)]">
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[color:var(--surface-inset)]">
       {isActive ? (
         <iframe
           title={title}
@@ -44,6 +46,7 @@ export default function ShelterOsmEmbedMap({ latitude, longitude, title }: Props
         />
       ) : (
         <div className="flex aspect-[4/3] min-h-[17rem] w-full flex-col items-center justify-center gap-3 p-6 text-center sm:min-h-[22rem]">
+          {addressLabel ? <p className="break-safe text-base font-medium text-white">{addressLabel}</p> : null}
           <p className="max-w-xs text-sm leading-6 text-gray-300">
             Kortet hentes fra OpenStreetMap, når du vælger at vise det.
           </p>
@@ -56,7 +59,7 @@ export default function ShelterOsmEmbedMap({ latitude, longitude, title }: Props
           </button>
         </div>
       )}
-      <p className="border-t border-white/10 px-3 py-2 text-xs text-gray-400">
+      <p className="border-t border-white/10 px-3 py-2 text-sm text-gray-400">
         Kort:{" "}
         <a
           href={`https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=16/${latitude}/${longitude}`}

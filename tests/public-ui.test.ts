@@ -3,12 +3,11 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const detailPageUrl = new URL("../src/app/beskyttelsesrum/[slug]/page.tsx", import.meta.url);
-const nearbyPageUrl = new URL("../src/app/shelters/nearby/client.tsx", import.meta.url);
+const nearbyPageUrl = new URL("../src/app/naer-dig/client.tsx", import.meta.url);
 const nearbyApiUrl = new URL("../src/app/api/app-v2/nearby/grouped/route.ts", import.meta.url);
 const dataPageUrl = new URL("../src/app/om-data/page.tsx", import.meta.url);
 const homePageUrl = new URL("../src/app/page.tsx", import.meta.url);
 const addressSearchUrl = new URL("../src/components/AddressSearch.tsx", import.meta.url);
-const registrationNoticeUrl = new URL("../src/components/RegistrationNotice.tsx", import.meta.url);
 const reportFormUrl = new URL("../src/components/ReportShelterIssue.tsx", import.meta.url);
 const reportApiUrl = new URL("../src/app/api/app-v2/shelter-reports/route.ts", import.meta.url);
 const privacyContactApiUrls = [
@@ -79,7 +78,7 @@ test("the homepage does not contain the removed personal example address", async
   const addressSearch = await readFile(addressSearchUrl, "utf8");
 
   assert.doesNotMatch(addressSearch, /Elsted Byvej/i);
-  assert.match(addressSearch, /Vejnavn, by eller postnr\./);
+  assert.match(addressSearch, /Adresse, by eller postnummer/);
 });
 
 test("core search surfaces explain registration limits and data freshness", async () => {
@@ -87,12 +86,14 @@ test("core search surfaces explain registration limits and data freshness", asyn
   const detailPage = await readFile(detailPageUrl, "utf8");
   const nearbyPage = await readFile(nearbyPageUrl, "utf8");
   const dataPage = await readFile(dataPageUrl, "utf8");
-  const registrationNotice = await readFile(registrationNoticeUrl, "utf8");
 
-  assert.match(homePage, /ikke en garanti for offentlig adgang/);
-  assert.match(nearbyPage, /RegistrationNotice/);
-  assert.match(registrationNotice, /Adgang ikke bekræftet/);
-  assert.match(registrationNotice, /Stand ikke verificeret/);
+  // Each caveat has one place: one line per page, the full text on /om-data.
+  assert.match(homePage, /Vi kan ikke se, om rummene er åbne\./);
+  assert.match(homePage, /Ved varsling:/);
+  assert.match(nearbyPage, /Adgang og stand er ikke bekræftet\./);
+  assert.match(detailPage, /Adgang og stand er ikke bekræftet\./);
+  assert.match(detailPage, /Ikke verificeret/);
+  assert.match(dataPage, /Hvad siden ikke lover/);
   assert.match(detailPage, /Datakilde/);
   assert.match(detailPage, /Seneste dataimport/);
   assert.match(dataPage, /Hvor kommer data fra\?/);
@@ -105,9 +106,9 @@ test("new searches use tab-local state and a URL without address or coordinates"
   const nearbyApi = await readFile(nearbyApiUrl, "utf8");
 
   assert.match(addressSearch, /saveNearbySearchContext/);
-  assert.match(addressSearch, /router\.push\('\/shelters\/nearby'\)/);
+  assert.match(addressSearch, /router\.push\('\/naer-dig'\)/);
   assert.doesNotMatch(addressSearch, /URLSearchParams/);
-  assert.doesNotMatch(addressSearch, /router\.push\(`\/shelters\/nearby\?/);
+  assert.doesNotMatch(addressSearch, /router\.push\(`\/naer-dig\?/);
   assert.match(nearbyPage, /method: 'POST'/);
   assert.match(nearbyPage, /body: JSON\.stringify\(\{ lat, lng, limit: nearbyResultLimit \}\)/);
   assert.doesNotMatch(nearbyPage, /nearby\/grouped\?/);
@@ -116,19 +117,22 @@ test("new searches use tab-local state and a URL without address or coordinates"
 
 test("nearby results use explicit actions and a mobile list-map switch", async () => {
   const nearbyPage = await readFile(nearbyPageUrl, "utf8");
-  const articleStart = nearbyPage.indexOf("<article");
-  const articleOpeningEnd = nearbyPage.indexOf(">\n", articleStart);
-  const resultCardOpening = nearbyPage.slice(articleStart, articleOpeningEnd);
+  const rowStart = nearbyPage.indexOf("<li\n                        key={shelter.id}");
+  const rowOpeningEnd = nearbyPage.indexOf(">\n", rowStart);
+  const resultRowOpening = nearbyPage.slice(rowStart, rowOpeningEnd);
 
   assert.match(nearbyPage, /role="tablist"/);
   assert.match(nearbyPage, /aria-controls="nearby-list-panel"/);
   assert.match(nearbyPage, /aria-controls="nearby-map-panel"/);
-  assert.match(nearbyPage, /Adgang ikke bekræftet · Stand ikke verificeret/);
-  assert.match(nearbyPage, /<details/);
-  assert.match(nearbyPage, />Vis på kort</);
+  assert.ok(rowStart > 0, "result rows render as list items");
+  // No caveat or disclosure per result: the address links to the detail page.
+  assert.doesNotMatch(nearbyPage, /Adgang ikke bekræftet · Stand ikke verificeret/);
+  assert.doesNotMatch(nearbyPage, /<details/);
+  assert.match(nearbyPage, /<Link href=\{detailPath\}/);
+  assert.match(nearbyPage, /Vis på kort/);
   assert.match(nearbyPage, /aria-label="Valgt registrering"/);
-  assert.doesNotMatch(resultCardOpening, /tabIndex=/);
-  assert.doesNotMatch(resultCardOpening, /onClick=/);
+  assert.doesNotMatch(resultRowOpening, /tabIndex=/);
+  assert.doesNotMatch(resultRowOpening, /onClick=/);
 });
 
 test("detail pages expose contact, moderated reporting and related registrations", async () => {
@@ -137,8 +141,9 @@ test("detail pages expose contact, moderated reporting and related registrations
   const reportApi = await readFile(reportApiUrl, "utf8");
 
   assert.match(detailPage, /Vis på kort/);
-  assert.match(detailPage, /Find kommunen på Borger\.dk/);
-  assert.match(detailPage, /Andre registreringer i samme område/);
+  assert.match(detailPage, /Vis vej i Google Maps/);
+  assert.match(detailPage, /kommunen via Borger\.dk/);
+  assert.match(detailPage, /Andre registreringer i området/);
   assert.doesNotMatch(detailPage, /Andre registreringer i nærheden/);
   assert.match(detailPage, /ReportShelterIssue/);
   assert.match(detailPage, /getAppV2PublicRelatedShelters/);
@@ -159,7 +164,8 @@ test("shelter detail routes resolve old URLs and redirect to one canonical ident
   ]);
 
   assert.match(detailPage, /resolveAppV2PublicShelter/);
-  assert.match(detailPage, /permanentRedirect\(getShelterCanonicalPath\(shelter\.slug\)\)/);
+  assert.match(detailPage, /resolveReadableShelterSlug/);
+  assert.match(detailPage, /permanentRedirect\(getShelterCanonicalPath\(canonicalSlug\)\)/);
   assert.match(queries, /from\("shelter_slug_aliases"\)/);
   assert.match(queries, /getStableShelterSlug/);
   assert.match(publicUrl, /registrering-/);
@@ -232,7 +238,8 @@ test("the compact footer links to accurate privacy and reporting guidance", asyn
   assert.match(privacyPage, /kræver netforbindelse/);
   assert.doesNotMatch(privacyPage, /tilbyder ikke en offlinekopi/);
   assert.match(privacyPage, /Viser gemte data/);
-  assert.match(privacyPage, /intet om din position eller søgning/);
+  assert.match(privacyPage, /Gem til brug uden net/);
+  assert.match(privacyPage, /ikke en del af samtykket/);
   assert.match(privacyPage, /Dataansvarlig og kontakt/);
   assert.match(privacyPage, /Retsgrundlaget/);
   assert.match(privacyPage, /Dine rettigheder/);

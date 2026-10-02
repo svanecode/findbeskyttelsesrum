@@ -170,10 +170,12 @@ select:focus:not(:focus-visible) {
   line-height: 1;
 }
 
+/* Orange marks only the selected result; the others stay neutral. */
 .nearby-map-pin-shelter {
   width: 30px;
   height: 30px;
   border-width: 3px;
+  background: #e5e7eb;
   font-size: 13px;
 }
 
@@ -200,6 +202,10 @@ select:focus:not(:focus-visible) {
   line-height: 1;
 }
 
+.nearby-result-number-quiet {
+  background: #e5e7eb;
+}
+
 .nearby-legend-number {
   width: 18px;
   height: 18px;
@@ -218,8 +224,17 @@ select:focus:not(:focus-visible) {
   background: #3b82f6;
 }
 
-.leaflet-tile-container,
-.leaflet-tile-container img,
+/* Dark rendering of the existing OpenStreetMap tiles. Only the tile pane is
+   filtered; markers, popups and the attribution live in other panes and keep
+   their colours. */
+.leaflet-container {
+  background: #1b1d21 !important;
+}
+
+.leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(1.05) contrast(0.85) saturate(0.6);
+}
+
 .leaflet-marker-icon {
   filter: none !important;
 }

@@ -24,7 +24,7 @@ test("client error reports reject identifiers and unknown top-level fields", () 
 
 test("location clues and embedded URL parameters are redacted from free text", () => {
   const value = redactPotentialLocationData(
-    "Fejl ved Vesterbrogade 3, 1620 København V; lat=55.6761 lng:12.5683; par 55.6761, 12.5683; https://findbeskyttelsesrum.dk/shelters/nearby?lat=55.67&lng=12.56#kort",
+    "Fejl ved Vesterbrogade 3, 1620 København V; lat=55.6761 lng:12.5683; par 55.6761, 12.5683; https://findbeskyttelsesrum.dk/naer-dig?lat=55.67&lng=12.56#kort",
   );
 
   assert.doesNotMatch(value, /Vesterbrogade 3/);
@@ -33,7 +33,7 @@ test("location clues and embedded URL parameters are redacted from free text", (
   assert.doesNotMatch(value, /\?lat=/);
   assert.match(value, /\[address redacted\]/);
   assert.match(value, /\[coordinates redacted\]|\[location redacted\]/);
-  assert.match(value, /https:\/\/findbeskyttelsesrum\.dk\/shelters\/nearby/);
+  assert.match(value, /https:\/\/findbeskyttelsesrum\.dk\/naer-dig/);
   assert.equal(stripUrlQuery("/kort?lat=55#valgt"), "/kort");
 });
 

@@ -28,7 +28,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test("centrale sider kan bruges ved 200 procent zoom uden vandret rulning", { tag: "@full-stack" }, async ({ page }) => {
   const routes = [
-    { path: "/", heading: "Se registrerede beskyttelsesrum nær dig" },
+    { path: "/", heading: "Find beskyttelsesrum nær dig" },
     { path: "/kommune", heading: "Kommuneoversigt" },
     { path: "/kort", heading: "Landskort" },
     { path: "/om-data", heading: "Datagrundlag" },
@@ -65,12 +65,12 @@ test("lange adresser bryder sikkert i resultater og det mobile kortpanel", async
 
   await installNearbySearchContext(page, { label: longAddress });
   await mockNearby(page, 200, longResponse);
-  await page.goto("/shelters/nearby");
+  await page.goto("/naer-dig");
 
   await expect(page.getByText(longResponse.results[0].address.line1, { exact: true })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
-  await page.getByRole("button", { name: "Vis på kort" }).click();
+  await page.getByRole("button", { name: /^Vis .* på kort$/ }).click();
   await expect(page.getByLabel("Valgt registrering")).toContainText("Den Ekstraordinært Lange Vejbetegnelse");
   await expectNoHorizontalOverflow(page);
 });
