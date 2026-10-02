@@ -97,6 +97,61 @@ query FetchDarPostalCodes(
 """
 
 
+# Every postcode in DAR, for the address search. Postcodes have no position in
+# DAR, so one current address access point stands in for the postcodes that no
+# registration covers.
+DAR_ALL_POSTAL_QUERY = """
+query FetchAllDarPostalCodes(
+  $first: Int!, $after: String,
+  $registreringstid: DafDateTime, $virkningstid: DafDateTime
+) {
+  DAR_Postnummer(
+    first: $first, after: $after,
+    registreringstid: $registreringstid, virkningstid: $virkningstid
+  ) {
+    nodes { id_lokalId postnr navn }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"""
+
+DAR_POSTAL_HOUSE_QUERY = """
+query FetchDarHouseInPostalCode(
+  $postnummer: String!,
+  $registreringstid: DafDateTime, $virkningstid: DafDateTime
+) {
+  DAR_Husnummer(
+    first: 1,
+    registreringstid: $registreringstid, virkningstid: $virkningstid,
+    where: { postnummer: { eq: $postnummer }, status: { eq: "3" } }
+  ) {
+    nodes { id_lokalId adgangspunkt }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"""
+
+DAR_ADDRESS_POINT_QUERY = """
+query FetchDarAddressPoints(
+  $first: Int!, $after: String, $ids: [String!],
+  $registreringstid: DafDateTime, $virkningstid: DafDateTime
+) {
+  DAR_Adressepunkt(
+    first: $first, after: $after,
+    registreringstid: $registreringstid, virkningstid: $virkningstid,
+    where: { id_lokalId: { in: $ids } }
+  ) {
+    nodes { id_lokalId position { wkt } }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"""
+
+# Stop asking for positions after this many failed postcode lookups in a row;
+# the postcodes are still saved and get a position on a later run.
+MAX_CONSECUTIVE_POSITION_FAILURES = 10
+
+
 class DatafordelerError(RuntimeError):
     """Safe upstream error that never contains the API key."""
 
@@ -370,6 +425,96 @@ class DatafordelerSource:
                 )
             )
         return records, warnings, dar_missing_count, mapping_failure_count
+
+    def postal_areas(
+        self, *, snapshot_at: str, positioned: set[str]
+    ) -> list[dict[str, Any]]:
+        """Every DAR postcode as {postnr, name, latitude, longitude}.
+
+        Postcodes in `positioned` already have a position (from registrations
+        or an earlier run) and are sent without one.
+        """
+        postcodes: dict[str, dict[str, Any]] = {}
+        after: str | None = None
+        while True:
+            data = self.dar.query(
+                "FetchAllDarPostalCodes",
+                DAR_ALL_POSTAL_QUERY,
+                {
+                    "first": 1000,
+                    "after": after,
+                    "registreringstid": snapshot_at,
+                    "virkningstid": snapshot_at,
+                },
+            )
+            connection = _connection(data, "DAR_Postnummer")
+            for node in connection["nodes"]:
+                postnr = _text(node, "postnr")
+                name = _text(node, "navn")
+                if re.fullmatch(r"\d{4}", postnr) and name:
+                    postcodes[postnr] = {"id": str(node.get("id_lokalId") or ""), "name": name}
+            info = connection["pageInfo"]
+            if not info.get("hasNextPage"):
+                break
+            next_cursor = info.get("endCursor")
+            if not next_cursor or next_cursor == after:
+                raise DatafordelerError("DAR_Postnummer pagination did not advance its cursor")
+            after = next_cursor
+
+        access_points: dict[str, str] = {}
+        failures = 0
+        for postnr, postcode in sorted(postcodes.items()):
+            if postnr in positioned or not postcode["id"]:
+                continue
+            if failures >= MAX_CONSECUTIVE_POSITION_FAILURES:
+                break
+            try:
+                data = self.dar.query(
+                    "FetchDarHouseInPostalCode",
+                    DAR_POSTAL_HOUSE_QUERY,
+                    {
+                        "postnummer": postcode["id"],
+                        "registreringstid": snapshot_at,
+                        "virkningstid": snapshot_at,
+                    },
+                )
+                nodes = _connection(data, "DAR_Husnummer")["nodes"]
+                failures = 0
+            except DatafordelerError as exc:
+                failures += 1
+                logger.warning("No DAR address for postcode %s: %s", postnr, exc)
+                continue
+            point_id = str(nodes[0].get("adgangspunkt") or "") if nodes else ""
+            if point_id:
+                access_points[postnr] = point_id
+
+        points = (
+            self._lookup(
+                "DAR_Adressepunkt",
+                "FetchDarAddressPoints",
+                DAR_ADDRESS_POINT_QUERY,
+                _unique(access_points.values()),
+                snapshot_at,
+            )
+            if access_points
+            else {}
+        )
+
+        rows: list[dict[str, Any]] = []
+        for postnr, postcode in sorted(postcodes.items()):
+            latitude, longitude = (None, None)
+            point = points.get(access_points.get(postnr, ""))
+            if point:
+                latitude, longitude = self._coordinates(point.get("position"))
+            rows.append(
+                {
+                    "postnr": postnr,
+                    "name": postcode["name"],
+                    "latitude": latitude,
+                    "longitude": longitude,
+                }
+            )
+        return rows
 
     def _lookup(
         self,

@@ -7,9 +7,10 @@
  * codes here and sent as a filter. A bare postcode or town ("8000") has no
  * Adressevælger result at all, so it becomes an area suggestion.
  *
- * The table in postal-areas.json is derived from the published registrations
- * in app_v2 (postcode, name, municipality codes and the mean position of the
- * registrations), so it only covers postcodes that have registrations.
+ * The live table comes from app_v2.postal_areas: every DAR postcode, refreshed
+ * by each import, positioned by its registrations or, without any, by one DAR
+ * address. postal-areas.json is a bundled fallback with the postcodes that had
+ * registrations on 2 October 2026.
  */
 
 export type PostalAreaRow = [postnr: string, name: string, municipalityCodes: string[], latitude: number, longitude: number];
@@ -141,14 +142,44 @@ export function parseLocality(query: string, table: PostalAreaTable): ParsedLoca
   return null;
 }
 
+export function isPostalAreaTable(value: unknown): value is PostalAreaTable {
+  if (!value || typeof value !== "object") return false;
+  const table = value as Partial<PostalAreaTable>;
+  return Array.isArray(table.postnumre) && Array.isArray(table.kommuner)
+    && table.postnumre.every((row) => Array.isArray(row) && row.length === 5
+      && typeof row[0] === "string" && typeof row[1] === "string" && Array.isArray(row[2])
+      && typeof row[3] === "number" && typeof row[4] === "number");
+}
+
+async function loadBundledTable(): Promise<PostalAreaTable> {
+  const imported = await import("./postal-areas.json");
+  const data = ((imported as unknown as { default?: PostalAreaTable }).default ?? imported) as unknown as PostalAreaTable;
+  return { postnumre: data.postnumre, kommuner: data.kommuner };
+}
+
 let tablePromise: Promise<PostalAreaTable> | null = null;
 
-/** Loads the table on first use, so it stays out of the first page load. */
+/**
+ * Loads the postcode table on first use, so it stays out of the first page
+ * load. The live table (/api/app-v2/postal-areas) has every Danish postcode
+ * and is refreshed by each import; the bundled copy is the fallback when it
+ * cannot be reached.
+ */
 export function loadPostalAreaTable(): Promise<PostalAreaTable> {
-  tablePromise ??= import("./postal-areas.json").then((module) => {
-    const data = ((module as unknown as { default?: PostalAreaTable }).default ?? module) as unknown as PostalAreaTable;
-    return { postnumre: data.postnumre, kommuner: data.kommuner };
-  }).catch((error) => {
+  tablePromise ??= (async () => {
+    if (typeof window !== "undefined") {
+      try {
+        const response = await fetch("/api/app-v2/postal-areas", { signal: AbortSignal.timeout(4000) });
+        if (response.ok) {
+          const table: unknown = await response.json();
+          if (isPostalAreaTable(table)) return table;
+        }
+      } catch {
+        // Fall back to the bundled table below.
+      }
+    }
+    return loadBundledTable();
+  })().catch((error) => {
     tablePromise = null;
     throw error;
   });

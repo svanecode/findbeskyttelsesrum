@@ -158,3 +158,34 @@ test("the offline copy record is validated before use (A4)", () => {
     { version: 1, savedAt: "2026-10-01T10:00:00.000Z" },
   );
 });
+
+test("a removed registration's page answers with its last address and a nearby search", async () => {
+  const { retiredShelterHtml } = await import("../src/lib/retired-shelter-page");
+  const html = retiredShelterHtml({ addressLine1: "Nyvej <3>", postalCode: "8000", city: "Aarhus C", latitude: 56.15, longitude: 10.2 });
+  assert.match(html, /Registreringen findes ikke længere i BBR/);
+  assert.match(html, /Nyvej &#60;3&#62;, 8000 Aarhus C/);
+  assert.match(html, /href="\/naer-dig\?lat=56\.15&#38;lng=10\.2&#38;q=Nyvej\+%3C3%3E%2C\+8000\+Aarhus\+C"/);
+  assert.match(retiredShelterHtml(null), /href="\/"/);
+});
+
+test("the proxy recognises removed paths from a cached hash list and fails open", async () => {
+  const { isRetiredShelterPath, sha256Hex } = await import("../src/lib/retired-shelter-paths");
+  const env = { url: "https://example.supabase.co", publishableKey: "key" };
+  const removed = await sha256Hex("nyvej-3-8000-aarhus-c");
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return Response.json([{ path_hash: removed }]);
+  }) as typeof fetch;
+
+  assert.equal(await isRetiredShelterPath("nyvej-3-8000-aarhus-c", env), true);
+  assert.equal(await isRetiredShelterPath("ryesgade-18-8000-aarhus-c", env), false);
+  assert.equal(calls, 1, "the list is fetched once and then served from memory");
+});
+
+test("the live postcode table is validated before use", async () => {
+  const { isPostalAreaTable } = await import("../src/lib/address/locality");
+  assert.equal(isPostalAreaTable({ postnumre: [["6857", "Blåvand", [], 55.56, 8.08]], kommuner: [] }), true);
+  assert.equal(isPostalAreaTable({ postnumre: [["6857", "Blåvand"]], kommuner: [] }), false);
+  assert.equal(isPostalAreaTable({ error: { code: "postal_areas_unavailable" } }), false);
+});

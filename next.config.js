@@ -56,7 +56,8 @@ export function contentSecurityPolicyValue({
     `img-src 'self' data: blob: ${osmTileOrigin}`,
     "font-src 'self' data:",
     `connect-src ${connectSrc.join(' ')}`,
-    "frame-src https://www.openstreetmap.org",
+    // Every map is a Leaflet map with tiles as images; nothing is framed.
+    "frame-src 'none'",
     "media-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",

@@ -119,3 +119,28 @@ Hele rækken er ét link, "Se kommune" er væk (målt 0). Kapaciteten står én 
 3. Ryesgade-mønstret (B4) findes i 62 par. Skal vi bede BBR eller kommunerne om at afklare, om det er samme rum, eller lade det ligge?
 4. Detaljesidens kort er stadig OpenStreetMaps eget iframe med lyse fliser. CSS-filteret kan ikke bruges dér uden også at farve markøren. Skal det skiftes til et Leaflet-kort med mørke fliser?
 5. Læsbare URL'er: hvis en adresse ændres i BBR, ændres URL'en også. Den gamle adresse giver da 404 (registrerings-id'et virker fortsat). Er det acceptabelt, eller skal vi gemme gamle læsbare adresser som aliasser i `app_v2`?
+
+## Opfølgning: beslutninger 2. oktober 2026
+
+Svar på de åbne spørgsmål er implementeret på samme gren.
+
+1. **Forslag søger med det samme.** Klik eller Enter på et adresse- eller postnummerforslag søger straks (`src/components/AddressSearch.tsx`). Vejforslag udfylder stadig feltet, så man kan skrive husnummer. Tilbage på forsiden står den søgte adresse i feltet. "Søg" bruges til fritekst efter A2.
+2. **Alle postnumre, opdateret ved hver import.**
+   - Ny tabel `app_v2.postal_areas` med det offentlige view `postal_area_public_v1` (migration `20261002120000_...`).
+   - Importeren henter alle DAR-postnumre efter hver publicering (`tools/datafordeler-importer`). Postnumre uden registreringer får positionen fra én aktuel DAR-adresse. Postnumre med registreringer bruger gennemsnittet af dem.
+   - Appen henter tabellen fra `/api/app-v2/postal-areas` (CDN-cache) og falder tilbage til den indbyggede fil.
+   - Finder nærhedssøgningen intet inden for 50 km, søger den igen ud til 100 km og siger det tydeligt.
+3. **Ingen gruppering uden fælles nøgle.** Der er ingen adresser, der deler bygnings-id, så der grupperes ikke på tværs af adresser. Det interne view `app_v2.registration_duplicate_review_v1` (kun service role) viser de 62 par med årsag: 25 på forskellige adresser og 37 på samme adresse.
+4. **Ét kort.** `src/components/ShelterMap.tsx` bruges nu af både resultatsiden og detaljesiden (`ShelterDetailMap.tsx`). Det har mørkt filter på flise-laget og en orange markør uden filter, og det indlæses først ved klik. OSM-iframen er fjernet, og CSP har nu `frame-src 'none'`.
+5. **Ingen 404 for delte links.**
+   - Tabellen `app_v2.shelter_path_aliases` (path_slug, shelter_id, valid_from, valid_to) får alle læsbare adresser. `refresh_shelter_path_aliases_v1()` kører efter hver publicering, og gamle adresser giver 308 til den aktuelle. Hash-adresser og ældre importer-slugs giver også 308.
+   - En registrering, der er fjernet fra BBR, svarer 410 med "Registreringen findes ikke længere i BBR" og et link til søgning ved den sidste adresse.
+   - Next 16 kan ikke sætte 410 fra en side. Derfor omskriver `src/proxy.ts` til route handleren `/beskyttelsesrum/[slug]/fjernet`. Proxyen tjekker mod en liste med SHA-256 af de fjernede stier, som hver server holder i hukommelsen i 10 minutter. Det koster ingen databasekald pr. visning, og ved fejl falder den tilbage til normal visning.
+
+SQL-reglen for læsbare adresser er kontrolleret mod TypeScript-reglen. MD5 over alle 10.104 registreringer er ens.
+
+Test: 160 unit-tests, 41 importer-tests (ruff og mypy), 24 databasetests (pgTAP på en lokal Postgres med hele migrationshistorikken), e2e Chromium 102 bestået.
+
+Kræver handling:
+- Migrationen er ikke kørt i produktion. Koden virker uden den: aliaser og 410 er slået fra, og postnumre bruger den indbyggede fil. Den skal køres før merge, som README beskriver.
+- Importerens DAR-felter til positioner (`DAR_Husnummer.adgangspunkt` og `DAR_Adressepunkt.position`) kan ikke afprøves herfra, fordi miljøet ikke har nogen Datafordeler-nøgle. Trinnet kan ikke få importen til at fejle. Fejler det, får postnumrene ingen position og vises ikke som område, før det er rettet. Tjek loggen efter første kørsel.

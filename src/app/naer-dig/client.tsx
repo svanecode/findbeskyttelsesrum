@@ -4,18 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import dynamic from 'next/dynamic'
 import type { Route } from 'next'
 import Link from 'next/link'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import '@/styles/leaflet-overrides.css'
 
 import GlobalFooter from '@/components/GlobalFooter'
 import MapUnavailableNotice from '@/components/MapUnavailableNotice'
 import OfflineCopyControl from '@/components/OfflineCopyControl'
 import type { MapTileStatus } from '@/components/ResilientMapTileLayer'
 import { ui } from '@/components/ui-classes'
-import { ensureLeafletPopupStyles } from '@/lib/leaflet/ensure-popup-styles'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
-import { setupLeafletDefaults } from '@/lib/leaflet/setup-defaults'
 import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
 import {
   isNearbyTilePayload,
@@ -26,52 +21,16 @@ import {
   type NearbyTilePayload,
 } from '@/lib/nearby/tiles'
 import { trackProductMetric } from '@/lib/analytics/product-metrics'
-import { NearbyFitBounds } from './nearby-fit-bounds'
 import { scrollBehavior } from '@/lib/ui/reduced-motion'
 import { getReadableGroupPrimaryPath, getReadableShelterPathFromStable } from '@/lib/shelter-public-url'
 
-setupLeafletDefaults(L)
-
-const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
-const Popup = dynamic(() => import('react-leaflet').then((mod) => mod.Popup), { ssr: false })
-const ResilientMapTileLayer = dynamic(() => import('@/components/ResilientMapTileLayer'), { ssr: false })
+const ShelterMap = dynamic(() => import('@/components/ShelterMap'), { ssr: false })
 
 const nearbyResultLimit = 10
 const nearbyRadiusKm = 50
-
-const createDivIcon = (className: string, html: string, size = 40) =>
-  L.divIcon({
-    className,
-    html,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -size / 2],
-  })
-
-const userLocationIcon = createDivIcon(
-  'user-location-marker',
-  '<div class="nearby-map-pin-user" aria-hidden="true"></div>',
-  44,
-)
-
-// Pins carry the result's number so the map and the list can be matched at a
-// glance; icons are cached because Leaflet compares them by identity.
-const numberedShelterIcons = new Map<string, L.DivIcon>()
-
-function getNumberedShelterIcon(number: number, selected: boolean) {
-  const key = `${number}:${selected ? 'selected' : 'default'}`
-  let icon = numberedShelterIcons.get(key)
-  if (!icon) {
-    icon = createDivIcon(
-      selected ? 'shelter-marker-selected' : 'shelter-marker',
-      `<div class="${selected ? 'nearby-map-pin-shelter-hover' : 'nearby-map-pin-shelter'}" aria-hidden="true">${number}</div>`,
-      44,
-    )
-    numberedShelterIcons.set(key, icon)
-  }
-  return icon
-}
+// When nothing lies within the normal radius (a postcode far from any
+// registration), search once more this far out rather than show an empty list.
+const widenedRadiusKm = 100
 
 function formatDistanceKm(distanceKm: number) {
   if (!Number.isFinite(distanceKm)) return ''
@@ -191,11 +150,11 @@ function formatSavedAt(value: string) {
   return new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(date)
 }
 
-async function fetchAppV2GroupedShelters(lat: number, lng: number): Promise<NearbyResultShelter[]> {
+async function fetchAppV2GroupedShelters(lat: number, lng: number, radiusKm?: number): Promise<NearbyResultShelter[]> {
   const response = await fetch('/api/app-v2/nearby/grouped', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lat, lng, limit: nearbyResultLimit }),
+    body: JSON.stringify(radiusKm ? { lat, lng, limit: nearbyResultLimit, radius: radiusKm * 1000 } : { lat, lng, limit: nearbyResultLimit }),
     cache: 'no-store',
   }).catch(() => {
     throw new NearbyConnectionError('app_v2 grouped nearby got no response')
@@ -229,6 +188,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const [isRetryingBusy, setIsRetryingBusy] = useState(false)
   // Set when results were built while offline or from the worker's saved tiles.
   const [savedDataNotice, setSavedDataNotice] = useState<{ savedAt: string | null } | null>(null)
+  const [isWidened, setIsWidened] = useState(false)
   const [srMapSelection, setSrMapSelection] = useState('')
   const shelterRefs = useRef<Record<string, HTMLElement | null>>({})
   const headingRef = useRef<HTMLHeadingElement | null>(null)
@@ -251,10 +211,6 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
     () => shelters.find((shelter) => shelter.id === selectedShelterId) ?? null,
     [selectedShelterId, shelters],
   )
-
-  useEffect(() => {
-    ensureLeafletPopupStyles()
-  }, [])
 
   // A new search starts at the top with focus on the result heading, so
   // keyboard and screen reader users land where the results begin.
@@ -311,10 +267,20 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         setLoadError(null)
         setIsRetryingBusy(false)
         setSavedDataNotice(null)
+        setIsWidened(false)
         const tileData = await fetchNearbyFromTiles(lat, lng).catch(() => null)
-        const shelterData = tileData?.shelters ?? await fetchWithOneBusyRetry()
+        let shelterData = tileData?.shelters ?? await fetchWithOneBusyRetry()
+        let widened = false
+        if (shelterData.length === 0) {
+          const wider = await fetchAppV2GroupedShelters(lat, lng, widenedRadiusKm).catch(() => [])
+          if (wider.length > 0) {
+            shelterData = wider
+            widened = true
+          }
+        }
         if (isMounted) {
           setShelters(shelterData)
+          setIsWidened(widened)
           // The browser's own short HTTP cache can answer offline too, so being
           // offline always earns the notice, with a date when the worker knows it.
           const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -526,7 +492,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
               </div>
             ) : shelters.length === 0 ? (
               <div className={`${ui.panel} p-4`} role="status" aria-live="polite">
-                <p className="text-lg font-semibold text-white">Ingen registreringer i resultatet</p>
+                <p className="text-lg font-semibold text-white">Ingen registreringer inden for {widenedRadiusKm} km</p>
                 <p className="mt-2 text-gray-300">Prøv en anden adresse. Du kan også gennemse pr. kommune. Følg altid myndighedernes anvisninger.</p>
                 <p className="mt-2 text-sm text-gray-400">
                   Oversigten viser kun registreringer med mindst 40 pladser.{' '}
@@ -540,6 +506,11 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             ) : (
               <>
                 <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{srMapSelection}</div>
+                {isWidened ? (
+                  <p className="border-l-2 border-yellow-500 pl-3 text-sm leading-6 text-yellow-100" role="status">
+                    Der er ingen registreringer inden for {nearbyRadiusKm} km. Her er de nærmeste inden for {widenedRadiusKm} km.
+                  </p>
+                ) : null}
                 <ol className="divide-y divide-white/10 border-y border-white/10">
                   {shelters.map((shelter, index) => {
                     const detailPath = getDetailPath(shelter)
@@ -619,39 +590,38 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
               >
                 <div className="absolute inset-0 overflow-hidden rounded-lg border border-white/10">
                   {shouldRenderMap ? (
-                    <MapContainer className="nearby-map" center={[lat, lng]} zoom={13} style={{ width: '100%', height: '100%' }} ref={mapRef} zoomControl scrollWheelZoom={false}>
-                      <ResilientMapTileLayer key={tileRetryKey} onStatusChange={handleTileStatusChange} />
-                      <Marker position={[lat, lng]} icon={userLocationIcon} title="Søgepunkt" />
-                      {shelters.map((shelter, index) => shelter.location ? (
-                        <Marker
-                          key={shelter.id}
-                          position={[shelter.location.coordinates[1], shelter.location.coordinates[0]]}
-                          icon={getNumberedShelterIcon(index + 1, selectedShelterId === shelter.id)}
-                          // Leaflet ignores alt on div icons; title is the marker's accessible name.
-                          title={`${index + 1}. ${getAddressLine(shelter)}`}
-                          eventHandlers={{
-                            click: () => {
-                              selectionReturnRef.current = null
-                              setSelectedShelterId(shelter.id)
-                              setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
-                              if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
-                            },
-                          }}
-                        >
-                          <Popup className="fb-popup">
-                            <div dangerouslySetInnerHTML={{ __html: buildLeafletPopupHtml({
-                              title: getAddressLine(shelter),
-                              usageLine: formatBuildingUse(shelter) ?? '',
-                              postalLine: getPostalLine(shelter),
-                              capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
-                              href: getDetailPath(shelter),
-                              linkLabel: 'Se detaljer',
-                            }) }} />
-                          </Popup>
-                        </Marker>
-                      ) : null)}
-                      <NearbyFitBounds userLocation={[lat, lng]} shelters={shelters} />
-                    </MapContainer>
+                    <ShelterMap
+                      ref={mapRef}
+                      center={[lat, lng]}
+                      zoom={13}
+                      searchPoint={[lat, lng]}
+                      fitToMarkers
+                      tileRetryKey={tileRetryKey}
+                      onTileStatusChange={handleTileStatusChange}
+                      markers={shelters.flatMap((shelter, index) => shelter.location ? [{
+                        id: shelter.id,
+                        position: [shelter.location.coordinates[1], shelter.location.coordinates[0]] as [number, number],
+                        label: String(index + 1),
+                        title: `${index + 1}. ${getAddressLine(shelter)}`,
+                        selected: selectedShelterId === shelter.id,
+                        popupHtml: buildLeafletPopupHtml({
+                          title: getAddressLine(shelter),
+                          usageLine: formatBuildingUse(shelter) ?? '',
+                          postalLine: getPostalLine(shelter),
+                          capacity: typeof shelter.total_capacity === 'number' ? shelter.total_capacity : 0,
+                          href: getDetailPath(shelter),
+                          linkLabel: 'Se detaljer',
+                        }),
+                      }] : [])}
+                      onMarkerClick={(id) => {
+                        const shelter = shelters.find((item) => item.id === id)
+                        if (!shelter) return
+                        selectionReturnRef.current = null
+                        setSelectedShelterId(shelter.id)
+                        setSrMapSelection(`${getAddressLine(shelter)} er valgt på kortet.`)
+                        if (window.innerWidth >= 1024) shelterRefs.current[shelter.id]?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
+                      }}
+                    />
                   ) : (
                     <div className="flex h-full items-center justify-center bg-[var(--surface-elevated)] p-6 text-center" role="status">
                       <p className="max-w-sm text-sm leading-6 text-gray-300">Kortet indlæses først, når du vælger kortvisningen.</p>

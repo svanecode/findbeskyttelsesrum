@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+import { isRetiredShelterPath } from '@/lib/retired-shelter-paths'
 import { getSupabasePublicEnv } from '@/lib/supabase/env'
 
 /**
@@ -13,6 +14,28 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   let response = NextResponse.next({ request })
+
+  // A registration removed from BBR answers 410 at its own address.
+  const detail = /^\/beskyttelsesrum\/([^/]+)\/?$/.exec(pathname)
+  if (detail && !request.nextUrl.searchParams.has('findes')) {
+    let slug = detail[1]!
+    try {
+      slug = decodeURIComponent(slug)
+    } catch {
+      // Keep the raw segment; the page answers 404 for it.
+    }
+    let env: { url: string; publishableKey: string } | null = null
+    try {
+      env = getSupabasePublicEnv()
+    } catch {
+      env = null
+    }
+    if (env && (await isRetiredShelterPath(slug, env))) {
+      const target = request.nextUrl.clone()
+      target.pathname = `/beskyttelsesrum/${encodeURIComponent(slug)}/fjernet`
+      response = NextResponse.rewrite(target, { request })
+    }
+  }
 
   // /kommune/<slug>?q=... searches the whole municipality on the server. The
   // plain municipality pages stay static; only searches reach the dynamic route.

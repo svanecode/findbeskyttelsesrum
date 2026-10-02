@@ -11,7 +11,7 @@ import {
   searchAddresses,
   type AddressSuggestion,
 } from '@/lib/address/adressevaelger'
-import { saveNearbySearchContext } from '@/lib/nearby/search-context'
+import { loadNearbySearchContext, saveNearbySearchContext } from '@/lib/nearby/search-context'
 import { trackProductMetric, type ProductMetricEventName } from '@/lib/analytics/product-metrics'
 
 const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'
@@ -156,7 +156,11 @@ export default function AddressSearch() {
     [handleError],
   )
 
-  /** Puts a chosen suggestion in the field. Streets keep the caret where the house number goes. */
+  /**
+   * Choosing an address or area (click or Enter) searches at once; the
+   * address stays in the field so it can be corrected. A street only fills
+   * the field, with the caret where the house number goes.
+   */
   const selectSuggestion = useCallback(
     async (suggestion: AddressSuggestion) => {
       setIsOpen(false)
@@ -178,17 +182,19 @@ export default function AddressSearch() {
 
       setSelectedAddress(null)
       setQuery(suggestion.label)
+      trackProductMetric('address_search_started')
       const resolved = await resolveSuggestion(suggestion)
       if (!resolved) return
       setSelectedAddress(resolved)
       setQuery(suggestion.kind === 'area' ? suggestion.label : resolved.label)
+      navigateToNearby(resolved, 'address_selected')
     },
-    [resolveSuggestion],
+    [navigateToNearby, resolveSuggestion],
   )
 
   /**
-   * The one search action behind both the "Søg" button and Enter:
-   * 1. a chosen suggestion is searched,
+   * The free-text search behind both the "Søg" button and Enter in the field:
+   * 1. an address already chosen (and still unchanged in the field) is searched again,
    * 2. free text with exactly one clear match takes it and searches,
    * 3. otherwise the suggestions open with an instruction to choose.
    */
@@ -344,6 +350,18 @@ export default function AddressSearch() {
       controller.abort()
     }
   }, [query, handleError, selectedAddress?.label, resolvingLabel, suggestionsQuery, retryToken])
+
+  // Back from the results, the searched address is still in the field so it can be corrected.
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const previous = loadNearbySearchContext()
+      if (!previous?.label || previous.label === 'Din placering' || inputRef.current?.value) return
+      setQuery(previous.label)
+      setSuggestionsQuery(previous.label)
+      setSelectedAddress({ label: previous.label, latitude: previous.latitude, longitude: previous.longitude })
+    }, 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [])
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {

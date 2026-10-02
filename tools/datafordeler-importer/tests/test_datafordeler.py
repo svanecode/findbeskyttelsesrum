@@ -202,3 +202,64 @@ def test_bbr_cursor_pagination_is_deterministic() -> None:
     assert bbr.calls[0][1]["after"] is None
     assert bbr.calls[1][1]["after"] == "cursor-1"
     assert all(call[1]["registreringstid"] == "fixed" for call in bbr.calls)
+
+
+def test_postal_areas_cover_every_dar_postcode_and_position_only_the_missing() -> None:
+    dar = FakeClient(
+        {
+            "FetchAllDarPostalCodes": [
+                connection(
+                    "DAR_Postnummer",
+                    [
+                        {"id_lokalId": "p-1000", "postnr": "1000", "navn": "København K"},
+                        {"id_lokalId": "p-6857", "postnr": "6857", "navn": "Blåvand"},
+                    ],
+                    "cursor-1",
+                ),
+                connection(
+                    "DAR_Postnummer",
+                    [{"id_lokalId": "p-x", "postnr": "12", "navn": "Ugyldig"}],
+                ),
+            ],
+            "FetchDarHouseInPostalCode": [
+                connection("DAR_Husnummer", [{"id_lokalId": "h-1", "adgangspunkt": "a-1"}]),
+            ],
+            "FetchDarAddressPoints": [
+                connection(
+                    "DAR_Adressepunkt",
+                    [{"id_lokalId": "a-1", "position": {"wkt": "POINT(445000 6158000)"}}],
+                ),
+            ],
+        }
+    )
+    source = DatafordelerSource(config(), bbr_client=FakeClient({}), dar_client=dar)  # type: ignore[arg-type]
+
+    rows = source.postal_areas(snapshot_at="2026-10-02T00:00:00Z", positioned={"1000"})
+
+    assert [row["postnr"] for row in rows] == ["1000", "6857"]
+    assert rows[0]["latitude"] is None
+    assert 55 < rows[1]["latitude"] < 56 and 8 < rows[1]["longitude"] < 9.5
+    house_calls = [call for call in dar.calls if call[0] == "FetchDarHouseInPostalCode"]
+    assert [call[1]["postnummer"] for call in house_calls] == ["p-6857"]
+
+
+def test_postal_position_lookups_stop_after_repeated_failures() -> None:
+    class FailingHouses(FakeClient):
+        def query(self, operation: str, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+            if operation == "FetchDarHouseInPostalCode":
+                self.calls.append((operation, variables))
+                raise DatafordelerError("unknown field adgangspunkt")
+            return super().query(operation, query, variables)
+
+    nodes = [
+        {"id_lokalId": f"p-{index}", "postnr": f"{5000 + index}", "navn": f"By {index}"}
+        for index in range(30)
+    ]
+    dar = FailingHouses({"FetchAllDarPostalCodes": [connection("DAR_Postnummer", nodes)]})
+    source = DatafordelerSource(config(), bbr_client=FakeClient({}), dar_client=dar)  # type: ignore[arg-type]
+
+    rows = source.postal_areas(snapshot_at="2026-10-02T00:00:00Z", positioned=set())
+
+    assert len(rows) == 30
+    assert all(row["latitude"] is None for row in rows)
+    assert len([call for call in dar.calls if call[0] == "FetchDarHouseInPostalCode"]) == 10

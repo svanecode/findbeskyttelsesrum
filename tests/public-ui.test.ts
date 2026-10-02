@@ -110,7 +110,8 @@ test("new searches use tab-local state and a URL without address or coordinates"
   assert.doesNotMatch(addressSearch, /URLSearchParams/);
   assert.doesNotMatch(addressSearch, /router\.push\(`\/naer-dig\?/);
   assert.match(nearbyPage, /method: 'POST'/);
-  assert.match(nearbyPage, /body: JSON\.stringify\(\{ lat, lng, limit: nearbyResultLimit \}\)/);
+  assert.match(nearbyPage, /\{ lat, lng, limit: nearbyResultLimit \}/);
+  assert.match(nearbyPage, /\{ lat, lng, limit: nearbyResultLimit, radius: radiusKm \* 1000 \}/);
   assert.doesNotMatch(nearbyPage, /nearby\/grouped\?/);
   assert.match(nearbyApi, /export async function POST/);
 });
@@ -179,7 +180,7 @@ test("desktop map focus stays visible and the mobile sheet can close with focus 
   assert.match(nearbyPage, /role=\{isDesktopMap \? undefined : 'tabpanel'\}/);
   assert.match(nearbyPage, /Luk oplysninger/);
   assert.match(nearbyPage, /closeSelectedShelter/);
-  assert.match(nearbyPage, /scrollWheelZoom=\{false\}/);
+  assert.match(await readFile(new URL("../src/components/ShelterMap.tsx", import.meta.url), "utf8"), /scrollWheelZoom=\{false\}/);
 });
 
 test("production build and Safari-compatible browser stories run before merge", async () => {
@@ -310,7 +311,8 @@ test("production CSP keeps only the free OSM tile host and required public servi
 test("all Leaflet maps use the current non-subdomain OpenStreetMap tile URL", async () => {
   const mapProvider = await readFile(mapProviderUrl, "utf8");
   const mapSourceFiles = [
-    await readFile(nearbyPageUrl, "utf8"),
+    // The result page and the detail page share this map.
+    await readFile(new URL("../src/components/ShelterMap.tsx", import.meta.url), "utf8"),
     await readFile(countryMapUrl, "utf8"),
     await readFile(municipalityMapUrl, "utf8"),
   ];

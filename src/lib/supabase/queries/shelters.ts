@@ -369,3 +369,46 @@ export async function getAppV2PublicSitemapReadableShelters(): Promise<AppV2Site
     ...(row.lastModified ? { lastModified: row.lastModified } : {}),
   }));
 }
+
+/**
+ * An earlier readable path of a registration that is still public, from the
+ * path history in app_v2. Returns its stable slug, or null. Before the
+ * migration that adds the history is applied, this quietly finds nothing.
+ */
+export const resolveShelterPathAlias = cache(async function resolveShelterPathAlias(slug: string) {
+  const pub = createAppV2PublicClient();
+  const { data, error } = await pub.rpc("resolve_shelter_path_alias_v1", { p_path_slug: slug }).maybeSingle();
+  if (error) {
+    if (isMissingPublicRpcError(error)) return null;
+    throw new Error(`Could not resolve readable path alias "${slug}": ${error.message}`);
+  }
+  return (data as { stable_slug: string } | null)?.stable_slug ?? null;
+});
+
+export type RetiredShelter = {
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+/** The last address of a registration removed from BBR, found by any path it has had. */
+export const resolveRetiredShelter = cache(async function resolveRetiredShelter(slug: string): Promise<RetiredShelter | null> {
+  const pub = createAppV2PublicClient();
+  const { data, error } = await pub.rpc("resolve_retired_shelter_v1", { p_slug: slug }).maybeSingle();
+  if (error) {
+    if (isMissingPublicRpcError(error)) return null;
+    throw new Error(`Could not resolve removed registration "${slug}": ${error.message}`);
+  }
+  const row = data as { address_line1: string; postal_code: string; city: string; latitude: number | string | null; longitude: number | string | null } | null;
+  if (!row) return null;
+  const toNumber = (value: number | string | null) => (value === null ? null : Number(value));
+  return {
+    addressLine1: row.address_line1,
+    postalCode: row.postal_code,
+    city: row.city,
+    latitude: toNumber(row.latitude),
+    longitude: toNumber(row.longitude),
+  };
+});

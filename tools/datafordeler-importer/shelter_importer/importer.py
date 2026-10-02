@@ -20,6 +20,10 @@ def utc_now() -> str:
 
 
 class Importer:
+    """Imports BBR/DAR shelters. After a publication it also refreshes the
+    readable path history and the postcode table; those steps never fail the
+    import, because the published data is already correct without them."""
+
     def __init__(
         self,
         config: ImportConfig,
@@ -179,6 +183,7 @@ class Importer:
                 summary.quality_gate_passed = True
                 raw_metrics = publication.get("qualityMetrics")
                 summary.quality_metrics = raw_metrics if isinstance(raw_metrics, dict) else {}
+                self._refresh_derived_public_data(snapshot_at)
             else:
                 reason = "capped run: source traversal was intentionally incomplete"
                 self.store.succeed_without_missing(
@@ -232,3 +237,22 @@ class Importer:
                         safe_error_summary(str(lifecycle_error)),
                     )
             raise
+
+    def _refresh_derived_public_data(self, snapshot_at: str) -> None:
+        assert self.store is not None
+        try:
+            paths = self.store.refresh_shelter_path_aliases()
+            logger.info("Readable path history refreshed: %s", paths)
+        except Exception as exc:
+            logger.warning(
+                "Readable path history was not refreshed: %s", safe_error_summary(str(exc))
+            )
+        try:
+            self.store.refresh_postal_areas_from_registrations()
+            rows = self.source.postal_areas(
+                snapshot_at=snapshot_at, positioned=self.store.positioned_postal_codes()
+            )
+            saved = self.store.upsert_dar_postal_areas(rows)
+            logger.info("Postcodes refreshed: %s from DAR", saved)
+        except Exception as exc:
+            logger.warning("Postcodes were not refreshed: %s", safe_error_summary(str(exc)))

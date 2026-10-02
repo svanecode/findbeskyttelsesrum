@@ -1,4 +1,4 @@
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { cache } from "react";
 import type { Metadata } from "next";
 import type { Route } from "next";
@@ -7,7 +7,7 @@ import Link from "next/link";
 import GlobalFooter from "@/components/GlobalFooter";
 import ReportShelterIssue from "@/components/ReportShelterIssue";
 import ProductMetricView from "@/components/ProductMetricView";
-import ShelterOsmEmbedMap from "@/components/ShelterOsmEmbedMap";
+import ShelterDetailMap from "@/components/ShelterDetailMap";
 import { shelterMapSectionId } from "@/components/shelter-map-section";
 import { ui } from "@/components/ui-classes";
 import { getAnvendelseskoder, getAnvendelseskodeBeskrivelse } from "@/lib/anvendelseskoder";
@@ -22,6 +22,8 @@ import {
   getCanonicalReadableSlug,
   resolveAppV2PublicShelter,
   resolveReadableShelterSlug,
+  resolveRetiredShelter,
+  resolveShelterPathAlias,
   type AppV2PublicShelterDetail,
 } from "@/lib/supabase/app-v2-queries";
 
@@ -41,7 +43,10 @@ const resolveShelterPage = cache(async function resolveShelterPage(slug: string)
     return { shelter, canonicalSlug: readable.canonicalSlug, redirect: readable.canonicalSlug !== slug };
   }
 
-  const legacy = await resolveAppV2PublicShelter(slug);
+  // An earlier readable path (the address changed in BBR), a stable hash path
+  // or an older importer slug: redirect to today's readable path.
+  const aliasTarget = await resolveShelterPathAlias(slug);
+  const legacy = await resolveAppV2PublicShelter(aliasTarget ?? slug);
   if (!legacy) return null;
   const canonicalSlug = await getCanonicalReadableSlug(legacy.shelter);
   return { shelter: legacy.shelter, canonicalSlug, redirect: true };
@@ -158,6 +163,11 @@ export default async function ShelterDetailPage({ params }: Props) {
   ]);
 
   if (!resolution) {
+    // Normally src/proxy.ts answers 410 for removed registrations before this
+    // page runs; this covers the minutes before its list is refreshed.
+    if (await resolveRetiredShelter(slug).catch(() => null)) {
+      redirect(`${getShelterPublicPath(slug)}/fjernet` as Route);
+    }
     notFound();
   }
 
@@ -266,10 +276,9 @@ export default async function ShelterDetailPage({ params }: Props) {
 
           {hasCoords ? (
             <section id={shelterMapSectionId} className="mt-6 scroll-mt-24" aria-label="Kort">
-              <ShelterOsmEmbedMap
+              <ShelterDetailMap
                 latitude={shelter.latitude!}
                 longitude={shelter.longitude!}
-                title={`Kort over ${displayName}`}
                 addressLabel={`${shelter.addressLine1}, ${shelter.postalCode} ${shelter.city}`}
               />
             </section>

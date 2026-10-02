@@ -140,7 +140,7 @@ test("production CSP narrows scripts and browser capabilities without breaking r
 
   assert.match(production, /script-src-attr 'none'/);
   assert.match(production, /media-src 'none'/);
-  assert.match(production, /frame-src https:\/\/www\.openstreetmap\.org/);
+  assert.match(production, /frame-src 'none'/);
   assert.match(production, /connect-src 'self' https:\/\/example\.supabase\.co/);
   assert.doesNotMatch(production, /https:\/\/\*\.vercel\.app/);
   assert.doesNotMatch(production, /(?:^|\s)wss?:/);

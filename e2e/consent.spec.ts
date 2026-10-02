@@ -97,8 +97,6 @@ test("Kun nødvendige sender ingen målinger og installerer ingen offlinekopi", 
   const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
   await addressInput.fill("Rådhuspladsen 1");
   await page.getByRole("option", { name: selectedAddressLabel }).click();
-  await expect(addressInput).toHaveValue(selectedAddressLabel);
-  await page.getByRole("button", { name: "Søg", exact: true }).click();
   await expect(page.getByText(/120 pladser/)).toBeVisible();
 
   // Longer than the idle delay before analytics and the offline worker would start.

@@ -500,6 +500,53 @@ class AppV2Store:
             raise PublicationRejectedError(result)
         return result
 
+    def refresh_shelter_path_aliases(self) -> dict[str, Any]:
+        """Records today's readable detail paths and closes old ones."""
+        result = self._request(
+            "POST",
+            "rpc/refresh_shelter_path_aliases_v1",
+            operation="refresh readable path history",
+            payload={},
+            retry_safe=True,
+            timeout=self.publication_timeout,
+        )
+        return result[0] if isinstance(result, list) and result else {}
+
+    def positioned_postal_codes(self) -> set[str]:
+        """Postcodes that already have a position."""
+        rows = self._request(
+            "GET",
+            "postal_areas",
+            operation="read positioned postcodes",
+            params={"select": "postnr", "latitude": "not.is.null", "limit": "5000"},
+        )
+        return {
+            str(row["postnr"])
+            for row in rows or []
+            if isinstance(row, dict) and row.get("postnr")
+        }
+
+    def upsert_dar_postal_areas(self, rows: list[dict[str, Any]]) -> int:
+        result = self._request(
+            "POST",
+            "rpc/upsert_dar_postal_areas_v1",
+            operation="save DAR postcodes",
+            payload={"p_rows": rows},
+            retry_safe=True,
+        )
+        return int(result or 0)
+
+    def refresh_postal_areas_from_registrations(self) -> int:
+        result = self._request(
+            "POST",
+            "rpc/refresh_postal_areas_from_registrations_v1",
+            operation="refresh postcodes from registrations",
+            payload={},
+            retry_safe=True,
+            timeout=self.publication_timeout,
+        )
+        return int(result or 0)
+
     def stage_records(self, records: list[ShelterRecord], run_id: str) -> int:
         payload = [
             {

@@ -23,6 +23,10 @@ class Source:
         if self.failure:
             raise self.failure
 
+    def postal_areas(self, *, snapshot_at: str, positioned: set[str]) -> list[dict[str, Any]]:
+        self.args["postal_positioned"] = positioned
+        return [{"postnr": "6857", "name": "Blåvand", "latitude": 55.56, "longitude": 8.08}]
+
 
 class Store:
     def __init__(self, resumed: dict[str, Any] | None = None) -> None:
@@ -61,6 +65,21 @@ class Store:
     def fail_import_run(self, run_id: str, **kwargs: Any) -> None:
         self.events.append("failed")
 
+    def refresh_shelter_path_aliases(self) -> dict[str, Any]:
+        self.events.append("paths")
+        return {"opened": 1, "closed": 0}
+
+    def refresh_postal_areas_from_registrations(self) -> int:
+        self.events.append("postcodes_from_registrations")
+        return 1
+
+    def positioned_postal_codes(self) -> set[str]:
+        return {"1000"}
+
+    def upsert_dar_postal_areas(self, rows: list[dict[str, Any]]) -> int:
+        self.events.append("dar_postcodes")
+        return len(rows)
+
 
 def page(has_next: bool = False) -> PageResult:
     return PageResult(
@@ -96,7 +115,27 @@ def test_full_success_stages_then_atomically_publishes() -> None:
         "checkpoint",
         "scan_complete",
         "publish",
+        "paths",
+        "postcodes_from_registrations",
+        "dar_postcodes",
     ]
+
+
+def test_path_and_postcode_refresh_never_fails_a_published_import() -> None:
+    class BrokenStore(Store):
+        def refresh_shelter_path_aliases(self) -> dict[str, Any]:
+            raise RuntimeError("function does not exist yet")
+
+        def refresh_postal_areas_from_registrations(self) -> int:
+            raise RuntimeError("function does not exist yet")
+
+    store = BrokenStore()
+    summary = importer(Source([page()]), store).run(
+        dry_run=False, max_pages=None, resume_latest=False
+    )
+    assert summary.status == "succeeded"
+    assert summary.publication_status == "published"
+    assert "failed" not in store.events
 
 
 def test_source_scan_uses_the_snapshot_persisted_by_the_database() -> None:
@@ -149,8 +188,13 @@ def test_resume_uses_original_snapshot_and_can_publish_complete_staging() -> Non
     assert summary.bbr_eligible == 11
     assert summary.bbr_dar_linked == 11
     assert summary.publication_status == "published"
-    assert store.events[-2] == "scan_complete"
-    assert store.events[-1] == "publish"
+    assert store.events[-5:] == [
+        "scan_complete",
+        "publish",
+        "paths",
+        "postcodes_from_registrations",
+        "dar_postcodes",
+    ]
 
 
 def test_failure_after_partial_page_does_not_apply_missing_and_marks_failed() -> None:
