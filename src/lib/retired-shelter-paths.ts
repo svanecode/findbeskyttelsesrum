@@ -16,23 +16,32 @@ type Cache = { hashes: Set<string>; expiresAt: number };
 let cache: Cache | null = null;
 let refreshing: Promise<Cache> | null = null;
 
+// PostgREST returns at most 1000 rows per request, so the list is read in pages.
+const pageSize = 1000;
+
 async function loadHashes(url: string, publishableKey: string): Promise<Cache> {
   try {
-    const response = await fetch(`${url.replace(/\/$/, "")}/rest/v1/rpc/retired_shelter_path_hashes_v1`, {
-      method: "POST",
-      headers: {
-        apikey: publishableKey,
-        Authorization: `Bearer ${publishableKey}`,
-        "Content-Type": "application/json",
-        "Content-Profile": "app_v2",
-        "Accept-Profile": "app_v2",
-      },
-      body: "{}",
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) throw new Error(`status ${response.status}`);
-    const rows = (await response.json()) as Array<{ path_hash?: unknown }>;
-    const hashes = new Set(rows.map((row) => row.path_hash).filter((hash): hash is string => typeof hash === "string"));
+    const hashes = new Set<string>();
+    for (let offset = 0; ; offset += pageSize) {
+      const endpoint = `${url.replace(/\/$/, "")}/rest/v1/rpc/retired_shelter_path_hashes_v1`
+        + `?order=path_hash.asc&limit=${pageSize}&offset=${offset}`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          apikey: publishableKey,
+          Authorization: `Bearer ${publishableKey}`,
+          "Content-Type": "application/json",
+          "Content-Profile": "app_v2",
+          "Accept-Profile": "app_v2",
+        },
+        body: "{}",
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) throw new Error(`status ${response.status}`);
+      const rows = (await response.json()) as Array<{ path_hash?: unknown }>;
+      for (const row of rows) if (typeof row.path_hash === "string") hashes.add(row.path_hash);
+      if (rows.length < pageSize) break;
+    }
     return { hashes, expiresAt: Date.now() + refreshAfterMs };
   } catch {
     return { hashes: cache?.hashes ?? new Set(), expiresAt: Date.now() + retryAfterFailureMs };
