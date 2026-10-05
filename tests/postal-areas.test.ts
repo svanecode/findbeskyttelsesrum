@@ -63,3 +63,8 @@ test("the live postcode table is paged and lists municipalities without registra
   assert.match(retired, /limit=\$\{pageSize\}&offset=\$\{offset\}/);
   assert.doesNotMatch(shelters, /\.limit\(2000\)/);
 });
+
+test("the postcode route uses a cache key that cannot serve the old cut table", async () => {
+  const route = await readFile(new URL("../src/app/api/app-v2/postal-areas/route.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(route, /"app-v2-postal-areas-v1"/);
+});
