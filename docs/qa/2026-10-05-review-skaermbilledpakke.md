@@ -17,11 +17,14 @@ Test: lint og typecheck uden fejl, 173 unit-tests bestået, e2e i Chromium (desk
 | Live før rettelsen (målt 5. okt.) | 1000 | 1050 og 8766 | 97 |
 | `postal_area_public_v1` i databasen | 1089 | 1050 og 9990 | |
 | Lokal build af grenen | 1089 | 1050 og 9990 | 98 |
-| Live efter deploy | *udfyldes efter merge* | | |
+| Vercel-preview af 77a0cf3 | 1000 | 1050 og 8766 | 97 |
+| Vercel-preview af 6cf4528 (ny cachenøgle) | 1089 | 1050 og 9990 | 98 |
+| Produktion efter deploy | *måles efter merge* | | |
 
 Rettelser:
 - `src/lib/supabase/read-all-pages.ts`: én hjælpefunktion, der læser side for side med `.range()`, indtil en side kommer kort tilbage. En fejlet side fejler hele læsningen, så en halv tabel aldrig bliver cachet. Grænsen er ikke hævet globalt.
 - `src/lib/supabase/queries/postal-areas.ts`: postnumre og kommuner læses i sider. Kommunerne kommer nu fra `municipality_summary_public_v1` (98).
+- `src/app/api/app-v2/postal-areas/route.ts`: ny cachenøgle (`app-v2-postal-areas-v2`). Vercels datacache deles på tværs af deploys, så den første preview leverede stadig den gamle, afskårne tabel. Med den nye nøgle er hele tabellen live ved første kald efter deploy.
 - `src/lib/address/postal-areas.json`: den indbyggede reservefil havde 573 postnumre og 97 kommuner. Den er genereret igen med 1089 og 98 med den nye kode.
 
 Andre steder, der kunne ramme samme grænse:
