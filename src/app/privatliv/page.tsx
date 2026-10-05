@@ -75,7 +75,7 @@ export default function PrivacyPage() {
               område på ca. 28 × 26 km. Gemmer du fra en resultatside, gemmes også den søgning (adressetekst og
               koordinater) i browserens lokale lager, så den kan åbnes uden net. Kopien bliver på din enhed og sendes ikke
               til tjenesten. Den gemmes kun, fordi du selv beder om det, og den er ikke en del af samtykket til statistik.
-              Du sletter den med &quot;Slet kopien&quot; på forsiden eller resultatsiden eller under browserens
+              Du sletter den med &quot;Slet&quot; ved kopien på forsiden eller resultatsiden eller under browserens
               indstillinger for webstedsdata.
             </p>
             <p className={secondaryParagraphClassName}>

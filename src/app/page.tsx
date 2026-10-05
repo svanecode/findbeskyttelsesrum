@@ -1,9 +1,9 @@
 import Link from 'next/link'
 
 import AddressSearch from '@/components/AddressSearch'
+import EmergencyGuidance from '@/components/EmergencyGuidance'
 import OfflineCopyControl from '@/components/OfflineCopyControl'
 import { ui } from '@/components/ui-classes'
-import { officialGuidanceLinks } from '@/lib/official-guidance'
 import { createPageMetadata } from '@/lib/seo/metadata'
 
 export const revalidate = 600
@@ -41,21 +41,7 @@ export default async function Home() {
             <AddressSearch />
           </div>
 
-          <aside className="mt-8 border-l-2 border-l-[var(--accent)] pl-4" aria-labelledby="emergency-guidance-heading">
-            <p className="text-base leading-7 text-gray-100">
-              <strong id="emergency-guidance-heading" className="font-semibold text-white">Ved varsling:</strong>{' '}
-              Gå indenfor, og følg myndighedernes information.{' '}
-              {officialGuidanceLinks.map((link, index) => (
-                <span key={link.href}>
-                  {index > 0 ? <span className="text-gray-400" aria-hidden="true"> · </span> : null}
-                  <a href={link.href} target="_blank" rel="noopener noreferrer" className={ui.textLink}>
-                    {link.shortLabel}
-                    <span className="sr-only"> (åbner i en ny fane)</span>
-                  </a>
-                </span>
-              ))}
-            </p>
-          </aside>
+          <EmergencyGuidance className="mt-8" />
 
           <nav className="mt-6 flex flex-wrap gap-x-6 text-base" aria-label="Andre måder at finde registreringer">
             <Link href="/kort" className={`${ui.textLink} inline-flex min-h-[44px] items-center`}>Se landskort</Link>

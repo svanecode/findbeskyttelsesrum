@@ -46,7 +46,7 @@ test("uden statistiksamtykke kan siden gemmes og bruges uden net", { tag: "@full
 
   await page.getByRole("button", { name: "Gem til brug uden net" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Siden virker nu også uden net." })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/^Gemt \d+\. \w+\.? \d{4}/)).toBeVisible();
+  await expect(page.getByText(/^Gemt \d+\. \w+\.? kl\. \d{2}\.\d{2} for /)).toBeVisible();
 
   await simulateOutage(context);
 
@@ -118,5 +118,5 @@ test("en tidligere ja til offlinekopi i samtykket beholder kopien efter skiftet"
   expect(JSON.parse(state.record ?? "null")).toMatchObject({ version: 1, savedAt: "2026-09-28T10:00:00.000Z" });
   expect(state.consent).not.toHaveProperty("offline");
   expect(state.workers).toBe(1);
-  await expect(page.getByText(/^Gemt 28\. sep\. 2026/)).toBeVisible();
+  await expect(page.getByText(/^Gemt 28\. sep\. kl\. \d{2}\.\d{2}$/)).toBeVisible();
 });

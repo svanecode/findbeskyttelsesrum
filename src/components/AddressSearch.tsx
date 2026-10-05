@@ -6,12 +6,15 @@ import LoadingSpinner from './LoadingSpinner'
 import { ui } from './ui-classes'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
+  pickExactAddressMatch,
   pickUnambiguousSuggestion,
   resolveAddress,
   searchAddresses,
   type AddressSuggestion,
 } from '@/lib/address/adressevaelger'
+import { loadPostalAreaTable } from '@/lib/address/locality'
 import { loadNearbySearchContext, saveNearbySearchContext } from '@/lib/nearby/search-context'
+import { useOfflineCopy } from '@/lib/use-offline-copy'
 import { trackProductMetric, type ProductMetricEventName } from '@/lib/analytics/product-metrics'
 
 const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'
@@ -70,6 +73,17 @@ async function getCurrentPosition() {
   }
 }
 
+/** One look for every error at the field (2.4): red icon and text right under it. */
+const fieldErrorClass = 'mt-2 flex items-start gap-2 text-sm leading-6 text-red-100'
+
+function FieldErrorIcon() {
+  return (
+    <svg className="mt-[3px] h-[18px] w-[18px] shrink-0 text-[var(--color-error)]" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-4.75a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0V6a.75.75 0 0 1 .75-.75ZM10 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
+    </svg>
+  )
+}
+
 function suggestionKey(suggestion: AddressSuggestion) {
   return suggestion.kind === 'street' ? `street-${suggestion.label}` : `${suggestion.kind}-${suggestion.id}`
 }
@@ -99,6 +113,8 @@ export default function AddressSearch() {
   const submittingRef = useRef(false)
   const fieldMessageId = useId()
   const hasQuery = query.trim().length > 0
+  const offlineCopy = useOfflineCopy()
+  const savedSearch = offlineCopy && offlineCopy !== 'pending' ? offlineCopy.search ?? null : null
 
   const navigateToNearby = useCallback(
     (search: SelectedAddress, successMetric: ProductMetricEventName) => {
@@ -195,7 +211,8 @@ export default function AddressSearch() {
   /**
    * The free-text search behind both the "Søg" button and Enter in the field:
    * 1. an address already chosen (and still unchanged in the field) is searched again,
-   * 2. free text with exactly one clear match takes it and searches,
+   * 2. free text with exactly one clear match takes it and searches, also when
+   *    street, house number and town or postcode match one address exactly,
    * 3. otherwise the suggestions open with an instruction to choose.
    */
   const runSearch = useCallback(async () => {
@@ -247,6 +264,7 @@ export default function AddressSearch() {
       }
 
       const pick = pickUnambiguousSuggestion(trimmed, results)
+        ?? pickExactAddressMatch(trimmed, results, await loadPostalAreaTable().catch(() => null))
       if (pick) {
         setIsOpen(false)
         setQuery(pick.label)
@@ -410,7 +428,18 @@ export default function AddressSearch() {
     }
   }
 
-  const describedBy = [fieldMessage ? fieldMessageId : null, hasFailed ? 'address-search-error' : null].filter(Boolean).join(' ') || undefined
+  const fieldMessageIsError = fieldMessage === emptyQueryMessage || fieldMessage === noResultsMessage
+  const hasFieldError = fieldMessageIsError || hasFailed || Boolean(searchError)
+  const listIsOpen = isOpen && suggestions.length > 0
+  // Offline, the position alone does not help: results need data saved for that area.
+  const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
+  const describedBy = [fieldMessage ? fieldMessageId : null, hasFailed ? 'address-search-error' : null, searchError ? 'address-search-storage-error' : null].filter(Boolean).join(' ') || undefined
+
+  const openSavedResults = () => {
+    if (!savedSearch) return
+    if (!saveNearbySearchContext(savedSearch)) return
+    router.push('/naer-dig')
+  }
 
   return (
     <div>
@@ -460,9 +489,9 @@ export default function AddressSearch() {
                 name="adresse"
                 enterKeyHint="search"
                 placeholder="Adresse, by eller postnummer"
-                className={`${ui.input} touch-target py-3 pl-3 pr-9 sm:pl-4`}
+                className={`${ui.input} touch-target py-3 pl-3 pr-9 sm:pl-4 ${hasFieldError ? '!border-[var(--color-error)]' : ''}`}
                 aria-describedby={describedBy}
-                aria-invalid={fieldMessage === emptyQueryMessage ? true : undefined}
+                aria-invalid={hasFieldError ? true : undefined}
                 role="combobox"
                 aria-haspopup="listbox"
                 aria-autocomplete="list"
@@ -501,10 +530,15 @@ export default function AddressSearch() {
                 onKeyDown={handleKeyDown}
               />
 
-              {isOpen && suggestions.length > 0 && (
+              {listIsOpen && (
+                <div className="absolute left-0 right-0 top-full z-[9999] mt-1 overflow-hidden rounded-lg border border-white/15 bg-[var(--surface-elevated)] shadow-[0_12px_30px_rgba(0,0,0,0.38)]">
+                {/* Visible instruction over the list (2.2); screen readers hear it from the status below. */}
+                <p className="border-b border-white/10 px-3 py-2 text-sm font-medium text-gray-200" aria-hidden="true">
+                  {chooseFromListMessage}
+                </p>
                 <div
                   id={ADDRESS_LISTBOX_ID}
-                  className="absolute left-0 right-0 top-full z-[9999] mt-1 max-h-[min(18rem,50vh)] overflow-y-auto rounded-lg border border-white/15 bg-[var(--surface-elevated)] shadow-[0_12px_30px_rgba(0,0,0,0.38)]"
+                  className="max-h-[min(18rem,50vh)] overflow-y-auto"
                   role="listbox"
                   aria-label="Adresseforslag"
                 >
@@ -514,7 +548,9 @@ export default function AddressSearch() {
                       id={`address-option-${index}`}
                       role="option"
                       aria-selected={activeIndex === index}
-                      className={`cursor-pointer border-b border-white/10 px-3 py-3 text-base text-white last:border-b-0 ${activeIndex === index ? 'bg-[var(--surface-row-hover)]' : 'hover:bg-[var(--surface-row-hover)]'}`}
+                      // Active row (mouse or keyboard, 2.1): orange bar, 6.9:1 against the other
+                      // rows, plus a lighter background.
+                      className={`cursor-pointer border-b border-l-4 border-b-white/10 py-3 pl-2 pr-3 text-base text-white last:border-b-0 ${activeIndex === index ? 'border-l-[var(--accent)] bg-[var(--surface-option-active)]' : 'border-l-transparent'}`}
                       onMouseEnter={() => setActiveIndex(index)}
                       onMouseDown={(event) => {
                         event.preventDefault()
@@ -525,6 +561,7 @@ export default function AddressSearch() {
                       {suggestion.kind === 'area' ? <span className="text-gray-400"> · postnummer</span> : null}
                     </div>
                   ))}
+                </div>
                 </div>
               )}
             </div>
@@ -539,31 +576,54 @@ export default function AddressSearch() {
         </form>
 
         {/* Always in the DOM so screen readers announce changes to it. */}
-        <div id={fieldMessageId} className="text-sm leading-6 text-gray-100" role="status" aria-live="polite">
-          {fieldMessage ? <p className="mt-2">{fieldMessage}</p> : null}
+        <div id={fieldMessageId} role="status" aria-live="polite">
+          {fieldMessage && fieldMessageIsError ? (
+            <p className={fieldErrorClass}><FieldErrorIcon />{fieldMessage}</p>
+          ) : fieldMessage ? (
+            // The instruction is shown over the open list; here it is for screen readers.
+            <p className={listIsOpen ? 'sr-only' : 'mt-2 text-sm leading-6 text-gray-100'}>{fieldMessage}</p>
+          ) : null}
         </div>
 
         {hasFailed ? (
-          <div id="address-search-error" className="mt-2 border-l-2 border-yellow-500 pl-3 text-sm leading-6 text-yellow-100" role="alert">
-            <p>Adressesøgningen er ikke tilgængelig lige nu. Prøv igen, eller brug din placering.</p>
-            <button
-              type="button"
-              onClick={() => {
-                setHasFailed(false)
-                setSuggestionsQuery('')
-                setRetryToken((token) => token + 1)
-                inputRef.current?.focus()
-              }}
-              className="inline-flex min-h-[44px] items-center font-medium text-white underline underline-offset-4"
-            >
-              Prøv igen
-            </button>
+          <div id="address-search-error" className={fieldErrorClass} role="alert">
+            <FieldErrorIcon />
+            <div>
+              <p>
+                {isOffline
+                  ? 'Adressesøgningen virker ikke uden net.'
+                  : 'Adressesøgningen er ikke tilgængelig lige nu. Prøv igen, eller brug din placering.'}
+              </p>
+              <div className="flex flex-wrap gap-x-5">
+                {savedSearch ? (
+                  <button
+                    type="button"
+                    onClick={openSavedResults}
+                    className="inline-flex min-h-[44px] items-center text-left font-medium text-white underline underline-offset-4"
+                  >
+                    Se gemte resultater for {savedSearch.label}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHasFailed(false)
+                    setSuggestionsQuery('')
+                    setRetryToken((token) => token + 1)
+                    inputRef.current?.focus()
+                  }}
+                  className="inline-flex min-h-[44px] items-center font-medium text-white underline underline-offset-4"
+                >
+                  Prøv igen
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
 
         {searchError ? (
-          <p className="mt-2 border-l-2 border-yellow-500 pl-3 text-sm leading-6 text-yellow-100" role="alert">
-            {searchError}
+          <p id="address-search-storage-error" className={fieldErrorClass} role="alert">
+            <FieldErrorIcon />{searchError}
           </p>
         ) : null}
       </div>

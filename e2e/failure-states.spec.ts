@@ -215,8 +215,9 @@ test("kortfejl bevarer resultatlisten som fallback", async ({ page }, testInfo) 
   const mapError = page.getByRole("alert").filter({ hasText: "Kortbaggrunden er ikke tilgængelig" });
   await expect(mapError).toBeVisible();
   await expect(mapError.getByRole("button", { name: "Prøv kortet igen" })).toBeFocused();
-  await expect(page.locator("[data-map-content]")).toHaveAttribute("inert", "");
-  await expect(page.locator("[data-map-content]")).toHaveAttribute("aria-hidden", "true");
+  // The notice is a bar across the top; the markers below it stay usable.
+  await expect(page.locator("[data-map-content]")).not.toHaveAttribute("inert", "");
+  await expect(page.locator("[data-map-content]")).not.toHaveAttribute("aria-hidden", "true");
   await mapError.getByRole("button", { name: "Til resultatlisten" }).click();
   await expect(page.getByRole("tab", { name: "Liste" })).toBeFocused();
   await expect(page.locator("#nearby-list-panel").getByText("Rådhuspladsen 1", { exact: true })).toBeVisible();

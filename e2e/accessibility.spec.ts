@@ -78,7 +78,7 @@ test("detaljesiden og den åbne rapportformular består kontrollen", { tag: "@fu
   });
   await expect(page.locator(".nearby-map")).toHaveCount(0);
   expect(tileRequests).toHaveLength(0);
-  await page.getByRole("link", { name: "Vis på kort", exact: true }).click();
+  await page.getByRole("button", { name: /^Vis kort/ }).click();
   // The same Leaflet map as the result page, with the registration as the orange pin.
   await expect(page.locator(".nearby-map .shelter-marker-selected")).toBeVisible();
   await expect.poll(() => tileRequests.length).toBeGreaterThan(0);

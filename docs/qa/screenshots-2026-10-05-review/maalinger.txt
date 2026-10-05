@@ -1,0 +1,33 @@
+# Lokal produktionsbuild af grenen claude/great-carson-cxzqp8 mod produktionsdata, 5. oktober 2026.
+# Kortfliser hentes uden om browserens netværk, fordi testmiljøets proxy afviser en del af dem. Søgninger, som proxyen afviser, prøves igen ("forsøg").
+1 390: "9000" forslag: 9000 Aalborg · postnummer
+1 390: "Hjørring" forslag: 9800 Hjørring · postnummer | Hjørring Landevej 9380 Vestbjerg | Hjørring Landevej 9400 Nørresundby | Hjørringgade 2100 København Ø | Hjørringgade 9850 Hirtshals
+2.1 390: aktiv (tastatur): Rådhuspladsen 1, 3300 Frederiksværk
+2.2 390: synlig instruktion: true, status: "Vælg den rigtige adresse på listen."
+2.3 390: "Banegårdspladsen 1, Aarhus" + Enter -> /naer-dig (forsøg 1), "Ved Banegårdspladsen 1, 8000 Aarhus CSkift adresse"
+2.4 390: tom søgning, kantfarve rgb(248, 113, 113)
+4.1 390: markører: 1, 2, 4 | 3, 6 | 5 | 7 | 8 | 9 | 10
+5.1 390: status 410, url /beskyttelsesrum/registrering-9c69fab006c0416688dd23ac1128b1b8, header/main/footer 1/1/1, font Inter
+5.3 390: afstand mellem header og Liste/Kort-rammen: -1px
+1 1440: "9000" forslag: 9000 Aalborg · postnummer
+1 1440: "Hjørring" forslag: 9800 Hjørring · postnummer | Hjørring Landevej 9380 Vestbjerg | Hjørring Landevej 9400 Nørresundby | Hjørringgade 2100 København Ø | Hjørringgade 9850 Hirtshals
+2.1 1440: aktiv (tastatur): Rådhuspladsen 1, 3300 Frederiksværk
+2.1 1440: aktiv (mus): Rådhuspladsen 1, 4300 Holbæk
+2.2 1440: synlig instruktion: true, status: "Vælg den rigtige adresse på listen."
+2.3 1440: "Banegårdspladsen 1, Aarhus" + Enter -> /naer-dig (forsøg 1), "Ved Banegårdspladsen 1, 8000 Aarhus CSkift adresse"
+2.4 1440: tom søgning, kantfarve rgb(248, 113, 113)
+4.1 1440: markører: 1, 2, 4 | 3, 6 | 5 | 7 | 8 | 9 | 10
+5.1 1440: status 410, url /beskyttelsesrum/registrering-9c69fab006c0416688dd23ac1128b1b8, header/main/footer 1/1/1, font Inter
+  forsøg 1: "Rådhuspladsen 2, 8000 Aarhus C" gav ingen navigation (0 forslag)
+5.2 390: "Vis kort"-knap højde 160px, "Vis på kort"-links 0
+5.2 1440: "Vis kort"-knap højde 160px, "Vis på kort"-links 0
+3.3 390: forside online: "Gemt 5. okt. kl. 13.02 for Rådhuspladsen 2, 8000 Aarhus C", knapper: Opdatér | Slet
+2.4/3.1 390: offlinefejl: "Adressesøgningen virker ikke uden net.Se gemte resultater for Rådhuspladsen 2, 8000 Aarhus CPrøv igen / ", kantfarve rgb(248, 113, 113)
+3.2/3.3 390: forside offline: "Gemt 5. okt. kl. 13.02 for Rådhuspladsen 2, 8000 Aarhus C", knapper: Se gemte resultater for Rådhuspladsen 2, 8000 Aarhus C | Prøv igen | Slet
+3.1 390: efter klik: /naer-dig, 10 resultater
+3.4 390: kortbjælke højde 75px
+3.3 1440: forside online: "Gemt 5. okt. kl. 13.05 for Rådhuspladsen 2, 8000 Aarhus C", knapper: Opdatér | Slet
+2.4/3.1 1440: offlinefejl: "Adressesøgningen virker ikke uden net.Se gemte resultater for Rådhuspladsen 2, 8000 Aarhus CPrøv igen / ", kantfarve rgb(248, 113, 113)
+3.2/3.3 1440: forside offline: "Gemt 5. okt. kl. 13.05 for Rådhuspladsen 2, 8000 Aarhus C", knapper: Se gemte resultater for Rådhuspladsen 2, 8000 Aarhus C | Prøv igen | Slet
+3.1 1440: efter klik: /naer-dig, 10 resultater
+3.4 1440: kortbjælke højde 49px

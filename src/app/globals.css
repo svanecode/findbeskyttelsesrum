@@ -21,6 +21,7 @@
   --surface-row: #141619;
   --surface-row-active: #1a1d21;
   --surface-row-hover: #1c1f23;
+  --surface-option-active: #2c3138;
   --surface-input: #101215;
   --surface-input-focus: #0e1012;
   --color-success: #34d399;
@@ -326,4 +327,19 @@ select:focus:not(:focus-visible) {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* The tile notice bar (MapUnavailableNotice) sits across the top of the map;
+   Leaflet's controls move down by its height instead of hiding under it. */
+.leaflet-top {
+  margin-top: var(--map-notice-height, 0px);
+}
+
+/* Pins at the same place share one pin labelled "1, 2". */
+.nearby-map-pin-group {
+  width: auto;
+  min-width: 30px;
+  padding: 0 7px;
+  border-radius: 999px;
+  white-space: nowrap;
 }

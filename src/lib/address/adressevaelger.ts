@@ -12,9 +12,11 @@ import { isWithinDenmarkMapBounds } from "@/lib/maps/denmark-bounds";
 import {
   alternateAaSpelling,
   loadPostalAreaTable,
+  matchPlace,
   normalizePlaceText,
   parseLocality,
   type ParsedLocality,
+  type PostalAreaTable,
 } from "./locality";
 
 export const adressevaelgerOrigin = "https://adressevaelger.dk";
@@ -267,6 +269,57 @@ export function pickUnambiguousSuggestion(query: string, suggestions: AddressSug
   if (exact.length === 1) return exact[0]!;
   if (suggestions.length === 1 && choosable.length === 1) return choosable[0]!;
   return null;
+}
+
+const houseNumberAtEnd = /\d+ ?\p{L}?$/u;
+const addressLabelParts = /^(.+), (\d{4}) (.+)$/;
+
+/** Splits typed text into the street with house number and the place after it. */
+function splitTypedAddress(query: string): { street: string; place: string } | null {
+  const trimmed = query.trim().replace(/\s+/g, " ");
+  const comma = trimmed.lastIndexOf(",");
+  if (comma > 0) return { street: trimmed.slice(0, comma).trim(), place: trimmed.slice(comma + 1).trim() };
+  const postcode = /^(.*?\d+ ?\p{L}?) (\d{4}(?: .+)?)$/u.exec(trimmed);
+  if (postcode) return { street: postcode[1]!, place: postcode[2]! };
+  const words = trimmed.split(" ");
+  for (let count = Math.min(3, words.length - 1); count >= 1; count -= 1) {
+    const street = words.slice(0, -count).join(" ");
+    if (houseNumberAtEnd.test(street)) return { street, place: words.slice(-count).join(" ") };
+  }
+  return null;
+}
+
+/**
+ * The one address that matches typed street, house number and place exactly
+ * (C2.3): "Banegårdspladsen 1, Aarhus" takes "Banegårdspladsen 1, 8000 Aarhus C"
+ * but not 1A, and only when no other address in the list also matches. The
+ * place may be a postcode, a postcode name, the start of one ("Aarhus") or a
+ * municipality name. Without a house number nothing is taken.
+ */
+export function pickExactAddressMatch(query: string, suggestions: AddressSuggestion[], table: PostalAreaTable | null) {
+  if (!table) return null;
+  const typed = splitTypedAddress(query);
+  if (!typed || !typed.place || !houseNumberAtEnd.test(typed.street)) return null;
+  const typedStreet = normalizePlaceText(typed.street);
+  const place = matchPlace(typed.place, table);
+  if (!place) return null;
+  const placePostcodes = new Set(place.areas.map((area) => area.postnr));
+  const placeCodes = new Set(place.codes);
+  const typedPostcode = /^(\d{4})\b/.exec(typed.place)?.[1] ?? null;
+
+  const matches = suggestions.filter((suggestion): suggestion is Extract<AddressSuggestion, { kind: "address" }> => {
+    if (suggestion.kind !== "address") return false;
+    const parts = addressLabelParts.exec(suggestion.label);
+    if (!parts || normalizePlaceText(parts[1]!) !== typedStreet) return false;
+    const postnr = parts[2]!;
+    if (typedPostcode) return postnr === typedPostcode;
+    if (placePostcodes.has(postnr)) return true;
+    const district = normalizePlaceText(parts[3]!);
+    const key = normalizePlaceText(typed.place);
+    if (district === key || district.startsWith(`${key} `)) return true;
+    return table.postnumre.some((row) => row[0] === postnr && row[2].some((code) => placeCodes.has(code)));
+  });
+  return matches.length === 1 ? matches[0]! : null;
 }
 
 export async function convertUtm32ToWgs84(easting: number, northing: number) {

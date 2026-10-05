@@ -412,7 +412,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
             ref={headingRef}
             tabIndex={-1}
             id="nearby-results-heading"
-            className="break-safe text-[1.75rem] font-semibold leading-[1.15] tracking-tight text-white focus:outline-none sm:text-4xl"
+            className="break-safe text-[1.75rem] font-semibold leading-[1.15] tracking-tight text-white [text-wrap:balance] focus:outline-none sm:text-4xl"
           >
             Nærmeste registrerede sikringsrum
           </h1>
@@ -426,35 +426,39 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
           </p>
         </header>
 
-        <div className="sticky top-[calc(4.5rem+env(safe-area-inset-top,0px))] z-30 mb-4 grid grid-cols-2 rounded-lg border border-white/10 bg-[var(--surface-inset)] p-1 lg:hidden" role="tablist" aria-label="Vælg resultatvisning">
-          <button
-            ref={listTabRef}
-            id="nearby-list-tab"
-            type="button"
-            role="tab"
-            aria-selected={mobileView === 'list'}
-            aria-controls="nearby-list-panel"
-            tabIndex={mobileView === 'list' ? 0 : -1}
-            onClick={() => selectMobileView('list')}
-            onKeyDown={handleTabKeyDown}
-            className={`min-h-[44px] rounded-md px-4 text-sm font-semibold ${mobileView === 'list' ? 'bg-white text-black' : 'text-gray-300 hover:bg-white/5'}`}
-          >
-            Liste
-          </button>
-          <button
-            ref={mapTabRef}
-            id="nearby-map-tab"
-            type="button"
-            role="tab"
-            aria-selected={mobileView === 'map'}
-            aria-controls="nearby-map-panel"
-            tabIndex={mobileView === 'map' ? 0 : -1}
-            onClick={() => selectMobileView('map')}
-            onKeyDown={handleTabKeyDown}
-            className={`min-h-[44px] rounded-md px-4 text-sm font-semibold ${mobileView === 'map' ? 'bg-white text-black' : 'text-gray-300 hover:bg-white/5'}`}
-          >
-            Kort
-          </button>
+        {/* Sticks right under the 69px header (68px + its border, which covers the overlap) with the
+            page colour around it, so no content shows in a gap above or below it (5.3). */}
+        <div className="sticky top-[calc(4.25rem+env(safe-area-inset-top,0px))] z-30 -mx-4 mb-2 bg-[var(--surface-page)] px-4 pb-2 pt-1 sm:-mx-6 sm:px-6 lg:hidden">
+          <div className="grid grid-cols-2 rounded-lg border border-white/10 bg-[var(--surface-inset)] p-1" role="tablist" aria-label="Vælg resultatvisning">
+            <button
+              ref={listTabRef}
+              id="nearby-list-tab"
+              type="button"
+              role="tab"
+              aria-selected={mobileView === 'list'}
+              aria-controls="nearby-list-panel"
+              tabIndex={mobileView === 'list' ? 0 : -1}
+              onClick={() => selectMobileView('list')}
+              onKeyDown={handleTabKeyDown}
+              className={`min-h-[44px] rounded-md px-4 text-sm font-semibold ${mobileView === 'list' ? 'bg-white text-black' : 'text-gray-300 hover:bg-white/5'}`}
+            >
+              Liste
+            </button>
+            <button
+              ref={mapTabRef}
+              id="nearby-map-tab"
+              type="button"
+              role="tab"
+              aria-selected={mobileView === 'map'}
+              aria-controls="nearby-map-panel"
+              tabIndex={mobileView === 'map' ? 0 : -1}
+              onClick={() => selectMobileView('map')}
+              onKeyDown={handleTabKeyDown}
+              className={`min-h-[44px] rounded-md px-4 text-sm font-semibold ${mobileView === 'map' ? 'bg-white text-black' : 'text-gray-300 hover:bg-white/5'}`}
+            >
+              Kort
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-6">
@@ -590,8 +594,6 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                 ref={mapContentRef}
                 data-map-content
                 className="absolute inset-0"
-                aria-hidden={tileStatus === 'error' ? true : undefined}
-                inert={tileStatus === 'error'}
               >
                 <div className="absolute inset-0 overflow-hidden rounded-lg border border-white/10">
                   {shouldRenderMap ? (
@@ -635,14 +637,15 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                 </div>
 
                 {shouldRenderMap ? (
-                  <div className="pointer-events-none absolute right-2 top-2 z-[700] rounded-lg border border-white/15 bg-[#141619]/95 px-3 py-2 text-sm leading-6 text-gray-200 shadow-lg" aria-hidden="true">
+                  <div data-map-legend className="pointer-events-none absolute right-2 top-[calc(0.5rem+var(--map-notice-height,0px))] z-[700] rounded-lg border border-white/15 bg-[#141619]/95 px-3 py-2 text-sm leading-6 text-gray-200 shadow-lg" aria-hidden="true">
                     <p className="flex items-center gap-2"><span className="nearby-legend-search" />Søgepunkt</p>
                     <p className="flex items-center gap-2"><span className="nearby-result-number nearby-result-number-quiet nearby-legend-number">1</span>Nummer i listen</p>
                   </div>
                 ) : null}
 
+                {/* The panel sits above the OSM attribution, which must stay visible (4.2). */}
                 {selectedShelter ? (
-                  <aside className="absolute inset-x-2 bottom-2 z-[700] max-h-[min(55dvh,24rem)] overflow-y-auto rounded-xl border border-white/15 bg-[var(--surface-elevated)] p-4 shadow-xl lg:hidden" aria-label="Valgt registrering">
+                  <aside className="absolute inset-x-2 bottom-8 z-[700] max-h-[min(55dvh,24rem)] overflow-y-auto rounded-xl border border-white/15 bg-[var(--surface-elevated)] p-4 shadow-xl lg:hidden" aria-label="Valgt registrering">
                     <div className="flex items-start justify-between gap-3">
                       <h2 className="break-safe text-base font-semibold text-white">{getAddressLine(selectedShelter)}</h2>
                       <button type="button" onClick={closeSelectedShelter} className="-mr-2 -mt-2 inline-flex min-h-[44px] shrink-0 items-center rounded-lg px-2 text-sm font-medium text-gray-200 hover:bg-white/5 hover:text-white">

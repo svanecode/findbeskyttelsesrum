@@ -195,8 +195,11 @@ function forgetLegacyOfflineConsent() {
   }
 }
 
+/** "2. okt. kl. 11.44": when the copy was saved, short enough for one line. */
 export function formatOfflineSavedAt(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat("da-DK", { day: "numeric", month: "short", year: "numeric" }).format(date);
+  const day = new Intl.DateTimeFormat("da-DK", { day: "numeric", month: "short" }).format(date);
+  const time = new Intl.DateTimeFormat("da-DK", { hour: "2-digit", minute: "2-digit" }).format(date);
+  return `${day} kl. ${time}`;
 }
