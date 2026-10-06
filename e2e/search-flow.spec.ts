@@ -342,6 +342,8 @@ test("ingen adresse i kommunen tilbyder samme søgning i hele landet", async ({ 
   const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
   await addressInput.fill("Vestergade 1, Læsø");
   await expect(page.getByText("Ingen adresser fundet.", { exact: false })).toBeVisible();
+  // Screen readers hear the way out from the status, not only from the button.
+  await expect(page.getByRole("status").filter({ hasText: "Under feltet kan du søge efter Vestergade 1 i hele landet." })).toHaveCount(1);
   const wholeCountry = page.getByRole("button", { name: "Søg efter Vestergade 1 i hele landet" });
   await wholeCountry.click();
 
