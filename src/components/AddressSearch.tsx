@@ -6,6 +6,7 @@ import LoadingSpinner from './LoadingSpinner'
 import { ui } from './ui-classes'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import {
+  getWholeCountryStreet,
   pickExactAddressMatch,
   pickUnambiguousSuggestion,
   resolveAddress,
@@ -22,7 +23,7 @@ const isAbortError = (error: unknown) => error instanceof DOMException && error.
 const ADDRESS_LISTBOX_ID = 'address-suggestions'
 const SUGGESTION_LIMIT = 5
 
-export const chooseFromListMessage = 'Vælg den rigtige adresse på listen.'
+export const chooseFromListMessage = 'Vælg på listen.'
 const emptyQueryMessage = 'Skriv en adresse, et postnummer eller en by.'
 const noResultsMessage = 'Ingen adresser fundet. Prøv med vejnavn, husnummer og postnummer, eller find kommunen.'
 
@@ -103,6 +104,8 @@ export default function AddressSearch() {
   const [searchError, setSearchError] = useState<string | null>(null)
   const [retryToken, setRetryToken] = useState(0)
   const [resolvingLabel, setResolvingLabel] = useState<string | null>(null)
+  // "Vestergade 1, Læsø" without results offers "Vestergade 1" in the whole country.
+  const [wholeCountry, setWholeCountry] = useState<{ query: string; street: string } | null>(null)
   const router = useRouter()
   const { handleError } = useErrorHandler()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -208,6 +211,12 @@ export default function AddressSearch() {
     [navigateToNearby, resolveSuggestion],
   )
 
+  const showNoResults = useCallback(async (searched: string) => {
+    setFieldMessage(noResultsMessage)
+    const street = await getWholeCountryStreet(searched).catch(() => null)
+    setWholeCountry(street ? { query: searched, street } : null)
+  }, [])
+
   /**
    * The free-text search behind both the "Søg" button and Enter in the field:
    * 1. an address already chosen (and still unchanged in the field) is searched again,
@@ -275,7 +284,7 @@ export default function AddressSearch() {
 
       if (results.length === 0) {
         setIsOpen(false)
-        setFieldMessage(noResultsMessage)
+        void showNoResults(trimmed)
         return
       }
 
@@ -286,7 +295,7 @@ export default function AddressSearch() {
     } finally {
       submittingRef.current = false
     }
-  }, [handleError, navigateToNearby, query, resolveSuggestion, resolvingLabel, selectedAddress, suggestions, suggestionsQuery])
+  }, [handleError, navigateToNearby, query, resolveSuggestion, resolvingLabel, selectedAddress, showNoResults, suggestions, suggestionsQuery])
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
@@ -346,7 +355,8 @@ export default function AddressSearch() {
         setIsOpen(results.length > 0)
         setActiveIndex(null)
         setHasFailed(false)
-        setFieldMessage(results.length === 0 ? noResultsMessage : null)
+        if (results.length === 0) void showNoResults(trimmed)
+        else setFieldMessage(null)
       } catch (error) {
         if (!isAbortError(error)) {
           trackProductMetric('address_search_error')
@@ -367,7 +377,7 @@ export default function AddressSearch() {
       clearTimeout(timeoutId)
       controller.abort()
     }
-  }, [query, handleError, selectedAddress?.label, resolvingLabel, suggestionsQuery, retryToken])
+  }, [query, handleError, selectedAddress?.label, resolvingLabel, showNoResults, suggestionsQuery, retryToken])
 
   // Back from the results, the searched address is still in the field so it can be corrected.
   useEffect(() => {
@@ -584,6 +594,21 @@ export default function AddressSearch() {
             <p className={listIsOpen ? 'sr-only' : 'mt-2 text-sm leading-6 text-gray-100'}>{fieldMessage}</p>
           ) : null}
         </div>
+
+        {fieldMessage === noResultsMessage && wholeCountry?.query === query.trim() ? (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery(wholeCountry.street)
+              setFieldMessage(null)
+              setWholeCountry(null)
+              inputRef.current?.focus()
+            }}
+            className="inline-flex min-h-[44px] items-center text-left text-sm font-medium text-white underline underline-offset-4"
+          >
+            Søg efter {wholeCountry.street} i hele landet
+          </button>
+        ) : null}
 
         {hasFailed ? (
           <div id="address-search-error" className={fieldErrorClass} role="alert">

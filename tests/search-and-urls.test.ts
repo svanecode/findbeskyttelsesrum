@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { afterEach, test } from "node:test";
 
 import { pickUnambiguousSuggestion, searchAddresses, type AddressSuggestion } from "../src/lib/address/adressevaelger";
@@ -40,6 +41,18 @@ test("town names and postcodes map to municipality codes and areas", () => {
   assert.deepEqual(matchPlace("Hinnerup", table)?.codes, ["0710"]);
   assert.deepEqual(matchPlace("8000", table)?.areas.map((area) => area.postnr), ["8000"]);
   assert.equal(matchPlace("Vesterbrogade", table), null);
+});
+
+test("a town name covers its own postcode and the postcodes that start with it", async () => {
+  const bundled = JSON.parse(
+    await readFile(new URL("../src/lib/address/postal-areas.json", import.meta.url), "utf8"),
+  ) as PostalAreaTable;
+  const postcodes = (place: string) => matchPlace(place, bundled)?.areas.map((area) => area.postnr).sort();
+  // 9000 is called "Aalborg" itself, the others "Aalborg SV", "Aalborg SØ" and "Aalborg Øst".
+  assert.deepEqual(postcodes("Aalborg"), ["9000", "9200", "9210", "9220"]);
+  assert.deepEqual(postcodes("Aarhus"), ["8000", "8200", "8210"]);
+  assert.deepEqual(postcodes("Aalborg SV"), ["9200"]);
+  assert.deepEqual(postcodes("Hjørring"), ["9800"]);
 });
 
 test("the street and the town are split with and without a comma", () => {

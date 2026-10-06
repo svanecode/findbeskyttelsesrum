@@ -281,8 +281,8 @@ test("tvetydig fritekst viser forslag med en instruktion, der annonceres", async
   await page.getByRole("button", { name: "Søg", exact: true }).click();
 
   // Announced by the status region and shown over the list (2.2).
-  await expect(page.getByRole("status").filter({ hasText: "Vælg den rigtige adresse på listen." })).toHaveCount(1);
-  await expect(page.locator("p[aria-hidden='true']", { hasText: "Vælg den rigtige adresse på listen." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Vælg på listen." })).toHaveCount(1);
+  await expect(page.locator("p[aria-hidden='true']", { hasText: "Vælg på listen." })).toBeVisible();
   await expect(page.getByRole("option")).toHaveCount(2);
   await expect(page).toHaveURL((url) => url.pathname === "/");
 
@@ -309,4 +309,44 @@ test("tom søgning giver en fejltekst ved feltet i stedet for en deaktiveret kna
   await searchButton.click();
   await expect(page.getByText("Skriv en adresse, et postnummer eller en by.")).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Eller søg på en adresse" })).toBeFocused();
+});
+
+test("ingen adresse i kommunen tilbyder samme søgning i hele landet", async ({ page }) => {
+  const searches: string[] = [];
+  await mockAddressSearch(page);
+  await page.route("**/api/app-v2/postal-areas", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      postnumre: [["9940", "Læsø", ["0825"], 57.27, 11.03], ["8000", "Aarhus C", ["0751"], 56.15, 10.2]],
+      kommuner: [["0825", "Læsø"], ["0751", "Aarhus"]],
+    }),
+  }));
+  await page.unroute("https://adressevaelger.dk/husnumre/soeg**");
+  await page.route("https://adressevaelger.dk/husnumre/soeg**", async (route) => {
+    const url = new URL(route.request().url());
+    const text = url.searchParams.get("tekst") ?? "";
+    searches.push(text);
+    // Like DAR: Læsø has no Vestergade, other towns do.
+    const fund = url.searchParams.has("kommunekode") && text.startsWith("Vestergade")
+      ? []
+      : [{ type: "husnummer", id: "0a3f507a-ec01-32b8-e044-0003ba298018", titel: "Vestergade 1, 8000 Aarhus C" }];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ok", beskrivelse: "", fund }),
+    });
+  });
+
+  await page.goto("/");
+  const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
+  await addressInput.fill("Vestergade 1, Læsø");
+  await expect(page.getByText("Ingen adresser fundet.", { exact: false })).toBeVisible();
+  const wholeCountry = page.getByRole("button", { name: "Søg efter Vestergade 1 i hele landet" });
+  await wholeCountry.click();
+
+  await expect(addressInput).toHaveValue("Vestergade 1");
+  await expect(addressInput).toBeFocused();
+  await expect(page.getByRole("option", { name: "Vestergade 1, 8000 Aarhus C" })).toBeVisible();
+  await expect(wholeCountry).toHaveCount(0);
 });

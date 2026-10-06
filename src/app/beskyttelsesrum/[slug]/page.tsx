@@ -196,6 +196,8 @@ export default async function ShelterDetailPage({ params }: Props) {
     shelterId: shelter.id,
     municipalityId: shelter.municipality.id,
     postalCode: shelter.postalCode,
+    latitude: shelter.latitude,
+    longitude: shelter.longitude,
     limit: 3,
   }).catch(() => []);
 
