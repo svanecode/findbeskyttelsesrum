@@ -86,6 +86,17 @@ test("a town after the street filters by municipality and ranks the town first (
   assert.equal(filtered?.searchParams.get("tekst"), "Banegaardspladsen 1");
 });
 
+test("a street that does not exist in the named town gives no suggestions, not other towns", async () => {
+  // "Vestergade 1, Læsø": Læsø has no Vestergade; the same street elsewhere must not be offered.
+  mockAdressevaelger((url) => url.searchParams.has("kommunekode")
+    ? []
+    : [address("Vestergade 1, 1456 København K"), address("Vestergade 1, Karlstrup, 2690 Karlslunde")]);
+
+  const results = await searchAddresses("Vestergade 1, Læsø", { limit: 5 });
+
+  assert.deepEqual(results, []);
+});
+
 test("a bare postcode is offered as an area (A3)", async () => {
   mockAdressevaelger(() => []);
   const results = await searchAddresses("8000", { limit: 5 });

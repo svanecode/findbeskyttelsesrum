@@ -669,6 +669,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                   onRetry={retryTiles}
                   fallbackLabel="Til resultatlisten"
                   onFallback={useResultListFallback}
+                  fallbackDesktopOnly
                 />
               ) : null}
             </div>

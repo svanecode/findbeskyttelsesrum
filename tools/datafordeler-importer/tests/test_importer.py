@@ -23,8 +23,8 @@ class Source:
         if self.failure:
             raise self.failure
 
-    def postal_areas(self, *, snapshot_at: str, positioned: set[str]) -> list[dict[str, Any]]:
-        self.args["postal_positioned"] = positioned
+    def postal_areas(self, *, snapshot_at: str, complete: set[str]) -> list[dict[str, Any]]:
+        self.args["postal_complete"] = complete
         return [{"postnr": "6857", "name": "Blåvand", "latitude": 55.56, "longitude": 8.08}]
 
 
@@ -73,7 +73,7 @@ class Store:
         self.events.append("postcodes_from_registrations")
         return 1
 
-    def positioned_postal_codes(self) -> set[str]:
+    def complete_postal_codes(self) -> set[str]:
         return {"1000"}
 
     def upsert_dar_postal_areas(self, rows: list[dict[str, Any]]) -> int:

@@ -250,7 +250,7 @@ class Importer:
         try:
             self.store.refresh_postal_areas_from_registrations()
             rows = self.source.postal_areas(
-                snapshot_at=snapshot_at, positioned=self.store.positioned_postal_codes()
+                snapshot_at=snapshot_at, complete=self.store.complete_postal_codes()
             )
             saved = self.store.upsert_dar_postal_areas(rows)
             logger.info("Postcodes refreshed: %s from DAR", saved)

@@ -204,7 +204,7 @@ def test_bbr_cursor_pagination_is_deterministic() -> None:
     assert all(call[1]["registreringstid"] == "fixed" for call in bbr.calls)
 
 
-def test_postal_areas_cover_every_dar_postcode_and_position_only_the_missing() -> None:
+def test_postal_areas_cover_every_dar_postcode_and_complete_only_the_missing() -> None:
     dar = FakeClient(
         {
             "FetchAllDarPostalCodes": [
@@ -222,7 +222,10 @@ def test_postal_areas_cover_every_dar_postcode_and_position_only_the_missing() -
                 ),
             ],
             "FetchDarHouseInPostalCode": [
-                connection("DAR_Husnummer", [{"id_lokalId": "h-1", "adgangspunkt": "a-1"}]),
+                connection(
+                    "DAR_Husnummer",
+                    [{"id_lokalId": "h-1", "adgangspunkt": "a-1"}, {"id_lokalId": "h-2"}],
+                ),
             ],
             "FetchDarAddressPoints": [
                 connection(
@@ -232,15 +235,57 @@ def test_postal_areas_cover_every_dar_postcode_and_position_only_the_missing() -
             ],
         }
     )
-    source = DatafordelerSource(config(), bbr_client=FakeClient({}), dar_client=dar)  # type: ignore[arg-type]
+    # The building at h-2 gives the municipality; h-1 has none in BBR.
+    bbr = FakeClient(
+        {
+            "FetchBbrMunicipalityForHouses": [
+                connection("BBR_Bygning", [{"husnummer": "h-2", "kommunekode": "573"}]),
+            ],
+        }
+    )
+    source = DatafordelerSource(config(), bbr_client=bbr, dar_client=dar)  # type: ignore[arg-type]
 
-    rows = source.postal_areas(snapshot_at="2026-10-02T00:00:00Z", positioned={"1000"})
+    rows = source.postal_areas(snapshot_at="2026-10-02T00:00:00Z", complete={"1000"})
 
     assert [row["postnr"] for row in rows] == ["1000", "6857"]
-    assert rows[0]["latitude"] is None
+    assert rows[0]["latitude"] is None and rows[0]["municipality_codes"] == []
     assert 55 < rows[1]["latitude"] < 56 and 8 < rows[1]["longitude"] < 9.5
+    assert rows[1]["municipality_codes"] == ["0573"]
     house_calls = [call for call in dar.calls if call[0] == "FetchDarHouseInPostalCode"]
     assert [call[1]["postnummer"] for call in house_calls] == ["p-6857"]
+    assert bbr.calls[0][1]["ids"] == ["h-1", "h-2"]
+
+
+def test_a_failed_municipality_lookup_keeps_the_positions() -> None:
+    class FailingBbr(FakeClient):
+        def query(self, operation: str, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+            self.calls.append((operation, variables))
+            raise DatafordelerError("unknown filter husnummer")
+
+    dar = FakeClient(
+        {
+            "FetchAllDarPostalCodes": [
+                connection(
+                    "DAR_Postnummer", [{"id_lokalId": "p-9940", "postnr": "9940", "navn": "Læsø"}]
+                ),
+            ],
+            "FetchDarHouseInPostalCode": [
+                connection("DAR_Husnummer", [{"id_lokalId": "h-1", "adgangspunkt": "a-1"}]),
+            ],
+            "FetchDarAddressPoints": [
+                connection(
+                    "DAR_Adressepunkt",
+                    [{"id_lokalId": "a-1", "position": {"wkt": "POINT(615000 6350000)"}}],
+                ),
+            ],
+        }
+    )
+    source = DatafordelerSource(config(), bbr_client=FailingBbr({}), dar_client=dar)  # type: ignore[arg-type]
+
+    rows = source.postal_areas(snapshot_at="2026-10-02T00:00:00Z", complete=set())
+
+    assert rows[0]["latitude"] is not None
+    assert rows[0]["municipality_codes"] == []
 
 
 def test_postal_position_lookups_stop_after_repeated_failures() -> None:
@@ -258,7 +303,7 @@ def test_postal_position_lookups_stop_after_repeated_failures() -> None:
     dar = FailingHouses({"FetchAllDarPostalCodes": [connection("DAR_Postnummer", nodes)]})
     source = DatafordelerSource(config(), bbr_client=FakeClient({}), dar_client=dar)  # type: ignore[arg-type]
 
-    rows = source.postal_areas(snapshot_at="2026-10-02T00:00:00Z", positioned=set())
+    rows = source.postal_areas(snapshot_at="2026-10-02T00:00:00Z", complete=set())
 
     assert len(rows) == 30
     assert all(row["latitude"] is None for row in rows)

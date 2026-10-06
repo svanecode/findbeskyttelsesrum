@@ -51,17 +51,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OWNER: ${{ github.repository_owner }}
         shell: bash
+        # The alert must reach a person, not only sit as an open issue: a new
+        # alert is assigned to the repository owner (GitHub notifies the
+        # assignee by e-mail and in the GitHub app), and an alert that is still
+        # failing after a day gets one reminder comment a day. Runs in between
+        # only update the issue text, which sends no notification.
         run: |
           gh label create production-alert --color B60205 --description "Automatisk alarm for produktionskontrol" --force
-          alert_url="$(gh issue list --label production-alert --state open --limit 1 --json url --jq '.[0].url' 2>/dev/null || true)"
-          if [[ -z "$alert_url" ]]; then
+          alert="$(gh issue list --label production-alert --state open --limit 1 --json number,url --jq '.[0].number' 2>/dev/null || true)"
+          now="$(date -u +%Y-%m-%dT%H:%MZ)"
+          if [[ -z "$alert" ]]; then
             gh issue create \
               --title "Produktionskontrollen kræver opmærksomhed" \
               --label production-alert \
-              --body "Den automatiske kontrol af website, data eller anonyme driftstal fejlede. Se kørslen: $RUN_URL"
+              --assignee "$OWNER" \
+              --body "@$OWNER Den automatiske kontrol af website, data eller anonyme driftstal fejlede $now. Se kørslen: $RUN_URL"
           else
-            gh issue comment "$alert_url" --body "Produktionskontrollen fejlede igen. Se kørslen: $RUN_URL"
+            gh issue edit "$alert" --add-assignee "$OWNER" >/dev/null || true
+            last="$(gh api "repos/${{ github.repository }}/issues/$alert/comments" --jq 'map(select(.body | startswith("Påmindelse"))) | last | .created_at // ""' 2>/dev/null || true)"
+            if [[ -z "$last" ]] || (( $(date -u +%s) - $(date -u -d "$last" +%s) > 86400 )); then
+              gh issue comment "$alert" --body "Påmindelse til @$OWNER: produktionskontrollen fejler stadig ($now). Se kørslen: $RUN_URL"
+            else
+              gh issue edit "$alert" --body "@$OWNER Produktionskontrollen fejler. Seneste fejl $now. Se kørslen: $RUN_URL"
+            fi
           fi
 
       - name: Luk driftsalarm efter næste succes

@@ -512,19 +512,34 @@ class AppV2Store:
         )
         return result[0] if isinstance(result, list) and result else {}
 
-    def positioned_postal_codes(self) -> set[str]:
-        """Postcodes that already have a position."""
-        rows = self._request(
-            "GET",
-            "postal_areas",
-            operation="read positioned postcodes",
-            params={"select": "postnr", "latitude": "not.is.null", "limit": "5000"},
-        )
-        return {
-            str(row["postnr"])
-            for row in rows or []
-            if isinstance(row, dict) and row.get("postnr")
-        }
+    def complete_postal_codes(self) -> set[str]:
+        """Postcodes that already have a position and municipality codes.
+
+        Read in pages: PostgREST returns at most 1000 rows per request, and
+        there are about 1,090 postcodes.
+        """
+        codes: set[str] = set()
+        page_size = 1000
+        offset = 0
+        while True:
+            rows = self._request(
+                "GET",
+                "postal_areas",
+                operation="read complete postcodes",
+                params={
+                    "select": "postnr",
+                    "latitude": "not.is.null",
+                    "municipality_codes": "neq.{}",
+                    "order": "postnr.asc",
+                    "limit": str(page_size),
+                    "offset": str(offset),
+                },
+            )
+            page = [row for row in rows or [] if isinstance(row, dict) and row.get("postnr")]
+            codes.update(str(row["postnr"]) for row in page)
+            if len(rows or []) < page_size:
+                return codes
+            offset += page_size
 
     def upsert_dar_postal_areas(self, rows: list[dict[str, Any]]) -> int:
         result = self._request(
