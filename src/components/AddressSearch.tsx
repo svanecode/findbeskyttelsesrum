@@ -439,6 +439,7 @@ export default function AddressSearch() {
   }
 
   const fieldMessageIsError = fieldMessage === emptyQueryMessage || fieldMessage === noResultsMessage
+  const showWholeCountry = fieldMessage === noResultsMessage && wholeCountry !== null && wholeCountry.query === query.trim()
   const hasFieldError = fieldMessageIsError || hasFailed || Boolean(searchError)
   const listIsOpen = isOpen && suggestions.length > 0
   // Offline, the position alone does not help: results need data saved for that area.
@@ -588,14 +589,18 @@ export default function AddressSearch() {
         {/* Always in the DOM so screen readers announce changes to it. */}
         <div id={fieldMessageId} role="status" aria-live="polite">
           {fieldMessage && fieldMessageIsError ? (
-            <p className={fieldErrorClass}><FieldErrorIcon />{fieldMessage}</p>
+            <p className={fieldErrorClass}>
+              <FieldErrorIcon />{fieldMessage}
+              {/* Screen readers hear that the button below exists (Fable review of #65). */}
+              {showWholeCountry ? <span className="sr-only"> Under feltet kan du søge efter {wholeCountry.street} i hele landet.</span> : null}
+            </p>
           ) : fieldMessage ? (
             // The instruction is shown over the open list; here it is for screen readers.
             <p className={listIsOpen ? 'sr-only' : 'mt-2 text-sm leading-6 text-gray-100'}>{fieldMessage}</p>
           ) : null}
         </div>
 
-        {fieldMessage === noResultsMessage && wholeCountry?.query === query.trim() ? (
+        {showWholeCountry ? (
           <button
             type="button"
             onClick={() => {
