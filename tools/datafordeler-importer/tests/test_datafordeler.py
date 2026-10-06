@@ -9,6 +9,7 @@ from shelter_importer.config import BBR_GRAPHQL_URL, DAR_GRAPHQL_URL, ImportConf
 from shelter_importer.datafordeler import (
     BBR_QUERY,
     DAR_HOUSE_NUMBER_QUERY,
+    DAR_POSTAL_HOUSE_QUERY,
     DAR_POSTAL_QUERY,
     DAR_ROAD_QUERY,
     DatafordelerError,
@@ -254,6 +255,8 @@ def test_postal_areas_cover_every_dar_postcode_and_complete_only_the_missing() -
     house_calls = [call for call in dar.calls if call[0] == "FetchDarHouseInPostalCode"]
     assert [call[1]["postnummer"] for call in house_calls] == ["p-6857"]
     assert bbr.calls[0][1]["ids"] == ["h-1", "h-2"]
+    # 100 addresses per postcode, so a postcode across a municipal border shows both sides.
+    assert "first: 100" in DAR_POSTAL_HOUSE_QUERY
 
 
 def test_a_failed_municipality_lookup_keeps_the_positions() -> None:

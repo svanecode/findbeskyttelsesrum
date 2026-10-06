@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(27);
+select plan(28);
 
 -- Privileges: the history tables are private; only the narrow lookups are public.
 select ok(
@@ -182,6 +182,12 @@ select is(
   (select municipality_codes from app_v2.postal_area_public_v1 where postnr = '9967'),
   array['0825']::text[],
   'a later run without codes keeps the known ones'
+);
+select app_v2.upsert_dar_postal_areas_v1('[{"postnr": "9967", "name": "Tomby", "municipality_codes": ["0813"]}]'::jsonb);
+select is(
+  (select municipality_codes from app_v2.postal_area_public_v1 where postnr = '9967'),
+  array['0813', '0825']::text[],
+  'codes found in a later run are added, so a postcode across a border gets both municipalities'
 );
 
 -- Different buildings, same places, a few metres apart, different addresses.

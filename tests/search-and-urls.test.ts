@@ -48,7 +48,10 @@ test("the street and the town are split with and without a comma", () => {
     municipalityCodes: ["0751"],
     placeKey: "århus",
     areas: [],
+    isMunicipalityName: true,
   });
+  // A postcode name is not a municipality, so its codes may be incomplete.
+  assert.equal(parseLocality("Nørre Allé 5, Aarhus N", table)?.isMunicipalityName, false);
   assert.equal(parseLocality("Banegaardspladsen 1 Aarhus", table)?.street, "Banegaardspladsen 1");
   assert.equal(parseLocality("Nørre Allé 5 Aarhus N", table)?.placeKey, "århus n");
   // A trailing postcode is left to Adressevælger, which already understands it.
@@ -95,6 +98,17 @@ test("a street that does not exist in the named town gives no suggestions, not o
   const results = await searchAddresses("Vestergade 1, Læsø", { limit: 5 });
 
   assert.deepEqual(results, []);
+});
+
+test("a place known only as a postcode name keeps the other results when the filter finds nothing", async () => {
+  // A postcode's municipality codes can be incomplete, so an empty filtered answer is not proof.
+  mockAdressevaelger((url) => url.searchParams.has("kommunekode")
+    ? []
+    : [address("Vestergade 1, 8000 Aarhus C")]);
+
+  const results = await searchAddresses("Vestergade 1, Aarhus C", { limit: 5 });
+
+  assert.deepEqual(results.map((result) => result.label), ["Vestergade 1, 8000 Aarhus C"]);
 });
 
 test("a bare postcode is offered as an area (A3)", async () => {

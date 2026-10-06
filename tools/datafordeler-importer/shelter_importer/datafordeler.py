@@ -99,7 +99,9 @@ query FetchDarPostalCodes(
 
 # Every postcode in DAR, for the address search. Postcodes have no position in
 # DAR, so one current address access point stands in for the postcodes that no
-# registration covers.
+# registration covers. Up to 100 addresses per postcode give its municipalities
+# (through their BBR buildings): enough to find both sides of a postcode that
+# crosses a municipal border, without paging through every address.
 DAR_ALL_POSTAL_QUERY = """
 query FetchAllDarPostalCodes(
   $first: Int!, $after: String,
@@ -121,7 +123,7 @@ query FetchDarHouseInPostalCode(
   $registreringstid: DafDateTime, $virkningstid: DafDateTime
 ) {
   DAR_Husnummer(
-    first: 5,
+    first: 100,
     registreringstid: $registreringstid, virkningstid: $virkningstid,
     where: { postnummer: { eq: $postnummer }, status: { eq: "3" } }
   ) {
@@ -452,9 +454,9 @@ class DatafordelerSource:
 
         Postcodes in `complete` already have a position and municipality codes
         (from registrations or an earlier run) and are sent without them. For
-        the others, a few current DAR addresses in the postcode give the
-        position (the first access point) and the municipality (the kommunekode
-        of their BBR buildings). A failed lookup leaves the field empty; it
+        the others, up to 100 current DAR addresses in the postcode give the
+        position (the first access point) and the municipalities (the
+        kommunekode of their BBR buildings). A failed lookup leaves the field empty; it
         never stops the import.
         """
         postcodes: dict[str, dict[str, Any]] = {}

@@ -29,6 +29,8 @@ export type PostalArea = {
 };
 
 export type ParsedLocality = {
+  /** True when the place is a municipality's name, so its codes are complete. */
+  isMunicipalityName: boolean;
   /** The street and house number part, or "" when the query is only a place. */
   street: string;
   /** Municipality codes the place name or postcode points at. */
@@ -61,7 +63,7 @@ export function alternateAaSpelling(value: string) {
   return null;
 }
 
-type PlaceMatch = { codes: string[]; areas: PostalArea[] };
+type PlaceMatch = { codes: string[]; areas: PostalArea[]; isMunicipalityName: boolean };
 
 function toArea(row: PostalAreaRow): PostalArea {
   return { postnr: row[0], name: row[1], latitude: row[3], longitude: row[4] };
@@ -79,8 +81,8 @@ export function matchPlace(text: string, table: PostalAreaTable): PlaceMatch | n
   const postcode = /^(\d{4})(?: (.+))?$/.exec(key);
   if (postcode) {
     const rows = table.postnumre.filter((row) => row[0] === postcode[1]);
-    if (rows.length === 0) return { codes: [], areas: [] };
-    return { codes: Array.from(new Set(rows.flatMap((row) => row[2]))), areas: rows.map(toArea) };
+    if (rows.length === 0) return { codes: [], areas: [], isMunicipalityName: false };
+    return { codes: Array.from(new Set(rows.flatMap((row) => row[2]))), areas: rows.map(toArea), isMunicipalityName: false };
   }
   if (/\d/.test(key)) return null;
 
@@ -101,7 +103,7 @@ export function matchPlace(text: string, table: PostalAreaTable): PlaceMatch | n
   for (const row of prefixed) {
     if (!areasByName.has(row[1])) areasByName.set(row[1], toArea(row));
   }
-  return { codes: Array.from(codes).sort(), areas: Array.from(areasByName.values()) };
+  return { codes: Array.from(codes).sort(), areas: Array.from(areasByName.values()), isMunicipalityName: municipalities.length > 0 };
 }
 
 /**
@@ -116,7 +118,7 @@ export function parseLocality(query: string, table: PostalAreaTable): ParsedLoca
 
   const whole = matchPlace(trimmed, table);
   if (whole) {
-    return { street: "", municipalityCodes: whole.codes, placeKey: normalizePlaceText(trimmed), areas: whole.areas };
+    return { street: "", municipalityCodes: whole.codes, placeKey: normalizePlaceText(trimmed), areas: whole.areas, isMunicipalityName: whole.isMunicipalityName };
   }
 
   const comma = trimmed.lastIndexOf(",");
@@ -126,7 +128,7 @@ export function parseLocality(query: string, table: PostalAreaTable): ParsedLoca
     if (!street || !place || /^\d{4}\b/.test(place)) return null;
     const match = matchPlace(place, table);
     if (!match || match.codes.length === 0) return null;
-    return { street, municipalityCodes: match.codes, placeKey: normalizePlaceText(place), areas: [] };
+    return { street, municipalityCodes: match.codes, placeKey: normalizePlaceText(place), areas: [], isMunicipalityName: match.isMunicipalityName };
   }
 
   const words = trimmed.split(" ");
@@ -136,7 +138,7 @@ export function parseLocality(query: string, table: PostalAreaTable): ParsedLoca
     if (/^\d/.test(place) || !/\p{L}/u.test(street)) continue;
     const match = matchPlace(place, table);
     if (match && match.codes.length > 0) {
-      return { street, municipalityCodes: match.codes, placeKey: normalizePlaceText(place), areas: [] };
+      return { street, municipalityCodes: match.codes, placeKey: normalizePlaceText(place), areas: [], isMunicipalityName: match.isMunicipalityName };
     }
   }
   return null;

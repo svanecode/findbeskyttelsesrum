@@ -3,7 +3,7 @@
 -- only registrations set municipality_codes, so about half of all postcodes
 -- had none and a search such as "Vestergade 1, Byrum" could not be limited to
 -- the municipality. Registrations still win: a postcode with registrations
--- keeps the codes they give.
+-- keeps the codes they give. Codes from DAR accumulate across imports.
 
 create or replace function app_v2.upsert_dar_postal_areas_v1(p_rows jsonb)
 returns integer
@@ -50,10 +50,17 @@ begin
   from incoming
   on conflict (postnr) do update
     set name = excluded.name,
+        -- Codes found in DAR are added to the known ones, never replace them:
+        -- a sample of addresses can miss one side of a municipal border.
         municipality_codes = case
           when area.has_registrations then area.municipality_codes
-          when cardinality(excluded.municipality_codes) > 0 then excluded.municipality_codes
-          else area.municipality_codes
+          else coalesce(
+            (
+              select array_agg(distinct code order by code)
+              from unnest(area.municipality_codes || excluded.municipality_codes) as code
+            ),
+            '{}'
+          )
         end,
         latitude = case when area.has_registrations then area.latitude else coalesce(excluded.latitude, area.latitude) end,
         longitude = case when area.has_registrations then area.longitude else coalesce(excluded.longitude, area.longitude) end,
