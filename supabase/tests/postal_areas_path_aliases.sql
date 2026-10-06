@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(24);
+select plan(28);
 
 -- Privileges: the history tables are private; only the narrow lookups are public.
 select ok(
@@ -160,6 +160,34 @@ select is(
   (select count(*)::integer from app_v2.postal_areas where postnr = '99'),
   0,
   'invalid postcodes are ignored'
+);
+
+-- Municipality codes from DAR/BBR fill postcodes without registrations only.
+select app_v2.upsert_dar_postal_areas_v1('[
+  {"postnr": "9966", "name": "Testby", "municipality_codes": ["0999"]},
+  {"postnr": "9967", "name": "Tomby", "municipality_codes": ["0825", "x", "0825"]}
+]'::jsonb);
+select is(
+  (select municipality_codes from app_v2.postal_area_public_v1 where postnr = '9967'),
+  array['0825']::text[],
+  'a postcode without registrations gets its municipality code from DAR, invalid codes dropped'
+);
+select is(
+  (select municipality_codes from app_v2.postal_area_public_v1 where postnr = '9966'),
+  array['9966']::text[],
+  'a postcode with registrations keeps the codes its registrations give'
+);
+select app_v2.upsert_dar_postal_areas_v1('[{"postnr": "9967", "name": "Tomby"}]'::jsonb);
+select is(
+  (select municipality_codes from app_v2.postal_area_public_v1 where postnr = '9967'),
+  array['0825']::text[],
+  'a later run without codes keeps the known ones'
+);
+select app_v2.upsert_dar_postal_areas_v1('[{"postnr": "9967", "name": "Tomby", "municipality_codes": ["0813"]}]'::jsonb);
+select is(
+  (select municipality_codes from app_v2.postal_area_public_v1 where postnr = '9967'),
+  array['0813', '0825']::text[],
+  'codes found in a later run are added, so a postcode across a border gets both municipalities'
 );
 
 -- Different buildings, same places, a few metres apart, different addresses.

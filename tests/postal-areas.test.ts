@@ -68,3 +68,19 @@ test("the postcode route uses a cache key that cannot serve the old cut table", 
   const route = await readFile(new URL("../src/app/api/app-v2/postal-areas/route.ts", import.meta.url), "utf8");
   assert.doesNotMatch(route, /"app-v2-postal-areas-v1"/);
 });
+
+test("each import gets a fresh postcode table without a manual cache key change", async () => {
+  const route = await readFile(new URL("../src/app/api/app-v2/postal-areas/route.ts", import.meta.url), "utf8");
+  // Keyed by the public data revision, which every publication changes.
+  assert.match(route, /getAppV2PublicDataRevision\(\)/);
+  assert.match(route, /readPostalAreas\(revision\)/);
+  assert.match(route, /s-maxage=300/);
+  assert.doesNotMatch(route, /s-maxage=86400/);
+});
+
+test("a failing production check reaches a person, not only an open issue", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/production-smoke.yml", import.meta.url), "utf8");
+  assert.match(workflow, /--assignee "\$OWNER"/);
+  assert.match(workflow, /Påmindelse til @\$OWNER/);
+  assert.match(workflow, /> 86400/);
+});

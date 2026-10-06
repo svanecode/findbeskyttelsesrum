@@ -99,7 +99,9 @@ query FetchDarPostalCodes(
 
 # Every postcode in DAR, for the address search. Postcodes have no position in
 # DAR, so one current address access point stands in for the postcodes that no
-# registration covers.
+# registration covers. Up to 100 addresses per postcode give its municipalities
+# (through their BBR buildings): enough to find both sides of a postcode that
+# crosses a municipal border, without paging through every address.
 DAR_ALL_POSTAL_QUERY = """
 query FetchAllDarPostalCodes(
   $first: Int!, $after: String,
@@ -121,11 +123,30 @@ query FetchDarHouseInPostalCode(
   $registreringstid: DafDateTime, $virkningstid: DafDateTime
 ) {
   DAR_Husnummer(
-    first: 1,
+    first: 100,
     registreringstid: $registreringstid, virkningstid: $virkningstid,
     where: { postnummer: { eq: $postnummer }, status: { eq: "3" } }
   ) {
     nodes { id_lokalId adgangspunkt }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"""
+
+# The municipality of a postcode without registrations: BBR buildings carry a
+# kommunekode, and the DAR addresses fetched for the postcode's position point
+# at their buildings.
+BBR_MUNICIPALITY_QUERY = """
+query FetchBbrMunicipalityForHouses(
+  $first: Int!, $after: String, $ids: [String!],
+  $registreringstid: DafDateTime, $virkningstid: DafDateTime
+) {
+  BBR_Bygning(
+    first: $first, after: $after,
+    registreringstid: $registreringstid, virkningstid: $virkningstid,
+    where: { husnummer: { in: $ids } }
+  ) {
+    nodes { husnummer kommunekode }
     pageInfo { hasNextPage endCursor }
   }
 }
@@ -427,12 +448,16 @@ class DatafordelerSource:
         return records, warnings, dar_missing_count, mapping_failure_count
 
     def postal_areas(
-        self, *, snapshot_at: str, positioned: set[str]
+        self, *, snapshot_at: str, complete: set[str]
     ) -> list[dict[str, Any]]:
-        """Every DAR postcode as {postnr, name, latitude, longitude}.
+        """Every DAR postcode as {postnr, name, latitude, longitude, municipality_codes}.
 
-        Postcodes in `positioned` already have a position (from registrations
-        or an earlier run) and are sent without one.
+        Postcodes in `complete` already have a position and municipality codes
+        (from registrations or an earlier run) and are sent without them. For
+        the others, up to 100 current DAR addresses in the postcode give the
+        position (the first access point) and the municipalities (the
+        kommunekode of their BBR buildings). A failed lookup leaves the field empty; it
+        never stops the import.
         """
         postcodes: dict[str, dict[str, Any]] = {}
         after: str | None = None
@@ -462,9 +487,10 @@ class DatafordelerSource:
             after = next_cursor
 
         access_points: dict[str, str] = {}
+        houses: dict[str, list[str]] = {}
         failures = 0
         for postnr, postcode in sorted(postcodes.items()):
-            if postnr in positioned or not postcode["id"]:
+            if postnr in complete or not postcode["id"]:
                 continue
             if failures >= MAX_CONSECUTIVE_POSITION_FAILURES:
                 break
@@ -484,9 +510,12 @@ class DatafordelerSource:
                 failures += 1
                 logger.warning("No DAR address for postcode %s: %s", postnr, exc)
                 continue
-            point_id = str(nodes[0].get("adgangspunkt") or "") if nodes else ""
+            point_id = next(
+                (str(node["adgangspunkt"]) for node in nodes if node.get("adgangspunkt")), ""
+            )
             if point_id:
                 access_points[postnr] = point_id
+            houses[postnr] = [str(node["id_lokalId"]) for node in nodes if node.get("id_lokalId")]
 
         points = (
             self._lookup(
@@ -499,6 +528,9 @@ class DatafordelerSource:
             if access_points
             else {}
         )
+        municipalities = self._municipalities_for_houses(
+            _unique(house for ids in houses.values() for house in ids), snapshot_at
+        )
 
         rows: list[dict[str, Any]] = []
         for postnr, postcode in sorted(postcodes.items()):
@@ -506,15 +538,56 @@ class DatafordelerSource:
             point = points.get(access_points.get(postnr, ""))
             if point:
                 latitude, longitude = self._coordinates(point.get("position"))
+            house_ids = houses.get(postnr, [])
+            codes = sorted({municipalities[h] for h in house_ids if h in municipalities})
             rows.append(
                 {
                     "postnr": postnr,
                     "name": postcode["name"],
                     "latitude": latitude,
                     "longitude": longitude,
+                    "municipality_codes": codes,
                 }
             )
         return rows
+
+    def _municipalities_for_houses(self, house_ids: list[str], snapshot_at: str) -> dict[str, str]:
+        """kommunekode per DAR husnummer, from the BBR buildings at it. Empty on failure."""
+        result: dict[str, str] = {}
+        if not house_ids:
+            return result
+        try:
+            for batch in _chunks(house_ids, self.config.dar_batch_size):
+                after: str | None = None
+                while True:
+                    data = self.bbr.query(
+                        "FetchBbrMunicipalityForHouses",
+                        BBR_MUNICIPALITY_QUERY,
+                        {
+                            "first": 1000,
+                            "after": after,
+                            "ids": batch,
+                            "registreringstid": snapshot_at,
+                            "virkningstid": snapshot_at,
+                        },
+                    )
+                    connection = _connection(data, "BBR_Bygning")
+                    for node in connection["nodes"]:
+                        house = str(node.get("husnummer") or "")
+                        code = str(node.get("kommunekode") or "").zfill(4)
+                        if house and re.fullmatch(r"\d{4}", code) and code != "0000":
+                            result.setdefault(house, code)
+                    info = connection["pageInfo"]
+                    if not info.get("hasNextPage"):
+                        break
+                    next_cursor = info.get("endCursor")
+                    if not next_cursor or next_cursor == after:
+                        raise DatafordelerError("BBR_Bygning pagination did not advance its cursor")
+                    after = next_cursor
+        except DatafordelerError as exc:
+            logger.warning("Postcode municipalities were not looked up: %s", exc)
+            return {}
+        return result
 
     def _lookup(
         self,

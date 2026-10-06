@@ -234,6 +234,12 @@ export async function searchAddresses(
   const settled = await Promise.allSettled(requests);
   const fulfilled = settled.filter((result) => result.status === "fulfilled");
   if (fulfilled.length === 0) throw (settled[0] as PromiseRejectedResult).reason;
+  // The place is a municipality and it has no such address: say so instead of
+  // offering the same street in other towns ("Vestergade 1, Læsø"). A place
+  // known only as a postcode name keeps the other results, because a
+  // postcode's municipality codes can be incomplete.
+  const filtered = settled[0];
+  if (locality?.isMunicipalityName && filtered?.status === "fulfilled" && filtered.value.length === 0) return [];
   const [first, ...rest] = settled.map((result) => result.status === "fulfilled" ? result.value : []);
   const merged = locality
     ? [...rankByPlace(first ?? [], locality.placeKey), ...rest.flat()]

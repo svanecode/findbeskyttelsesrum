@@ -6,6 +6,8 @@ import { useEffect, useRef } from "react";
 type BaseProps = {
   onRetry: () => void;
   fallbackLabel: string;
+  /** Hide the fallback on small screens, where the page already shows it (the result page's "Liste" tab). */
+  fallbackDesktopOnly?: boolean;
 };
 
 type Props = BaseProps & (
@@ -27,6 +29,7 @@ export default function MapUnavailableNotice({
   fallbackLabel,
   fallbackHref,
   onFallback,
+  fallbackDesktopOnly = false,
 }: Props) {
   const retryButtonRef = useRef<HTMLButtonElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -70,11 +73,11 @@ export default function MapUnavailableNotice({
           Prøv kortet igen
         </button>
         {fallbackHref ? (
-          <Link href={fallbackHref} className={buttonClass}>
+          <Link href={fallbackHref} className={`${buttonClass} ${fallbackDesktopOnly ? "max-lg:hidden" : ""}`}>
             {fallbackLabel}
           </Link>
         ) : (
-          <button type="button" onClick={onFallback} className={buttonClass}>
+          <button type="button" onClick={onFallback} className={`${buttonClass} ${fallbackDesktopOnly ? "max-lg:hidden" : ""}`}>
             {fallbackLabel}
           </button>
         )}

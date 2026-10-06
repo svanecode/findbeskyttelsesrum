@@ -218,8 +218,9 @@ test("kortfejl bevarer resultatlisten som fallback", async ({ page }, testInfo) 
   // The notice is a bar across the top; the markers below it stay usable.
   await expect(page.locator("[data-map-content]")).not.toHaveAttribute("inert", "");
   await expect(page.locator("[data-map-content]")).not.toHaveAttribute("aria-hidden", "true");
-  await mapError.getByRole("button", { name: "Til resultatlisten" }).click();
-  await expect(page.getByRole("tab", { name: "Liste" })).toBeFocused();
+  // On a phone the "Liste" tab above the map is the way back, so the bar has no list button.
+  await expect(mapError.getByRole("button", { name: "Til resultatlisten" })).toBeHidden();
+  await page.getByRole("tab", { name: "Liste" }).click();
   await expect(page.locator("#nearby-list-panel").getByText("Rådhuspladsen 1", { exact: true })).toBeVisible();
 });
 
