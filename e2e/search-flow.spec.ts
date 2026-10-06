@@ -280,7 +280,9 @@ test("tvetydig fritekst viser forslag med en instruktion, der annonceres", async
   await addressInput.press("Escape");
   await page.getByRole("button", { name: "Søg", exact: true }).click();
 
-  await expect(page.getByRole("status").filter({ hasText: "Vælg den rigtige adresse på listen." })).toBeVisible();
+  // Announced by the status region and shown over the list (2.2).
+  await expect(page.getByRole("status").filter({ hasText: "Vælg den rigtige adresse på listen." })).toHaveCount(1);
+  await expect(page.locator("p[aria-hidden='true']", { hasText: "Vælg den rigtige adresse på listen." })).toBeVisible();
   await expect(page.getByRole("option")).toHaveCount(2);
   await expect(page).toHaveURL((url) => url.pathname === "/");
 

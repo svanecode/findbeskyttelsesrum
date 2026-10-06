@@ -227,3 +227,35 @@ test("the time limit also covers a response body that stalls", async () => {
     globalThis.setTimeout = realSetTimeout;
   }
 });
+
+test("street, house number and town that match one address exactly search at once (2.3)", async () => {
+  const { pickExactAddressMatch } = await import("../src/lib/address/adressevaelger");
+  const table: PostalAreaTable = {
+    postnumre: [
+      ["8000", "Aarhus C", ["0751"], 56.15, 10.2],
+      ["8200", "Aarhus N", ["0751"], 56.18, 10.19],
+      ["1570", "København V", ["0101"], 55.67, 12.56],
+    ],
+    kommuner: [["0751", "Aarhus"], ["0101", "København"]],
+  };
+  const suggestions: AddressSuggestion[] = [
+    { kind: "address", id: "a", label: "Banegårdspladsen 1, 8000 Aarhus C" },
+    { kind: "address", id: "b", label: "Banegårdspladsen 1A, 8000 Aarhus C" },
+    { kind: "address", id: "c", label: "Banegårdspladsen 1, 1570 København V" },
+  ];
+  for (const typed of [
+    "Banegårdspladsen 1, Aarhus",
+    "banegaardspladsen 1 aarhus",
+    "Banegårdspladsen 1, 8000",
+    "Banegårdspladsen 1 8000 Aarhus C",
+    "Banegårdspladsen 1, Aarhus C",
+  ]) {
+    assert.equal(pickExactAddressMatch(typed, suggestions, table)?.id, "a", typed);
+  }
+  assert.equal(pickExactAddressMatch("Banegårdspladsen 1A, Aarhus", suggestions, table)?.id, "b");
+  // No town, no house number, or two exact matches: the list opens instead.
+  assert.equal(pickExactAddressMatch("Banegårdspladsen 1", suggestions, table), null);
+  assert.equal(pickExactAddressMatch("Banegårdspladsen, Aarhus", suggestions, table), null);
+  assert.equal(pickExactAddressMatch("Banegårdspladsen 1, Aarhus", [...suggestions, { kind: "address", id: "d", label: "Banegårdspladsen 1, 8200 Aarhus N" }], table), null);
+  assert.equal(pickExactAddressMatch("Banegårdspladsen 1, Aarhus", suggestions, null), null);
+});

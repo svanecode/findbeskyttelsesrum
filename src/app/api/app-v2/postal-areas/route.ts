@@ -9,7 +9,9 @@ import { getAppV2PublicPostalAreaTable } from "@/lib/supabase/queries/postal-are
 
 export const runtime = "nodejs";
 
-const readPostalAreas = unstable_cache(getAppV2PublicPostalAreaTable, ["app-v2-postal-areas-v1"], { revalidate: 3600 });
+// The data cache is shared across deployments. v2: the v1 entry holds the table cut
+// at PostgREST's 1000 rows, so a new key makes the full table live at once.
+const readPostalAreas = unstable_cache(getAppV2PublicPostalAreaTable, ["app-v2-postal-areas-v2"], { revalidate: 3600 });
 
 export async function GET() {
   const table = await readPostalAreas().catch(() => null);

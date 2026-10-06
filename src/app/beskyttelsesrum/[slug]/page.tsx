@@ -216,8 +216,9 @@ export default async function ShelterDetailPage({ params }: Props) {
           __html: serializeJsonLd(breadcrumbJsonLd),
         }}
       />
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-12 pt-6 sm:px-6 sm:pt-10 lg:px-8">
-        <article>
+      {/* Left-aligned in the site's wide column, like the other pages (5.2). */}
+      <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-12 pt-6 sm:px-6 sm:pt-10 lg:px-8">
+        <article className="max-w-3xl">
           <nav aria-label="Brødkrummer">
             <ol className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400">
               <li>
@@ -264,11 +265,6 @@ export default async function ShelterDetailPage({ params }: Props) {
               <a href={directionsHref} target="_blank" rel="noopener noreferrer" className={ui.primaryAction}>
                 Vis vej i Google Maps
                 <span className="sr-only"> (åbner i en ny fane)</span>
-              </a>
-            ) : null}
-            {hasCoords ? (
-              <a href={`#${shelterMapSectionId}`} className={ui.secondaryAction}>
-                Vis på kort
               </a>
             ) : null}
           </div>

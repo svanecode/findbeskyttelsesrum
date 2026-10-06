@@ -457,8 +457,6 @@ export default function CountryMap({
           ref={mapContentRef}
           data-map-content
           className="absolute inset-0"
-          aria-hidden={tileStatus === "error" ? true : undefined}
-          inert={tileStatus === "error"}
         >
           {!markersReady || (markerState.status === "loaded" && markerState.refreshing) ? (
             <div

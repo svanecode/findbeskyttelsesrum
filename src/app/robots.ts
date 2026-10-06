@@ -13,6 +13,7 @@ export default function robots(): MetadataRoute.Robots {
         '/auth/',
         '/static/',
         '/private/',
+        '/intern/',
       ],
     },
     sitemap: `${siteUrl}/sitemap.xml`,

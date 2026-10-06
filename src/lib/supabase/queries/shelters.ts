@@ -2,6 +2,7 @@ import { createAppV2PublicClient } from "@/lib/app-v2-public";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 import { SupabaseConfigurationError } from "@/lib/supabase/env";
 import { isMissingPublicRpcError } from "@/lib/supabase/public-rpc-errors";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 import { cache } from "react";
 import {
   getCanonicalShelterSlugs,
@@ -274,13 +275,17 @@ type ReadableShelterRow = {
 
 async function getPublicRegistrationsInPostcode(postalCode: string) {
   const pub = createAppV2PublicClient();
-  const { data, error } = await pub
-    .from("shelter_public_v2")
-    .select("id, slug, address_line1, postal_code, city, capacity")
-    .eq("postal_code", postalCode)
-    .limit(2000);
-  if (error) throw new Error(`Could not load public app_v2 shelters in ${postalCode}: ${error.message}`);
-  return ((data ?? []) as ReadableShelterRow[]).map((row) => ({
+  // The largest postcode has under 200 today; pages keep it right past 1000.
+  const rows = await readAllPages<ReadableShelterRow>(
+    (from, to) => pub
+      .from("shelter_public_v2")
+      .select("id, slug, address_line1, postal_code, city, capacity")
+      .eq("postal_code", postalCode)
+      .order("id", { ascending: true })
+      .range(from, to),
+    `public app_v2 shelters in ${postalCode}`,
+  );
+  return rows.map((row) => ({
     id: row.id,
     slug: row.slug,
     addressLine1: row.address_line1,

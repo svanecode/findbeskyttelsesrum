@@ -4,7 +4,7 @@ export const ui = {
   panel: "rounded-xl border border-white/10 bg-[var(--surface-elevated)]",
   panelInset: "rounded-lg border border-white/10 bg-[var(--surface-inset)]",
   pageTitle:
-    "break-words text-[1.75rem] font-semibold leading-[1.15] tracking-[-0.01em] text-white sm:text-4xl lg:text-[2.5rem]",
+    "break-words text-[1.75rem] font-semibold leading-[1.15] tracking-[-0.01em] text-white [text-wrap:balance] sm:text-4xl lg:text-[2.5rem]",
   sectionTitle: "break-words text-xl font-semibold text-white",
   lead: "max-w-2xl text-base leading-7 text-gray-300 sm:text-lg sm:leading-8",
   input:

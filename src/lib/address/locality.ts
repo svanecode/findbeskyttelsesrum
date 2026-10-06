@@ -9,8 +9,8 @@
  *
  * The live table comes from app_v2.postal_areas: every DAR postcode, refreshed
  * by each import, positioned by its registrations or, without any, by one DAR
- * address. postal-areas.json is a bundled fallback with the postcodes that had
- * registrations on 2 October 2026.
+ * address. postal-areas.json is a bundled fallback with all 1,089 postcodes
+ * and 98 municipalities as of 5 October 2026.
  */
 
 export type PostalAreaRow = [postnr: string, name: string, municipalityCodes: string[], latitude: number, longitude: number];

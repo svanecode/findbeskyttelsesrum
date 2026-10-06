@@ -89,7 +89,14 @@ test("core search surfaces explain registration limits and data freshness", asyn
 
   // Each caveat has one place: one line per page, the full text on /om-data.
   assert.match(homePage, /Vi kan ikke se, om rummene er åbne\./);
-  assert.match(homePage, /Ved varsling:/);
+  // "Ved varsling" lives in one component, shown on the front page and the 410 page.
+  assert.match(homePage, /<EmergencyGuidance /);
+  const [guidance, retiredPage] = await Promise.all([
+    readFile(new URL("../src/components/EmergencyGuidance.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/intern/fjernet/[slug]/page.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(guidance, /Ved varsling:/);
+  assert.match(retiredPage, /<EmergencyGuidance /);
   assert.match(nearbyPage, /Adgang og stand er ikke bekræftet\./);
   assert.match(detailPage, /Adgang og stand er ikke bekræftet\./);
   assert.match(detailPage, /Ikke verificeret/);
@@ -141,7 +148,7 @@ test("detail pages expose contact, moderated reporting and related registrations
   const reportForm = await readFile(reportFormUrl, "utf8");
   const reportApi = await readFile(reportApiUrl, "utf8");
 
-  assert.match(detailPage, /Vis på kort/);
+  assert.doesNotMatch(detailPage, /Vis på kort/);
   assert.match(detailPage, /Vis vej i Google Maps/);
   assert.match(detailPage, /kommunen via Borger\.dk/);
   assert.match(detailPage, /Andre registreringer i området/);
@@ -484,8 +491,10 @@ test("titles, headings and map help use the agreed wording", async () => {
   assert.match(municipalityView, />Beskyttelsesrum i \{municipality\.name\}</);
   assert.match(municipalityMetadata, /`Beskyttelsesrum i \$\{kommuneName\}/);
   assert.match(notFound, /<AddressSearch \/>/);
-  // One action shows the map: the page's "Vis på kort" link; the placeholder has no button of its own.
+  // One action shows the map: the placeholder is the "Vis kort" button (5.2).
   assert.doesNotMatch(detailMap, /Vis kortet/);
+  assert.match(detailMap, /className="flex h-40 w-full/);
+  assert.match(detailMap, /\n\s+Vis kort\n/);
 });
 
 test("an offline copy keeps the map chunks a phone has not opened yet", async () => {
@@ -504,4 +513,13 @@ test("an offline copy keeps the map chunks a phone has not opened yet", async ()
   assert.match(client, /dynamic\(loadShelterMap,/);
   assert.match(map, /dynamic\(loadTileLayer,/);
   assert.match(map, /loadReactLeaflet\(\)\.then\(\(mod\) => mod\.MapContainer\)/);
+});
+
+test("the 410 page uses the site layout and keeps status 410 (5.1)", async () => {
+  const route = await readFile(new URL("../src/app/beskyttelsesrum/[slug]/fjernet/route.ts", import.meta.url), "utf8");
+  assert.match(route, /\/intern\/fjernet\/\$\{encodeURIComponent\(slug\)\}/);
+  assert.match(route, /renderWithSiteLayout\(request, slug\) \?\? retiredShelterHtml\(shelter\)/);
+  assert.match(route, /status: 410/);
+  const robots = await readFile(new URL("../src/app/robots.ts", import.meta.url), "utf8");
+  assert.match(robots, /'\/intern\/'/);
 });

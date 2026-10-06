@@ -1,2 +1,2 @@
-/** Section id that the detail page's "Vis på kort" link targets; following it loads the map. */
+/** Section id of the detail page's map; older shared links to it open the map. */
 export const shelterMapSectionId = "registrering-kort";

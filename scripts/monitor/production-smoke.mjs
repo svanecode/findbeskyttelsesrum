@@ -65,7 +65,7 @@ const checks = [
     run: async () => {
       const response = await requireOk(await request(`${baseUrl}/`), "Forsiden");
       const html = await response.text();
-      if (!html.includes("Se registrerede beskyttelsesrum nær dig")) {
+      if (!html.includes("Find beskyttelsesrum nær dig")) {
         throw new Error("Forsidens centrale overskrift mangler.");
       }
       const csp = response.headers.get("content-security-policy") ?? "";
@@ -290,6 +290,21 @@ const checks = [
       }
       return `${payload.availableCount.toLocaleString("da-DK")} registreringer som ${payload.featureCount.toLocaleString("da-DK")} kortobjekter`;
     }),
+  },
+  {
+    name: "Postnumre til adressesøgningen",
+    run: async () => {
+      const response = await requireOk(await request(`${baseUrl}/api/app-v2/postal-areas`), "Postnummer-API'et");
+      const table = await response.json();
+      const postcodes = new Set((table.postnumre ?? []).map((row) => row[0]));
+      // PostgREST returns at most 1000 rows per request; fewer than this means a page is missing.
+      if (postcodes.size < 1050) throw new Error(`Kun ${postcodes.size} postnumre; listen er afskåret.`);
+      const missing = ["3700", "9000", "9990"].filter((postnr) => !postcodes.has(postnr));
+      if (missing.length) throw new Error(`Postnumre mangler: ${missing.join(", ")}.`);
+      const municipalities = (table.kommuner ?? []).length;
+      if (municipalities !== 98) throw new Error(`${municipalities} kommuner i stedet for 98.`);
+      return `${postcodes.size.toLocaleString("da-DK")} postnumre og ${municipalities} kommuner`;
+    },
   },
   {
     name: "Kommune",

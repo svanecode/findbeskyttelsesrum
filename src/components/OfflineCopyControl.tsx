@@ -23,6 +23,15 @@ type Status = "idle" | "saving" | "removing" | "error";
 
 const subscribeNever = () => () => {};
 
+function subscribeOnline(onChange: () => void) {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+}
+
 /**
  * The result page and its map load as separate chunks, nested several levels
  * deep, and a phone fetches the map only when the "Kort" tab is opened.
@@ -47,6 +56,8 @@ export default function OfflineCopyControl({ extraUrls, search, className = "" }
   const supported = useSyncExternalStore(subscribeNever, isOfflineCopySupported, () => true);
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
+  // Saving needs the network, so offline the control only shows the copy and "Slet".
+  const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
 
   if (!supported) {
     return (
@@ -85,32 +96,37 @@ export default function OfflineCopyControl({ extraUrls, search, className = "" }
     }
   };
 
+  const busy = status === "saving" || status === "removing";
+  const savedSearch = copy && copy !== "pending" ? copy.search : undefined;
+  const linkClass = "inline-flex min-h-[44px] items-center font-medium text-white underline decoration-white/40 underline-offset-4 hover:decoration-white disabled:cursor-wait disabled:opacity-60";
+  // A successful save shows in the status line itself; the message is for screen readers.
+  const messageIsNotice = status === "error" || message.startsWith("Gemt. Enkelte");
+
   return (
     <div className={`text-sm leading-6 text-gray-300 ${className}`}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <button
-          type="button"
-          onClick={save}
-          disabled={status === "saving" || status === "removing"}
-          className="inline-flex min-h-[44px] items-center font-medium text-white underline decoration-white/40 underline-offset-4 hover:decoration-white disabled:cursor-wait disabled:opacity-60"
-        >
-          {status === "saving" ? "Gemmer …" : savedAt ? "Opdatér kopien til brug uden net" : "Gem til brug uden net"}
-        </button>
-        {savedAt ? (
-          <>
-            <span className="text-gray-400">Gemt {savedAt}{copy && copy !== "pending" && copy.search ? `, med søgningen ${copy.search.label}` : ""}</span>
-            <button
-              type="button"
-              onClick={remove}
-              disabled={status === "saving" || status === "removing"}
-              className="inline-flex min-h-[44px] items-center text-gray-300 underline underline-offset-4 hover:text-white disabled:opacity-60"
-            >
-              Slet kopien
+      {savedAt ? (
+        // One line (3.3): when, for which search, and what can be done.
+        <div className="flex flex-wrap items-center gap-x-4">
+          <span className="text-gray-300">Gemt {savedAt}{savedSearch ? ` for ${savedSearch.label}` : ""}</span>
+          {online ? (
+            <button type="button" onClick={save} disabled={busy} className={linkClass} aria-label={status === "saving" ? undefined : "Opdatér kopien til brug uden net"}>
+              {status === "saving" ? "Gemmer …" : "Opdatér"}
             </button>
-          </>
-        ) : null}
-      </div>
-      <p className={status === "error" ? "text-yellow-100" : "text-gray-400"} role="status" aria-live="polite">
+          ) : null}
+          <button type="button" onClick={remove} disabled={busy} className={linkClass} aria-label="Slet kopien til brug uden net">
+            Slet
+          </button>
+        </div>
+      ) : online ? (
+        <button type="button" onClick={save} disabled={busy} className={linkClass}>
+          {status === "saving" ? "Gemmer …" : "Gem til brug uden net"}
+        </button>
+      ) : null}
+      <p
+        className={messageIsNotice ? (status === "error" ? "text-yellow-100" : "text-gray-400") : "sr-only"}
+        role="status"
+        aria-live="polite"
+      >
         {message}
       </p>
     </div>

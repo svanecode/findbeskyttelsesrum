@@ -1,19 +1,27 @@
 import type { RetiredShelter } from "@/lib/supabase/app-v2-queries";
 
 /**
- * The 410 page for a registration no longer in BBR. Self-contained HTML: it is
- * returned by a route handler, because a page cannot answer 410.
+ * The 410 page for a registration no longer in BBR. The route handler serves
+ * src/app/intern/fjernet/[slug] with status 410; this self-contained HTML is
+ * the fallback when that page cannot be fetched.
  */
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
 }
 
-export function retiredShelterHtml(shelter: RetiredShelter | null) {
+/** The last address and the link to search near it, shared by both 410 renderings. */
+export function retiredShelterSearchLink(shelter: RetiredShelter | null) {
   const address = shelter ? `${shelter.addressLine1}, ${shelter.postalCode} ${shelter.city}` : null;
-  const searchHref = shelter && shelter.latitude !== null && shelter.longitude !== null
+  const href = shelter && shelter.latitude !== null && shelter.longitude !== null
     ? `/naer-dig?${new URLSearchParams({ lat: String(shelter.latitude), lng: String(shelter.longitude), q: address! }).toString()}`
     : "/";
-  const searchLabel = address ? `Find registreringer nær ${address}` : "Søg efter registreringer nær en adresse";
+  const label = address ? `Find registreringer nær ${address}` : "Søg efter registreringer nær en adresse";
+  return { address, href, label };
+}
+
+/** Plain fallback when the page with the site layout cannot be rendered. */
+export function retiredShelterHtml(shelter: RetiredShelter | null) {
+  const { address, href: searchHref, label: searchLabel } = retiredShelterSearchLink(shelter);
 
   return `<!doctype html>
 <html lang="da">
