@@ -2,6 +2,7 @@ import { createAppV2PublicClient } from "@/lib/app-v2-public";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 import { SupabaseConfigurationError } from "@/lib/supabase/env";
 import { isMissingPublicRpcError } from "@/lib/supabase/public-rpc-errors";
+import { boxAround, closestInBox } from "@/lib/nearby/related";
 import { readAllPages } from "@/lib/supabase/read-all-pages";
 import { cache } from "react";
 import {
@@ -222,15 +223,49 @@ function normalizeRelatedShelter(row: RelatedShelterRow): AppV2RelatedShelter {
   };
 }
 
+/**
+ * Other registrations near this one, closest first (5 October review, point 5).
+ * With coordinates, boxes of about 0.5, 3 and 13 km around the registration
+ * are read until one holds enough rows, which are sorted by distance. Without
+ * coordinates, the old order (same postcode, then the municipality) is used.
+ */
 export async function getAppV2PublicRelatedShelters(input: {
   shelterId: string;
   municipalityId: string;
   postalCode: string;
+  latitude?: number | null;
+  longitude?: number | null;
   limit?: number;
 }): Promise<AppV2RelatedShelter[]> {
   const limit = Math.min(Math.max(input.limit ?? 3, 1), 6);
   const pub = createAppV2PublicClient();
   const select = "id, slug, address_line1, postal_code, city, capacity";
+
+  if (typeof input.latitude === "number" && typeof input.longitude === "number") {
+    const { latitude, longitude } = input;
+    // About 0.5, 3 and 13 km. The small box first keeps dense city areas to
+    // one page; every box is read in full so no nearer row is cut off.
+    const boxes = [0.005, 0.03, 0.12];
+    for (const degrees of boxes) {
+      const box = boxAround(latitude, longitude, degrees);
+      const rows = await readAllPages<RelatedShelterRow & { latitude: number | null; longitude: number | null }>(
+        (from, to) => pub
+          .from("shelter_public_v2")
+          .select(`${select}, latitude, longitude`)
+          .neq("id", input.shelterId)
+          .gte("latitude", box.south)
+          .lte("latitude", box.north)
+          .gte("longitude", box.west)
+          .lte("longitude", box.east)
+          .order("id", { ascending: true })
+          .range(from, to),
+        "related public app_v2 shelter registrations",
+      );
+      const isLast = degrees === boxes[boxes.length - 1];
+      const closest = closestInBox(rows, latitude, longitude, degrees, isLast ? 0 : limit);
+      if (closest) return closest.slice(0, limit).map(normalizeRelatedShelter);
+    }
+  }
 
   const [samePostalResult, municipalityResult] = await Promise.all([
     pub

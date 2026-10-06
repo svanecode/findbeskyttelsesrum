@@ -192,6 +192,16 @@ async function readLocality(query: string): Promise<ParsedLocality | null> {
   }
 }
 
+/**
+ * The street part of a search limited to a municipality ("Vestergade 1, Læsø"
+ * gives "Vestergade 1"), so a search without results can be repeated for the
+ * whole country. Null when the search was not limited to a municipality.
+ */
+export async function getWholeCountryStreet(query: string): Promise<string | null> {
+  const locality = await readLocality(query.trim());
+  return locality?.isMunicipalityName && locality.street ? locality.street : null;
+}
+
 export async function searchAddresses(
   query: string,
   options: { signal?: AbortSignal; limit?: number } = {},

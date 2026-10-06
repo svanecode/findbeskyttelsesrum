@@ -72,7 +72,7 @@ function toArea(row: PostalAreaRow): PostalArea {
 /**
  * Codes and areas for a place text: a four digit postcode, a postcode name
  * ("Aarhus C"), the start of postcode names ("Aarhus" covers Aarhus C, N and
- * V) or a municipality name.
+ * V, "Aalborg" covers 9000 and Aalborg SV, SØ and Øst) or a municipality name.
  */
 export function matchPlace(text: string, table: PostalAreaTable): PlaceMatch | null {
   const key = normalizePlaceText(text);
@@ -86,10 +86,12 @@ export function matchPlace(text: string, table: PostalAreaTable): PlaceMatch | n
   }
   if (/\d/.test(key)) return null;
 
-  const exact = table.postnumre.filter((row) => normalizePlaceText(row[1]) === key);
-  const prefixed = exact.length > 0
-    ? exact
-    : table.postnumre.filter((row) => normalizePlaceText(row[1]).startsWith(`${key} `));
+  // "Aalborg" is both a postcode name (9000) and the start of others (9200
+  // Aalborg SV, 9210 Aalborg SØ, 9220 Aalborg Øst), so both kinds count.
+  const prefixed = table.postnumre.filter((row) => {
+    const name = normalizePlaceText(row[1]);
+    return name === key || name.startsWith(`${key} `);
+  });
   const municipalities = table.kommuner.filter((row) => normalizePlaceText(row[1]) === key);
 
   if (prefixed.length === 0 && municipalities.length === 0) return null;
