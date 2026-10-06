@@ -2,7 +2,7 @@ import { createAppV2PublicClient } from "@/lib/app-v2-public";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 import { SupabaseConfigurationError } from "@/lib/supabase/env";
 import { isMissingPublicRpcError } from "@/lib/supabase/public-rpc-errors";
-import { closestInBox } from "@/lib/nearby/related";
+import { boxAround, closestInBox } from "@/lib/nearby/related";
 import { readAllPages } from "@/lib/supabase/read-all-pages";
 import { cache } from "react";
 import {
@@ -243,21 +243,24 @@ export async function getAppV2PublicRelatedShelters(input: {
 
   if (typeof input.latitude === "number" && typeof input.longitude === "number") {
     const { latitude, longitude } = input;
-    // About 0.5, 3 and 13 km. The small box first keeps dense city areas well
-    // below PostgREST's 1000-row cap.
+    // About 0.5, 3 and 13 km. The small box first keeps dense city areas to
+    // one page; every box is read in full so no nearer row is cut off.
     const boxes = [0.005, 0.03, 0.12];
     for (const degrees of boxes) {
-      const { data, error } = await pub
-        .from("shelter_public_v2")
-        .select(`${select}, latitude, longitude`)
-        .neq("id", input.shelterId)
-        .gte("latitude", latitude - degrees)
-        .lte("latitude", latitude + degrees)
-        .gte("longitude", longitude - degrees * 1.8)
-        .lte("longitude", longitude + degrees * 1.8)
-        .limit(1000);
-      if (error) throw new Error("Could not load related public app_v2 shelter registrations.");
-      const rows = (data ?? []) as Array<RelatedShelterRow & { latitude: number | null; longitude: number | null }>;
+      const box = boxAround(latitude, longitude, degrees);
+      const rows = await readAllPages<RelatedShelterRow & { latitude: number | null; longitude: number | null }>(
+        (from, to) => pub
+          .from("shelter_public_v2")
+          .select(`${select}, latitude, longitude`)
+          .neq("id", input.shelterId)
+          .gte("latitude", box.south)
+          .lte("latitude", box.north)
+          .gte("longitude", box.west)
+          .lte("longitude", box.east)
+          .order("id", { ascending: true })
+          .range(from, to),
+        "related public app_v2 shelter registrations",
+      );
       const isLast = degrees === boxes[boxes.length - 1];
       const closest = closestInBox(rows, latitude, longitude, degrees, isLast ? 0 : limit);
       if (closest) return closest.slice(0, limit).map(normalizeRelatedShelter);
