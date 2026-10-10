@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { unstable_cache } from 'next/cache'
 import { notFound, redirect } from 'next/navigation'
 
 import { getMunicipalityPagePath, paginateMunicipalityGroups, parseMunicipalityPage } from '@/lib/municipalities/pagination'
@@ -21,13 +20,6 @@ type Props = {
   params: Promise<{ slug: string }>
   searchParams: Promise<{ q?: string | string[]; side?: string | string[] }>
 }
-
-// The registrations change once a day; searches share a ten-minute copy per municipality.
-const getCachedMunicipalityShelters = unstable_cache(
-  (municipalityId: string) => getAppV2PublicMunicipalityShelters(municipalityId),
-  ['app-v2-municipality-shelters'],
-  { revalidate: 600 },
-)
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const [{ slug }, { q }] = await Promise.all([params, searchParams])
@@ -54,7 +46,7 @@ export default async function KommuneSearchPage({ params, searchParams }: Props)
   if (!query) redirect(getMunicipalityPagePath(municipality.slug, 1))
 
   const requestedPage = parseMunicipalityPage(Array.isArray(side) ? side[0] : side) ?? 1
-  const shelters = await getCachedMunicipalityShelters(municipality.id)
+  const shelters = await getAppV2PublicMunicipalityShelters(municipality.id)
   const matches = filterMunicipalityGroups(groupMunicipalityShelters(shelters), query)
   const pagination = paginateMunicipalityGroups(matches, requestedPage)
   // A page past the end (an old link after new data) falls back to the first page.

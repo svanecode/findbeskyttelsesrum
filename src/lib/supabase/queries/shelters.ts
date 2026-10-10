@@ -14,6 +14,8 @@ import {
   readableSlugPostcodes,
   readableSlugShortId,
 } from "@/lib/shelter-public-url";
+import { getAppV2MunicipalitySummaries } from "./municipalities";
+import { cachedPerRevision } from "./public-data-cache";
 import { normalizeMunicipality, normalizePublicShelter, normalizeShelter, sitemapShelterPageSize } from "./shared";
 import type { MunicipalitySummaryRow, PublicShelterRow, ShelterRow } from "./shared";
 
@@ -105,7 +107,7 @@ export async function getAppV2ShelterBySlug(slug: string) {
   return normalizeShelter(shelter, municipality);
 }
 
-export const getAppV2PublicShelterBySlug = cache(async function getAppV2PublicShelterBySlug(slug: string) {
+const readPublicShelterRow = cachedPerRevision("shelter-by-slug", async function readPublicShelterRow(slug: string) {
   const pub = createAppV2PublicClient();
   const { data: shelterData, error: shelterError } = await pub
     .from("shelter_public_v2")
@@ -119,24 +121,22 @@ export const getAppV2PublicShelterBySlug = cache(async function getAppV2PublicSh
     throw new Error(`Could not load public app_v2 shelter "${slug}": ${shelterError.message}`);
   }
 
-  if (!shelterData) {
-    return null;
-  }
+  return (shelterData as PublicShelterRow | null) ?? null;
+});
 
-  const shelter = shelterData as PublicShelterRow;
-  const { data: municipalityData, error: municipalityError } = await pub
-    .from("municipality_summary_public_v1")
-    .select(
-      "municipality_id, code, slug, name, description, region_name, public_registration_count, public_capacity, mapped_registration_count, mapped_capacity, latest_public_import_at",
-    )
-    .eq("municipality_id", shelter.municipality_id)
-    .single();
+export const getAppV2PublicShelterBySlug = cache(async function getAppV2PublicShelterBySlug(slug: string) {
+  const shelter = await readPublicShelterRow(slug);
+  if (!shelter) return null;
 
-  if (municipalityError || !municipalityData) {
+  // The 98 municipalities are read once per data revision, not once per shelter.
+  // This stays outside readPublicShelterRow: Next.js skips the data cache for
+  // a cached read nested inside another.
+  const municipality = (await getAppV2MunicipalitySummaries())
+    .find((candidate) => candidate.id === shelter.municipality_id);
+
+  if (!municipality) {
     throw new Error(`Could not load app_v2 municipality for shelter "${slug}".`);
   }
-
-  const municipality = normalizeMunicipality(municipalityData as MunicipalitySummaryRow);
 
   return normalizePublicShelter(shelter, municipality);
 });
@@ -149,15 +149,8 @@ type PublicShelterSlugAliasRow = {
   canonical_slug: string;
 };
 
-export const resolveAppV2PublicShelter = cache(async function resolveAppV2PublicShelter(slug: string) {
-  const directShelter = await getAppV2PublicShelterBySlug(slug);
-  if (directShelter) {
-    return {
-      shelter: directShelter,
-      isAlias: false,
-    };
-  }
-
+/** The stable slug an older importer slug now points to, or null. */
+const resolvePublicShelterSlugAlias = cachedPerRevision("shelter-slug-alias", async function resolvePublicShelterSlugAlias(slug: string) {
   const publicClient = createAppV2PublicClient();
   const { data: publicAliasData, error: publicAliasError } = await publicClient
     .rpc("resolve_public_shelter_slug_alias_v1", { p_alias_slug: slug })
@@ -192,6 +185,19 @@ export const resolveAppV2PublicShelter = cache(async function resolveAppV2Public
     throw new Error(`Could not resolve public app_v2 shelter alias "${slug}".`);
   }
 
+  return canonicalSlug;
+});
+
+export const resolveAppV2PublicShelter = cache(async function resolveAppV2PublicShelter(slug: string) {
+  const directShelter = await getAppV2PublicShelterBySlug(slug);
+  if (directShelter) {
+    return {
+      shelter: directShelter,
+      isAlias: false,
+    };
+  }
+
+  const canonicalSlug = await resolvePublicShelterSlugAlias(slug);
   if (!canonicalSlug) return null;
 
   const shelter = await getAppV2PublicShelterBySlug(canonicalSlug);
@@ -224,7 +230,7 @@ const relatedRadiusMeters = 20_000;
  * registration counts. Without coordinates, or with none within 20 km, the
  * old order (same postcode, then the municipality) is used.
  */
-export async function getAppV2PublicRelatedShelters(input: {
+export const getAppV2PublicRelatedShelters = cachedPerRevision("related-shelters", async function getAppV2PublicRelatedShelters(input: {
   shelterId: string;
   municipalityId: string;
   postalCode: string;
@@ -281,7 +287,7 @@ export async function getAppV2PublicRelatedShelters(input: {
   }
 
   return Array.from(related.values(), normalizeRelatedShelter);
-}
+});
 
 type ReadableShelterRow = {
   id: string;
@@ -292,7 +298,7 @@ type ReadableShelterRow = {
   capacity: number;
 };
 
-async function getPublicRegistrationsInPostcode(postalCode: string) {
+const getPublicRegistrationsInPostcode = cachedPerRevision("registrations-in-postcode", async function getPublicRegistrationsInPostcode(postalCode: string) {
   const pub = createAppV2PublicClient();
   // The largest postcode has under 200 today; pages keep it right past 1000.
   const rows = await readAllPages<ReadableShelterRow>(
@@ -312,7 +318,7 @@ async function getPublicRegistrationsInPostcode(postalCode: string) {
     city: row.city,
     capacity: row.capacity,
   }));
-}
+});
 
 /**
  * Finds the registration behind a readable path such as
@@ -399,7 +405,10 @@ export async function getAppV2PublicSitemapReadableShelters(): Promise<AppV2Site
  * path history in app_v2. Returns its stable slug, or null. Before the
  * migration that adds the history is applied, this quietly finds nothing.
  */
-export const resolveShelterPathAlias = cache(async function resolveShelterPathAlias(slug: string) {
+export const resolveShelterPathAlias = cache(cachedPerRevision("shelter-path-alias", async function resolveShelterPathAlias(slug: string) {
+  // Path aliases are earlier readable paths; a stable "registrering-<id>"
+  // path is never one, so bots crawling those need no lookup.
+  if (isStableShelterSlug(slug)) return null;
   const pub = createAppV2PublicClient();
   const { data, error } = await pub.rpc("resolve_shelter_path_alias_v1", { p_path_slug: slug }).maybeSingle();
   if (error) {
@@ -407,7 +416,7 @@ export const resolveShelterPathAlias = cache(async function resolveShelterPathAl
     throw new Error(`Could not resolve readable path alias "${slug}": ${error.message}`);
   }
   return (data as { stable_slug: string } | null)?.stable_slug ?? null;
-});
+}));
 
 export type RetiredShelter = {
   addressLine1: string;
@@ -418,7 +427,7 @@ export type RetiredShelter = {
 };
 
 /** The last address of a registration removed from BBR, found by any path it has had. */
-export const resolveRetiredShelter = cache(async function resolveRetiredShelter(slug: string): Promise<RetiredShelter | null> {
+export const resolveRetiredShelter = cache(cachedPerRevision("retired-shelter", async function resolveRetiredShelter(slug: string): Promise<RetiredShelter | null> {
   const pub = createAppV2PublicClient();
   const { data, error } = await pub.rpc("resolve_retired_shelter_v1", { p_slug: slug }).maybeSingle();
   if (error) {
@@ -435,4 +444,4 @@ export const resolveRetiredShelter = cache(async function resolveRetiredShelter(
     latitude: toNumber(row.latitude),
     longitude: toNumber(row.longitude),
   };
-});
+}));
