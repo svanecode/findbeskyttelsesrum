@@ -472,8 +472,8 @@ test("public cache revisions use a fixed allowlisted RPC without exposing the pr
   assert.match(revisionFunction, /if \(!isMissingPublicRpcError\(error\)\)/);
   assert.doesNotMatch(revisionFunction, /createAppV2AdminClient|public_data_revisions/);
 
-  const aliasResolverStart = queries.indexOf("export const resolveAppV2PublicShelter");
-  const aliasResolverEnd = queries.indexOf("export async function getAppV2PublicRelatedShelters", aliasResolverStart);
+  const aliasResolverStart = queries.indexOf("const resolvePublicShelterSlugAlias");
+  const aliasResolverEnd = queries.indexOf("export const resolveAppV2PublicShelter", aliasResolverStart);
   const aliasResolver = queries.slice(aliasResolverStart, aliasResolverEnd);
   assert.match(aliasResolver, /createAppV2PublicClient\(\)/);
   assert.match(aliasResolver, /\.rpc\("resolve_public_shelter_slug_alias_v1"/);

@@ -188,9 +188,14 @@ test("successful moderation and rollback invalidate cached public detail and lis
   for (const action of ["moderate", "rollback"] as const) {
     const invalidated: Array<[string, string | undefined]> = [];
     const revalidatePath = (path: string, type?: string) => { invalidated.push([path, type]); };
+    const expiredTags: Array<[string, unknown]> = [];
+    const revalidateTag = (tag: string, profile: unknown) => { expiredTags.push([tag, profile]); };
     const invalidation = await loadServerModule<{ revalidatePublicData: () => void }>(
       new URL("../src/lib/moderation/revalidate-public-data.ts", import.meta.url),
-      { "next/cache": { revalidatePath } },
+      {
+        "next/cache": { revalidatePath, revalidateTag },
+        "@/lib/supabase/queries/public-data-cache": { publicDataRevisionTag: "public-data-revision" },
+      },
     );
     const dependencies = {
       "next/cache": { revalidatePath },
@@ -219,6 +224,9 @@ test("successful moderation and rollback invalidate cached public detail and lis
     for (const path of ["/", "/kommune", "/kort", "/om-data", "/sitemap.xml"]) {
       assert.ok(invalidated.some(([value]) => value === path), `${action}: ${path}`);
     }
+    // Pages regenerate from the per-revision data cache, so the cached revision
+    // must expire at once or they would rebuild from the data before the change.
+    assert.deepEqual(expiredTags, [["public-data-revision", { expire: 0 }]], action);
   }
 });
 
