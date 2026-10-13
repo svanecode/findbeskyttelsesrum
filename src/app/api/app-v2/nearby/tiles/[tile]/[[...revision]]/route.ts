@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { nearbyTileContract, parseTileKey, revisionCounter, type NearbyTilePayload } from "@/lib/nearby/tiles";
 import { getAppV2PublicDataRevision, getAppV2PublicNearbyTile } from "@/lib/supabase/app-v2-queries";
+import { readForRevision } from "@/lib/supabase/queries/public-data-cache";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -55,7 +56,14 @@ export async function GET(
     if (pinnedRevision !== null && pinnedRevision !== currentRevision) {
       return noStore({ error: "Dataversionen er ikke længere aktuel.", currentRevision }, 409);
     }
-    const { markers, labels } = await getAppV2PublicNearbyTile(parsed.bounds);
+    // The rows are shared per revision: the CDN copy expires every five
+    // minutes, but refilling it reads the database only once per publication.
+    const { markers, labels } = await readForRevision(
+      "nearby-tile",
+      revisionBefore.cacheKey,
+      tile,
+      () => getAppV2PublicNearbyTile(parsed.bounds),
+    );
     const revision = await getAppV2PublicDataRevision();
     if (revision.cacheKey !== revisionBefore.cacheKey) {
       return noStore({ error: "Datasættet blev opdateret. Prøv igen." }, 503);
