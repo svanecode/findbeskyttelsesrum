@@ -17,6 +17,9 @@ async function loadRoute(revisions: string[], counters = { tileReads: 0 }) {
     "next/server": nextServer,
     "@/lib/rate-limit": { rateLimit: () => true },
     "@/lib/nearby/tiles": await import("../src/lib/nearby/tiles"),
+    "@/lib/supabase/queries/public-data-cache": {
+      readForRevision: (_name: string, _revision: string, _key: string, read: () => Promise<unknown>) => read(),
+    },
     "@/lib/supabase/app-v2-queries": {
       getAppV2PublicDataRevision: async () => ({ cacheKey: revisions[Math.min(revisionReads++, revisions.length - 1)] }),
       getAppV2PublicNearbyTile: async () => {

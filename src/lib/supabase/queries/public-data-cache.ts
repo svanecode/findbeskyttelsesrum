@@ -52,3 +52,13 @@ export function cachedPerRevision<Args extends unknown[], Result>(
     return unstable_cache(read, ["app-v2-public", name, revision], { revalidate: entrySeconds })(...args);
   };
 }
+
+/**
+ * Caches one read under a revision the caller has already read itself, for
+ * routes that check the live revision. The entry is only reused while that
+ * revision is current, so it never outlives an import or moderation change.
+ */
+export function readForRevision<Result>(name: string, revision: string, key: string, read: () => Promise<Result>) {
+  if (!hasNextDataCache()) return read();
+  return unstable_cache(read, ["app-v2-public", name, revision, key], { revalidate: entrySeconds })();
+}
