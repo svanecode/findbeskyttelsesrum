@@ -298,6 +298,34 @@ type ReadableShelterRow = {
   capacity: number;
 };
 
+/**
+ * Ids of the registrations that own the plain readable path of their address,
+ * from the database. Empty before the migration that adds it is applied, which
+ * leaves the places-based rule in force.
+ */
+async function readPlainPathOwnerIds(postalCode: string | null) {
+  const pub = createAppV2PublicClient();
+  const ids = new Set<string>();
+  const pageSize = sitemapShelterPageSize;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await pub
+      .rpc("public_plain_path_owner_ids_v1", { p_postal_code: postalCode })
+      .range(from, from + pageSize - 1);
+    if (error) {
+      if (isMissingPublicRpcError(error)) return new Set<string>();
+      throw new Error(`Could not read owners of plain readable paths: ${error.message}`);
+    }
+    const rows = (data ?? []) as unknown as string[];
+    for (const id of rows) ids.add(id);
+    if (rows.length < pageSize) break;
+  }
+  return ids;
+}
+
+const getPlainPathOwnerIdsInPostcode = cachedPerRevision("plain-path-owners-postcode", async function getPlainPathOwnerIdsInPostcode(postalCode: string) {
+  return Array.from(await readPlainPathOwnerIds(postalCode));
+});
+
 const getPublicRegistrationsInPostcode = cachedPerRevision("registrations-in-postcode", async function getPublicRegistrationsInPostcode(postalCode: string) {
   const pub = createAppV2PublicClient();
   // The largest postcode has under 200 today; pages keep it right past 1000.
@@ -310,6 +338,7 @@ const getPublicRegistrationsInPostcode = cachedPerRevision("registrations-in-pos
       .range(from, to),
     `public app_v2 shelters in ${postalCode}`,
   );
+  const owners = new Set(await getPlainPathOwnerIdsInPostcode(postalCode));
   return rows.map((row) => ({
     id: row.id,
     slug: row.slug,
@@ -317,6 +346,7 @@ const getPublicRegistrationsInPostcode = cachedPerRevision("registrations-in-pos
     postalCode: row.postal_code,
     city: row.city,
     capacity: row.capacity,
+    ownsPlainPath: owners.has(row.id),
   }));
 });
 
@@ -352,7 +382,7 @@ export async function getCanonicalReadableSlug(shelter: { id: string; addressLin
   const registrations = await getPublicRegistrationsInPostcode(shelter.postalCode);
   const base = getReadableShelterBaseSlug(shelter);
   const sameAddress = registrations.filter((registration) => getReadableShelterBaseSlug(registration) === base);
-  if (!sameAddress.some((registration) => registration.id === shelter.id)) sameAddress.push({ ...shelter, slug: "" });
+  if (!sameAddress.some((registration) => registration.id === shelter.id)) sameAddress.push({ ...shelter, slug: "", ownsPlainPath: false });
   return getCanonicalShelterSlugs(sameAddress).get(shelter.id)!;
 }
 
@@ -385,7 +415,9 @@ export async function getAppV2PublicSitemapReadableShelters(): Promise<AppV2Site
     })(),
   ]);
 
+  const owners = await readPlainPathOwnerIds(null);
   const canonical = getCanonicalShelterSlugs(registrations.map((row) => ({
+    ownsPlainPath: owners.has(row.id),
     id: row.id,
     addressLine1: row.address_line1,
     postalCode: row.postal_code,

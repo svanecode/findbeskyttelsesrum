@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(39);
+select plan(41);
 
 -- Privileges: the history tables are private; only the narrow lookups are public.
 select ok(
@@ -318,6 +318,16 @@ select is(
   (select path_slug from app_v2.shelter_readable_path_v1 where shelter_id = '80000000-0000-0000-0000-000000000002'),
   'stivej-1-9966-testby',
   'the new owner uses the plain path'
+);
+
+select is(
+  (select array_agg(id::text order by id) from app_v2.public_plain_path_owner_ids_v1('9966') as id),
+  array['80000000-0000-0000-0000-000000000002', '80000000-0000-0000-0000-000000000003'],
+  'the page can read who owns the plain path in a postcode'
+);
+select ok(
+  has_function_privilege('anon', 'app_v2.public_plain_path_owner_ids_v1(text)', 'EXECUTE'),
+  'anonymous clients can read plain path owners'
 );
 
 select * from finish();

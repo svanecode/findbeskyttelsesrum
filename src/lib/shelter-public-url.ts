@@ -31,6 +31,8 @@ export type ReadableShelterFields = {
   postalCode: string;
   city: string;
   capacity: number;
+  /** True for the registration that already owns the plain path; it keeps it while it is public. */
+  ownsPlainPath?: boolean;
 };
 
 const shortIdLength = 6;
@@ -56,9 +58,14 @@ export function getShortShelterId(id: string) {
   return id.replace(/-/g, "").toLowerCase().slice(0, shortIdLength);
 }
 
-/** The registration at an address that keeps the plain path. */
-export function pickPrimaryRegistration<T extends Pick<ReadableShelterFields, "id" | "capacity">>(members: T[]): T | null {
-  return [...members].sort((a, b) => b.capacity - a.capacity || a.id.localeCompare(b.id))[0] ?? null;
+/**
+ * The registration at an address that keeps the plain path: the one that
+ * already owns it, otherwise the one with the most places (then lowest id).
+ * Same rule as app_v2.shelter_readable_path_v1.
+ */
+export function pickPrimaryRegistration<T extends Pick<ReadableShelterFields, "id" | "capacity" | "ownsPlainPath">>(members: T[]): T | null {
+  return [...members].sort((a, b) =>
+    Number(b.ownsPlainPath === true) - Number(a.ownsPlainPath === true) || b.capacity - a.capacity || a.id.localeCompare(b.id))[0] ?? null;
 }
 
 /** The suffixed path, valid for every registration. */

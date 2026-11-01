@@ -184,6 +184,19 @@ test("readable detail paths use the address and a short id on collisions (B8)", 
   );
 });
 
+test("the owner of the plain readable path keeps it when a neighbour grows", () => {
+  const a = { id: "11111111-aaaa-4c66-8a96-a3e2472c31b9", addressLine1: "Stivej 1", postalCode: "9966", city: "Testby", capacity: 50, ownsPlainPath: true };
+  const b = { id: "22222222-bbbb-4c66-8a96-a3e2472c31b9", addressLine1: "Stivej 1", postalCode: "9966", city: "Testby", capacity: 80, ownsPlainPath: false };
+  const slugs = getCanonicalShelterSlugs([a, b]);
+  assert.equal(slugs.get(a.id), "stivej-1-9966-testby");
+  assert.equal(slugs.get(b.id), "stivej-1-9966-testby-222222");
+  assert.equal(getCanonicalShelterSlug(b, [a, b]), "stivej-1-9966-testby-222222");
+  // Without a current owner the registration with most places gets it.
+  const none = getCanonicalShelterSlugs([{ ...a, ownsPlainPath: false }, b]);
+  assert.equal(none.get(b.id), "stivej-1-9966-testby");
+  assert.equal(none.get(a.id), "stivej-1-9966-testby-111111");
+});
+
 test("the offline copy record is validated before use (A4)", () => {
   assert.equal(parseOfflineCopyRecord(null), null);
   assert.equal(parseOfflineCopyRecord("{\"version\":1,\"savedAt\":\"nope\"}"), null);

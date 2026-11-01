@@ -90,3 +90,27 @@ $$;
 
 revoke all on function app_v2.refresh_shelter_path_aliases_v1() from public, anon, authenticated;
 grant execute on function app_v2.refresh_shelter_path_aliases_v1() to service_role;
+
+-- The registrations that own the plain readable path of their address right
+-- now. The page and the sitemap use this to pick the same canonical path as
+-- the database, instead of re-deriving it from the number of places.
+create or replace function app_v2.public_plain_path_owner_ids_v1(p_postal_code text default null)
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public_shelter.id
+  from app_v2.shelter_public_v2 public_shelter
+  inner join app_v2.shelter_path_aliases alias
+    on alias.shelter_id = public_shelter.id
+   and alias.valid_to is null
+   and alias.path_slug = app_v2.readable_shelter_base_slug_v1(
+     public_shelter.address_line1, public_shelter.postal_code, public_shelter.city)
+  where p_postal_code is null or public_shelter.postal_code = p_postal_code
+  order by public_shelter.id;
+$$;
+
+revoke all on function app_v2.public_plain_path_owner_ids_v1(text) from public, anon, authenticated;
+grant execute on function app_v2.public_plain_path_owner_ids_v1(text) to anon, authenticated, service_role;
