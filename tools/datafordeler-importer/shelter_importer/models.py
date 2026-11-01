@@ -67,6 +67,9 @@ class ImportSummary:
     quality_gate_passed: bool | None = None
     quality_gate_reasons: list[str] = field(default_factory=list)
     quality_metrics: dict[str, Any] = field(default_factory=dict)
+    # Steps after publication: "ok" or "failed" per step. A failed step never
+    # fails the import, but shows here instead of only in the log.
+    derived: dict[str, str] = field(default_factory=dict)
     status: str = "running"
 
     def to_dict(self) -> dict[str, Any]:

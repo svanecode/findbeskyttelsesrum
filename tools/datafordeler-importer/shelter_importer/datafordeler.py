@@ -8,6 +8,7 @@ import re
 import time
 import unicodedata
 from collections.abc import Callable, Iterator
+from datetime import date
 from typing import Any
 
 import requests
@@ -99,9 +100,9 @@ query FetchDarPostalCodes(
 
 # Every postcode in DAR, for the address search. Postcodes have no position in
 # DAR, so one current address access point stands in for the postcodes that no
-# registration covers. Up to 100 addresses per postcode give its municipalities
-# (through their BBR buildings): enough to find both sides of a postcode that
-# crosses a municipal border, without paging through every address.
+# registration covers. Up to POSTAL_RECHECK_MAX_PAGES pages of 100 addresses per
+# postcode give its municipalities (through their BBR buildings), so both sides
+# of a postcode that crosses a municipal border are found.
 DAR_ALL_POSTAL_QUERY = """
 query FetchAllDarPostalCodes(
   $first: Int!, $after: String,
@@ -117,13 +118,19 @@ query FetchAllDarPostalCodes(
 }
 """
 
+# A postcode that already has a position and municipality codes is looked up
+# again once every POSTAL_RECHECK_DAYS days (on the day int(postnr) comes round),
+# so codes found on the other side of a municipal border are added over time.
+POSTAL_RECHECK_DAYS = 30
+POSTAL_RECHECK_MAX_PAGES = 5
+
 DAR_POSTAL_HOUSE_QUERY = """
 query FetchDarHouseInPostalCode(
-  $postnummer: String!,
+  $postnummer: String!, $after: String,
   $registreringstid: DafDateTime, $virkningstid: DafDateTime
 ) {
   DAR_Husnummer(
-    first: 100,
+    first: 100, after: $after,
     registreringstid: $registreringstid, virkningstid: $virkningstid,
     where: { postnummer: { eq: $postnummer }, status: { eq: "3" } }
   ) {
@@ -453,11 +460,13 @@ class DatafordelerSource:
         """Every DAR postcode as {postnr, name, latitude, longitude, municipality_codes}.
 
         Postcodes in `complete` already have a position and municipality codes
-        (from registrations or an earlier run) and are sent without them. For
-        the others, up to 100 current DAR addresses in the postcode give the
-        position (the first access point) and the municipalities (the
-        kommunekode of their BBR buildings). A failed lookup leaves the field empty; it
-        never stops the import.
+        (from registrations or an earlier run) and are sent without them,
+        except on their recheck day every POSTAL_RECHECK_DAYS days. For the
+        others, up to POSTAL_RECHECK_MAX_PAGES pages of 100 current DAR
+        addresses in the postcode give the position (the first access point)
+        and the municipalities (the kommunekode of their BBR buildings). The
+        database adds the codes to the known ones. A failed lookup leaves the
+        field empty; it never stops the import.
         """
         postcodes: dict[str, dict[str, Any]] = {}
         after: str | None = None
@@ -489,22 +498,16 @@ class DatafordelerSource:
         access_points: dict[str, str] = {}
         houses: dict[str, list[str]] = {}
         failures = 0
+        rotation = date.fromisoformat(snapshot_at[:10]).toordinal() % POSTAL_RECHECK_DAYS
         for postnr, postcode in sorted(postcodes.items()):
-            if postnr in complete or not postcode["id"]:
+            if not postcode["id"]:
+                continue
+            if postnr in complete and int(postnr) % POSTAL_RECHECK_DAYS != rotation:
                 continue
             if failures >= MAX_CONSECUTIVE_POSITION_FAILURES:
                 break
             try:
-                data = self.dar.query(
-                    "FetchDarHouseInPostalCode",
-                    DAR_POSTAL_HOUSE_QUERY,
-                    {
-                        "postnummer": postcode["id"],
-                        "registreringstid": snapshot_at,
-                        "virkningstid": snapshot_at,
-                    },
-                )
-                nodes = _connection(data, "DAR_Husnummer")["nodes"]
+                nodes = self._houses_in_postcode(postcode["id"], snapshot_at)
                 failures = 0
             except DatafordelerError as exc:
                 failures += 1
@@ -550,6 +553,30 @@ class DatafordelerSource:
                 }
             )
         return rows
+
+    def _houses_in_postcode(self, postcode_id: str, snapshot_at: str) -> list[dict[str, Any]]:
+        """Current DAR addresses in a postcode, at most POSTAL_RECHECK_MAX_PAGES pages."""
+        nodes: list[dict[str, Any]] = []
+        after: str | None = None
+        for _ in range(POSTAL_RECHECK_MAX_PAGES):
+            data = self.dar.query(
+                "FetchDarHouseInPostalCode",
+                DAR_POSTAL_HOUSE_QUERY,
+                {
+                    "postnummer": postcode_id,
+                    "after": after,
+                    "registreringstid": snapshot_at,
+                    "virkningstid": snapshot_at,
+                },
+            )
+            connection = _connection(data, "DAR_Husnummer")
+            nodes.extend(connection["nodes"])
+            info = connection["pageInfo"]
+            next_cursor = info.get("endCursor")
+            if not info.get("hasNextPage") or not next_cursor or next_cursor == after:
+                break
+            after = next_cursor
+        return nodes
 
     def _municipalities_for_houses(self, house_ids: list[str], snapshot_at: str) -> dict[str, str]:
         """kommunekode per DAR husnummer, from the BBR buildings at it. Empty on failure."""

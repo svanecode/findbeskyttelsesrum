@@ -183,7 +183,7 @@ class Importer:
                 summary.quality_gate_passed = True
                 raw_metrics = publication.get("qualityMetrics")
                 summary.quality_metrics = raw_metrics if isinstance(raw_metrics, dict) else {}
-                self._refresh_derived_public_data(snapshot_at)
+                self._refresh_derived_public_data(summary, snapshot_at)
             else:
                 reason = "capped run: source traversal was intentionally incomplete"
                 self.store.succeed_without_missing(
@@ -238,12 +238,14 @@ class Importer:
                     )
             raise
 
-    def _refresh_derived_public_data(self, snapshot_at: str) -> None:
+    def _refresh_derived_public_data(self, summary: ImportSummary, snapshot_at: str) -> None:
         assert self.store is not None
         try:
             paths = self.store.refresh_shelter_path_aliases()
             logger.info("Readable path history refreshed: %s", paths)
+            summary.derived["path_aliases"] = "ok"
         except Exception as exc:
+            summary.derived["path_aliases"] = "failed"
             logger.warning(
                 "Readable path history was not refreshed: %s", safe_error_summary(str(exc))
             )
@@ -254,5 +256,7 @@ class Importer:
             )
             saved = self.store.upsert_dar_postal_areas(rows)
             logger.info("Postcodes refreshed: %s from DAR", saved)
+            summary.derived["postal_areas"] = "ok"
         except Exception as exc:
+            summary.derived["postal_areas"] = "failed"
             logger.warning("Postcodes were not refreshed: %s", safe_error_summary(str(exc)))

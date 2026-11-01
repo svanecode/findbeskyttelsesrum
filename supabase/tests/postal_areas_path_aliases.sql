@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(32);
 
 -- Privileges: the history tables are private; only the narrow lookups are public.
 select ok(
@@ -188,6 +188,57 @@ select is(
   (select municipality_codes from app_v2.postal_area_public_v1 where postnr = '9967'),
   array['0813', '0825']::text[],
   'codes found in a later run are added, so a postcode across a border gets both municipalities'
+);
+
+-- A postcode across a municipal border: DAR found both sides, the
+-- registrations are on one side only. Refreshing from registrations adds
+-- their codes to the known ones instead of replacing them.
+insert into app_v2.municipalities (id, code, slug, name)
+values
+  ('81000000-0000-0000-0000-000000000101', '0101', 'graense-test-0101', 'Grænse Test 0101'),
+  ('81000000-0000-0000-0000-000000000147', '0147', 'graense-test-0147', 'Grænse Test 0147')
+on conflict do nothing;
+select app_v2.upsert_dar_postal_areas_v1('[
+  {"postnr": "9968", "name": "Grænseby", "latitude": 55.7, "longitude": 12.5, "municipality_codes": ["0101", "0147"]}
+]'::jsonb);
+insert into app_v2.shelters (
+  id, municipality_id, slug, name, address_line1, postal_code, city, latitude, longitude,
+  capacity, status, summary, publication_state, import_state, source_application_code,
+  canonical_source_name, canonical_source_reference
+) values
+  ('80000000-0000-0000-0000-000000000004', (select id from app_v2.municipalities where code = '0101'),
+   'graense', 'D', 'Grænsevej 1', '9968', 'Grænseby', 55.700000, 12.500000, 100, 'active', 'D',
+   'published', 'active', '321', 'datafordeler-bbr-dar', 'building-d');
+update app_v2.shelters
+set publication_state = 'published', import_state = 'active'
+where id = '80000000-0000-0000-0000-000000000004';
+select app_v2.refresh_postal_areas_from_registrations_v1();
+select is(
+  (select municipality_codes from app_v2.postal_areas where postnr = '9968'),
+  array['0101', '0147']::text[],
+  'a postcode across a municipal border keeps both codes after a refresh from registrations'
+);
+select is(
+  (select has_registrations from app_v2.postal_areas where postnr = '9968'),
+  true,
+  'the postcode now has registrations'
+);
+
+-- A broken batch from the importer.
+select throws_ok(
+  $$select app_v2.upsert_dar_postal_areas_v1(null)$$,
+  '22023',
+  null,
+  'a missing list of postcodes is refused'
+);
+select app_v2.upsert_dar_postal_areas_v1('[
+  {"postnr": "9969", "name": "Udland", "latitude": 48.85, "longitude": 2.35},
+  {"postnr": "9970", "name": "Indland", "latitude": 56.2, "longitude": 9.5}
+]'::jsonb);
+select is(
+  (select array_agg(postnr order by postnr) from app_v2.postal_areas where postnr in ('9969', '9970')),
+  array['9970']::text[],
+  'a postcode with a position outside Denmark is skipped, the rest of the batch is saved'
 );
 
 -- Different buildings, same places, a few metres apart, different addresses.

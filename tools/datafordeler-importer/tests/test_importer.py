@@ -109,6 +109,7 @@ def test_full_success_stages_then_atomically_publishes() -> None:
     assert summary.missing_transitions_applied is True
     assert summary.publication_status == "published"
     assert summary.publication_id == "publication-1"
+    assert summary.to_dict()["derived"] == {"path_aliases": "ok", "postal_areas": "ok"}
     assert store.events == [
         "running",
         "stage",
@@ -136,6 +137,21 @@ def test_path_and_postcode_refresh_never_fails_a_published_import() -> None:
     assert summary.status == "succeeded"
     assert summary.publication_status == "published"
     assert "failed" not in store.events
+    assert summary.to_dict()["derived"] == {"path_aliases": "failed", "postal_areas": "failed"}
+
+
+def test_derived_refresh_failure_is_reported() -> None:
+    class BrokenStore(Store):
+        def upsert_dar_postal_areas(self, rows: list[dict[str, Any]]) -> int:
+            raise RuntimeError("new row violates check constraint")
+
+    store = BrokenStore()
+    summary = importer(Source([page()]), store).run(
+        dry_run=False, max_pages=None, resume_latest=False
+    )
+    assert summary.status == "succeeded"
+    assert summary.to_dict()["derived"]["postal_areas"] == "failed"
+    assert summary.to_dict()["derived"]["path_aliases"] == "ok"
 
 
 def test_source_scan_uses_the_snapshot_persisted_by_the_database() -> None:

@@ -12,6 +12,8 @@ from shelter_importer.datafordeler import (
     DAR_POSTAL_HOUSE_QUERY,
     DAR_POSTAL_QUERY,
     DAR_ROAD_QUERY,
+    POSTAL_RECHECK_DAYS,
+    POSTAL_RECHECK_MAX_PAGES,
     DatafordelerError,
     DatafordelerSource,
     GraphqlClient,
@@ -257,6 +259,90 @@ def test_postal_areas_cover_every_dar_postcode_and_complete_only_the_missing() -
     assert bbr.calls[0][1]["ids"] == ["h-1", "h-2"]
     # 100 addresses per postcode, so a postcode across a municipal border shows both sides.
     assert "first: 100" in DAR_POSTAL_HOUSE_QUERY
+
+
+def test_postal_areas_rechecks_complete_postcodes_on_rotation() -> None:
+    def run(snapshot_at: str) -> list[str]:
+        dar = FakeClient(
+            {
+                "FetchAllDarPostalCodes": [
+                    connection(
+                        "DAR_Postnummer",
+                        [{"id_lokalId": "p-6100", "postnr": "6100", "navn": "Haderslev"}],
+                    ),
+                ],
+                "FetchDarHouseInPostalCode": [connection("DAR_Husnummer", [])],
+            }
+        )
+        source = DatafordelerSource(config(), bbr_client=FakeClient({}), dar_client=dar)  # type: ignore[arg-type]
+        source.postal_areas(snapshot_at=snapshot_at, complete={"6100"})
+        return [
+            call[1]["postnummer"] for call in dar.calls if call[0] == "FetchDarHouseInPostalCode"
+        ]
+
+    # 2026-10-11 is the day 6100 comes round: 6100 % 30 == ordinal % 30.
+    assert POSTAL_RECHECK_DAYS == 30
+    assert run("2026-10-11T00:00:00Z") == ["p-6100"]
+    assert run("2026-10-12T00:00:00Z") == []
+
+
+def test_postal_area_query_follows_pages() -> None:
+    dar = FakeClient(
+        {
+            "FetchAllDarPostalCodes": [
+                connection(
+                    "DAR_Postnummer",
+                    [
+                        {"id_lokalId": "p-6100", "postnr": "6100", "navn": "Haderslev"},
+                        {"id_lokalId": "p-6200", "postnr": "6200", "navn": "Aabenraa"},
+                    ],
+                ),
+            ],
+            "FetchDarHouseInPostalCode": [
+                # 6100: two pages.
+                connection("DAR_Husnummer", [{"id_lokalId": "h-1", "adgangspunkt": "a-1"}], "c-1"),
+                connection("DAR_Husnummer", [{"id_lokalId": "h-2"}]),
+                # 6200: pages without end; only POSTAL_RECHECK_MAX_PAGES are read.
+                *[
+                    connection("DAR_Husnummer", [{"id_lokalId": f"g-{index}"}], f"d-{index}")
+                    for index in range(POSTAL_RECHECK_MAX_PAGES + 3)
+                ],
+            ],
+            "FetchDarAddressPoints": [
+                connection(
+                    "DAR_Adressepunkt",
+                    [{"id_lokalId": "a-1", "position": {"wkt": "POINT(530000 6125000)"}}],
+                ),
+            ],
+        }
+    )
+    bbr = FakeClient(
+        {
+            "FetchBbrMunicipalityForHouses": [
+                connection(
+                    "BBR_Bygning",
+                    [
+                        {"husnummer": "h-1", "kommunekode": "510"},
+                        {"husnummer": "h-2", "kommunekode": "580"},
+                    ],
+                ),
+            ],
+        }
+    )
+    source = DatafordelerSource(config(), bbr_client=bbr, dar_client=dar)  # type: ignore[arg-type]
+
+    rows = source.postal_areas(snapshot_at="2026-10-02T00:00:00Z", complete=set())
+
+    assert rows[0]["municipality_codes"] == ["0510", "0580"]
+    house_calls = [call[1] for call in dar.calls if call[0] == "FetchDarHouseInPostalCode"]
+    assert [(call["postnummer"], call["after"]) for call in house_calls[:2]] == [
+        ("p-6100", None),
+        ("p-6100", "c-1"),
+    ]
+    assert len([call for call in house_calls if call["postnummer"] == "p-6200"]) == (
+        POSTAL_RECHECK_MAX_PAGES
+    )
+    assert "$after: String" in DAR_POSTAL_HOUSE_QUERY
 
 
 def test_a_failed_municipality_lookup_keeps_the_positions() -> None:
