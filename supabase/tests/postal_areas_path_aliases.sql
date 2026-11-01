@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(34);
+select plan(39);
 
 -- Privileges: the history tables are private; only the narrow lookups are public.
 select ok(
@@ -277,6 +277,47 @@ select is(
      and second_shelter_id = '80000000-0000-0000-0000-000000000003'),
   false,
   'the review list says whether the pair shares an address'
+);
+
+-- A stable readable path: growth at a neighbour does not move shared links.
+update app_v2.shelters
+set address_line1 = 'Stivej 3', postal_code = '9966', latitude = 56.100100, longitude = 10.100100,
+    capacity = 200, import_state = 'active'
+where id = '80000000-0000-0000-0000-000000000003';
+update app_v2.shelters set capacity = 50 where id = '80000000-0000-0000-0000-000000000001';
+update app_v2.shelters set capacity = 40 where id = '80000000-0000-0000-0000-000000000002';
+select app_v2.refresh_shelter_path_aliases_v1();
+update app_v2.shelters set capacity = 80 where id = '80000000-0000-0000-0000-000000000002';
+select app_v2.refresh_shelter_path_aliases_v1();
+
+select is(
+  (select shelter_id::text from app_v2.shelter_path_aliases where path_slug = 'stivej-1-9966-testby' and valid_to is null),
+  '80000000-0000-0000-0000-000000000001',
+  'a neighbour that grows does not take over the plain path'
+);
+select is(
+  (select path_slug from app_v2.shelter_readable_path_v1 where shelter_id = '80000000-0000-0000-0000-000000000001'),
+  'stivej-1-9966-testby',
+  'the page path of the owner stays the plain path'
+);
+select is(
+  (select path_slug from app_v2.shelter_readable_path_v1 where shelter_id = '80000000-0000-0000-0000-000000000002'),
+  'stivej-1-9966-testby-800000',
+  'the larger neighbour keeps the suffixed path'
+);
+
+update app_v2.shelters set import_state = 'missing_from_source' where id = '80000000-0000-0000-0000-000000000001';
+select app_v2.refresh_shelter_path_aliases_v1();
+
+select is(
+  (select shelter_id::text from app_v2.shelter_path_aliases where path_slug = 'stivej-1-9966-testby' and valid_to is null),
+  '80000000-0000-0000-0000-000000000002',
+  'the plain path passes on when the owner leaves the public view'
+);
+select is(
+  (select path_slug from app_v2.shelter_readable_path_v1 where shelter_id = '80000000-0000-0000-0000-000000000002'),
+  'stivej-1-9966-testby',
+  'the new owner uses the plain path'
 );
 
 select * from finish();
