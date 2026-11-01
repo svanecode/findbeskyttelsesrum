@@ -9,7 +9,7 @@ import { getMunicipalityPagePath, municipalityPageLinks } from '@/lib/municipali
 import { getMunicipalitySearchPath, municipalitySearchMaxLength } from '@/lib/municipalities/search'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
 import { scrollBehavior } from '@/lib/ui/reduced-motion'
-import { getReadableGroupPaths } from '@/lib/shelter-public-url'
+import { getReadableGroupPaths, getReadableMemberPaths } from '@/lib/shelter-public-url'
 import type { Route } from 'next'
 
 const KommuneMap = dynamic(() => import('./kommune-map'), { ssr: false })
@@ -152,7 +152,9 @@ export default function KommuneExperience({
               const selected = selectedGroupKey === group.groupKey
               const extraRegistrations = group.shelters.filter((shelter) => shelter.slug !== group.primarySlug)
               const paths = getReadableGroupPaths(group, group.shelters)
+              const memberPaths = getReadableMemberPaths(group, group.shelters)
               const pathOf = (slug: string) => (paths.get(slug) ?? `/beskyttelsesrum/${slug}`) as Route
+              const memberPathOf = (slug: string) => (memberPaths.get(slug) ?? `/beskyttelsesrum/${slug}`) as Route
               return (
                 <li
                   id={`kommune-group-${group.primarySlug}`}
@@ -175,7 +177,7 @@ export default function KommuneExperience({
                         {group.shelters.map((shelter, index) => (
                           <span key={shelter.id}>
                             {index > 0 ? ', ' : ''}
-                            <Link href={pathOf(shelter.slug)} className="underline underline-offset-4 hover:text-white">
+                            <Link href={memberPathOf(shelter.slug)} className="underline underline-offset-4 hover:text-white">
                               {formatPlaces(shelter.capacity)}
                             </Link>
                           </span>
@@ -195,7 +197,7 @@ export default function KommuneExperience({
                         }
                       }}
                       className={`${ui.quietAction} shrink-0 disabled:cursor-wait disabled:opacity-60`}
-                      aria-label={`Vis ${group.addressLine1} på kortet`}
+                      aria-label={`Vis på kort: ${group.addressLine1}`}
                     >
                       Vis på kort
                     </button>

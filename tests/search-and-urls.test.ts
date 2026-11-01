@@ -10,6 +10,7 @@ import {
   getCanonicalShelterSlug,
   getCanonicalShelterSlugs,
   getReadableGroupPaths,
+  getReadableMemberPaths,
   getReadableShelterPathFromStable,
   readableSlugPostcodes,
   readableSlugShortId,
@@ -195,6 +196,18 @@ test("the owner of the plain readable path keeps it when a neighbour grows", () 
   const none = getCanonicalShelterSlugs([{ ...a, ownsPlainPath: false }, b]);
   assert.equal(none.get(b.id), "stivej-1-9966-testby");
   assert.equal(none.get(a.id), "stivej-1-9966-testby-111111");
+});
+
+test("group links with several registrations are suffixed, so each one is reachable", () => {
+  const address = { addressLine1: "Stivej 1", postalCode: "9966", city: "Testby" };
+  const a = "registrering-11111111aaaa4c668a96a3e2472c31b9";
+  const b = "registrering-22222222bbbb4c668a96a3e2472c31b9";
+  // A may own the plain path although B has more places: neither link may use it.
+  const paths = getReadableMemberPaths(address, [{ slug: a, capacity: 50 }, { slug: b, capacity: 80 }]);
+  assert.equal(paths.get(a), "/beskyttelsesrum/stivej-1-9966-testby-111111");
+  assert.equal(paths.get(b), "/beskyttelsesrum/stivej-1-9966-testby-222222");
+  // A lone registration keeps the plain path.
+  assert.equal(getReadableMemberPaths(address, [{ slug: a, capacity: 50 }]).get(a), "/beskyttelsesrum/stivej-1-9966-testby");
 });
 
 test("the offline copy record is validated before use (A4)", () => {

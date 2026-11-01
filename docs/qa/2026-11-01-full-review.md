@@ -31,7 +31,7 @@ Projektet er i god stand. Opfølgningen på reviewet fra 26. september er reelt 
 | GHSA-p3m5 (DoS via server actions) | Sandsynligvis ja | Server actions findes i `src/app/admin/**/actions.ts`, og Next afkoder anmodningen før `requireModerator` kører |
 | GHSA-mcj8 (ISR cache poisoning) | Uafklaret | Sitet bruger ISR meget. Ikke tjekket, om Vercels platform afbøder det |
 
-Dependabot-PR #74 (19. oktober) løfter `next` til 16.4.2, men tjekket "Byg og gennemfør browserhistorien" fejler, så den har ligget i 13 dage. CI kører ikke `npm audit`. Rettelse: gør #74 grøn og flet den. Overvej `npm audit --omit=dev --audit-level=critical` i CI.
+Dependabot-PR #74 (19. oktober) løfter `next` til 16.4.3, men tjekket "Byg og gennemfør browserhistorien" fejler, så den har ligget i 13 dage. CI kører ikke `npm audit`. Rettelse: gør #74 grøn og flet den. Overvej `npm audit --omit=dev --audit-level=critical` i CI.
 
 ### H2. 410-siden for fjernede registreringer ignorerer udelukkelser og manuelle rettelser
 `app_v2.resolve_retired_shelter_v1` og `retired_shelter_path_hashes_v1` (`supabase/migrations/20261002085614_postal_areas_path_aliases_and_review.sql:185-256`) er SECURITY DEFINER, kan kaldes af anon og læser `app_v2.shelters` direkte. De tjekker hverken `shelter_exclusions` eller `shelter_overrides`, som det offentlige view gør. Udelukkelse ændrer ikke `publication_state`.
@@ -101,7 +101,7 @@ Gennemført på branchen `claude/grundigt-review-f07u72` (commits `2464e57` til 
 
 | Fund | Status |
 | --- | --- |
-| H1 Next.js med kritiske sårbarheder | Rettet: `next` 16.4.2 og opdaterede `sharp`, `postcss` m.fl., så `npm audit --omit=dev` er uden fund. Kvalitetsjobbet i CI kører nu `npm audit`. Kortknappens tilgængelige navn starter med den synlige tekst, som fik browsertesten i #74 til at fejle (`label-content-name-mismatch` fra axe 4.14). Dependabot-PR #74 kan lukkes eller rebases, når branchen er flettet. |
+| H1 Next.js med kritiske sårbarheder | Rettet: `next` 16.4.3 og opdaterede `sharp`, `postcss` m.fl., så `npm audit --omit=dev` er uden fund. Kvalitetsjobbet i CI kører nu `npm audit`. Kortknappens tilgængelige navn starter med den synlige tekst, som fik browsertesten i #74 til at fejle (`label-content-name-mismatch` fra axe 4.14). Dependabot-PR #74 kan lukkes eller rebases, når branchen er flettet. |
 | H2 410-siden ignorerer udelukkelser og rettelser | Rettet i migration `20261101120000`: begge funktioner bruger `is_shelter_excluded_v1` med samme prædikat som `shelter_public_v2` og tager adresse og pladser gennem den aktive rettelse. pgTAP `retired_shelter_exclusions.sql`. |
 | M1 Offline-søgning med blandede dataversioner | Rettet: gemte fliser med to versioner rangeres, som de er, når den nyeste version ikke kan hentes. |
 | M2 Fejlet 100 km-søgning vist som tom | Rettet: fejlen vises med "Prøv igen". |

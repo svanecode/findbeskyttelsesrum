@@ -66,7 +66,7 @@ Not ranked tasks from this plan, but they change the same areas. Read the linked
 | 2026-09-28 – 09-29 | #56, #57 | Admin UI tidy-up, admin statistics page, cookie consent dialog | done |
 | 2026-10-02 – 10-07 | #58, #59, #63 – #67 | Search as the core of the site: readable detail paths with history, 410 for removed registrations, all postcodes in the address search, alerts assigned to a person | done |
 | 2026-10-11 – 10-13 | #68, #69 | Public data and nearby tiles cached per data revision to stay under the Free plan's 5 GB egress | done |
-| 2026-11-01 | branch `claude/grundigt-review-f07u72` | Findings from the [full review of 1 November](qa/2026-11-01-full-review.md) (follow-up table at its end): Next.js 16.4.2, 410 respects exclusions, rollback via service role, postcode codes across municipal borders, stable readable paths, alerts, offline copy, revision cache tests, docs | in review |
+| 2026-11-01 | branch `claude/grundigt-review-f07u72` | Findings from the [full review of 1 November](qa/2026-11-01-full-review.md) (follow-up table at its end): Next.js 16.4.3, 410 respects exclusions, rollback via service role, postcode codes across municipal borders, stable readable paths, alerts, offline copy, revision cache tests, docs | in review |
 
 ### Already done (review round 1, commit `8ee6a45`)
 

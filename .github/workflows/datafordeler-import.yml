@@ -229,7 +229,7 @@ jobs:
         if: contains(fromJSON('["failure","cancelled"]'), needs.quality.result) || contains(fromJSON('["failure","cancelled"]'), needs.import.result)
         run: |
           bash scripts/monitor/raise-alert.sh data-import-alert "Datafordeler-import kræver opmærksomhed" \
-            "Den planlagte import eller kontrollerne efter den fejlede. Se kørslen for at se, om datasættet blev publiceret: $RUN_URL"
+            "Den planlagte import eller kontrollerne efter den fejlede. Se kørslen for at se, om datasættet blev publiceret."
       - name: Luk driftsalarm efter succes
         if: ${{ !contains(fromJSON('["failure","cancelled"]'), needs.quality.result) && !contains(fromJSON('["failure","cancelled"]'), needs.import.result) }}
         run: bash scripts/monitor/close-alert.sh data-import-alert "Den næste planlagte import og kontrollerne efter den gik igennem."

@@ -16,6 +16,7 @@ import {
   readableSlugShortId,
 } from "@/lib/shelter-public-url";
 import { getAppV2MunicipalitySummaries } from "./municipalities";
+import { parsePlainPathOwnerRows } from "./plain-path-owner-rows";
 import { cachedPerRevision } from "./public-data-cache";
 import { normalizeMunicipality, normalizePublicShelter, normalizeShelter, sitemapShelterPageSize } from "./shared";
 import type { MunicipalitySummaryRow, PublicShelterRow, ShelterRow } from "./shared";
@@ -322,8 +323,8 @@ async function readPlainPathOwnerIds(postalCode: string | null) {
       if (isMissingPublicRpcError(error)) return new Set<string>();
       throw new Error(`Could not read owners of plain readable paths: ${error.message}`);
     }
-    const rows = (data ?? []) as unknown as string[];
-    for (const id of rows) ids.add(id);
+    const rows = Array.isArray(data) ? data : [];
+    for (const id of parsePlainPathOwnerRows(rows)) ids.add(id);
     if (rows.length < pageSize) break;
   }
   return ids;

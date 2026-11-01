@@ -169,6 +169,25 @@ export function getReadableGroupPaths(
   return paths;
 }
 
+/**
+ * Links for the individual registrations listed at one address, keyed by stable
+ * slug. With several, each gets its suffixed path: which one owns the plain
+ * path is only known on the server, and a suffixed path always resolves to the
+ * right registration. A lone registration keeps the plain path.
+ */
+export function getReadableMemberPaths(
+  address: { addressLine1: string; postalCode: string; city: string },
+  members: Array<{ slug: string; capacity: number }>,
+) {
+  if (members.length <= 1) return getReadableGroupPaths(address, members);
+  const paths = new Map<string, string>();
+  for (const member of members) {
+    const id = idFromStableSlug(member.slug);
+    paths.set(member.slug, getShelterPublicPath(id ? getSuffixedShelterSlug({ ...address, id }) : member.slug));
+  }
+  return paths;
+}
+
 /** The path of the registration that represents an address (the one with the most places). */
 export function getReadableGroupPrimaryPath(
   address: { addressLine1: string; postalCode: string; city: string },
