@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   installNearbySearchContext,
@@ -6,6 +6,8 @@ import {
   mockAddressSearch,
   mockNearby,
   quietThirdPartyRequests,
+  selectedAddressId,
+  selectedAddressAccessPoint,
   selectedAddressLabel,
 } from "./support";
 
@@ -353,15 +355,23 @@ test("ingen adresse i kommunen tilbyder samme søgning i hele landet", async ({ 
   await expect(wholeCountry).toHaveCount(0);
 });
 
-async function delayAddressSearch(page: import("@playwright/test").Page, delayMs: number) {
-  const answered = { count: 0 };
-  await mockAddressSearch(page);
+type DelayedAddressApi = { searchesSettled: () => number; lookupsStarted: () => number; lookupsFinished: () => number };
+
+/** Adressevælger answers slowly: the search after `delayMs`, the lookup of a chosen address after `lookupDelayMs`. */
+async function delayAddressSearch(page: Page, delayMs: number, lookupDelayMs = 0): Promise<DelayedAddressApi> {
+  let settled = 0;
+  let lookupsStarted = 0;
+  let lookupsFinished = 0;
+  const isSearch = (url: string) => url.startsWith("https://adressevaelger.dk/husnumre/soeg");
+  // Counted when the browser is done with the request, whether answered or aborted.
+  page.on("requestfinished", (request) => { if (isSearch(request.url())) settled += 1; });
+  page.on("requestfailed", (request) => { if (isSearch(request.url())) settled += 1; });
+
   await page.route("**/api/app-v2/postal-areas", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({ postnumre: [], kommuner: [] }),
   }));
-  await page.unroute("https://adressevaelger.dk/husnumre/soeg**");
   await page.route("https://adressevaelger.dk/husnumre/soeg**", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, delayMs));
     await route.fulfill({
@@ -370,12 +380,27 @@ async function delayAddressSearch(page: import("@playwright/test").Page, delayMs
       body: JSON.stringify({
         status: "ok",
         beskrivelse: "",
-        fund: [{ type: "husnummer", id: "0a3f507a-ec01-32b8-e044-0003ba298018", titel: selectedAddressLabel }],
+        fund: [{ type: "husnummer", id: selectedAddressId, titel: selectedAddressLabel }],
       }),
-    });
-    answered.count += 1;
+    }).catch(() => {});
   });
-  return answered;
+  await page.route(`https://adressevaelger.dk/husnumre/${selectedAddressId}?**`, async (route) => {
+    lookupsStarted += 1;
+    await new Promise((resolve) => setTimeout(resolve, lookupDelayMs));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        husnummer: {
+          adgangsadressebetegnelse: selectedAddressLabel,
+          adgangspunkt: { koordinater: selectedAddressAccessPoint },
+        },
+      }),
+    }).catch(() => {});
+    lookupsFinished += 1;
+  });
+  return { searchesSettled: () => settled, lookupsStarted: () => lookupsStarted, lookupsFinished: () => lookupsFinished };
 }
 
 test("indlæsningsindikatoren forsvinder, når teksten rettes tilbage under en forsinket søgning", async ({ page }) => {
@@ -394,16 +419,32 @@ test("indlæsningsindikatoren forsvinder, når teksten rettes tilbage under en f
 });
 
 test("Enter på gammel tekst overskriver ikke det, der er skrevet siden, og navigerer ikke", async ({ page }) => {
-  const answered = await delayAddressSearch(page, 500);
+  const api = await delayAddressSearch(page, 500);
   await page.goto("/");
   const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
   await addressInput.fill("Vestergade 1");
   await addressInput.press("Enter");
   await addressInput.pressSequentially("0");
-  // Both the Enter search and the one for the new text have been answered.
-  await expect.poll(() => answered.count).toBeGreaterThanOrEqual(2);
-  await page.waitForTimeout(500);
+  // The Enter search and the one for the new text are both done (answered or aborted).
+  await expect.poll(() => api.searchesSettled()).toBeGreaterThanOrEqual(2);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
   await expect(addressInput).toHaveValue("Vestergade 10");
   await expect(page).toHaveURL((url) => url.pathname === "/");
+});
+
+test("indlæsningsindikatoren består, til opslaget af den valgte adresse er færdigt", async ({ page }) => {
+  const api = await delayAddressSearch(page, 0, 1500);
+  await page.goto("/");
+  const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
+  await addressInput.fill("Rådhuspladsen 1");
+  await page.getByRole("option", { name: selectedAddressLabel }).click();
+
+  await expect.poll(() => api.lookupsStarted()).toBe(1);
+  await page.waitForTimeout(600);
+  expect(api.lookupsFinished()).toBe(0);
+  await expect(addressInput).toHaveAttribute("aria-busy", "true");
+  // When the lookup is done the search goes on to the result page.
+  await expect(page).toHaveURL((url) => url.pathname === "/naer-dig");
+  expect(api.lookupsFinished()).toBe(1);
 });

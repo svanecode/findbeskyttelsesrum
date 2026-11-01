@@ -83,7 +83,7 @@ export async function quietThirdPartyRequests(page: Page) {
 export const selectedAddressId = "0a3f507a-ec01-32b8-e044-0003ba298018";
 
 // UTM zone 32 access point that converts to 55.6761, 12.5683 (within 1e-7°).
-const selectedAddressAccessPoint = { x: 724351.93, y: 6175804.02 };
+export const selectedAddressAccessPoint = { x: 724351.93, y: 6175804.02 };
 
 export async function mockAddressSearch(page: Page, response?: unknown[]) {
   const suggestions = response ?? [

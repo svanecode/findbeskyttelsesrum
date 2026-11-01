@@ -95,7 +95,7 @@ export default function AddressSearch() {
   const [suggestionsQuery, setSuggestionsQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const [isOpen, setIsOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
   const [hasFailed, setHasFailed] = useState(false)
   const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null)
   const [gpsLoading, setGpsLoading] = useState(false)
@@ -104,6 +104,7 @@ export default function AddressSearch() {
   const [searchError, setSearchError] = useState<string | null>(null)
   const [retryToken, setRetryToken] = useState(0)
   const [resolvingLabel, setResolvingLabel] = useState<string | null>(null)
+  const isLoading = isSearching || resolvingLabel !== null
   // "Vestergade 1, Læsø" without results offers "Vestergade 1" in the whole country.
   const [wholeCountry, setWholeCountry] = useState<{ query: string; street: string } | null>(null)
   const router = useRouter()
@@ -149,7 +150,6 @@ export default function AddressSearch() {
       const controller = new AbortController()
       resolveControllerRef.current = controller
       setResolvingLabel(suggestion.label)
-      setIsLoading(true)
       const pending = (async () => {
         try {
           const resolved = await resolveAddress(suggestion, { signal: controller.signal })
@@ -165,7 +165,6 @@ export default function AddressSearch() {
         } finally {
           if (!controller.signal.aborted) {
             setResolvingLabel(null)
-            setIsLoading(false)
           }
         }
       })()
@@ -260,7 +259,7 @@ export default function AddressSearch() {
         abortControllerRef.current?.abort()
         const controller = new AbortController()
         abortControllerRef.current = controller
-        setIsLoading(true)
+        setIsSearching(true)
         try {
           results = await searchAddresses(trimmed, { signal: controller.signal, limit: SUGGESTION_LIMIT })
           if (controller.signal.aborted || isStale()) return
@@ -274,7 +273,7 @@ export default function AddressSearch() {
           handleError(error instanceof Error ? error : new Error('Address search failed'), 'Address search failed')
           return
         } finally {
-          if (abortControllerRef.current === controller) setIsLoading(false)
+          if (abortControllerRef.current === controller) setIsSearching(false)
         }
       }
 
@@ -345,9 +344,8 @@ export default function AddressSearch() {
     abortControllerRef.current?.abort()
     const trimmed = query.trim()
     if (selectedAddress?.label === trimmed || resolvingLabel === trimmed || suggestionsQuery === trimmed) {
-      // The text is back on what is already shown: no request is left to wait for.
-      const settleId = window.setTimeout(() => setIsLoading(false), 0)
-      return () => window.clearTimeout(settleId)
+      // The text is back on what is already shown: no search is left to wait for.
+      return () => setIsSearching(false)
     }
     if (trimmed.length < 2) {
       return
@@ -356,7 +354,7 @@ export default function AddressSearch() {
     const controller = new AbortController()
     abortControllerRef.current = controller
     const timeoutId = setTimeout(async () => {
-      setIsLoading(true)
+      setIsSearching(true)
       try {
         const results = await searchAddresses(trimmed, { signal: controller.signal, limit: SUGGESTION_LIMIT })
         if (controller.signal.aborted) return
@@ -378,7 +376,7 @@ export default function AddressSearch() {
         }
       } finally {
         if (!controller.signal.aborted) {
-          setIsLoading(false)
+          setIsSearching(false)
         }
       }
     }, 120)
@@ -386,6 +384,7 @@ export default function AddressSearch() {
     return () => {
       clearTimeout(timeoutId)
       controller.abort()
+      setIsSearching(false)
     }
   }, [query, handleError, selectedAddress?.label, resolvingLabel, showNoResults, suggestionsQuery, retryToken])
 
@@ -541,7 +540,7 @@ export default function AddressSearch() {
                     setSuggestionsQuery('')
                     setIsOpen(false)
                     setActiveIndex(null)
-                    setIsLoading(false)
+                    setIsSearching(false)
                   }
                 }}
                 // Focus only ever opens the list. runSearch focuses the field right
