@@ -201,8 +201,9 @@ test("successful moderation and rollback invalidate cached public detail and lis
       "next/cache": { revalidatePath },
       "next/navigation": { redirect: (path: string) => { throw new Error(`redirect:${path}`); } },
       "@/lib/moderation/auth": {
-        requireModerator: async () => ({ profile: { role: "owner" }, supabase: { schema: () => ({ rpc: async () => ({ error: null }) }) } }),
+        requireModerator: async () => ({ profile: { role: "owner", moderatorId: "94000000-0000-4000-8000-000000000001" }, supabase: { schema: () => ({ rpc: async () => ({ error: null }) }) } }),
       },
+      "@/lib/supabase/app-v2": { createAppV2AdminClient: () => ({ schema: () => ({ rpc: async () => ({ error: null }) }) }) },
       "@/lib/moderation/revalidate-public-data": invalidation,
       "@/lib/moderation/pagination": pagination,
       "@/lib/moderation/reports": { reportStatuses: ["open", "reviewing", "resolved", "rejected"] },

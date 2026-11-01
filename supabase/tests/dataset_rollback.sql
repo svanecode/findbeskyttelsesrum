@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(21);
 
 select ok(not has_function_privilege('anon',
   'app_v2.rollback_dataset_publication_v1(uuid)', 'EXECUTE'),
@@ -8,6 +8,18 @@ select ok(not has_function_privilege('anon',
 select ok((select proconfig @> array['statement_timeout=60s'] from pg_proc
   where oid = 'app_v2.rollback_dataset_publication_v1(uuid)'::regprocedure),
   'rollback has the same function-scoped timeout as the publisher');
+select ok((select proconfig @> array['statement_timeout=60s'] from pg_proc
+  where oid = 'app_v2.rollback_dataset_publication_as_owner_v1(uuid, uuid)'::regprocedure),
+  'the service-role rollback keeps the 60-second budget');
+select ok(not has_function_privilege('authenticated',
+  'app_v2.rollback_dataset_publication_as_owner_v1(uuid, uuid)', 'execute'),
+  'signed-in users cannot name an actor for a rollback');
+select ok(not has_function_privilege('anon',
+  'app_v2.rollback_dataset_publication_as_owner_v1(uuid, uuid)', 'execute'),
+  'anonymous callers cannot name an actor for a rollback');
+select ok(has_function_privilege('service_role',
+  'app_v2.rollback_dataset_publication_as_owner_v1(uuid, uuid)', 'execute'),
+  'the server action can roll back with the service role');
 
 -- Two complete imports of the same registrations; the newer one changes capacity.
 -- Their snapshots are newer than any publication already in the database.
@@ -63,17 +75,37 @@ insert into app_v2.moderator_accounts (auth_user_id, provider, provider_subject,
   ('95000000-0000-4000-8000-000000000001', 'github', 'rollback-owner', 'rollback-owner', 'owner'),
   ('95000000-0000-4000-8000-000000000002', 'github', 'rollback-moderator', 'rollback-moderator', 'moderator');
 
+create temp table rollback_accounts as
+select
+  (select id from app_v2.moderator_accounts where provider_subject = 'rollback-owner') as owner_id,
+  (select id from app_v2.moderator_accounts where provider_subject = 'rollback-moderator') as moderator_id;
+grant select on rollback_accounts to authenticated, service_role;
+grant select on rollback_fixture to service_role;
+
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"95000000-0000-4000-8000-000000000002","role":"authenticated","aal":"aal2"}', true);
 select throws_ok(
   format('select app_v2.rollback_dataset_publication_v1(%L)', (select target_id from rollback_fixture)),
   '42501', 'owner access denied', 'a non-owner moderator cannot roll back');
+reset role;
 
-select set_config('request.jwt.claims',
-  '{"sub":"95000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
+-- The server action checks owner and aal2, then calls with the service role,
+-- whose session has no 8-second limit. The function still checks the actor.
+select set_config('request.jwt.claims', null, true);
+set local role service_role;
+select throws_ok(
+  format('select app_v2.rollback_dataset_publication_as_owner_v1(%L, %L)',
+    (select target_id from rollback_fixture), (select moderator_id from rollback_accounts)),
+  '42501', 'owner access denied', 'the service role cannot roll back on behalf of a moderator');
+select throws_ok(
+  format('select app_v2.rollback_dataset_publication_as_owner_v1(%L, %L)',
+    (select target_id from rollback_fixture), '95000000-0000-4000-8000-0000000000ff'),
+  '42501', 'owner access denied', 'the service role cannot roll back on behalf of an unknown account');
+
 create temp table rollback_result as
-select app_v2.rollback_dataset_publication_v1(target_id) as publication_id from rollback_fixture;
+select app_v2.rollback_dataset_publication_as_owner_v1(fixture.target_id, accounts.owner_id) as publication_id
+from rollback_fixture fixture cross join rollback_accounts accounts;
 reset role;
 
 select is((select sum(capacity)::integer from app_v2.shelters
@@ -86,6 +118,10 @@ select is((select rollback_of_publication_id from app_v2.dataset_publications
   where id = (select publication_id from rollback_result)),
   (select target_id from rollback_fixture),
   'the ledger records which publication was restored');
+select is((select published_by_identifier from app_v2.dataset_publications
+  where id = (select publication_id from rollback_result)),
+  (select owner_id::text from rollback_accounts),
+  'the ledger names the owner, not the service role');
 select is((select count(*)::integer from app_v2.dataset_publication_shelters
   where publication_id = (select publication_id from rollback_result)), 500,
   'the rollback publication keeps its own snapshot');
@@ -94,6 +130,19 @@ select is((select revision from app_v2.public_data_revisions where scope = 'publ
   'public caches are refreshed exactly once for the whole rollback');
 select is(current_setting('app_v2.quality_gate_passed', true), 'false',
   'rollback clears the importer deferral flag before returning');
+
+-- The signed-in wrapper still works for an aal2 owner.
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"95000000-0000-4000-8000-000000000001","role":"authenticated","aal":"aal2"}', true);
+select lives_ok(
+  format('select app_v2.rollback_dataset_publication_v1(%L)', (select newer_id from rollback_fixture)),
+  'an aal2 owner can still roll back through the signed-in wrapper');
+reset role;
+
+select is((select sum(capacity)::integer from app_v2.shelters
+  where canonical_source_reference like 'rollback-ref-%'), 30000,
+  'the wrapper restores the newer snapshot again');
 
 select * from finish();
 rollback;

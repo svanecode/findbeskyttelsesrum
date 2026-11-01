@@ -451,7 +451,8 @@ test("private data operations reauthorize rollback and require owner confirmatio
   assert.match(operationsActions, /requireModerator\(true\)/);
   assert.match(operationsActions, /profile\.role !== "owner"/);
   assert.match(operationsActions, /confirmation !== "GENDAN"/);
-  assert.match(operationsActions, /rollback_dataset_publication_v1/);
+  assert.match(operationsActions, /rollback_dataset_publication_as_owner_v1/);
+  assert.match(operationsActions, /p_actor_account_id: profile\.moderatorId/);
   assert.doesNotMatch(operationsPage, /SUPABASE_SECRET_KEY/);
 });
 
