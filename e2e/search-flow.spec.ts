@@ -352,3 +352,58 @@ test("ingen adresse i kommunen tilbyder samme søgning i hele landet", async ({ 
   await expect(page.getByRole("option", { name: "Vestergade 1, 8000 Aarhus C" })).toBeVisible();
   await expect(wholeCountry).toHaveCount(0);
 });
+
+async function delayAddressSearch(page: import("@playwright/test").Page, delayMs: number) {
+  const answered = { count: 0 };
+  await mockAddressSearch(page);
+  await page.route("**/api/app-v2/postal-areas", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ postnumre: [], kommuner: [] }),
+  }));
+  await page.unroute("https://adressevaelger.dk/husnumre/soeg**");
+  await page.route("https://adressevaelger.dk/husnumre/soeg**", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        beskrivelse: "",
+        fund: [{ type: "husnummer", id: "0a3f507a-ec01-32b8-e044-0003ba298018", titel: selectedAddressLabel }],
+      }),
+    });
+    answered.count += 1;
+  });
+  return answered;
+}
+
+test("indlæsningsindikatoren forsvinder, når teksten rettes tilbage under en forsinket søgning", async ({ page }) => {
+  await delayAddressSearch(page, 500);
+  await page.goto("/");
+  const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
+  await addressInput.fill("Vestergade 1");
+  await expect(page.getByRole("option", { name: selectedAddressLabel })).toBeVisible();
+  await expect(addressInput).not.toHaveAttribute("aria-busy", "true");
+
+  await addressInput.pressSequentially("0");
+  await expect(addressInput).toHaveAttribute("aria-busy", "true");
+  await addressInput.press("Backspace");
+  await expect(addressInput).toHaveValue("Vestergade 1");
+  await expect(addressInput).not.toHaveAttribute("aria-busy", "true");
+});
+
+test("Enter på gammel tekst overskriver ikke det, der er skrevet siden, og navigerer ikke", async ({ page }) => {
+  const answered = await delayAddressSearch(page, 500);
+  await page.goto("/");
+  const addressInput = page.getByRole("combobox", { name: "Eller søg på en adresse" });
+  await addressInput.fill("Vestergade 1");
+  await addressInput.press("Enter");
+  await addressInput.pressSequentially("0");
+  // Both the Enter search and the one for the new text have been answered.
+  await expect.poll(() => answered.count).toBeGreaterThanOrEqual(2);
+  await page.waitForTimeout(500);
+
+  await expect(addressInput).toHaveValue("Vestergade 10");
+  await expect(page).toHaveURL((url) => url.pathname === "/");
+});

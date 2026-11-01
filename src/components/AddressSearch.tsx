@@ -253,27 +253,35 @@ export default function AddressSearch() {
       }
 
       trackProductMetric('address_search_started')
+      // The visitor may keep typing while we wait; then this search is stale.
+      const isStale = () => (inputRef.current?.value.trim() ?? trimmed) !== trimmed
       let results = suggestionsQuery === trimmed ? suggestions : null
       if (!results) {
         abortControllerRef.current?.abort()
+        const controller = new AbortController()
+        abortControllerRef.current = controller
         setIsLoading(true)
         try {
-          results = await searchAddresses(trimmed, { limit: SUGGESTION_LIMIT })
+          results = await searchAddresses(trimmed, { signal: controller.signal, limit: SUGGESTION_LIMIT })
+          if (controller.signal.aborted || isStale()) return
           setSuggestions(results)
           setSuggestionsQuery(trimmed)
           setHasFailed(false)
         } catch (error) {
+          if (controller.signal.aborted || isAbortError(error)) return
           trackProductMetric('address_search_error')
           setHasFailed(true)
           handleError(error instanceof Error ? error : new Error('Address search failed'), 'Address search failed')
           return
         } finally {
-          setIsLoading(false)
+          if (abortControllerRef.current === controller) setIsLoading(false)
         }
       }
 
+      const postalAreas = await loadPostalAreaTable().catch(() => null)
+      if (isStale()) return
       const pick = pickUnambiguousSuggestion(trimmed, results)
-        ?? pickExactAddressMatch(trimmed, results, await loadPostalAreaTable().catch(() => null))
+        ?? pickExactAddressMatch(trimmed, results, postalAreas)
       if (pick) {
         setIsOpen(false)
         setQuery(pick.label)
@@ -337,7 +345,9 @@ export default function AddressSearch() {
     abortControllerRef.current?.abort()
     const trimmed = query.trim()
     if (selectedAddress?.label === trimmed || resolvingLabel === trimmed || suggestionsQuery === trimmed) {
-      return
+      // The text is back on what is already shown: no request is left to wait for.
+      const settleId = window.setTimeout(() => setIsLoading(false), 0)
+      return () => window.clearTimeout(settleId)
     }
     if (trimmed.length < 2) {
       return
@@ -506,6 +516,7 @@ export default function AddressSearch() {
                 role="combobox"
                 aria-haspopup="listbox"
                 aria-autocomplete="list"
+                aria-busy={isLoading ? true : undefined}
                 aria-controls={isOpen && suggestions.length > 0 ? ADDRESS_LISTBOX_ID : undefined}
                 aria-expanded={isOpen && suggestions.length > 0}
                 aria-activedescendant={
