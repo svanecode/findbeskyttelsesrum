@@ -6,7 +6,12 @@
 -- too, the same way upsert_dar_postal_areas_v1 adds the codes DAR finds.
 -- Registrations whose municipality is unknown still count in the position.
 --
--- upsert_dar_postal_areas_v1 refuses a missing list instead of saving nothing
+-- upsert_dar_postal_areas_v1 now adds DAR codes to postcodes with
+-- registrations as well; the registrations' position still wins over DAR.
+-- Accepted: codes only grow (a wrong code is never removed), and a failed page
+-- of a postcode's DAR addresses drops the pages already read for it.
+--
+-- upsert_dar_postal_areas_v1 also refuses a missing list instead of saving nothing
 -- without a word, and skips a postcode with a position outside Denmark instead
 -- of letting the table's check constraint stop the whole batch.
 
@@ -131,16 +136,15 @@ begin
     set name = excluded.name,
         -- Codes found in DAR are added to the known ones, never replace them:
         -- a sample of addresses can miss one side of a municipal border.
-        municipality_codes = case
-          when area.has_registrations then area.municipality_codes
-          else coalesce(
-            (
-              select array_agg(distinct code order by code)
-              from unnest(area.municipality_codes || excluded.municipality_codes) as code
-            ),
-            '{}'
-          )
-        end,
+        -- Also for a postcode with registrations: they can all lie on one
+        -- side of a municipal border. Their position still wins below.
+        municipality_codes = coalesce(
+          (
+            select array_agg(distinct code order by code)
+            from unnest(area.municipality_codes || excluded.municipality_codes) as code
+          ),
+          '{}'
+        ),
         latitude = case when area.has_registrations then area.latitude else coalesce(excluded.latitude, area.latitude) end,
         longitude = case when area.has_registrations then area.longitude else coalesce(excluded.longitude, area.longitude) end,
         position_source = case

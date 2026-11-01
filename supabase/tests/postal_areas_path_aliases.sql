@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(32);
+select plan(34);
 
 -- Privileges: the history tables are private; only the narrow lookups are public.
 select ok(
@@ -162,7 +162,7 @@ select is(
   'invalid postcodes are ignored'
 );
 
--- Municipality codes from DAR/BBR fill postcodes without registrations only.
+-- Municipality codes from DAR/BBR are added to every postcode, also one with registrations.
 select app_v2.upsert_dar_postal_areas_v1('[
   {"postnr": "9966", "name": "Testby", "municipality_codes": ["0999"]},
   {"postnr": "9967", "name": "Tomby", "municipality_codes": ["0825", "x", "0825"]}
@@ -174,8 +174,8 @@ select is(
 );
 select is(
   (select municipality_codes from app_v2.postal_area_public_v1 where postnr = '9966'),
-  array['9966']::text[],
-  'a postcode with registrations keeps the codes its registrations give'
+  array['0999', '9966']::text[],
+  'a postcode with registrations keeps the codes its registrations give and gets the DAR code added'
 );
 select app_v2.upsert_dar_postal_areas_v1('[{"postnr": "9967", "name": "Tomby"}]'::jsonb);
 select is(
@@ -222,6 +222,23 @@ select is(
   (select has_registrations from app_v2.postal_areas where postnr = '9968'),
   true,
   'the postcode now has registrations'
+);
+
+-- A registered postcode gets a DAR code from the other municipality but
+-- keeps the position of its registrations.
+select app_v2.upsert_dar_postal_areas_v1('[
+  {"postnr": "9968", "name": "Grænseby", "latitude": 57.5, "longitude": 9.0, "municipality_codes": ["0153"]}
+]'::jsonb);
+select is(
+  (select municipality_codes from app_v2.postal_areas where postnr = '9968'),
+  array['0101', '0147', '0153']::text[],
+  'a registered postcode gets the DAR code from the other side of the border'
+);
+select is(
+  (select array[round(latitude::numeric, 4), round(longitude::numeric, 4)]::text || position_source
+   from app_v2.postal_areas where postnr = '9968'),
+  '{55.7000,12.5000}registrations',
+  'a registered postcode keeps the position of its registrations'
 );
 
 -- A broken batch from the importer.
