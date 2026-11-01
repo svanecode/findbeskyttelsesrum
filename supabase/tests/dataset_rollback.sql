@@ -1,16 +1,25 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(23);
 
 select ok(not has_function_privilege('anon',
   'app_v2.rollback_dataset_publication_v1(uuid)', 'EXECUTE'),
   'anonymous callers cannot roll back a publication');
 select ok((select proconfig @> array['statement_timeout=60s'] from pg_proc
   where oid = 'app_v2.rollback_dataset_publication_v1(uuid)'::regprocedure),
-  'rollback has the same function-scoped timeout as the publisher');
+  'the wrapper declares the same function-level statement_timeout as the publisher');
 select ok((select proconfig @> array['statement_timeout=60s'] from pg_proc
   where oid = 'app_v2.rollback_dataset_publication_as_owner_v1(uuid, uuid)'::regprocedure),
-  'the service-role rollback keeps the 60-second budget');
+  'the service-role rollback declares a function-level 60-second statement_timeout');
+select ok(exists (
+    select 1
+    from pg_db_role_setting setting
+    join pg_roles role on role.oid = setting.setrole
+    where role.rolname = 'service_role'
+      and setting.setdatabase = 0
+      and setting.setconfig @> array['statement_timeout=60s']
+  ),
+  'PostgREST requests as service_role get a 60-second statement_timeout from the role setting');
 select ok(not has_function_privilege('authenticated',
   'app_v2.rollback_dataset_publication_as_owner_v1(uuid, uuid)', 'execute'),
   'signed-in users cannot name an actor for a rollback');
@@ -70,15 +79,19 @@ select is((select sum(capacity)::integer from app_v2.shelters
 
 insert into auth.users (id, aud, role, email) values
   ('95000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'rollback-owner@example.invalid'),
-  ('95000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'rollback-moderator@example.invalid');
+  ('95000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'rollback-moderator@example.invalid'),
+  ('95000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'rollback-inactive-owner@example.invalid');
 insert into app_v2.moderator_accounts (auth_user_id, provider, provider_subject, provider_login, role) values
   ('95000000-0000-4000-8000-000000000001', 'github', 'rollback-owner', 'rollback-owner', 'owner'),
   ('95000000-0000-4000-8000-000000000002', 'github', 'rollback-moderator', 'rollback-moderator', 'moderator');
+insert into app_v2.moderator_accounts (auth_user_id, provider, provider_subject, provider_login, role, is_active) values
+  ('95000000-0000-4000-8000-000000000003', 'github', 'rollback-inactive-owner', 'rollback-inactive-owner', 'owner', false);
 
 create temp table rollback_accounts as
 select
   (select id from app_v2.moderator_accounts where provider_subject = 'rollback-owner') as owner_id,
-  (select id from app_v2.moderator_accounts where provider_subject = 'rollback-moderator') as moderator_id;
+  (select id from app_v2.moderator_accounts where provider_subject = 'rollback-moderator') as moderator_id,
+  (select id from app_v2.moderator_accounts where provider_subject = 'rollback-inactive-owner') as inactive_owner_id;
 grant select on rollback_accounts to authenticated, service_role;
 grant select on rollback_fixture to service_role;
 
@@ -90,8 +103,8 @@ select throws_ok(
   '42501', 'owner access denied', 'a non-owner moderator cannot roll back');
 reset role;
 
--- The server action checks owner and aal2, then calls with the service role,
--- whose session has no 8-second limit. The function still checks the actor.
+-- The server action checks owner and aal2, then calls with the service role.
+-- The function still checks that the actor is an active owner.
 select set_config('request.jwt.claims', null, true);
 set local role service_role;
 select throws_ok(
@@ -102,6 +115,10 @@ select throws_ok(
   format('select app_v2.rollback_dataset_publication_as_owner_v1(%L, %L)',
     (select target_id from rollback_fixture), '95000000-0000-4000-8000-0000000000ff'),
   '42501', 'owner access denied', 'the service role cannot roll back on behalf of an unknown account');
+select throws_ok(
+  format('select app_v2.rollback_dataset_publication_as_owner_v1(%L, %L)',
+    (select target_id from rollback_fixture), (select inactive_owner_id from rollback_accounts)),
+  '42501', 'owner access denied', 'the service role cannot roll back on behalf of a deactivated owner');
 
 create temp table rollback_result as
 select app_v2.rollback_dataset_publication_as_owner_v1(fixture.target_id, accounts.owner_id) as publication_id

@@ -2,11 +2,21 @@
 -- already running, so the owner's rollback through the signed-in PostgREST
 -- session was still cancelled after the authenticated role's 8 seconds.
 -- The server action now checks owner and aal2 itself and calls this function
--- with the service role, whose session has no such limit. The function still
--- requires the named actor to be an owner and records that account as actor.
+-- with the service role. The function still requires the named actor to be an
+-- active owner and records that account as actor.
+--
+-- PostgREST connects as authenticator (statement_timeout 8s) and applies the
+-- impersonated role's own settings per request; that is how authenticated
+-- gets its 8 seconds. service_role had no setting of its own, so it inherited
+-- the authenticator's 8 seconds. It now gets 60 seconds, the Database REST
+-- API maximum that the publisher (20260824070202) already assumes, which also
+-- covers the publisher.
 --
 -- rollback_dataset_publication_v1(uuid) stays as a thin wrapper for signed-in
 -- aal2 owners, so existing callers keep working.
+
+alter role service_role set statement_timeout = '60s';
+notify pgrst, 'reload config';
 
 create or replace function app_v2.rollback_dataset_publication_as_owner_v1(
   p_publication_id uuid,
@@ -31,6 +41,7 @@ begin
     from app_v2.moderator_accounts account
     where account.id = current_account_id
       and account.role = 'owner'
+      and account.is_active = true
   ) then
     raise exception 'owner access denied' using errcode = '42501';
   end if;
@@ -266,7 +277,7 @@ grant execute on function app_v2.rollback_dataset_publication_as_owner_v1(uuid, 
 to service_role;
 
 comment on function app_v2.rollback_dataset_publication_as_owner_v1(uuid, uuid) is
-'Atomically restores a retained publication snapshot on behalf of an owner account. Service role only; the caller must already have verified the owner and aal2. Has a function-scoped 60-second statement timeout and refreshes public caches once.';
+'Atomically restores a retained publication snapshot on behalf of an owner account. Service role only; the caller must already have verified the owner and aal2, and the function rechecks that the actor is an active owner. Runs within the service_role setting statement_timeout = 60s (a function-level timeout cannot extend a running session limit) and refreshes public caches once.';
 
 create or replace function app_v2.rollback_dataset_publication_v1(
   p_publication_id uuid
