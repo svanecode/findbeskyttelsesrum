@@ -278,3 +278,27 @@ test("kortfejl gendanner fokus til den brugte kortkontrol efter retry", async ({
   await expect(zoomIn).toBeFocused();
   expect(consoleErrors.filter((message) => /blocked aria-hidden|inert descendant/i.test(message))).toEqual([]);
 });
+
+test("en fejlet søgning i 100 km vises som fejl, ikke som ingen rum", async ({ page }) => {
+  await installNearbySearchContext(page);
+  await page.route("**/api/app-v2/nearby/grouped", async (route) => {
+    const body = route.request().postDataJSON() as { radius?: number };
+    if (body.radius === 100_000) {
+      await route.fulfill({
+        status: 429,
+        headers: { "Retry-After": "60" },
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "rate_limited" } }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ results: [] }) });
+  });
+
+  await page.goto("/naer-dig");
+
+  const alert = page.getByRole("alert").filter({ hasText: "Vent et minut, og prøv igen" });
+  await expect(alert).toBeVisible();
+  await expect(alert.getByRole("button", { name: "Genindlæs siden" })).toBeVisible();
+  await expect(page.getByText("Ingen registreringer inden for 100 km")).toHaveCount(0);
+});

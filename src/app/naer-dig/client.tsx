@@ -229,7 +229,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         let shelterData = tileData?.shelters ?? await fetchWithOneBusyRetry()
         let widened = false
         if (shelterData.length === 0) {
-          const wider = await fetchAppV2GroupedShelters(lat, lng, widenedRadiusKm).catch(() => [])
+          const wider = await fetchAppV2GroupedShelters(lat, lng, widenedRadiusKm)
           if (wider.length > 0) {
             shelterData = wider
             widened = true
