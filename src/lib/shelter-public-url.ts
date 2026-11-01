@@ -9,6 +9,17 @@ export function getStableShelterSlug(shelterId: string) {
   return `${stableShelterSlugPrefix}${compactId}`;
 }
 
+const maxPublicSlugLength = 240;
+
+/**
+ * True when `slug` could be a public path: 1 to 240 lower case letters, digits
+ * and hyphens. Stable, readable, older importer and municipality slugs all have
+ * this shape, so anything else is answered as not found without a lookup.
+ */
+export function isPlausiblePublicSlug(slug: string) {
+  return slug.length >= 1 && slug.length <= maxPublicSlugLength && /^[\p{Ll}\p{N}-]+$/u.test(slug);
+}
+
 export function getShelterPublicPath(slug: string) {
   return `/beskyttelsesrum/${encodeURIComponent(slug)}`;
 }

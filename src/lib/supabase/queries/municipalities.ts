@@ -2,6 +2,7 @@ import { getMunicipalitySlugCandidates } from "@/lib/municipalities/metadata";
 import { createAppV2PublicClient } from "@/lib/app-v2-public";
 import { cache } from "react";
 import { normalizePublicApplicationLabel } from "@/lib/public-labels";
+import { isPlausiblePublicSlug } from "@/lib/shelter-public-url";
 import { cachedPerRevision } from "./public-data-cache";
 import { normalizeMunicipality } from "./shared";
 import type { MunicipalitySummaryRow } from "./shared";
@@ -49,7 +50,7 @@ export async function getAppV2PublicMunicipalitySummaryCount() {
   return count ?? 0;
 }
 
-export const getAppV2MunicipalityBySlug = cache(cachedPerRevision("municipality-by-slug", async function getAppV2MunicipalityBySlug(slug: string) {
+const readMunicipalityBySlug = cachedPerRevision("municipality-by-slug", async function readMunicipalityBySlug(slug: string) {
   const supabase = createAppV2PublicClient();
   const slugCandidates = getMunicipalitySlugCandidates(slug);
   const { data, error } = await supabase
@@ -70,7 +71,13 @@ export const getAppV2MunicipalityBySlug = cache(cachedPerRevision("municipality-
   }
 
   return normalizeMunicipality(data as MunicipalitySummaryRow);
-}));
+});
+
+export const getAppV2MunicipalityBySlug = cache(async function getAppV2MunicipalityBySlug(slug: string) {
+  // Paths no municipality can have get not found without a lookup.
+  if (!isPlausiblePublicSlug(slug)) return null;
+  return readMunicipalityBySlug(slug);
+});
 
 // ─── Municipality shelter list + grouping (Sprint 5) ────────────────────────
 

@@ -10,6 +10,7 @@ import {
   getReadableShelterBaseSlug,
   getShortShelterId,
   getStableShelterSlug,
+  isPlausiblePublicSlug,
   isStableShelterSlug,
   readableSlugPostcodes,
   readableSlugShortId,
@@ -125,6 +126,8 @@ const readPublicShelterRow = cachedPerRevision("shelter-by-slug", async function
 });
 
 export const getAppV2PublicShelterBySlug = cache(async function getAppV2PublicShelterBySlug(slug: string) {
+  // Bots try paths no shelter can have; they get not found without a lookup.
+  if (!isPlausiblePublicSlug(slug)) return null;
   const shelter = await readPublicShelterRow(slug);
   if (!shelter) return null;
 
@@ -170,15 +173,18 @@ const resolvePublicShelterSlugAlias = cachedPerRevision("shelter-slug-alias", as
         .eq("alias_slug", slug)
         .maybeSingle();
 
+      // Without the public RPC and the private table nothing can be resolved.
+      // Throw rather than return null, so "no alias" is not cached for a day.
       if (privateAliasError) {
-        if (privateAliasError.code === "PGRST205" || privateAliasError.code === "42P01") return null;
         throw new Error(`Could not resolve public app_v2 shelter alias "${slug}".`);
       }
       canonicalSlug = privateAliasData
         ? getStableShelterSlug((privateAliasData as ShelterSlugAliasRow).shelter_id)
         : null;
     } catch (error) {
-      if (error instanceof SupabaseConfigurationError) return null;
+      if (error instanceof SupabaseConfigurationError) {
+        throw new Error(`Could not resolve public app_v2 shelter alias "${slug}": the public resolver is missing.`);
+      }
       throw error;
     }
   } else {
@@ -189,6 +195,7 @@ const resolvePublicShelterSlugAlias = cachedPerRevision("shelter-slug-alias", as
 });
 
 export const resolveAppV2PublicShelter = cache(async function resolveAppV2PublicShelter(slug: string) {
+  if (!isPlausiblePublicSlug(slug)) return null;
   const directShelter = await getAppV2PublicShelterBySlug(slug);
   if (directShelter) {
     return {
@@ -322,10 +329,6 @@ async function readPlainPathOwnerIds(postalCode: string | null) {
   return ids;
 }
 
-const getPlainPathOwnerIdsInPostcode = cachedPerRevision("plain-path-owners-postcode", async function getPlainPathOwnerIdsInPostcode(postalCode: string) {
-  return Array.from(await readPlainPathOwnerIds(postalCode));
-});
-
 const getPublicRegistrationsInPostcode = cachedPerRevision("registrations-in-postcode", async function getPublicRegistrationsInPostcode(postalCode: string) {
   const pub = createAppV2PublicClient();
   // The largest postcode has under 200 today; pages keep it right past 1000.
@@ -338,7 +341,8 @@ const getPublicRegistrationsInPostcode = cachedPerRevision("registrations-in-pos
       .range(from, to),
     `public app_v2 shelters in ${postalCode}`,
   );
-  const owners = new Set(await getPlainPathOwnerIdsInPostcode(postalCode));
+  // Read directly: a wrapped read inside this one would skip the data cache.
+  const owners = await readPlainPathOwnerIds(postalCode);
   return rows.map((row) => ({
     id: row.id,
     slug: row.slug,
@@ -356,7 +360,7 @@ const getPublicRegistrationsInPostcode = cachedPerRevision("registrations-in-pos
  * Returns its stable slug and canonical readable slug, or null.
  */
 export const resolveReadableShelterSlug = cache(async function resolveReadableShelterSlug(slug: string) {
-  if (isStableShelterSlug(slug)) return null;
+  if (!isPlausiblePublicSlug(slug) || isStableShelterSlug(slug)) return null;
   const shortId = readableSlugShortId(slug);
 
   for (const postalCode of readableSlugPostcodes(slug)) {
@@ -394,7 +398,7 @@ export type AppV2SitemapReadableShelterRow = {
 /** Sitemap rows with readable detail paths. */
 export async function getAppV2PublicSitemapReadableShelters(): Promise<AppV2SitemapReadableShelterRow[]> {
   const pub = createAppV2PublicClient();
-  const [sitemapRows, registrations] = await Promise.all([
+  const [sitemapRows, registrations, owners] = await Promise.all([
     getAppV2PublicSitemapShelters(),
     (async () => {
       const out: ReadableShelterRow[] = [];
@@ -413,9 +417,9 @@ export async function getAppV2PublicSitemapReadableShelters(): Promise<AppV2Site
       }
       return out;
     })(),
+    readPlainPathOwnerIds(null),
   ]);
 
-  const owners = await readPlainPathOwnerIds(null);
   const canonical = getCanonicalShelterSlugs(registrations.map((row) => ({
     ownsPlainPath: owners.has(row.id),
     id: row.id,
@@ -432,23 +436,24 @@ export async function getAppV2PublicSitemapReadableShelters(): Promise<AppV2Site
   }));
 }
 
-/**
- * An earlier readable path of a registration that is still public, from the
- * path history in app_v2. Returns its stable slug, or null. Before the
- * migration that adds the history is applied, this quietly finds nothing.
- */
-export const resolveShelterPathAlias = cache(cachedPerRevision("shelter-path-alias", async function resolveShelterPathAlias(slug: string) {
-  // Path aliases are earlier readable paths; a stable "registrering-<id>"
-  // path is never one, so bots crawling those need no lookup.
-  if (isStableShelterSlug(slug)) return null;
+const readShelterPathAlias = cachedPerRevision("shelter-path-alias", async function readShelterPathAlias(slug: string) {
   const pub = createAppV2PublicClient();
   const { data, error } = await pub.rpc("resolve_shelter_path_alias_v1", { p_path_slug: slug }).maybeSingle();
-  if (error) {
-    if (isMissingPublicRpcError(error)) return null;
-    throw new Error(`Could not resolve readable path alias "${slug}": ${error.message}`);
-  }
+  // A missing RPC also throws, so a null answer is never cached for a day.
+  if (error) throw new Error(`Could not resolve readable path alias "${slug}": ${error.message}`);
   return (data as { stable_slug: string } | null)?.stable_slug ?? null;
-}));
+});
+
+/**
+ * An earlier readable path of a registration that is still public, from the
+ * path history in app_v2. Returns its stable slug, or null.
+ */
+export const resolveShelterPathAlias = cache(async function resolveShelterPathAlias(slug: string) {
+  // Path aliases are earlier readable paths; a stable "registrering-<id>"
+  // path is never one, so bots crawling those need no lookup.
+  if (!isPlausiblePublicSlug(slug) || isStableShelterSlug(slug)) return null;
+  return readShelterPathAlias(slug);
+});
 
 export type RetiredShelter = {
   addressLine1: string;
@@ -458,14 +463,11 @@ export type RetiredShelter = {
   longitude: number | null;
 };
 
-/** The last address of a registration removed from BBR, found by any path it has had. */
-export const resolveRetiredShelter = cache(cachedPerRevision("retired-shelter", async function resolveRetiredShelter(slug: string): Promise<RetiredShelter | null> {
+const readRetiredShelter = cachedPerRevision("retired-shelter", async function readRetiredShelter(slug: string): Promise<RetiredShelter | null> {
   const pub = createAppV2PublicClient();
   const { data, error } = await pub.rpc("resolve_retired_shelter_v1", { p_slug: slug }).maybeSingle();
-  if (error) {
-    if (isMissingPublicRpcError(error)) return null;
-    throw new Error(`Could not resolve removed registration "${slug}": ${error.message}`);
-  }
+  // A missing RPC also throws, so a null answer is never cached for a day.
+  if (error) throw new Error(`Could not resolve removed registration "${slug}": ${error.message}`);
   const row = data as { address_line1: string; postal_code: string; city: string; latitude: number | string | null; longitude: number | string | null } | null;
   if (!row) return null;
   const toNumber = (value: number | string | null) => (value === null ? null : Number(value));
@@ -476,4 +478,10 @@ export const resolveRetiredShelter = cache(cachedPerRevision("retired-shelter", 
     latitude: toNumber(row.latitude),
     longitude: toNumber(row.longitude),
   };
-}));
+});
+
+/** The last address of a registration removed from BBR, found by any path it has had. */
+export const resolveRetiredShelter = cache(async function resolveRetiredShelter(slug: string): Promise<RetiredShelter | null> {
+  if (!isPlausiblePublicSlug(slug)) return null;
+  return readRetiredShelter(slug);
+});

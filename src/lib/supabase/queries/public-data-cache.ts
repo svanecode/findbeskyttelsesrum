@@ -17,12 +17,54 @@ import { getAppV2PublicDataRevision } from "./publication";
 
 export const publicDataRevisionTag = "public-data-revision";
 
-// How long a server may keep using a revision before checking again. Moderation
-// expires it at once through revalidatePublicData().
-const revisionCheckSeconds = 300;
+// How long a server may keep using a revision before checking again. Next.js
+// gives a static page the lowest revalidate of the cached reads it uses, so
+// this must not be shorter than the pages' own ISR lifetime (3600 seconds), or
+// every detail page would be rebuilt every few minutes. An import is therefore
+// seen after about two hours at most (this check plus the page's lifetime);
+// moderation expires the revision at once through revalidatePublicData().
+const revisionCheckSeconds = 3600;
 // Entries are keyed by revision and never go stale on their own; this only
 // bounds how long an unused revision's entries live.
 const entrySeconds = 86_400;
+
+export type RevisionCacheDependencies = {
+  cache: typeof unstable_cache;
+  readRevisionKey: () => Promise<string>;
+  enabled: () => boolean;
+};
+
+/** Builds the revision cache from its dependencies, so tests can drive it with a fake data cache. */
+export function createRevisionCache({ cache, readRevisionKey, enabled }: RevisionCacheDependencies) {
+  /**
+   * Wraps a public read so its result is shared until the public data revision
+   * changes. Arguments become part of the key and must be JSON-serialisable, and
+   * so must the result. Errors are not cached. A wrapped read must not call
+   * another wrapped read: Next.js skips the data cache for nested entries.
+   */
+  function cachedPerRevision<Args extends unknown[], Result>(
+    name: string,
+    read: (...args: Args) => Promise<Result>,
+  ): (...args: Args) => Promise<Result> {
+    return async (...args: Args) => {
+      if (!enabled()) return read(...args);
+      const revision = await readRevisionKey();
+      return cache(read, ["app-v2-public", name, revision], { revalidate: entrySeconds })(...args);
+    };
+  }
+
+  /**
+   * Caches one read under a revision the caller has already read itself, for
+   * routes that check the live revision. The entry is only reused while that
+   * revision is current, so it never outlives an import or moderation change.
+   */
+  function readForRevision<Result>(name: string, revision: string, key: string, read: () => Promise<Result>) {
+    if (!enabled()) return read();
+    return cache(read, ["app-v2-public", name, revision, key], { revalidate: entrySeconds })();
+  }
+
+  return { cachedPerRevision, readForRevision };
+}
 
 const getCachedRevisionKey = unstable_cache(
   async () => (await getAppV2PublicDataRevision()).cacheKey,
@@ -36,29 +78,8 @@ function hasNextDataCache() {
   return Boolean(process.env.NEXT_RUNTIME);
 }
 
-/**
- * Wraps a public read so its result is shared until the public data revision
- * changes. Arguments become part of the key and must be JSON-serialisable, and
- * so must the result. Errors are not cached. A wrapped read must not call
- * another wrapped read: Next.js skips the data cache for nested entries.
- */
-export function cachedPerRevision<Args extends unknown[], Result>(
-  name: string,
-  read: (...args: Args) => Promise<Result>,
-): (...args: Args) => Promise<Result> {
-  return async (...args: Args) => {
-    if (!hasNextDataCache()) return read(...args);
-    const revision = await getCachedRevisionKey();
-    return unstable_cache(read, ["app-v2-public", name, revision], { revalidate: entrySeconds })(...args);
-  };
-}
-
-/**
- * Caches one read under a revision the caller has already read itself, for
- * routes that check the live revision. The entry is only reused while that
- * revision is current, so it never outlives an import or moderation change.
- */
-export function readForRevision<Result>(name: string, revision: string, key: string, read: () => Promise<Result>) {
-  if (!hasNextDataCache()) return read();
-  return unstable_cache(read, ["app-v2-public", name, revision, key], { revalidate: entrySeconds })();
-}
+export const { cachedPerRevision, readForRevision } = createRevisionCache({
+  cache: unstable_cache,
+  readRevisionKey: getCachedRevisionKey,
+  enabled: hasNextDataCache,
+});
