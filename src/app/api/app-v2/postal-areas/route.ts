@@ -26,7 +26,14 @@ const readPostalAreas = unstable_cache(
   { revalidate: 600 },
 );
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Any query string would bypass the CDN cache and cost a database read.
+  if (new URL(request.url).search) {
+    return Response.json(
+      { error: { code: "unexpected_query", message: "Postnummerlisten tager ingen queryparametre." } },
+      { status: 400, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const revision = await getAppV2PublicDataRevision().then((value) => value.cacheKey, () => "unavailable");
   const table = await readPostalAreas(revision).catch(() => null);
   if (!table) {

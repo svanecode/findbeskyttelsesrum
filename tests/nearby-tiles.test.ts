@@ -128,3 +128,13 @@ test("revision counters are read from the revision key and compare by age", () =
   assert.ok(revisionCounter("p:10")! > revisionCounter("p:9")!, "numeric, not lexicographic");
   for (const invalid of ["rev", "p:", "p:0", "p:-1", "p:1.5", "p:abc"]) assert.equal(revisionCounter(invalid), null, invalid);
 });
+
+test("tile keys have exactly one canonical spelling", () => {
+  assert.equal(parseTileKey("05_10"), null);
+  assert.equal(parseTileKey("5_010"), null);
+  assert.equal(parseTileKey("-0_5"), null);
+  assert.ok(parseTileKey("224_25"));
+  assert.equal(parseTileKey("0224_25"), null);
+  assert.equal(parseTileKey("224_025"), null);
+  assert.ok(parseTileKey(tileKeyFor(56, 10)));
+});
