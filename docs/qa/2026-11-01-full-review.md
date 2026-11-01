@@ -94,3 +94,39 @@ Om ejeren har slettet gamle importlogs (H1 fra 26. september), om UptimeRobot er
 3. Ret M2 (falsk "ingen inden for 100 km") og M1/M3 (offline-kopien).
 4. Giv importalarmen en assignee, og tjek at UptimeRobot kører (M5, M9).
 5. Resten kan tages løbende. Kildetekst-testene og M11 kan udskydes.
+
+## Opfølgning (2026-11-01)
+
+Gennemført på branchen `claude/grundigt-review-f07u72` (commits `2464e57` til `HEAD` på branchen), én commit pr. fund eller lille gruppe. Nye migrationer: `20261101120000` til `20261101120300`.
+
+| Fund | Status |
+| --- | --- |
+| H1 Next.js med kritiske sårbarheder | Rettet: `next` 16.4.2 og opdaterede `sharp`, `postcss` m.fl., så `npm audit --omit=dev` er uden fund. Kvalitetsjobbet i CI kører nu `npm audit`. Kortknappens tilgængelige navn starter med den synlige tekst, som fik browsertesten i #74 til at fejle (`label-content-name-mismatch` fra axe 4.14). Dependabot-PR #74 kan lukkes eller rebases, når branchen er flettet. |
+| H2 410-siden ignorerer udelukkelser og rettelser | Rettet i migration `20261101120000`: begge funktioner bruger `is_shelter_excluded_v1` med samme prædikat som `shelter_public_v2` og tager adresse og pladser gennem den aktive rettelse. pgTAP `retired_shelter_exclusions.sql`. |
+| M1 Offline-søgning med blandede dataversioner | Rettet: gemte fliser med to versioner rangeres, som de er, når den nyeste version ikke kan hentes. |
+| M2 Fejlet 100 km-søgning vist som tom | Rettet: fejlen vises med "Prøv igen". |
+| M3 Browsing skubber den gemte kopi ud | Rettet: det gemte ligger i en egen cache (`offline-v1-saved`), som ikke trimmes. En fejlet flise ved en ny gemning sletter ikke den forrige kopi. |
+| M4 Postnumre over kommunegrænser | Rettet i migration `20261101120200`: koderne lægges sammen i begge funktioner, også for postnumre med registreringer. Importeren slår komplette postnumre op igen hver 30. dag. |
+| M5 Importalarmer når ingen person | Rettet: alarmen tildeles ejeren, ligger i et eget job, der også udløses, når `quality` fejler, og teksten påstår ikke længere, at datasættet er uændret. |
+| M6 Støj fra produktionsalarmen | Rettet: årsagen var browserstøj, ikke en fejl i sitet. Vercel-loggen viste 42 af 54 klientfejl som browserens skjulte "Script error." eller fejl fra indsprøjtet udvidelseskode. Sådanne rapporter afvises nu og tælles ikke. Grænsen på 25 er uændret. |
+| M7 Cachen pr. dataversion uden test | Rettet: `createRevisionCache` tager sine afhængigheder som parametre og testes mod en falsk cache (ét kald pr. version, ny version giver nyt kald, fejl caches ikke). |
+| M8 Versionstjek sænker ISR til 300 s | Rettet: versionsopslaget revalideres efter 3600 s. En import ses senest efter cirka 2 timer, en moderering med det samme via tag. |
+| M9 Planlagte workflows stopper efter 60 dage | Rettet: produktionskontrollen genaktiverer begge planlagte workflows i kørslen omkring kl. 03 UTC. **Ejer:** bekræft, at UptimeRobot kontrollerer `/api/health` (se nedenfor). |
+| M10 Rollback-timeouten | Rettet i migration `20261101120100`: server action tjekker ejer og aal2 og kalder `rollback_dataset_publication_as_owner_v1` med service role, og migrationen sætter `alter role service_role set statement_timeout = '60s'`. Afprøvet gennem en lokal PostgREST: service role klarer `pg_sleep(10)`, `authenticated` stoppes efter 8 s. Funktionen kræver også en aktiv ejer. |
+| M11 Build kræver Supabase | Ikke ændret: ejerbeslutning fra 26. september. Påstanden i `external-dependencies.md` er rettet, så den beskriver det faktiske fallback. |
+
+Lave fund rettet: `/api/app-v2/postal-areas` afviser queryparametre uden databasekald; slugs, ingen side kan have, afvises før de cachede opslag; `parseTileKey` afviser ikke-kanoniske nøgler som `05_10`; `client_error`-tælleren er beskrevet på `/privatliv` under legitim interesse; den læsbare sti bliver hos den registrering, der har den, så længe den er offentlig; påmindelsen i alarmen sendes højst én gang i døgnet, og kommentarer pagineres; adressesøgningens indikator hænger ikke, og Enter handler ikke på gammel tekst; sitemappet genopbygges højst én gang i døgnet; `/privatliv` nævner, at søgeteksten fra kommunesøgningen står i adressen og dermed i Vercels logs; lokal Postgres er 17 (pgTAP består på 17.6); `offline.spec.ts:94` har tagget `@full-stack`.
+
+Lave fund delvist rettet: Fejlede afledte trin efter import (postnumre og stihistorik) står nu som `derived` i importens opsummering, men udløser stadig ingen alarm. "Ikke fundet"-svar caches ikke længere, når en RPC mangler, og ugyldige slugs slås ikke op; et ægte "ikke fundet" caches stadig under den aktuelle dataversion.
+
+Lave fund ladt være: Kildetekst-testene i `tests/public-ui.test.ts` og `security-migration.test.ts` (kræver en større omskrivning). Forskellen mellem Playwright og den forinstallerede Chromium findes kun i dette cloudmiljø; CI installerer den rigtige browser.
+
+Dokumentation rettet: alle punkter under "Dokumentation, der ikke passer". `docs/data/schema.md` og `import-flow.md` beskriver nu læsbare stier, `shelter_path_aliases`, `postal_areas`, de afledte trin efter publicering og gendannelse via service role. `docs/improvement-plan.md` har en kort oversigt over #53 til #69 og dette arbejde.
+
+**Ejeropgaver:**
+
+1. Kør migrationerne (`supabase db push`), før branchen deployes. Siden kalder de nye funktioner.
+2. Bekræft, at det hostede Supabase accepterer `alter role service_role set statement_timeout = '60s'` ved push. Fejler den, stopper migrationen synligt. Deploy ikke branchen, før det er løst, for gendannelsen fra `/admin/drift` kalder den nye funktion.
+3. Kør én gendannelse på en branch-database og se, at den gennemføres.
+4. Bekræft, at UptimeRobot kontrollerer `https://findbeskyttelsesrum.dk/api/health` og sender alarm til ejeren.
+5. Luk eller rebase Dependabot-PR #74 efter fletningen.

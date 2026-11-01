@@ -91,7 +91,7 @@ test("uden gemte data for området forklarer siden, at man er offline", { tag: "
   await expect(page.getByRole("alert").filter({ hasText: "ingen gemte data for dette område" })).toBeVisible();
 });
 
-test("en tidligere ja til offlinekopi i samtykket beholder kopien efter skiftet", async ({ page }, testInfo) => {
+test("en tidligere ja til offlinekopi i samtykket beholder kopien efter skiftet", { tag: "@full-stack" }, async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Offlineflowet kontrolleres i én motor.");
   // A visitor from before the split: the old consent allowed the offline copy
   // and the worker is installed, but there is no offline-copy record yet.

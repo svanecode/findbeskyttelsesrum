@@ -265,6 +265,10 @@ test("the compact footer links to accurate privacy and reporting guidance", asyn
     privacyPage.indexOf('id="analytics-heading"'),
     privacyPage.indexOf('id="reports-heading"'),
   );
+  assert.match(technicalSection, /kommuneside, står din søgetekst i sidens adresse/);
+  assert.match(technicalSection, /&quot;Script error\.&quot; gemmes ikke/);
+  assert.match(technicalSection, /ikke oplyser en\s+webadresse for det script/);
+  assert.doesNotMatch(technicalSection, /andre websteders kode, gemmes ikke/);
   assert.match(technicalSection, /timevis tæller/);
   assert.match(technicalSection, /afhænger derfor ikke af samtykke/);
   assert.match(technicalSection, /artikel 6, stk\. 1, litra f/);

@@ -27,6 +27,14 @@ Failed staging sets expire after 14 days and are pruned when a new run starts, k
 
 If source traversal is complete but the atomic publication call fails technically, `--finalize-latest` selects the run with the service-only `get_latest_completed_datafordeler_import_v1()` and publishes exactly that run with `retry_completed_datafordeler_publication_v1(uuid)`. Replaying it returns the original result. (The earlier combined `retry_latest_completed_datafordeler_publication_v1()` is retired and revoked.) It never contacts Datafordeler and only accepts a failed staging run whose explicit completion flag, counters, checkpoint and retained candidate count all agree. Partial and quality-rejected runs are ineligible.
 
+## Derived steps after publication
+
+After a successful publication the importer refreshes two derived tables. They run after the publication transaction has committed, so a failure here never changes the published dataset; it is logged as a warning and recorded in the run summary as `derived.path_aliases` and `derived.postal_areas` (`ok` or `failed`). The import alert does not fire on a failed derived step, so read the summary when address search or old links look wrong.
+
+1. **Readable path history** (`refresh_shelter_path_aliases_v1()`): records today's readable path of every public registration in `app_v2.shelter_path_aliases` and closes paths that are no longer current (`valid_to`). Earlier paths then redirect to today's path; paths of registrations removed from BBR answer 410.
+2. **Postcodes from registrations** (`refresh_postal_areas_from_registrations_v1()`): sets the mean position of the public registrations in each postcode in `app_v2.postal_areas` and adds their municipality codes. Codes accumulate and are never removed, so a postcode across a municipal border keeps the codes from both sides.
+3. **Postcodes from DAR** (`upsert_dar_postal_areas_v1(jsonb)`): the importer reads DAR postcodes and samples up to 5 pages of 100 house numbers for municipality codes. A postcode that already has a position and municipality codes is looked up again only every 30th day (when `int(postnr) % 30` matches a day number derived from the snapshot date). DAR codes are added to every postcode; a DAR address supplies the position only for postcodes without public registrations. Postcodes with a position outside Denmark are skipped.
+
 ## Quality gates
 
 A publication is rejected when any of these conditions fail:
@@ -45,7 +53,7 @@ The rejected run, metrics, and Danish rejection reasons remain available in the 
 
 ## Rollback
 
-The three latest imported-baseline snapshots are retained in `app_v2.dataset_publication_shelters`. An allowlisted owner with MFA can restore a retained imported source baseline from `/admin/drift`. The restore is atomic, rechecks owner authorization in the database, preserves editorial overrides and exclusions, creates a new publication entry, and writes an audit event.
+The three latest imported-baseline snapshots are retained in `app_v2.dataset_publication_shelters`. An allowlisted owner with MFA can restore a retained imported source baseline from `/admin/drift`. The restore is atomic, rechecks owner authorization in the database, preserves editorial overrides and exclusions, creates a new publication entry, and writes an audit event. The `/admin/drift` server action checks owner role and MFA and then calls `rollback_dataset_publication_as_owner_v1(uuid, uuid)` with the service role, because the signed-in role's 8-second statement timeout can stop a large restore. `service_role` has a 60-second statement timeout (migration `20261101120100`), and the function checks again that the account is an active owner.
 
 ## CLI
 

@@ -89,7 +89,7 @@ Worked through on branch `claude/fable-review-rh0bkq`, one commit per finding or
 | H1 excluded address in public CI logs | Fixed: `parity:exclusions` prints counts only; `--details` lists rows locally. **Owner:** delete the logs of earlier import runs. |
 | H2 rollback timeout, no test | Fixed: migration `20260928120000` (60 s timeout, one cache refresh) and pgTAP `dataset_rollback.sql`. |
 | H3 privacy notice vs offline copy | Fixed, date updated. |
-| M1 allowlist not in git | Tooling added: `npm run export:application-codes -- <migration path>`. **Owner:** run once with production credentials and commit the migration. |
+| M1 allowlist not in git | Fixed: tooling added (`npm run export:application-codes -- <migration path>`), and the allowlist is seeded in migration `20260928190000_seed_application_code_eligibility.sql` (#55). |
 | M2 missing limiter secret is silent | Fixed: `/api/health` degrades with `rate_limit_hash_secret_missing`. |
 | M3 health query strings bypass cache | Fixed: 400 without database reads. |
 | M4 service worker can break online responses | Fixed for failed cache writes. The 6 s timeout serving older HTML is unchanged by design (hashed chunks are cached with it). |

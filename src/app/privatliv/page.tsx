@@ -90,12 +90,15 @@ export default function PrivacyPage() {
               Vercel leverer hjemmesiden og kan som led i drift, sikkerhed og misbrugsbeskyttelse behandle tekniske
               requestdata som IP-adresse, tidspunkt, browseroplysninger og den anmodede sti. Tjenesten gemmer ikke selv
               rå IP-adresser i sin database. Forbrugsgrænser bruger kun et envejs-hash, som ikke vises i administrationen.
+              Søger du i listen på en kommuneside, står din søgetekst i sidens adresse og kommer derfor med i Vercels
+              tekniske logs.
             </p>
             <p className={secondaryParagraphClassName}>
               Klientfejl begrænses til fejlbesked, en kort stack, side-sti og faste kontekstfelter. Queryparametre,
               kendte lokationsfelter, koordinatpar og sandsynlige danske adresser redigeres før logning. Bruger-id og
-              fuld browseridentifikation indgår ikke i fejlrapportformatet. Fejl, der opstår i browserudvidelser eller
-              andre websteders kode, gemmes ikke.
+              fuld browseridentifikation indgår ikke i fejlrapportformatet. Browserens skjulte fejlbesked
+              &quot;Script error.&quot; gemmes ikke. Det gør fejl på siden heller ikke, når browseren ikke oplyser en
+              webadresse for det script, der fejlede. Sådanne fejl kommer typisk fra browserudvidelser.
             </p>
             <p className={secondaryParagraphClassName}>
               For hver gemt fejlrapport tælles desuden én i en timevis tæller. Tælleren indeholder intet fra rapporten,
