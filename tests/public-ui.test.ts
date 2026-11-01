@@ -256,6 +256,19 @@ test("the compact footer links to accurate privacy and reporting guidance", asyn
   assert.match(privacyPage, /id="samtykke"/);
   assert.match(privacyPage, /<ConsentSettings \/>/);
   assert.match(privacyPage, /dit samtykke efter artikel 6, stk\. 1,\s+litra a/);
+  assert.match(privacyPage, /Senest opdateret 1\. november 2026\./);
+  const technicalSection = privacyPage.slice(
+    privacyPage.indexOf('id="technical-heading"'),
+    privacyPage.indexOf('id="analytics-heading"'),
+  );
+  const analyticsSection = privacyPage.slice(
+    privacyPage.indexOf('id="analytics-heading"'),
+    privacyPage.indexOf('id="reports-heading"'),
+  );
+  assert.match(technicalSection, /timevis tæller/);
+  assert.match(technicalSection, /afhænger derfor ikke af samtykke/);
+  assert.match(technicalSection, /artikel 6, stk\. 1, litra f/);
+  assert.match(analyticsSection, /Tælleren for fejlrapporter er ikke omfattet af samtykket/);
   assert.match(footer, /\/privatliv#samtykke/);
   assert.match(dataPage, /id="rapportering"/);
   assert.match(dataPage, /Kildeangivelse:/);

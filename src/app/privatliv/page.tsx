@@ -27,7 +27,7 @@ export default function PrivacyPage() {
             Du behøver ikke en konto for at bruge Find Beskyttelsesrum. Denne side forklarer, hvilke oplysninger de
             enkelte funktioner behandler, hvorfor de behandles, hvem der modtager dem, og hvornår de slettes.
           </p>
-          <p className="text-sm text-gray-400">Senest opdateret 28. september 2026.</p>
+          <p className="text-sm text-gray-400">Senest opdateret 1. november 2026.</p>
         </header>
 
         <div className="mt-10 border-b border-white/10">
@@ -94,7 +94,13 @@ export default function PrivacyPage() {
             <p className={secondaryParagraphClassName}>
               Klientfejl begrænses til fejlbesked, en kort stack, side-sti og faste kontekstfelter. Queryparametre,
               kendte lokationsfelter, koordinatpar og sandsynlige danske adresser redigeres før logning. Bruger-id og
-              fuld browseridentifikation indgår ikke i fejlrapportformatet. Formålet og retsgrundlaget er sikker og stabil
+              fuld browseridentifikation indgår ikke i fejlrapportformatet. Fejl, der opstår i browserudvidelser eller
+              andre websteders kode, gemmes ikke.
+            </p>
+            <p className={secondaryParagraphClassName}>
+              For hver gemt fejlrapport tælles desuden én i en timevis tæller. Tælleren indeholder intet fra rapporten,
+              slettes senest efter 90 dage og bruges til at give en driftsalarm, når mange fejl opstår på kort tid. Den
+              afhænger derfor ikke af samtykke. Formålet og retsgrundlaget for fejlrapporter og tæller er sikker og stabil
               drift efter artikel 6, stk. 1, litra f.
             </p>
           </section>
@@ -112,7 +118,8 @@ export default function PrivacyPage() {
               Tjenestens egne produktmålinger er timevise tællere for en fast liste af handlinger. De indeholder ikke
               IP-adresse, bruger-id, adresse, koordinater, søgetekst eller fuld URL. Indlæsningstid afrundes til intervaller
               på 250 millisekunder, og tællerne slettes senest efter 90 dage. Betroede driftsheartbeats ligger i en separat,
-              privat kanal og kan ikke oprettes af almindelige besøgende.
+              privat kanal og kan ikke oprettes af almindelige besøgende. Tælleren for fejlrapporter er ikke omfattet af samtykket;
+              den er beskrevet under hosting, sikkerhed og tekniske logs.
             </p>
             <p className={secondaryParagraphClassName}>
               Formålet er at opdage fejl og forbedre tjenesten. Retsgrundlaget er dit samtykke efter artikel 6, stk. 1,
