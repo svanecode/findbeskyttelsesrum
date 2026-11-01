@@ -80,7 +80,9 @@ test("each import gets a fresh postcode table without a manual cache key change"
 
 test("a failing production check reaches a person, not only an open issue", async () => {
   const workflow = await readFile(new URL("../.github/workflows/production-smoke.yml", import.meta.url), "utf8");
-  assert.match(workflow, /--assignee "\$OWNER"/);
-  assert.match(workflow, /Påmindelse til @\$OWNER/);
-  assert.match(workflow, /> 86400/);
+  const script = await readFile(new URL("../scripts/monitor/raise-alert.sh", import.meta.url), "utf8");
+  assert.match(workflow, /raise-alert\.sh production-alert/);
+  assert.match(script, /--assignee "\$OWNER"/);
+  assert.match(script, /Påmindelse til @\$OWNER/);
+  assert.match(script, /> 86400/);
 });

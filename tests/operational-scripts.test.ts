@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -197,4 +197,81 @@ test("nearby probe sends coordinates in POST JSON and propagates API failures", 
   } finally {
     await server.close();
   }
+});
+
+async function runAlertScript(
+  script: "raise-alert.sh" | "close-alert.sh",
+  args: string[],
+  fake: { issueList?: string; apiOutput?: string },
+) {
+  const directory = await mkdtemp(join(tmpdir(), "fake-gh-"));
+  const log = join(directory, "gh.log");
+  const bin = join(directory, "gh");
+  await writeFile(bin, [
+    "#!/usr/bin/env bash",
+    'printf "%s\\n" "$*" >> "$FAKE_GH_LOG"',
+    'case "$1" in',
+    '  issue) if [ "$2" = "list" ]; then printf "%s" "${FAKE_ISSUE_LIST:-}"; fi ;;',
+    '  api) printf "%s" "${FAKE_API_OUTPUT:-}" ;;',
+    "esac",
+    "exit 0",
+    "",
+  ].join("\n"), { mode: 0o755 });
+  await execFileAsync("bash", [new URL(`../scripts/monitor/${script}`, import.meta.url).pathname, ...args], {
+    env: {
+      ...process.env,
+      PATH: `${directory}:${process.env.PATH}`,
+      FAKE_GH_LOG: log,
+      FAKE_ISSUE_LIST: fake.issueList ?? "",
+      FAKE_API_OUTPUT: fake.apiOutput ?? "",
+      GH_TOKEN: "token",
+      OWNER: "owner",
+      REPO: "owner/repo",
+      RUN_URL: "https://example.test/run/1",
+    },
+    timeout: 20_000,
+  });
+  try {
+    return (await readFile(log, "utf8")).trim().split("\n");
+  } catch {
+    return [];
+  }
+}
+
+const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+
+test("raise-alert creates an issue assigned to the owner when none is open", async () => {
+  const calls = await runAlertScript("raise-alert.sh", ["prod-alert", "Titel", "Besked"], {});
+  const create = calls.find((call) => call.startsWith("issue create"));
+  assert.ok(create, calls.join("\n"));
+  assert.match(create, /--assignee owner/);
+  assert.match(create, /--label prod-alert/);
+});
+
+test("raise-alert only edits a recent open issue without reminders", async () => {
+  const calls = await runAlertScript("raise-alert.sh", ["prod-alert", "Titel", "Besked"], {
+    issueList: `7 ${hoursAgo(2)}`,
+  });
+  assert.ok(calls.some((call) => call.startsWith("issue edit 7")), calls.join("\n"));
+  assert.ok(!calls.some((call) => call.startsWith("issue comment")), calls.join("\n"));
+  assert.ok(calls.some((call) => call.startsWith("api") && call.includes("--paginate")), calls.join("\n"));
+});
+
+test("raise-alert reminds once a day, counted from the latest reminder", async () => {
+  const old = await runAlertScript("raise-alert.sh", ["prod-alert", "Titel", "Besked"], {
+    issueList: `7 ${hoursAgo(25)}`,
+  });
+  assert.ok(old.some((call) => call.startsWith("issue comment 7") && call.includes("Påmindelse")), old.join("\n"));
+  const recentReminder = await runAlertScript("raise-alert.sh", ["prod-alert", "Titel", "Besked"], {
+    issueList: `7 ${hoursAgo(80)}`,
+    apiOutput: `${hoursAgo(30)}\n${hoursAgo(3)}\n`,
+  });
+  assert.ok(!recentReminder.some((call) => call.startsWith("issue comment")), recentReminder.join("\n"));
+});
+
+test("close-alert closes the open issue and ignores runs without one", async () => {
+  const none = await runAlertScript("close-alert.sh", ["prod-alert", "Færdig"], {});
+  assert.ok(!none.some((call) => call.startsWith("issue close")));
+  const open = await runAlertScript("close-alert.sh", ["prod-alert", "Færdig"], { issueList: "7" });
+  assert.ok(open.some((call) => call.startsWith("issue close 7")), open.join("\n"));
 });

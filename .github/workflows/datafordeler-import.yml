@@ -87,7 +87,6 @@ jobs:
     timeout-minutes: 360
     permissions:
       contents: read
-      issues: write
     defaults:
       run:
         working-directory: tools/datafordeler-importer
@@ -209,32 +208,28 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Opret gratis driftsalarm ved planlagt fejl
-        if: failure() && github.event_name == 'schedule'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        shell: bash
+  alert:
+    name: Driftsalarm
+    if: always() && github.event_name == 'schedule'
+    needs: [quality, import]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OWNER: ${{ github.repository_owner }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Hent kode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Opret eller opdatér driftsalarm
+        if: contains(fromJSON('["failure","cancelled"]'), needs.quality.result) || contains(fromJSON('["failure","cancelled"]'), needs.import.result)
         run: |
-          gh label create data-import-alert --color B60205 --description "Automatisk alarm for Datafordeler-import" --force
-          alert_url="$(gh issue list --label data-import-alert --state open --limit 1 --json url --jq '.[0].url' 2>/dev/null || true)"
-          if [[ -z "$alert_url" ]]; then
-            gh issue create \
-              --title "Datafordeler-import kræver opmærksomhed" \
-              --label data-import-alert \
-              --body "Den planlagte import fejlede uden at ændre det offentlige datasæt. Se kørslen: $RUN_URL"
-          else
-            gh issue comment "$alert_url" --body "Importen fejlede igen uden publicering. Se kørslen: $RUN_URL"
-          fi
-
-      - name: Luk driftsalarm efter næste succes
-        if: success() && github.event_name == 'schedule'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        shell: bash
-        run: |
-          alert_url="$(gh issue list --label data-import-alert --state open --limit 1 --json url --jq '.[0].url' 2>/dev/null || true)"
-          if [[ -n "$alert_url" ]]; then
-            gh issue close "$alert_url" --comment "Den næste planlagte import blev publiceret korrekt. Se kørslen: $RUN_URL"
-          fi
+          bash scripts/monitor/raise-alert.sh data-import-alert "Datafordeler-import kræver opmærksomhed" \
+            "Den planlagte import eller kontrollerne efter den fejlede. Se kørslen for at se, om datasættet blev publiceret: $RUN_URL"
+      - name: Luk driftsalarm efter succes
+        if: ${{ !contains(fromJSON('["failure","cancelled"]'), needs.quality.result) && !contains(fromJSON('["failure","cancelled"]'), needs.import.result) }}
+        run: bash scripts/monitor/close-alert.sh data-import-alert "Den næste planlagte import og kontrollerne efter den gik igennem."
