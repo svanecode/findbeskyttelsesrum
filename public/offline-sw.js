@@ -12,7 +12,10 @@
  * 2. Only three kinds of same-origin GET are touched: page navigations,
  *    hashed /_next/static assets and /api/app-v2/nearby/tiles/*. Everything
  *    else (other APIs, admin, auth, third parties) is left to the browser.
- * 3. Nothing personal is stored here: pages are public HTML, tiles are public
+ * 3. What the visitor saved stays saved. The URLs from "Gem til brug uden
+ *    net" go in their own cache, which is never trimmed and only replaced by
+ *    the next save; ordinary browsing fills the other, size-capped caches.
+ * 4. Nothing personal is stored here: pages are public HTML, tiles are public
  *    registration data for a ~28 km area. A saved search lives in the page's
  *    localStorage, which the visitor can delete with the copy.
  *
@@ -25,6 +28,8 @@ const version = "offline-v1";
 const pageCache = `${version}-pages`;
 const staticCache = `${version}-static`;
 const tileCache = `${version}-tiles`;
+// Everything the last "save-offline-copy" message stored. Never trimmed.
+const savedCache = `${version}-saved`;
 const cachedAtHeader = "X-Offline-Cached-At";
 
 const precachedPages = ["/", "/naer-dig", "/om-data", "/privatliv"];
@@ -54,9 +59,12 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      const current = new Set([pageCache, staticCache, tileCache]);
+      const current = new Set([pageCache, staticCache, tileCache, savedCache]);
       const keys = await caches.keys();
       await Promise.all(keys.filter((key) => !current.has(key)).map((key) => caches.delete(key)));
+      // Workers before the saved cache kept a visitor's copy in the ordinary
+      // caches, where browsing could trim it. Carry it over once.
+      if (!keys.includes(savedCache)) await seedSavedCache().catch(() => undefined);
       await self.clients.claim();
     })(),
   );
@@ -100,6 +108,17 @@ self.addEventListener("message", (event) => {
   );
 });
 
+async function seedSavedCache() {
+  const saved = await caches.open(savedCache);
+  for (const name of [pageCache, staticCache, tileCache]) {
+    const cache = await caches.open(name);
+    for (const key of await cache.keys()) {
+      const response = await cache.match(key);
+      if (response) await saved.put(key, response);
+    }
+  }
+}
+
 /** Which cache, and under which key, a same-origin URL belongs in; null for anything else. */
 function cacheTarget(url) {
   if (url.origin !== self.location.origin) return null;
@@ -116,6 +135,7 @@ async function saveUrls(urls) {
   let failed = 0;
   const queue = urls.slice(0, 300);
   const seen = new Set();
+  const savedKeys = new Set();
   while (queue.length > 0) {
     const raw = queue.shift();
     let url;
@@ -140,15 +160,29 @@ async function saveUrls(urls) {
           if (queue.length < 300) queue.push(match);
         }
       }
-      const cache = await caches.open(target.cacheName);
+      const cache = await caches.open(savedCache);
       await cache.put(target.key, stamp(response));
+      savedKeys.add(target.key);
       saved += 1;
     } catch {
       failed += 1;
     }
   }
-  await Promise.all([pageCache, staticCache, tileCache].map((name) => trim(name)));
+  // The new copy replaces the previous one. A save where nothing could be
+  // fetched (offline, say) keeps the previous copy rather than leave none.
+  if (saved > 0) {
+    const cache = await caches.open(savedCache);
+    for (const key of await cache.keys()) {
+      if (!savedKeys.has(keyId(key))) await cache.delete(key);
+    }
+  }
   return { saved, failed };
+}
+
+/** The path and query a cache key stands for, whether it is a Request or a string. */
+function keyId(key) {
+  const url = new URL(typeof key === "string" ? key : key.url, self.location.origin);
+  return url.pathname + url.search;
 }
 
 /** Navigations are cached per path without query or hash. */
@@ -181,6 +215,16 @@ async function save(cache, cacheName, key, response) {
   }
 }
 
+/** The visitor's saved copy, consulted after the ordinary cache. */
+async function matchSaved(key) {
+  try {
+    const cache = await caches.open(savedCache);
+    return await cache.match(key);
+  } catch {
+    return undefined;
+  }
+}
+
 async function networkFirst(request, cacheName, key) {
   const cache = await caches.open(cacheName);
   const network = fetch(request).then(async (response) => {
@@ -198,7 +242,7 @@ async function networkFirst(request, cacheName, key) {
     // Network failed; fall through to the cache.
   }
 
-  const cached = await cache.match(key);
+  const cached = (await cache.match(key)) ?? (await matchSaved(key));
   if (cached) {
     // Keep a slow network request running so the cache refreshes.
     network.catch(() => undefined);
@@ -210,7 +254,7 @@ async function networkFirst(request, cacheName, key) {
 
 async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
+  const cached = (await cache.match(request)) ?? (await matchSaved(request));
   if (cached) return cached;
   const response = await fetch(request);
   if (response.ok) await save(cache, cacheName, request, response.clone());

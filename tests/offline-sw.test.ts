@@ -82,7 +82,14 @@ async function loadWorker(network: (request: Request) => Promise<Response>, opti
     return reply;
   }
 
-  return { dispatch, message, stores };
+  /** Runs the activate handler to completion. */
+  async function activate() {
+    let waited: Promise<unknown> = Promise.resolve();
+    (handlers.activate as unknown as (event: unknown) => void)({ waitUntil: (promise: Promise<unknown>) => { waited = promise; } });
+    await waited;
+  }
+
+  return { dispatch, message, activate, stores };
 }
 
 const page = (body: string) => new Response(body, { status: 200, headers: { "Content-Type": "text/html" } });
@@ -200,8 +207,68 @@ test("saving an offline copy stores pages, the files they reference and tiles", 
   });
 
   assert.deepEqual({ ...(reply as object) }, { saved: 4, failed: 0 });
-  assert.ok(worker.stores.get("offline-v1-pages")?.get("/naer-dig"));
-  assert.ok(worker.stores.get("offline-v1-static")?.get("/_next/static/chunks/app.js"));
-  assert.ok(worker.stores.get("offline-v1-tiles")?.get("/api/app-v2/nearby/tiles/222_31"));
+  const saved = worker.stores.get("offline-v1-saved");
+  assert.ok(saved?.get("/naer-dig"));
+  assert.ok(saved?.get("/_next/static/chunks/app.js"));
+  assert.ok(saved?.get("/api/app-v2/nearby/tiles/222_31"));
   assert.ok(!requested.includes("/api/metrics"), "other APIs are never saved");
+});
+
+test("a saved copy survives later browsing that fills the ordinary caches", async () => {
+  let online = true;
+  const worker = await loadWorker(async (request) => {
+    if (!online) throw new TypeError("Failed to fetch");
+    const path = new URL(request.url).pathname;
+    if (path.includes("/tiles/")) return Response.json({ contract: "nearby-tile-v1", tile: path.split("/").pop() });
+    return page(`page ${path}`);
+  });
+
+  const savedTiles = Array.from({ length: 9 }, (_, index) => `/api/app-v2/nearby/tiles/222_${30 + index}`);
+  const reply = await worker.message({ type: "save-offline-copy", urls: ["/naer-dig", ...savedTiles] });
+  assert.deepEqual({ ...(reply as object) }, { saved: 10, failed: 0 });
+
+  for (let index = 0; index < 60; index += 1) {
+    await worker.dispatch(`https://findbeskyttelsesrum.dk/api/app-v2/nearby/tiles/230_${index}`);
+  }
+  for (let index = 0; index < 30; index += 1) {
+    await worker.dispatch(`https://findbeskyttelsesrum.dk/shelter/${index}`, { mode: "navigate" });
+  }
+
+  online = false;
+  for (const path of savedTiles) {
+    const tile = await worker.dispatch(`https://findbeskyttelsesrum.dk${path}`);
+    assert.equal(tile?.status, 200, path);
+    assert.ok(tile?.headers.get("X-Offline-Cached-At"), path);
+  }
+  const nearby = await worker.dispatch("https://findbeskyttelsesrum.dk/naer-dig", { mode: "navigate" });
+  assert.equal(await nearby?.text(), "page /naer-dig");
+});
+
+test("a new saved copy replaces the previous one", async () => {
+  const worker = await loadWorker(async (request) => (request.url.includes("/tiles/") ? Response.json({}) : page("x")));
+  await worker.message({ type: "save-offline-copy", urls: ["/naer-dig", "/api/app-v2/nearby/tiles/222_31"] });
+  await worker.message({ type: "save-offline-copy", urls: ["/naer-dig", "/api/app-v2/nearby/tiles/223_32"] });
+  const saved = worker.stores.get("offline-v1-saved")!;
+  assert.deepEqual(Array.from(saved.keys()).sort(), ["/api/app-v2/nearby/tiles/223_32", "/naer-dig"]);
+});
+
+test("activation keeps the saved copy and seeds it from caches saved by the previous worker", async () => {
+  const worker = await loadWorker(async () => page("x"));
+  const tiles = await (async () => {
+    // The previous worker kept saved tiles in the ordinary tile cache.
+    const store = new Map<string, Response>([["/api/app-v2/nearby/tiles/222_31", Response.json({})]]);
+    worker.stores.set("offline-v1-tiles", store);
+    worker.stores.set("offline-v0-old", new Map());
+    return store;
+  })();
+  await worker.activate();
+  assert.ok(worker.stores.has("offline-v1-saved"));
+  assert.ok(worker.stores.get("offline-v1-saved")?.get("/api/app-v2/nearby/tiles/222_31"));
+  assert.ok(!worker.stores.has("offline-v0-old"));
+  assert.equal(tiles.size, 1);
+
+  // A later activation (a new deploy of the same version) leaves a saved copy alone.
+  worker.stores.get("offline-v1-saved")!.delete("/api/app-v2/nearby/tiles/222_31");
+  await worker.activate();
+  assert.equal(worker.stores.get("offline-v1-saved")!.size, 0);
 });

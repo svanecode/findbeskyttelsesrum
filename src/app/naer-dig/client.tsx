@@ -11,14 +11,8 @@ import type { MapTileStatus } from '@/components/ResilientMapTileLayer'
 import { ui } from '@/components/ui-classes'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
 import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
-import {
-  isNearbyTilePayload,
-  parseTileKey,
-  rankNearbyGroupsFromTiles,
-  revisionCounter,
-  surroundingTileKeys,
-  type NearbyTilePayload,
-} from '@/lib/nearby/tiles'
+import { fetchNearbyFromTiles } from '@/lib/nearby/fetch-nearby-from-tiles'
+import { surroundingTileKeys } from '@/lib/nearby/tiles'
 import { trackProductMetric } from '@/lib/analytics/product-metrics'
 import { scrollBehavior } from '@/lib/ui/reduced-motion'
 import { getReadableGroupPrimaryPath, getReadableShelterPathFromStable } from '@/lib/shelter-public-url'
@@ -98,55 +92,13 @@ function getNearbyLoadErrorMessage(error: unknown) {
   return 'Vi kunne ikke hente BBR-registreringerne lige nu. Prøv igen om lidt.'
 }
 
-// Loads the CDN-cached tiles around the position and ranks them on the
-// device. Returns null whenever the result cannot be guaranteed identical to
-// the server search (outside the tile grid, a failed tile, revisions that stay
-// mixed after a refresh, or too few results inside the loaded block).
-// Set by public/offline-sw.js on tiles it serves from its cache.
-const offlineCachedAtHeader = 'X-Offline-Cached-At'
-
-type TileSearchResult = {
-  shelters: NearbyResultShelter[]
-  // When any tile came from the offline cache: the oldest cache time.
-  savedAt: string | null
-}
-
-async function fetchTile(key: string, path: string, cachedAt: string[]): Promise<NearbyTilePayload> {
-  const response = await fetch(path)
-  if (!response.ok) throw new Error(`nearby tile ${key} failed with status ${response.status}`)
-  const savedAt = response.headers.get(offlineCachedAtHeader)
-  if (savedAt) cachedAt.push(savedAt)
-  const payload: unknown = await response.json()
-  if (!isNearbyTilePayload(payload, key)) throw new Error(`nearby tile ${key} returned an invalid payload`)
-  return payload
-}
-
-async function fetchNearbyFromTiles(lat: number, lng: number): Promise<TileSearchResult | null> {
-  const keys = surroundingTileKeys(lat, lng)
-  if (keys.some((key) => parseTileKey(key) === null)) return null
-
-  const cachedAt: string[] = []
-  let tiles = await Promise.all(keys.map((key) => fetchTile(key, `/api/app-v2/nearby/tiles/${key}`, cachedAt)))
-
-  // Right after a publication some tiles are still cached from the previous
-  // revision. Fetch only those again, pinned to the newest revision seen.
-  if (new Set(tiles.map((tile) => tile.revision)).size !== 1) {
-    const counters = tiles.map((tile) => revisionCounter(tile.revision))
-    if (counters.some((counter) => counter === null)) return null
-    const newest = tiles[counters.indexOf(Math.max(...(counters as number[])))]!.revision
-    const newestCounter = revisionCounter(newest)!
-    tiles = await Promise.all(tiles.map((tile, index) => tile.revision === newest
-      ? tile
-      : fetchTile(keys[index]!, `/api/app-v2/nearby/tiles/${keys[index]}/${newestCounter}`, cachedAt)))
-    if (new Set(tiles.map((tile) => tile.revision)).size !== 1) return null
-  }
-
-  const groups = rankNearbyGroupsFromTiles(tiles, { latitude: lat, longitude: lng }, {
+async function fetchNearbyFromTilesForPage(lat: number, lng: number) {
+  const result = await fetchNearbyFromTiles(lat, lng, {
     limit: nearbyResultLimit,
     radiusMeters: nearbyRadiusKm * 1000,
+    fetch: (path) => fetch(path),
   })
-  if (!groups) return null
-  return { shelters: adaptAppV2Grouped(groups), savedAt: cachedAt.sort()[0] ?? null }
+  return result ? { shelters: adaptAppV2Grouped(result.groups), savedAt: result.savedAt } : null
 }
 
 function formatSavedAt(value: string) {
@@ -273,7 +225,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         setIsRetryingBusy(false)
         setSavedDataNotice(null)
         setIsWidened(false)
-        const tileData = await fetchNearbyFromTiles(lat, lng).catch(() => null)
+        const tileData = await fetchNearbyFromTilesForPage(lat, lng).catch(() => null)
         let shelterData = tileData?.shelters ?? await fetchWithOneBusyRetry()
         let widened = false
         if (shelterData.length === 0) {
