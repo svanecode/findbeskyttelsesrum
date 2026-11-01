@@ -558,7 +558,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                             type="button"
                             onClick={(event) => showShelterOnMap(shelter, event.currentTarget)}
                             className="-my-1 inline-flex min-h-[44px] shrink-0 items-center rounded-lg px-2 text-sm text-gray-300 underline underline-offset-4 hover:text-white"
-                            aria-label={`Vis ${getAddressLine(shelter)} på kort`}
+                            aria-label={`Vis på kort: ${getAddressLine(shelter)}`}
                           >
                             Vis på kort
                           </button>

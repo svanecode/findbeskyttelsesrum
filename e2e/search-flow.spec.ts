@@ -96,7 +96,7 @@ test("mobilvisningen skifter mellem liste og kort", async ({ page }, testInfo) =
 
   await expect(listTab).toHaveAttribute("aria-selected", "true");
   await expect.poll(() => tileRequests.length).toBe(0);
-  await page.getByRole("button", { name: /^Vis .* på kort$/ }).click();
+  await page.getByRole("button", { name: /^Vis på kort: / }).click();
   await expect(mapTab).toHaveAttribute("aria-selected", "true");
   await expect.poll(() => tileRequests.length).toBeGreaterThan(0);
   await expect(page.getByLabel("Valgt registrering")).toContainText("Rådhuspladsen 1");

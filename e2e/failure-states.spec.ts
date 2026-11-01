@@ -210,7 +210,7 @@ test("kortfejl bevarer resultatlisten som fallback", async ({ page }, testInfo) 
   });
 
   await page.goto("/naer-dig");
-  await page.getByRole("button", { name: /^Vis .* på kort$/ }).click();
+  await page.getByRole("button", { name: /^Vis på kort: / }).click();
 
   const mapError = page.getByRole("alert").filter({ hasText: "Kortbaggrunden er ikke tilgængelig" });
   await expect(mapError).toBeVisible();
@@ -255,7 +255,7 @@ test("kortfejl gendanner fokus til den brugte kortkontrol efter retry", async ({
   });
 
   await page.goto("/naer-dig");
-  await page.getByRole("button", { name: /^Vis .* på kort$/ }).click();
+  await page.getByRole("button", { name: /^Vis på kort: / }).click();
   const zoomIn = page.locator(".nearby-map .leaflet-control-zoom-in");
   await expect(zoomIn).toBeVisible();
   await zoomIn.focus();
