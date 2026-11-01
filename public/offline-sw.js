@@ -63,7 +63,9 @@ self.addEventListener("activate", (event) => {
       const keys = await caches.keys();
       await Promise.all(keys.filter((key) => !current.has(key)).map((key) => caches.delete(key)));
       // Workers before the saved cache kept a visitor's copy in the ordinary
-      // caches, where browsing could trim it. Carry it over once.
+      // caches, where browsing could trim it. Carry it over once. A copy that
+      // fails partway is not retried, and matchSaved may already have created
+      // the cache empty (caches.open creates it); either way it counts as done.
       if (!keys.includes(savedCache)) await seedSavedCache().catch(() => undefined);
       await self.clients.claim();
     })(),
@@ -135,7 +137,6 @@ async function saveUrls(urls) {
   let failed = 0;
   const queue = urls.slice(0, 300);
   const seen = new Set();
-  const savedKeys = new Set();
   while (queue.length > 0) {
     const raw = queue.shift();
     let url;
@@ -162,18 +163,19 @@ async function saveUrls(urls) {
       }
       const cache = await caches.open(savedCache);
       await cache.put(target.key, stamp(response));
-      savedKeys.add(target.key);
       saved += 1;
     } catch {
       failed += 1;
     }
   }
-  // The new copy replaces the previous one. A save where nothing could be
-  // fetched (offline, say) keeps the previous copy rather than leave none.
+  // The new copy replaces the previous one: URLs this save did not ask for
+  // are dropped. A URL it asked for but could not fetch (429, 5xx, a flaky
+  // connection) keeps its previous copy, and a save where nothing could be
+  // fetched (offline, say) keeps the whole previous copy.
   if (saved > 0) {
     const cache = await caches.open(savedCache);
     for (const key of await cache.keys()) {
-      if (!savedKeys.has(keyId(key))) await cache.delete(key);
+      if (!seen.has(keyId(key))) await cache.delete(key);
     }
   }
   return { saved, failed };

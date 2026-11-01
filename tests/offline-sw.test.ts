@@ -272,3 +272,32 @@ test("activation keeps the saved copy and seeds it from caches saved by the prev
   await worker.activate();
   assert.equal(worker.stores.get("offline-v1-saved")!.size, 0);
 });
+
+test("a URL that fails during a new save keeps its previous saved copy", async () => {
+  let online = true;
+  let tileStatus = 200;
+  const worker = await loadWorker(async (request) => {
+    if (!online) throw new TypeError("Failed to fetch");
+    if (request.url.includes("/tiles/")) return tileStatus === 200 ? Response.json({ tile: "old" }) : new Response("busy", { status: tileStatus });
+    return page("page");
+  });
+  const urls = ["/naer-dig", "/api/app-v2/nearby/tiles/222_31"];
+  await worker.message({ type: "save-offline-copy", urls });
+  tileStatus = 503;
+  const reply = await worker.message({ type: "save-offline-copy", urls });
+  assert.deepEqual({ ...(reply as object) }, { saved: 1, failed: 1 });
+
+  online = false;
+  const tile = await worker.dispatch("https://findbeskyttelsesrum.dk/api/app-v2/nearby/tiles/222_31");
+  assert.equal(tile?.status, 200);
+  assert.deepEqual(await tile?.json(), { tile: "old" });
+});
+
+test("activation with a saved copy does not copy browsed entries into it", async () => {
+  const worker = await loadWorker(async () => page("x"));
+  worker.stores.set("offline-v1-saved", new Map([["/naer-dig", page("saved")]]));
+  worker.stores.set("offline-v1-pages", new Map([["/shelter/1", page("browsed")]]));
+  worker.stores.set("offline-v1-tiles", new Map([["/api/app-v2/nearby/tiles/230_1", Response.json({})]]));
+  await worker.activate();
+  assert.deepEqual(Array.from(worker.stores.get("offline-v1-saved")!.keys()), ["/naer-dig"]);
+});

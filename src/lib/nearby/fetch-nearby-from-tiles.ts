@@ -39,9 +39,12 @@ function hasOneRevision(tiles: NearbyTilePayload[]) {
  * the server search (outside the tile grid, revisions that stay mixed after a
  * refresh, or too few results inside the loaded block); a failed tile rejects.
  *
- * One exception: tiles from the visitor's saved offline copy may span two
- * data revisions (saved across a publication). When the newer revision cannot
- * be fetched, the saved tiles are ranked as they are, since the page shows
+ * One exception: when at least one tile was served by public/offline-sw.js
+ * from a cache (it carries X-Offline-Cached-At), the tiles may span two data
+ * revisions. That covers the visitor's saved copy (saved across a
+ * publication) and also the worker's ordinary-cache fallback while online
+ * (after a timeout or a 5xx). When the newer revision cannot be fetched, or
+ * stays mixed, the tiles are ranked as they are, since the page then shows
  * them as saved data that may be out of date.
  */
 export async function fetchNearbyFromTiles(
