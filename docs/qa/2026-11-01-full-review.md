@@ -125,8 +125,8 @@ Dokumentation rettet: alle punkter under "Dokumentation, der ikke passer". `docs
 
 **Ejeropgaver:**
 
-1. Kør migrationerne (`supabase db push`), før branchen deployes. Siden kalder de nye funktioner.
-2. Bekræft, at det hostede Supabase accepterer `alter role service_role set statement_timeout = '60s'` ved push. Fejler den, stopper migrationen synligt. Deploy ikke branchen, før det er løst, for gendannelsen fra `/admin/drift` kalder den nye funktion.
+1. Udført 2. november 2026: de fire migrationer `20261101120000` til `20261101120300` er kørt i produktionen og registreret i migrationsloggen med samme versionsnumre som i repoet. Efter kørslen matcher alle 10 096 offentlige stier et åbent alias, 410-listen har uændret 102 stier, og `public_plain_path_owner_ids_v1` svarer gennem REST med en flad liste af id'er.
+2. Udført 2. november 2026: det hostede Supabase accepterede `alter role service_role set statement_timeout = '60s'` (`pg_roles.rolconfig` viser `statement_timeout=60s`).
 3. Kør én gendannelse på en branch-database og se, at den gennemføres.
 4. Bekræft, at UptimeRobot kontrollerer `https://findbeskyttelsesrum.dk/api/health` og sender alarm til ejeren.
 5. Luk eller rebase Dependabot-PR #74 efter fletningen.

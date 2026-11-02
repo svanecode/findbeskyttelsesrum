@@ -73,6 +73,12 @@ expose the base tables. The four safe derived marker/sitemap views do use invoke
 security-definer function warnings are also intentional: every such function repeats the stable GitHub identity,
 allowlist, role and MFA checks inside the database.
 
+The advisor also warns that anon can execute six security-definer functions. They are intentional, narrow public reads
+that return only data already public through `shelter_public_v2` or the public revision: `get_public_data_revision_v1`,
+`resolve_public_shelter_slug_alias_v1`, `resolve_shelter_path_alias_v1`, `resolve_retired_shelter_v1`,
+`retired_shelter_path_hashes_v1` and `public_plain_path_owner_ids_v1`. The two retired-shelter functions apply the same
+exclusion and override rules as the public view.
+
 Password leak protection is not part of the public flow because public users do not have accounts and moderators sign
 in through GitHub plus MFA. Performance notices for unused new indexes must be reviewed after representative production
 traffic; they are not evidence that an index is currently safe to delete. The two unindexed legacy `public.sheltersv2`
