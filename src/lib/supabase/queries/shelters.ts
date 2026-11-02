@@ -330,6 +330,16 @@ async function readPlainPathOwnerIds(postalCode: string | null) {
   return ids;
 }
 
+const readPlainPathOwnerIdsInPostcode = cachedPerRevision("plain-path-owners-in-postcode", async function readPlainPathOwnerIdsInPostcode(postalCode: string) {
+  return [...(await readPlainPathOwnerIds(postalCode))];
+});
+
+/** Ids owning a plain path in the given postcodes. Not itself cached, so it may be called beside other wrapped reads. */
+export async function getPlainPathOwnerIdsInPostcodes(postalCodes: string[]) {
+  const lists = await Promise.all(postalCodes.map((postalCode) => readPlainPathOwnerIdsInPostcode(postalCode)));
+  return new Set(lists.flat());
+}
+
 const getPublicRegistrationsInPostcode = cachedPerRevision("registrations-in-postcode", async function getPublicRegistrationsInPostcode(postalCode: string) {
   const pub = createAppV2PublicClient();
   // The largest postcode has under 200 today; pages keep it right past 1000.

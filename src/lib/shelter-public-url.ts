@@ -133,6 +133,28 @@ export function getUnambiguousShelterSlugs<T extends Pick<ReadableShelterFields,
   return result;
 }
 
+/**
+ * Canonical slugs for server-rendered lists (structured data), keyed by id,
+ * given the ids that own a plain path. Matches the sitemap, so each URL is the
+ * one the detail page serves without redirecting.
+ */
+export function getOwnerAwareShelterSlugs<T extends Pick<ReadableShelterFields, "id" | "addressLine1" | "postalCode" | "city" | "capacity">>(
+  shelters: T[],
+  plainPathOwnerIds: ReadonlySet<string>,
+) {
+  return getCanonicalShelterSlugs(shelters.map((shelter) => ({ ...shelter, ownsPlainPath: plainPathOwnerIds.has(shelter.id) })));
+}
+
+/** Postcodes where at least two registrations share an address, so the owner of the plain path matters. */
+export function getSharedAddressPostcodes<T extends Pick<ReadableShelterFields, "addressLine1" | "postalCode" | "city">>(shelters: T[]) {
+  const counts = new Map<string, number>();
+  for (const shelter of shelters) {
+    const base = getReadableShelterBaseSlug(shelter);
+    counts.set(base, (counts.get(base) ?? 0) + 1);
+  }
+  return [...new Set(shelters.filter((shelter) => (counts.get(getReadableShelterBaseSlug(shelter)) ?? 0) > 1).map((shelter) => shelter.postalCode))];
+}
+
 export type ShelterRedirectKind = "temporary" | "permanent";
 
 /**

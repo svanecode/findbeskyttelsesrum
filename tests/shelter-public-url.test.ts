@@ -41,6 +41,19 @@ test("implausible public slugs are rejected before any lookup", () => {
   }
 });
 
+test("plain-path owner keeps the plain slug in server lists, the others are suffixed", async () => {
+  const { getOwnerAwareShelterSlugs, getSharedAddressPostcodes } = await import("../src/lib/shelter-public-url");
+  const base = { addressLine1: "Ryesgade 22A", postalCode: "8000", city: "Aarhus C" };
+  const a = { ...base, id: "281be9aa-0000-4000-8000-000000000000", capacity: 100 };
+  const b = { ...base, id: "7c10b51d-0000-4000-8000-000000000000", capacity: 50 };
+  const alone = { addressLine1: "Vestergade 1", postalCode: "9000", city: "Aalborg", id: "11111111-0000-4000-8000-000000000000", capacity: 10 };
+  assert.deepEqual(getSharedAddressPostcodes([a, b, alone]), ["8000"]);
+  assert.equal(getOwnerAwareShelterSlugs([a, b, alone], new Set([b.id])).get(b.id), "ryesgade-22a-8000-aarhus-c");
+  assert.equal(getOwnerAwareShelterSlugs([a, b, alone], new Set([b.id])).get(a.id), "ryesgade-22a-8000-aarhus-c-281be9");
+  assert.equal(getOwnerAwareShelterSlugs([a, b, alone], new Set()).get(a.id), "ryesgade-22a-8000-aarhus-c");
+  assert.equal(getOwnerAwareShelterSlugs([a, b, alone], new Set()).get(alone.id), "vestergade-1-9000-aalborg");
+});
+
 test("only readable-to-readable redirects are temporary", async () => {
   const { getShelterRedirectKind } = await import("../src/lib/shelter-public-url");
   assert.equal(getShelterRedirectKind(true), "temporary");

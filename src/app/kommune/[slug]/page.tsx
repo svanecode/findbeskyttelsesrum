@@ -8,12 +8,13 @@ import {
 import {
   getAppV2MunicipalityBySlug,
   getAppV2PublicMunicipalityShelters,
+  getPlainPathOwnerIdsInPostcodes,
   groupMunicipalityShelters,
   type AppV2MunicipalityShelter,
 } from '@/lib/supabase/app-v2-queries'
 import { siteUrl } from '@/lib/seo/site'
 import { getShelterPublicDisplayName } from '@/lib/shelter-display-name'
-import { getShelterPublicPath, getUnambiguousShelterSlugs } from '@/lib/shelter-public-url'
+import { getOwnerAwareShelterSlugs, getShelterPublicPath, getSharedAddressPostcodes } from '@/lib/shelter-public-url'
 import KommuneView from './kommune-view'
 export { generateMetadata } from './metadata'
 
@@ -34,6 +35,7 @@ function hasShelterAddressForJsonLd(shelter: AppV2MunicipalityShelter): boolean 
 function buildKommunePageJsonLd(
   municipality: { name: string; slug: string },
   shelters: AppV2MunicipalityShelter[],
+  readableSlugs: Map<string, string>,
   pagePath: string,
   currentPage: number,
 ) {
@@ -64,8 +66,6 @@ function buildKommunePageJsonLd(
     },
   }
 
-  // The owner of each plain path is not loaded here, so shared addresses link by suffixed path.
-  const readableSlugs = getUnambiguousShelterSlugs(shelters)
   const topShelters = shelters
     .filter(hasShelterAddressForJsonLd)
     .sort((a, b) => b.capacity - a.capacity)
@@ -123,9 +123,13 @@ export default async function KommunePage({ params }: Props) {
   )
   const pageShelters = shelters.filter((shelter) => pageShelterIds.has(shelter.id))
   const pagePath = getMunicipalityPagePath(municipality.slug, pagination.currentPage)
+  // Owner-aware slugs, as in the sitemap, so JSON-LD URLs do not redirect.
+  const owners = await getPlainPathOwnerIdsInPostcodes(getSharedAddressPostcodes(shelters))
+  const readableSlugs = getOwnerAwareShelterSlugs(shelters, owners)
   const kommuneJsonLd = buildKommunePageJsonLd(
     municipality,
     pageShelters,
+    readableSlugs,
     pagePath,
     pagination.currentPage,
   )
