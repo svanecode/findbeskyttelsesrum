@@ -203,9 +203,9 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
     // showing an error so the visitor does not have to act. Only when the
     // advertised wait is short: retrying before Retry-After expires is
     // guaranteed to fail and only adds load.
-    async function fetchWithOneBusyRetry() {
+    async function fetchWithOneBusyRetry(radiusKm?: number) {
       try {
-        return await fetchAppV2GroupedShelters(lat, lng)
+        return await fetchAppV2GroupedShelters(lat, lng, radiusKm)
       } catch (error) {
         if (!(error instanceof NearbyRequestError) || error.status !== 429) throw error
         const waitSeconds = Math.max(error.retryAfterSeconds ?? 2, 1)
@@ -213,7 +213,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         setIsRetryingBusy(true)
         await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000))
         if (!isMounted) throw error
-        return await fetchAppV2GroupedShelters(lat, lng)
+        return await fetchAppV2GroupedShelters(lat, lng, radiusKm)
       }
     }
 
@@ -229,7 +229,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         let shelterData = tileData?.shelters ?? await fetchWithOneBusyRetry()
         let widened = false
         if (shelterData.length === 0) {
-          const wider = await fetchAppV2GroupedShelters(lat, lng, widenedRadiusKm)
+          const wider = await fetchWithOneBusyRetry(widenedRadiusKm)
           if (wider.length > 0) {
             shelterData = wider
             widened = true
