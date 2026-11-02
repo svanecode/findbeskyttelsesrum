@@ -275,3 +275,20 @@ test("close-alert closes the open issue and ignores runs without one", async () 
   const open = await runAlertScript("close-alert.sh", ["prod-alert", "Færdig"], { issueList: "7" });
   assert.ok(open.some((call) => call.startsWith("issue close 7")), open.join("\n"));
 });
+
+test("only the keep-alive job may write to GitHub Actions", async () => {
+  const workflow = await readFile(new URL(".github/workflows/production-smoke.yml", repositoryRoot), "utf8");
+  const header = workflow.slice(0, workflow.indexOf("\njobs:"));
+  const smoke = workflow.slice(workflow.indexOf("\n  smoke:"), workflow.indexOf("\n  keep-alive:"));
+  const keepAlive = workflow.slice(workflow.indexOf("\n  keep-alive:"));
+  assert.ok(workflow.includes("\n  keep-alive:"), "the workflow has a keep-alive job");
+  assert.doesNotMatch(header, /actions: write/);
+  assert.doesNotMatch(smoke, /actions: write|\/enable/);
+  assert.match(smoke, /permissions:\n {6}contents: read\n {6}issues: write\n/);
+  assert.match(keepAlive, /permissions:\n {6}actions: write\n/);
+  assert.doesNotMatch(keepAlive, /contents:|issues:|actions\/checkout/);
+  assert.match(keepAlive, /github\.event_name == 'schedule'/);
+  assert.match(keepAlive, /date -u \+%H\)" == "03"/);
+  assert.match(keepAlive, /actions\/workflows\/datafordeler-import\.yml\/enable/);
+  assert.match(keepAlive, /actions\/workflows\/production-smoke\.yml\/enable/);
+});

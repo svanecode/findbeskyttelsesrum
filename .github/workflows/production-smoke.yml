@@ -11,16 +11,17 @@ concurrency:
   group: production-smoke
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  issues: write
-  actions: write
+# Each job asks for what it needs; nothing is granted to the workflow as a whole.
+permissions: {}
 
 jobs:
   smoke:
     name: Kontroller produktion
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
     steps:
       - name: Hent kode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -64,11 +65,19 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash scripts/monitor/close-alert.sh production-alert "Den næste produktionskontrol bestod."
 
-      # GitHub disables scheduled workflows in a public repository after 60 days
-      # without repository activity. Calling the "enable" API once a day resets
-      # that inactivity limit for both scheduled workflows.
+  # GitHub disables scheduled workflows in a public repository after 60 days
+  # without repository activity. Calling the "enable" API once a day resets
+  # that inactivity limit for both scheduled workflows. Its own job, so only
+  # this one call can write to GitHub Actions.
+  keep-alive:
+    name: Hold planlagte workflows aktive
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
       - name: Hold planlagte workflows aktive
-        if: always() && github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
