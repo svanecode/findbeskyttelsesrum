@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(41);
+select plan(43);
 
 -- Privileges: the history tables are private; only the narrow lookups are public.
 select ok(
@@ -328,6 +328,24 @@ select is(
 select ok(
   has_function_privilege('anon', 'app_v2.public_plain_path_owner_ids_v1(text)', 'EXECUTE'),
   'anonymous clients can read plain path owners'
+);
+
+-- The owner moves to another address but stays public: the plain path of the
+-- old address passes on at once instead of being left without an owner.
+update app_v2.shelters set import_state = 'active' where id = '80000000-0000-0000-0000-000000000001';
+select app_v2.refresh_shelter_path_aliases_v1();
+update app_v2.shelters set address_line1 = 'Stivej 7' where id = '80000000-0000-0000-0000-000000000002';
+select app_v2.refresh_shelter_path_aliases_v1();
+
+select is(
+  (select shelter_id::text from app_v2.shelter_path_aliases where path_slug = 'stivej-1-9966-testby' and valid_to is null),
+  '80000000-0000-0000-0000-000000000001',
+  'the plain path passes on when its owner moves to another address and stays public'
+);
+select is(
+  (select path_slug from app_v2.shelter_path_aliases where shelter_id = '80000000-0000-0000-0000-000000000002' and valid_to is null),
+  'stivej-7-9966-testby',
+  'the owner that moved gets the plain path of its new address'
 );
 
 select * from finish();
