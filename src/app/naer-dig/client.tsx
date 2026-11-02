@@ -41,7 +41,7 @@ function formatBuildingUse(shelter: NearbyResultShelter) {
   return shelter.typeLabel?.trim() || null
 }
 
-/** Readable detail path for the address: the registration with the most places. */
+/** Detail link for the address: the registration with the most places, suffixed when the address has several. */
 function getDetailPath(shelter: NearbyResultShelter): Route | null {
   const address = { addressLine1: getAddressLine(shelter), postalCode: shelter.postnummer ?? '', city: shelter.city ?? '' }
   const registrations = shelter.registrations ?? []

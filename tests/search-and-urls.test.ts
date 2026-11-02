@@ -9,9 +9,10 @@ import { parseOfflineCopyRecord } from "../src/lib/offline-copy";
 import {
   getCanonicalShelterSlug,
   getCanonicalShelterSlugs,
-  getReadableGroupPaths,
+  getReadableGroupPrimaryPath,
   getReadableMemberPaths,
   getReadableShelterPathFromStable,
+  getUnambiguousShelterSlugs,
   readableSlugPostcodes,
   readableSlugShortId,
   slugifyDanish,
@@ -173,11 +174,11 @@ test("readable detail paths use the address and a short id on collisions (B8)", 
   assert.equal(readableSlugShortId("ryesgade-18-8000-aarhus-c-281be9"), "281be9");
   assert.equal(readableSlugShortId("ryesgade-18-8000-aarhus-c"), null);
 
-  const paths = getReadableGroupPaths(ryesgade18, [
+  const paths = getReadableMemberPaths(ryesgade18, [
     { slug: "registrering-ed949021d6b744c0bb3b79b3f958c9fd", capacity: 286 },
     { slug: "registrering-281be9e0f2aa4c668a96a3e2472c31b9", capacity: 40 },
   ]);
-  assert.equal(paths.get("registrering-ed949021d6b744c0bb3b79b3f958c9fd"), "/beskyttelsesrum/ryesgade-18-8000-aarhus-c");
+  assert.equal(paths.get("registrering-ed949021d6b744c0bb3b79b3f958c9fd"), "/beskyttelsesrum/ryesgade-18-8000-aarhus-c-ed9490");
   assert.equal(paths.get("registrering-281be9e0f2aa4c668a96a3e2472c31b9"), "/beskyttelsesrum/ryesgade-18-8000-aarhus-c-281be9");
   assert.equal(
     getReadableShelterPathFromStable({ slug: "registrering-ed949021d6b744c0bb3b79b3f958c9fd", addressLine1: "Ryesgade 18", postalCode: "8000", city: "Aarhus C" }),
@@ -208,6 +209,31 @@ test("group links with several registrations are suffixed, so each one is reacha
   assert.equal(paths.get(b), "/beskyttelsesrum/stivej-1-9966-testby-222222");
   // A lone registration keeps the plain path.
   assert.equal(getReadableMemberPaths(address, [{ slug: a, capacity: 50 }]).get(a), "/beskyttelsesrum/stivej-1-9966-testby");
+});
+
+test("an address link lands on the registration it names, whoever owns the plain path", () => {
+  const address = { addressLine1: "Stivej 1", postalCode: "9966", city: "Testby" };
+  const a = "registrering-11111111aaaa4c668a96a3e2472c31b9";
+  const b = "registrering-22222222bbbb4c668a96a3e2472c31b9";
+  // A (60 places) owns the plain path; B grew to 300 and represents the address.
+  // The plain path would serve A, so the link names B by its suffixed path.
+  assert.equal(
+    getReadableGroupPrimaryPath(address, [{ slug: a, capacity: 60 }, { slug: b, capacity: 300 }]),
+    "/beskyttelsesrum/stivej-1-9966-testby-222222",
+  );
+  // A lone registration keeps the plain path, so its link needs no redirect.
+  assert.equal(getReadableGroupPrimaryPath(address, [{ slug: b, capacity: 300 }]), "/beskyttelsesrum/stivej-1-9966-testby");
+  assert.equal(getReadableGroupPrimaryPath(address, []), null);
+});
+
+test("links built without knowing the owner use the plain path only for a lone registration", () => {
+  const a = { id: "11111111-aaaa-4c66-8a96-a3e2472c31b9", addressLine1: "Stivej 1", postalCode: "9966", city: "Testby", capacity: 60 };
+  const b = { ...a, id: "22222222-bbbb-4c66-8a96-a3e2472c31b9", capacity: 300 };
+  const alone = { ...a, id: "33333333-cccc-4c66-8a96-a3e2472c31b9", addressLine1: "Stivej 2" };
+  const slugs = getUnambiguousShelterSlugs([a, b, alone]);
+  assert.equal(slugs.get(a.id), "stivej-1-9966-testby-111111");
+  assert.equal(slugs.get(b.id), "stivej-1-9966-testby-222222");
+  assert.equal(slugs.get(alone.id), "stivej-2-9966-testby");
 });
 
 test("the offline copy record is validated before use (A4)", () => {

@@ -112,6 +112,27 @@ export function getCanonicalShelterSlugs<T extends ReadableShelterFields>(shelte
   return result;
 }
 
+/**
+ * Link slugs for many registrations at once, keyed by id, when the owner of
+ * each plain path is unknown (client lists, structured data). A registration
+ * alone at its address gets the plain path; at a shared address each gets its
+ * suffixed path, which always resolves to it and redirects to the plain path
+ * when it is the owner.
+ */
+export function getUnambiguousShelterSlugs<T extends Pick<ReadableShelterFields, "id" | "addressLine1" | "postalCode" | "city">>(shelters: T[]) {
+  const counts = new Map<string, number>();
+  for (const shelter of shelters) {
+    const base = getReadableShelterBaseSlug(shelter);
+    counts.set(base, (counts.get(base) ?? 0) + 1);
+  }
+  const result = new Map<string, string>();
+  for (const shelter of shelters) {
+    const base = getReadableShelterBaseSlug(shelter);
+    result.set(shelter.id, (counts.get(base) ?? 0) > 1 ? getSuffixedShelterSlug(shelter) : base);
+  }
+  return result;
+}
+
 /** Paths of the stable form "registrering-<uuid>" and older importer slugs are looked up as before. */
 export function isStableShelterSlug(slug: string) {
   return slug.startsWith(stableShelterSlugPrefix);
@@ -149,54 +170,40 @@ export function getReadableShelterPathFromStable(shelter: { slug: string; addres
 }
 
 /**
- * Readable paths for the registrations at one address, keyed by stable slug.
- * `members` are the registrations at that address with their stable slugs.
- */
-export function getReadableGroupPaths(
-  address: { addressLine1: string; postalCode: string; city: string },
-  members: Array<{ slug: string; capacity: number }>,
-) {
-  const withIds = members
-    .map((member) => ({ ...member, id: idFromStableSlug(member.slug) }))
-    .filter((member): member is typeof member & { id: string } => member.id !== null);
-  const canonical = getCanonicalShelterSlugs(withIds.map((member) => ({ ...address, id: member.id, capacity: member.capacity })));
-  const paths = new Map<string, string>();
-  for (const member of members) {
-    const id = idFromStableSlug(member.slug);
-    const slug = id ? canonical.get(id) : undefined;
-    paths.set(member.slug, getShelterPublicPath(slug ?? member.slug));
-  }
-  return paths;
-}
-
-/**
- * Links for the individual registrations listed at one address, keyed by stable
- * slug. With several, each gets its suffixed path: which one owns the plain
- * path is only known on the server, and a suffixed path always resolves to the
- * right registration. A lone registration keeps the plain path.
+ * Links for the registrations at one address, keyed by stable slug. With
+ * several, each gets its suffixed path: which one owns the plain path is only
+ * known on the server, and a suffixed path always resolves to the right
+ * registration (and redirects to the plain path when that one owns it). A
+ * lone registration keeps the plain path.
  */
 export function getReadableMemberPaths(
   address: { addressLine1: string; postalCode: string; city: string },
   members: Array<{ slug: string; capacity: number }>,
 ) {
-  if (members.length <= 1) return getReadableGroupPaths(address, members);
+  const hasAddress = address.addressLine1.trim() !== "" && address.postalCode.trim() !== "";
   const paths = new Map<string, string>();
   for (const member of members) {
     const id = idFromStableSlug(member.slug);
-    paths.set(member.slug, getShelterPublicPath(id ? getSuffixedShelterSlug({ ...address, id }) : member.slug));
+    const slug = !id || !hasAddress
+      ? member.slug
+      : members.length > 1
+        ? getSuffixedShelterSlug({ ...address, id })
+        : getReadableShelterBaseSlug(address);
+    paths.set(member.slug, getShelterPublicPath(slug));
   }
   return paths;
 }
 
-/** The path of the registration that represents an address (the one with the most places). */
+/**
+ * The link for an address: the registration with the most places, by its
+ * suffixed path when the address has several (see getReadableMemberPaths).
+ */
 export function getReadableGroupPrimaryPath(
   address: { addressLine1: string; postalCode: string; city: string },
   members: Array<{ slug: string; capacity: number }>,
 ) {
-  if (members.length === 0) return null;
-  const paths = getReadableGroupPaths(address, members);
   const primary = pickPrimaryRegistration(
     members.map((member) => ({ ...member, id: idFromStableSlug(member.slug) ?? member.slug })),
   );
-  return primary ? paths.get(primary.slug) ?? null : null;
+  return primary ? getReadableMemberPaths(address, members).get(primary.slug) ?? null : null;
 }

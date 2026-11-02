@@ -13,7 +13,7 @@ import {
 } from '@/lib/supabase/app-v2-queries'
 import { siteUrl } from '@/lib/seo/site'
 import { getShelterPublicDisplayName } from '@/lib/shelter-display-name'
-import { getCanonicalShelterSlugs, getShelterPublicPath } from '@/lib/shelter-public-url'
+import { getShelterPublicPath, getUnambiguousShelterSlugs } from '@/lib/shelter-public-url'
 import KommuneView from './kommune-view'
 export { generateMetadata } from './metadata'
 
@@ -64,7 +64,8 @@ function buildKommunePageJsonLd(
     },
   }
 
-  const readableSlugs = getCanonicalShelterSlugs(shelters)
+  // The owner of each plain path is not loaded here, so shared addresses link by suffixed path.
+  const readableSlugs = getUnambiguousShelterSlugs(shelters)
   const topShelters = shelters
     .filter(hasShelterAddressForJsonLd)
     .sort((a, b) => b.capacity - a.capacity)
