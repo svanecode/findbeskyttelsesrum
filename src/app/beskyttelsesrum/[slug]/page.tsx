@@ -14,7 +14,7 @@ import { getBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/json-ld";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { siteUrl } from "@/lib/seo/site";
 import { getShelterPublicDisplayName } from "@/lib/shelter-display-name";
-import { getReadableShelterPathFromStable, getShelterPublicPath } from "@/lib/shelter-public-url";
+import { getReadableShelterPathFromStable, getShelterPublicPath, getShelterRedirectKind } from "@/lib/shelter-public-url";
 import {
   getAppV2PublicRelatedShelters,
   getAppV2PublicShelterBySlug,
@@ -39,7 +39,7 @@ const resolveShelterPage = cache(async function resolveShelterPage(slug: string)
   if (readable) {
     const shelter = await getAppV2PublicShelterBySlug(readable.stableSlug);
     if (!shelter) return null;
-    return { shelter, canonicalSlug: readable.canonicalSlug, redirect: readable.canonicalSlug !== slug };
+    return { shelter, canonicalSlug: readable.canonicalSlug, redirect: readable.canonicalSlug !== slug, resolvedAsReadable: true };
   }
 
   // An earlier readable path (the address changed in BBR), a stable hash path
@@ -48,7 +48,7 @@ const resolveShelterPage = cache(async function resolveShelterPage(slug: string)
   const legacy = await resolveAppV2PublicShelter(aliasTarget ?? slug);
   if (!legacy) return null;
   const canonicalSlug = await getCanonicalReadableSlug(legacy.shelter);
-  return { shelter: legacy.shelter, canonicalSlug, redirect: true };
+  return { shelter: legacy.shelter, canonicalSlug, redirect: true, resolvedAsReadable: false };
 });
 
 type Props = {
@@ -172,7 +172,10 @@ export default async function ShelterDetailPage({ params }: Props) {
 
   const { shelter, canonicalSlug } = resolution;
   if (resolution.redirect) {
-    permanentRedirect(getShelterCanonicalPath(canonicalSlug));
+    const target = getShelterCanonicalPath(canonicalSlug);
+    // Plain-path ownership can change, so readable-to-readable is temporary.
+    if (getShelterRedirectKind(resolution.resolvedAsReadable) === "temporary") redirect(target as Route);
+    permanentRedirect(target);
   }
 
   const displayName = getShelterPublicDisplayName(shelter.name, shelter.addressLine1);

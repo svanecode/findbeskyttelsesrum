@@ -40,3 +40,9 @@ test("implausible public slugs are rejected before any lookup", () => {
     assert.equal(isPlausiblePublicSlug(slug), false, slug);
   }
 });
+
+test("only readable-to-readable redirects are temporary", async () => {
+  const { getShelterRedirectKind } = await import("../src/lib/shelter-public-url");
+  assert.equal(getShelterRedirectKind(true), "temporary");
+  assert.equal(getShelterRedirectKind(false), "permanent");
+});

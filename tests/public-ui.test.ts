@@ -173,7 +173,7 @@ test("shelter detail routes resolve old URLs and redirect to one canonical ident
 
   assert.match(detailPage, /resolveAppV2PublicShelter/);
   assert.match(detailPage, /resolveReadableShelterSlug/);
-  assert.match(detailPage, /permanentRedirect\(getShelterCanonicalPath\(canonicalSlug\)\)/);
+  assert.match(detailPage, /getShelterRedirectKind\(resolution\.resolvedAsReadable\) === "temporary"\) redirect\(target as Route\);\s*permanentRedirect\(target\)/);
   assert.match(queries, /from\("shelter_slug_aliases"\)/);
   assert.match(queries, /getStableShelterSlug/);
   assert.match(publicUrl, /registrering-/);

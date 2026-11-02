@@ -133,6 +133,18 @@ export function getUnambiguousShelterSlugs<T extends Pick<ReadableShelterFields,
   return result;
 }
 
+export type ShelterRedirectKind = "temporary" | "permanent";
+
+/**
+ * How a detail path forwards to its canonical path. Only a readable path that
+ * forwards to another readable path because of ownership is temporary: who owns
+ * a plain path can change later. Stable, legacy and alias paths never change
+ * target, so they stay permanent.
+ */
+export function getShelterRedirectKind(resolvedAsReadable: boolean): ShelterRedirectKind {
+  return resolvedAsReadable ? "temporary" : "permanent";
+}
+
 /** Paths of the stable form "registrering-<uuid>" and older importer slugs are looked up as before. */
 export function isStableShelterSlug(slug: string) {
   return slug.startsWith(stableShelterSlugPrefix);
