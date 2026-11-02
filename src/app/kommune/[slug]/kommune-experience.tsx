@@ -9,7 +9,7 @@ import { getMunicipalityPagePath, municipalityPageLinks } from '@/lib/municipali
 import { getMunicipalitySearchPath, municipalitySearchMaxLength } from '@/lib/municipalities/search'
 import type { AppV2MunicipalityShelterGroup } from '@/lib/supabase/app-v2-queries'
 import { scrollBehavior } from '@/lib/ui/reduced-motion'
-import { getReadableGroupPaths } from '@/lib/shelter-public-url'
+import { getReadableMemberPaths } from '@/lib/shelter-public-url'
 import type { Route } from 'next'
 
 const KommuneMap = dynamic(() => import('./kommune-map'), { ssr: false })
@@ -151,8 +151,8 @@ export default function KommuneExperience({
             {groups.map((group) => {
               const selected = selectedGroupKey === group.groupKey
               const extraRegistrations = group.shelters.filter((shelter) => shelter.slug !== group.primarySlug)
-              const paths = getReadableGroupPaths(group, group.shelters)
-              const pathOf = (slug: string) => (paths.get(slug) ?? `/beskyttelsesrum/${slug}`) as Route
+              const memberPaths = getReadableMemberPaths(group, group.shelters)
+              const memberPathOf = (slug: string) => (memberPaths.get(slug) ?? `/beskyttelsesrum/${slug}`) as Route
               return (
                 <li
                   id={`kommune-group-${group.primarySlug}`}
@@ -160,7 +160,7 @@ export default function KommuneExperience({
                   className={`flex min-w-0 items-start justify-between gap-3 py-3 [content-visibility:auto] [contain-intrinsic-size:0_88px] ${selected ? 'border-l-2 border-l-[var(--accent)] pl-3' : ''}`}
                 >
                   <div className="min-w-0">
-                    <Link href={pathOf(group.primarySlug)} className="break-safe text-base font-semibold text-white underline decoration-white/30 underline-offset-4 hover:decoration-white">
+                    <Link href={memberPathOf(group.primarySlug)} className="break-safe text-base font-semibold text-white underline decoration-white/30 underline-offset-4 hover:decoration-white">
                       {group.addressLine1}
                     </Link>
                     <p className="mt-0.5 text-sm text-gray-300">
@@ -175,7 +175,7 @@ export default function KommuneExperience({
                         {group.shelters.map((shelter, index) => (
                           <span key={shelter.id}>
                             {index > 0 ? ', ' : ''}
-                            <Link href={pathOf(shelter.slug)} className="underline underline-offset-4 hover:text-white">
+                            <Link href={memberPathOf(shelter.slug)} className="underline underline-offset-4 hover:text-white">
                               {formatPlaces(shelter.capacity)}
                             </Link>
                           </span>
@@ -195,7 +195,7 @@ export default function KommuneExperience({
                         }
                       }}
                       className={`${ui.quietAction} shrink-0 disabled:cursor-wait disabled:opacity-60`}
-                      aria-label={`Vis ${group.addressLine1} på kortet`}
+                      aria-label={`Vis på kort: ${group.addressLine1}`}
                     >
                       Vis på kort
                     </button>

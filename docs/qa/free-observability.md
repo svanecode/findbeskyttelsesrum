@@ -17,9 +17,11 @@ same-named secrets as a compatibility fallback for trusted branches. Configure b
 Dependabot pull requests can run the public read-only build; they are browser-visible values, not write credentials.
 
 `.github/workflows/production-smoke.yml` checks the live homepage, public data health, the Adressevælger address search, nearby results, the full
-national map boundary including Bornholm, municipality pages, detail pages and reporting validation twice per hour.
+national map boundary including Bornholm, municipality pages, detail pages and reporting validation every hour.
 It also reads a service-only two-hour metrics aggregate. A failed scheduled run creates or updates one GitHub issue
-labelled `production-alert`; the next successful run closes it.
+labelled `production-alert`; the next successful run closes it. A scheduled run that starts in the 03 UTC hour
+re-enables both scheduled workflows, which resets GitHub's 60-day inactivity limit. GitHub starts the hourly runs
+late and skips some, so not every day has such a run; one within 60 days is enough.
 
 `/api/health` returns the deployed Git SHA, deployment ID, build timestamp, current publication ID, monotonic public-data
 revision, originating import run ID, public record count, data age, and the latest trusted operational heartbeat. It returns `503 degraded` when data is older than 48 hours, the public count
@@ -70,6 +72,12 @@ boundary over private base tables; changing the main shelter view to invoker rig
 expose the base tables. The four safe derived marker/sitemap views do use invoker rights. The advisor's authenticated
 security-definer function warnings are also intentional: every such function repeats the stable GitHub identity,
 allowlist, role and MFA checks inside the database.
+
+The advisor also warns that anon can execute six security-definer functions. They are intentional, narrow public reads
+that return only data already public through `shelter_public_v2` or the public revision: `get_public_data_revision_v1`,
+`resolve_public_shelter_slug_alias_v1`, `resolve_shelter_path_alias_v1`, `resolve_retired_shelter_v1`,
+`retired_shelter_path_hashes_v1` and `public_plain_path_owner_ids_v1`. The two retired-shelter functions apply the same
+exclusion and override rules as the public view.
 
 Password leak protection is not part of the public flow because public users do not have accounts and moderators sign
 in through GitHub plus MFA. Performance notices for unused new indexes must be reviewed after representative production

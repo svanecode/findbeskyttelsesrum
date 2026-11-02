@@ -9,6 +9,8 @@ The live application and importer use `app_v2`. Anonymous reads are limited to e
 - `municipalities`: code-backed municipality identity and public metadata.
 - `shelters`: stable canonical source rows and the current imported baseline.
 - `shelter_slug_aliases`: private redirect history from the address-based URLs that existed before permanent route identities.
+- `shelter_path_aliases`: private history of every readable detail path (`/beskyttelsesrum/ryesgade-18-8000-aarhus-c`) a registration has had, with `valid_from` and `valid_to` (null for today's path). Refreshed by `refresh_shelter_path_aliases_v1()` after each publication.
+- `postal_areas`: private list of all Danish postcodes for the address search, with name, municipality codes, a position and `position_source` (`registrations` or `dar_address`). The public view `postal_area_public_v1` exposes rows that have a position.
 - `shelter_sources`: official provenance and last verification.
 - `import_runs`: checkpoints, explicit source-completion state, BBR/DAR mapping counters, failures, publication result, and quality metrics.
 - `import_shelter_candidates`: private per-run quarantine, deleted after a terminal non-resumable result.
@@ -32,7 +34,9 @@ The live application and importer use `app_v2`. Anonymous reads are limited to e
 
 The app reads `shelter_public_v2`, `country_marker_public_v2`, `sitemap_shelter_public_v2`, `municipality_summary_public_v1`, the public statistics view, and bounded nearby/map RPCs. Public shelter rows must be active, published, capacity-eligible, application-code eligible, and not excluded. Active manual overrides take precedence at read time. Municipality and global public totals are served from the 98-row aggregate rather than rescanning all registrations on each request.
 
-Public shelter URLs use the immutable shelter UUID and never change with address or municipality data. The private alias table is resolved only by the server, and a former URL redirects only while its target still passes the public read boundary.
+A detail page has two kinds of path. The stable path (`registrering-<uuid without hyphens>`) is built from the immutable shelter UUID and never changes. The readable path is built from address, postcode and city (`readable_shelter_base_slug_v1`, mirrored by `src/lib/shelter-public-url.ts`) and is the canonical URL, so it changes when BBR changes the address. When several public registrations share an address, the current owner of the plain path keeps it while it stays public; the others get a six-character id suffix. Stable paths, earlier readable paths (`resolve_shelter_path_alias_v1`) and older importer slugs (`shelter_slug_aliases`) redirect permanently to today's readable path, and only while the target still passes the public read boundary.
+
+A registration removed from BBR (`missing_from_source`) answers 410 with its last known address through `resolve_retired_shelter_v1` and `retired_shelter_path_hashes_v1`. Both apply the same exclusions (`is_shelter_excluded_v1`) and active overrides as `shelter_public_v2`, so an excluded address never reappears there.
 
 ## Publication and operations functions
 
@@ -41,7 +45,7 @@ Public shelter URLs use the immutable shelter UUID and never change with address
 - `copy_datafordeler_import_candidates_v1`: service-role-only safe resume helper.
 - `get_latest_completed_datafordeler_import_v1` and `retry_completed_datafordeler_publication_v1(uuid)`: service-role-only selection and idempotent finalization of one fully staged source scan after a technical publication failure. The combined `retry_latest_completed_datafordeler_publication_v1` is retired.
 - `get_import_operations_v1`: minimal MFA-protected operational overview.
-- `rollback_dataset_publication_v1`: MFA owner-only atomic restore with audit event.
+- `rollback_dataset_publication_as_owner_v1`: service-role-only atomic restore with audit event, called by the MFA-checked admin server action with the owner's account id; it rechecks that the account is an active owner. `rollback_dataset_publication_v1` is a thin wrapper for the signed-in aal2 owner, still limited by the session timeout (8 seconds for `authenticated`); the app no longer calls it.
 - `record_product_metric_v1`: service-only atomic increment of a privacy-safe hourly counter.
 - `get_product_metrics_summary_v1`: service-only aggregate for the MFA-protected operations view.
 - `get_product_metrics_health_v1`: service-only short-window aggregate for scheduled alerts.

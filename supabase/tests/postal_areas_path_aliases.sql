@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(43);
 
 -- Privileges: the history tables are private; only the narrow lookups are public.
 select ok(
@@ -162,7 +162,7 @@ select is(
   'invalid postcodes are ignored'
 );
 
--- Municipality codes from DAR/BBR fill postcodes without registrations only.
+-- Municipality codes from DAR/BBR are added to every postcode, also one with registrations.
 select app_v2.upsert_dar_postal_areas_v1('[
   {"postnr": "9966", "name": "Testby", "municipality_codes": ["0999"]},
   {"postnr": "9967", "name": "Tomby", "municipality_codes": ["0825", "x", "0825"]}
@@ -174,8 +174,8 @@ select is(
 );
 select is(
   (select municipality_codes from app_v2.postal_area_public_v1 where postnr = '9966'),
-  array['9966']::text[],
-  'a postcode with registrations keeps the codes its registrations give'
+  array['0999', '9966']::text[],
+  'a postcode with registrations keeps the codes its registrations give and gets the DAR code added'
 );
 select app_v2.upsert_dar_postal_areas_v1('[{"postnr": "9967", "name": "Tomby"}]'::jsonb);
 select is(
@@ -188,6 +188,74 @@ select is(
   (select municipality_codes from app_v2.postal_area_public_v1 where postnr = '9967'),
   array['0813', '0825']::text[],
   'codes found in a later run are added, so a postcode across a border gets both municipalities'
+);
+
+-- A postcode across a municipal border: DAR found both sides, the
+-- registrations are on one side only. Refreshing from registrations adds
+-- their codes to the known ones instead of replacing them.
+insert into app_v2.municipalities (id, code, slug, name)
+values
+  ('81000000-0000-0000-0000-000000000101', '0101', 'graense-test-0101', 'Grænse Test 0101'),
+  ('81000000-0000-0000-0000-000000000147', '0147', 'graense-test-0147', 'Grænse Test 0147')
+on conflict do nothing;
+select app_v2.upsert_dar_postal_areas_v1('[
+  {"postnr": "9968", "name": "Grænseby", "latitude": 55.7, "longitude": 12.5, "municipality_codes": ["0101", "0147"]}
+]'::jsonb);
+insert into app_v2.shelters (
+  id, municipality_id, slug, name, address_line1, postal_code, city, latitude, longitude,
+  capacity, status, summary, publication_state, import_state, source_application_code,
+  canonical_source_name, canonical_source_reference
+) values
+  ('80000000-0000-0000-0000-000000000004', (select id from app_v2.municipalities where code = '0101'),
+   'graense', 'D', 'Grænsevej 1', '9968', 'Grænseby', 55.700000, 12.500000, 100, 'active', 'D',
+   'published', 'active', '321', 'datafordeler-bbr-dar', 'building-d');
+update app_v2.shelters
+set publication_state = 'published', import_state = 'active'
+where id = '80000000-0000-0000-0000-000000000004';
+select app_v2.refresh_postal_areas_from_registrations_v1();
+select is(
+  (select municipality_codes from app_v2.postal_areas where postnr = '9968'),
+  array['0101', '0147']::text[],
+  'a postcode across a municipal border keeps both codes after a refresh from registrations'
+);
+select is(
+  (select has_registrations from app_v2.postal_areas where postnr = '9968'),
+  true,
+  'the postcode now has registrations'
+);
+
+-- A registered postcode gets a DAR code from the other municipality but
+-- keeps the position of its registrations.
+select app_v2.upsert_dar_postal_areas_v1('[
+  {"postnr": "9968", "name": "Grænseby", "latitude": 57.5, "longitude": 9.0, "municipality_codes": ["0153"]}
+]'::jsonb);
+select is(
+  (select municipality_codes from app_v2.postal_areas where postnr = '9968'),
+  array['0101', '0147', '0153']::text[],
+  'a registered postcode gets the DAR code from the other side of the border'
+);
+select is(
+  (select array[round(latitude::numeric, 4), round(longitude::numeric, 4)]::text || position_source
+   from app_v2.postal_areas where postnr = '9968'),
+  '{55.7000,12.5000}registrations',
+  'a registered postcode keeps the position of its registrations'
+);
+
+-- A broken batch from the importer.
+select throws_ok(
+  $$select app_v2.upsert_dar_postal_areas_v1(null)$$,
+  '22023',
+  null,
+  'a missing list of postcodes is refused'
+);
+select app_v2.upsert_dar_postal_areas_v1('[
+  {"postnr": "9969", "name": "Udland", "latitude": 48.85, "longitude": 2.35},
+  {"postnr": "9970", "name": "Indland", "latitude": 56.2, "longitude": 9.5}
+]'::jsonb);
+select is(
+  (select array_agg(postnr order by postnr) from app_v2.postal_areas where postnr in ('9969', '9970')),
+  array['9970']::text[],
+  'a postcode with a position outside Denmark is skipped, the rest of the batch is saved'
 );
 
 -- Different buildings, same places, a few metres apart, different addresses.
@@ -209,6 +277,75 @@ select is(
      and second_shelter_id = '80000000-0000-0000-0000-000000000003'),
   false,
   'the review list says whether the pair shares an address'
+);
+
+-- A stable readable path: growth at a neighbour does not move shared links.
+update app_v2.shelters
+set address_line1 = 'Stivej 3', postal_code = '9966', latitude = 56.100100, longitude = 10.100100,
+    capacity = 200, import_state = 'active'
+where id = '80000000-0000-0000-0000-000000000003';
+update app_v2.shelters set capacity = 50 where id = '80000000-0000-0000-0000-000000000001';
+update app_v2.shelters set capacity = 40 where id = '80000000-0000-0000-0000-000000000002';
+select app_v2.refresh_shelter_path_aliases_v1();
+update app_v2.shelters set capacity = 80 where id = '80000000-0000-0000-0000-000000000002';
+select app_v2.refresh_shelter_path_aliases_v1();
+
+select is(
+  (select shelter_id::text from app_v2.shelter_path_aliases where path_slug = 'stivej-1-9966-testby' and valid_to is null),
+  '80000000-0000-0000-0000-000000000001',
+  'a neighbour that grows does not take over the plain path'
+);
+select is(
+  (select path_slug from app_v2.shelter_readable_path_v1 where shelter_id = '80000000-0000-0000-0000-000000000001'),
+  'stivej-1-9966-testby',
+  'the page path of the owner stays the plain path'
+);
+select is(
+  (select path_slug from app_v2.shelter_readable_path_v1 where shelter_id = '80000000-0000-0000-0000-000000000002'),
+  'stivej-1-9966-testby-800000',
+  'the larger neighbour keeps the suffixed path'
+);
+
+update app_v2.shelters set import_state = 'missing_from_source' where id = '80000000-0000-0000-0000-000000000001';
+select app_v2.refresh_shelter_path_aliases_v1();
+
+select is(
+  (select shelter_id::text from app_v2.shelter_path_aliases where path_slug = 'stivej-1-9966-testby' and valid_to is null),
+  '80000000-0000-0000-0000-000000000002',
+  'the plain path passes on when the owner leaves the public view'
+);
+select is(
+  (select path_slug from app_v2.shelter_readable_path_v1 where shelter_id = '80000000-0000-0000-0000-000000000002'),
+  'stivej-1-9966-testby',
+  'the new owner uses the plain path'
+);
+
+select is(
+  (select array_agg(id::text order by id) from app_v2.public_plain_path_owner_ids_v1('9966') as id),
+  array['80000000-0000-0000-0000-000000000002', '80000000-0000-0000-0000-000000000003'],
+  'the page can read who owns the plain path in a postcode'
+);
+select ok(
+  has_function_privilege('anon', 'app_v2.public_plain_path_owner_ids_v1(text)', 'EXECUTE'),
+  'anonymous clients can read plain path owners'
+);
+
+-- The owner moves to another address but stays public: the plain path of the
+-- old address passes on at once instead of being left without an owner.
+update app_v2.shelters set import_state = 'active' where id = '80000000-0000-0000-0000-000000000001';
+select app_v2.refresh_shelter_path_aliases_v1();
+update app_v2.shelters set address_line1 = 'Stivej 7' where id = '80000000-0000-0000-0000-000000000002';
+select app_v2.refresh_shelter_path_aliases_v1();
+
+select is(
+  (select shelter_id::text from app_v2.shelter_path_aliases where path_slug = 'stivej-1-9966-testby' and valid_to is null),
+  '80000000-0000-0000-0000-000000000001',
+  'the plain path passes on when its owner moves to another address and stays public'
+);
+select is(
+  (select path_slug from app_v2.shelter_path_aliases where shelter_id = '80000000-0000-0000-0000-000000000002' and valid_to is null),
+  'stivej-7-9966-testby',
+  'the owner that moved gets the plain path of its new address'
 );
 
 select * from finish();

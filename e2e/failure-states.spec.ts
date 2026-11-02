@@ -210,7 +210,7 @@ test("kortfejl bevarer resultatlisten som fallback", async ({ page }, testInfo) 
   });
 
   await page.goto("/naer-dig");
-  await page.getByRole("button", { name: /^Vis .* på kort$/ }).click();
+  await page.getByRole("button", { name: /^Vis på kort: / }).click();
 
   const mapError = page.getByRole("alert").filter({ hasText: "Kortbaggrunden er ikke tilgængelig" });
   await expect(mapError).toBeVisible();
@@ -255,7 +255,7 @@ test("kortfejl gendanner fokus til den brugte kortkontrol efter retry", async ({
   });
 
   await page.goto("/naer-dig");
-  await page.getByRole("button", { name: /^Vis .* på kort$/ }).click();
+  await page.getByRole("button", { name: /^Vis på kort: / }).click();
   const zoomIn = page.locator(".nearby-map .leaflet-control-zoom-in");
   await expect(zoomIn).toBeVisible();
   await zoomIn.focus();
@@ -277,4 +277,63 @@ test("kortfejl gendanner fokus til den brugte kortkontrol efter retry", async ({
   await expect(page.locator("[data-map-content]")).not.toHaveAttribute("inert", "");
   await expect(zoomIn).toBeFocused();
   expect(consoleErrors.filter((message) => /blocked aria-hidden|inert descendant/i.test(message))).toEqual([]);
+});
+
+test("en fejlet søgning i 100 km vises som fejl, ikke som ingen rum", async ({ page }) => {
+  await installNearbySearchContext(page);
+  await page.route("**/api/app-v2/nearby/grouped", async (route) => {
+    const body = route.request().postDataJSON() as { radius?: number };
+    if (body.radius === 100_000) {
+      await route.fulfill({
+        status: 429,
+        headers: { "Retry-After": "60" },
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "rate_limited" } }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ results: [] }) });
+  });
+
+  await page.goto("/naer-dig");
+
+  const alert = page.getByRole("alert").filter({ hasText: "Vent et minut, og prøv igen" });
+  await expect(alert).toBeVisible();
+  await expect(alert.getByRole("button", { name: "Genindlæs siden" })).toBeVisible();
+  await expect(page.getByText("Ingen registreringer inden for 100 km")).toHaveCount(0);
+});
+
+test("en kortvarig 429 i søgningen i 100 km prøves automatisk igen én gang", async ({ page }) => {
+  await installNearbySearchContext(page);
+  // Registered first so the handler below (registered last, runs first) can fall back to it.
+  await mockNearby(page);
+  // The normal search finds nothing; the widened one is busy for its first 500 ms.
+  let widenedCalls = 0;
+  let firstWidenedCallAt: number | null = null;
+  await page.route("**/api/app-v2/nearby/grouped", async (route) => {
+    const body = route.request().postDataJSON() as { radius?: number };
+    if (body.radius !== 100_000) {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ results: [] }) });
+      return;
+    }
+    widenedCalls += 1;
+    firstWidenedCallAt ??= Date.now();
+    if (Date.now() - firstWidenedCallAt < 500) {
+      await route.fulfill({
+        status: 429,
+        headers: { "Retry-After": "1" },
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "rate_limited" } }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/naer-dig");
+
+  await expect(page.locator("#nearby-list-panel").getByText("Rådhuspladsen 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("Her er de nærmeste inden for 100 km")).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Vent et minut, og prøv igen" })).toHaveCount(0);
+  expect(widenedCalls).toBeGreaterThanOrEqual(2);
 });

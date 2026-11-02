@@ -66,6 +66,8 @@ export function tileKeyFor(latitude: number, longitude: number) {
 export function parseTileKey(key: string): { latitudeIndex: number; longitudeIndex: number; bounds: TileBounds } | null {
   const match = /^(-?\d{1,4})_(-?\d{1,4})$/.exec(key);
   if (!match) return null;
+  // One URL per tile: "05_10" and "-0_5" would otherwise be extra cache keys.
+  if (String(Number(match[1])) !== match[1] || String(Number(match[2])) !== match[2]) return null;
 
   const latitudeIndex = Number(match[1]);
   const longitudeIndex = Number(match[2]);

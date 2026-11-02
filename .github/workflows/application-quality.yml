@@ -32,6 +32,9 @@ jobs:
       - name: Installér låste afhængigheder
         run: npm ci
 
+      - name: Kontrollér kendte sårbarheder i produktionsafhængigheder
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Kør obligatoriske pull request-kontroller
         run: |
           npm run lint

@@ -74,6 +74,23 @@ function sanitizeStack(value: unknown) {
   return truncate(lines.join("\n"), maximumStackLength);
 }
 
+/**
+ * Browser noise that says nothing about the site's own code. In production
+ * (Vercel logs, 1 Nov 2026) about four in five reports were window errors
+ * without a script URL from the page: the browser's muted cross-origin
+ * "Script error." and stack overflows in injected extension code (filename
+ * "undefined"). Errors from the site's own bundles always carry an
+ * http(s) filename, so they are still reported and counted.
+ */
+function isForeignBrowserNoise(message: string, context: unknown) {
+  if (message === "Script error." || message === "Script error") return true;
+  if (!context || typeof context !== "object" || Array.isArray(context)) return false;
+
+  const { type, filename } = context as Record<string, unknown>;
+  if (type !== "window-error") return false;
+  return typeof filename !== "string" || !/^https?:\/\//i.test(filename.trim());
+}
+
 function validTimestamp(value: unknown, now = Date.now()) {
   if (typeof value !== "string") return null;
   const timestamp = new Date(value).getTime();
@@ -92,6 +109,8 @@ export function parseAndSanitizeClientErrorReport(
   const keys = Object.keys(raw);
   if (keys.some((key) => !allowedReportKeys.has(key))) return null;
   if (typeof raw.message !== "string" || raw.message.trim() === "") return null;
+
+  if (isForeignBrowserNoise(raw.message.trim(), raw.context)) return null;
 
   const timestamp = validTimestamp(raw.timestamp, now);
   if (!timestamp) return null;

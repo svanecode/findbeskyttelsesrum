@@ -70,7 +70,7 @@ test("lange adresser bryder sikkert i resultater og det mobile kortpanel", async
   await expect(page.getByText(longResponse.results[0].address.line1, { exact: true })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
-  await page.getByRole("button", { name: /^Vis .* på kort$/ }).click();
+  await page.getByRole("button", { name: /^Vis på kort: / }).click();
   await expect(page.getByLabel("Valgt registrering")).toContainText("Den Ekstraordinært Lange Vejbetegnelse");
   await expectNoHorizontalOverflow(page);
 });

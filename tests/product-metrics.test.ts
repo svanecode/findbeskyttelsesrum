@@ -146,3 +146,61 @@ test("the metrics kill switch accepts events without any database work", async (
     else process.env.VERCEL_ENV = previous.environment;
   }
 });
+
+test("browser errors from outside the site's own scripts do not count towards the error alarm", async () => {
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const { loadServerModule } = await import("./support/load-server-module");
+  const recorded: string[] = [];
+  const route = await loadServerModule<{ POST: (request: unknown) => Promise<Response> }>(
+    new URL("../src/app/api/errors/route.ts", import.meta.url),
+    {
+      "next/server": require("next/server"),
+      "@/lib/errors/sanitize-client-error": await import("../src/lib/errors/sanitize-client-error"),
+      "@/lib/http/read-bounded-request-text": await import("../src/lib/http/read-bounded-request-text"),
+      "@/lib/rate-limit": await import("../src/lib/rate-limit"),
+      "@/lib/http/request-context": await import("../src/lib/http/request-context"),
+      "@/lib/distributed-rate-limit": {
+        consumeDistributedRateLimit: async () => ({ available: true, allowed: true, remaining: 1, retryAfterSeconds: 60 }),
+      },
+      "@/lib/analytics/product-metrics-server": {
+        recordProductMetricServer: async (eventName: string) => { recorded.push(eventName); },
+      },
+    },
+  );
+  const { NextRequest } = require("next/server") as typeof import("next/server");
+  const post = (report: Record<string, unknown>) => route.POST(new NextRequest("https://findbeskyttelsesrum.dk/api/errors", {
+    method: "POST",
+    body: JSON.stringify({ url: "https://findbeskyttelsesrum.dk/kort", timestamp: new Date().toISOString(), ...report }),
+  }));
+
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    // Seen in production: the browser hides cross-origin errors as "Script error." without a source.
+    await post({
+      message: "Script error.",
+      stack: "@https://findbeskyttelsesrum.dk/_next/static/immutable/chunks/tracker.js:1:7724",
+      context: { filename: "", lineno: 0, colno: 0, type: "window-error" },
+    });
+    // Seen in production: injected code without a script URL overflows its own stack.
+    await post({
+      message: "Maximum call stack size exceeded.",
+      stack: "@\n@\nGk@\nEk@\nGk@\nEk@",
+      context: { filename: "undefined", lineno: 196, colno: 70, type: "window-error" },
+    });
+    assert.deepEqual(recorded, []);
+
+    const ownScriptError = await post({
+      message: "undefined is not an object",
+      stack: "addLayer@https://findbeskyttelsesrum.dk/_next/static/immutable/chunks/map.js:1:1948",
+      context: { filename: "https://findbeskyttelsesrum.dk/_next/static/immutable/chunks/map.js", lineno: 1, colno: 1948, type: "window-error" },
+    });
+    assert.equal(ownScriptError.status, 200);
+    const componentError = await post({ message: "Kortet fejlede", context: { component: "AppError" } });
+    assert.equal(componentError.status, 200);
+    assert.deepEqual(recorded, ["client_error", "client_error"]);
+  } finally {
+    console.error = originalConsoleError;
+  }
+});

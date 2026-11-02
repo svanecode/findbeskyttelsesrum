@@ -80,7 +80,43 @@ test("each import gets a fresh postcode table without a manual cache key change"
 
 test("a failing production check reaches a person, not only an open issue", async () => {
   const workflow = await readFile(new URL("../.github/workflows/production-smoke.yml", import.meta.url), "utf8");
-  assert.match(workflow, /--assignee "\$OWNER"/);
-  assert.match(workflow, /Påmindelse til @\$OWNER/);
-  assert.match(workflow, /> 86400/);
+  const script = await readFile(new URL("../scripts/monitor/raise-alert.sh", import.meta.url), "utf8");
+  assert.match(workflow, /raise-alert\.sh production-alert/);
+  assert.match(script, /--assignee "\$OWNER"/);
+  assert.match(script, /Påmindelse til @\$OWNER/);
+  assert.match(script, /> 86400/);
+});
+
+test("a query string is rejected without a database read, so it cannot bypass the CDN", async () => {
+  const { loadServerModule } = await import("./support/load-server-module");
+  const reads = { count: 0 };
+  const route = await loadServerModule<{ GET: (request: Request) => Promise<Response> }>(
+    new URL("../src/app/api/app-v2/postal-areas/route.ts", import.meta.url),
+    {
+      "next/cache": { unstable_cache: (read: (...args: unknown[]) => unknown) => read },
+      "@/lib/supabase/app-v2-queries": {
+        getAppV2PublicDataRevision: async () => {
+          reads.count += 1;
+          return { cacheKey: "rev:1" };
+        },
+      },
+      "@/lib/supabase/queries/postal-areas": {
+        getAppV2PublicPostalAreaTable: async () => {
+          reads.count += 1;
+          return {};
+        },
+      },
+    },
+  );
+
+  const response = await route.GET(new Request("https://example.test/api/app-v2/postal-areas?r=1"));
+  const body = await response.json() as { error: { code: string } };
+
+  assert.equal(response.status, 400);
+  assert.equal(body.error.code, "unexpected_query");
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.equal(reads.count, 0);
+
+  const ok = await route.GET(new Request("https://example.test/api/app-v2/postal-areas"));
+  assert.equal(ok.status, 200);
 });

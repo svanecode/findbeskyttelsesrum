@@ -173,7 +173,7 @@ test("shelter detail routes resolve old URLs and redirect to one canonical ident
 
   assert.match(detailPage, /resolveAppV2PublicShelter/);
   assert.match(detailPage, /resolveReadableShelterSlug/);
-  assert.match(detailPage, /permanentRedirect\(getShelterCanonicalPath\(canonicalSlug\)\)/);
+  assert.match(detailPage, /getShelterRedirectKind\(resolution\.resolvedAsReadable\) === "temporary"\) redirect\(target as Route\);\s*permanentRedirect\(target\)/);
   assert.match(queries, /from\("shelter_slug_aliases"\)/);
   assert.match(queries, /getStableShelterSlug/);
   assert.match(publicUrl, /registrering-/);
@@ -256,6 +256,23 @@ test("the compact footer links to accurate privacy and reporting guidance", asyn
   assert.match(privacyPage, /id="samtykke"/);
   assert.match(privacyPage, /<ConsentSettings \/>/);
   assert.match(privacyPage, /dit samtykke efter artikel 6, stk\. 1,\s+litra a/);
+  assert.match(privacyPage, /Senest opdateret 1\. november 2026\./);
+  const technicalSection = privacyPage.slice(
+    privacyPage.indexOf('id="technical-heading"'),
+    privacyPage.indexOf('id="analytics-heading"'),
+  );
+  const analyticsSection = privacyPage.slice(
+    privacyPage.indexOf('id="analytics-heading"'),
+    privacyPage.indexOf('id="reports-heading"'),
+  );
+  assert.match(technicalSection, /kommuneside, står din søgetekst i sidens adresse/);
+  assert.match(technicalSection, /&quot;Script error\.&quot; gemmes ikke/);
+  assert.match(technicalSection, /ikke oplyser en\s+webadresse for det script/);
+  assert.doesNotMatch(technicalSection, /andre websteders kode, gemmes ikke/);
+  assert.match(technicalSection, /timevis tæller/);
+  assert.match(technicalSection, /afhænger derfor ikke af samtykke/);
+  assert.match(technicalSection, /artikel 6, stk\. 1, litra f/);
+  assert.match(analyticsSection, /Tælleren for fejlrapporter er ikke omfattet af samtykket/);
   assert.match(footer, /\/privatliv#samtykke/);
   assert.match(dataPage, /id="rapportering"/);
   assert.match(dataPage, /Kildeangivelse:/);
@@ -451,7 +468,8 @@ test("private data operations reauthorize rollback and require owner confirmatio
   assert.match(operationsActions, /requireModerator\(true\)/);
   assert.match(operationsActions, /profile\.role !== "owner"/);
   assert.match(operationsActions, /confirmation !== "GENDAN"/);
-  assert.match(operationsActions, /rollback_dataset_publication_v1/);
+  assert.match(operationsActions, /rollback_dataset_publication_as_owner_v1/);
+  assert.match(operationsActions, /p_actor_account_id: profile\.moderatorId/);
   assert.doesNotMatch(operationsPage, /SUPABASE_SECRET_KEY/);
 });
 

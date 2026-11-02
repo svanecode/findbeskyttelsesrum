@@ -112,7 +112,7 @@ test("første mobilvalg fokuserer adressen efter kommunekortets lazy loading", {
   try {
     // Async hydration scripts do not block the server-rendered controls appearing.
     await page.goto("/kommune/kobenhavn", { waitUntil: "domcontentloaded" });
-    const firstSelection = page.getByRole("button", { name: /^Vis .+ på kortet$/ }).first();
+    const firstSelection = page.getByRole("button", { name: /^Vis på kort: .+$/ }).first();
     await expect(firstSelection).toBeVisible();
     await expect.poll(() => componentChunkHeld).toBe(true);
     await expect(firstSelection).toBeDisabled();

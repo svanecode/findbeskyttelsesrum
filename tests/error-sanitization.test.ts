@@ -63,3 +63,43 @@ test("structured context keeps only a bounded fixed allowlist", () => {
   assert.equal(parsed.stack?.split("\n").length, 20);
   assert.doesNotMatch(parsed.stack ?? "", /55\.6761|12\.5683/);
 });
+
+test("window errors without a script URL from the site are filtered as browser noise", () => {
+  const base = { url: "https://findbeskyttelsesrum.dk/kort", timestamp: new Date(now).toISOString() };
+
+  assert.equal(parseAndSanitizeClientErrorReport({
+    ...base,
+    message: "Script error.",
+    context: { filename: "", lineno: 0, colno: 0, type: "window-error" },
+  }, now), null);
+  assert.equal(parseAndSanitizeClientErrorReport({
+    ...base,
+    message: "Maximum call stack size exceeded.",
+    context: { filename: "undefined", lineno: 203, colno: 363, type: "window-error" },
+  }, now), null);
+  assert.equal(parseAndSanitizeClientErrorReport({
+    ...base,
+    message: "Script error.",
+    context: { type: "window-error" },
+  }, now), null);
+  assert.equal(parseAndSanitizeClientErrorReport({
+    ...base,
+    message: "Script error.",
+  }, now), null);
+
+  assert.ok(parseAndSanitizeClientErrorReport({
+    ...base,
+    message: "Cannot read properties of undefined",
+    context: { filename: "https://findbeskyttelsesrum.dk/_next/static/chunks/app.js", lineno: 1, colno: 9, type: "window-error" },
+  }, now));
+  assert.ok(parseAndSanitizeClientErrorReport({
+    ...base,
+    message: "Unhandled promise rejection: TypeError: Load failed",
+    context: { type: "unhandledrejection" },
+  }, now));
+  assert.ok(parseAndSanitizeClientErrorReport({
+    ...base,
+    message: "Adressevælger search failed with status 500",
+    context: { component: "useErrorHandler" },
+  }, now));
+});
