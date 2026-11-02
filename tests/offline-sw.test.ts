@@ -9,7 +9,13 @@ type FetchHandler = (event: { request: Request; respondWith: (value: Promise<Res
 async function loadWorker(network: (request: Request) => Promise<Response>, options: { instantTimeout?: boolean; failingPut?: boolean } = {}) {
   const source = await readFile(new URL("../public/offline-sw.js", import.meta.url), "utf8");
   const stores = new Map<string, Map<string, Response>>();
-  const keyOf = (input: Request | string) => (typeof input === "string" ? new URL(input, "https://findbeskyttelsesrum.dk").pathname : new URL(input.url).pathname);
+  const origin = "https://findbeskyttelsesrum.dk";
+  // Like the Cache API: entries are keyed by URL with its query string, and
+  // keys() hands back Request objects.
+  const keyOf = (input: Request | string) => {
+    const url = new URL(typeof input === "string" ? input : input.url, origin);
+    return url.pathname + url.search;
+  };
   const caches = {
     async open(name: string) {
       if (!stores.has(name)) stores.set(name, new Map());
@@ -23,10 +29,10 @@ async function loadWorker(network: (request: Request) => Promise<Response>, opti
           store.set(keyOf(input), response);
         },
         async keys() {
-          return Array.from(store.keys());
+          return Array.from(store.keys(), (key) => new Request(new URL(key, origin)));
         },
-        async delete(key: string) {
-          return store.delete(key);
+        async delete(key: Request | string) {
+          return store.delete(keyOf(key));
         },
       };
     },
@@ -300,4 +306,20 @@ test("activation with a saved copy does not copy browsed entries into it", async
   worker.stores.set("offline-v1-tiles", new Map([["/api/app-v2/nearby/tiles/230_1", Response.json({})]]));
   await worker.activate();
   assert.deepEqual(Array.from(worker.stores.get("offline-v1-saved")!.keys()), ["/naer-dig"]);
+});
+
+test("a saved static asset with a query string is kept by the next save and dropped when no longer asked for", async () => {
+  const worker = await loadWorker(async (request) => (request.url.includes("/_next/static/") ? new Response("asset") : page("x")));
+  const asset = "/_next/static/media/font.woff2?dpl=abc123";
+  await worker.message({ type: "save-offline-copy", urls: ["/naer-dig", asset] });
+  const saved = worker.stores.get("offline-v1-saved")!;
+  assert.deepEqual(Array.from(saved.keys()).sort(), [asset, "/naer-dig"]);
+
+  // keyId must read the query from the Request the cache hands back, or the
+  // asset would look unrequested and be dropped.
+  await worker.message({ type: "save-offline-copy", urls: ["/naer-dig", asset] });
+  assert.deepEqual(Array.from(saved.keys()).sort(), [asset, "/naer-dig"]);
+
+  await worker.message({ type: "save-offline-copy", urls: ["/naer-dig"] });
+  assert.deepEqual(Array.from(saved.keys()), ["/naer-dig"]);
 });

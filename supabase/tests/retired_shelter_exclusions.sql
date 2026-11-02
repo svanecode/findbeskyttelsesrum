@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(23);
 
 -- A registration that BBR drops must not reappear on the public 410 page when
 -- the owner had it excluded, and an owner's correction must still apply there.
@@ -30,7 +30,10 @@ insert into app_v2.shelters (
    'datafordeler-bbr-dar', 'retired-twin-b'),
   ('82000000-0000-0000-0000-000000000014', '82000000-0000-0000-0000-000000000001', 'udgaaet-rettet', 'Rettet',
    'Fejlvej 7', '9965', 'Testby', 56.200300, 10.200300, 200, 'active', 'Rettet', 'published', 'active', '965',
-   'datafordeler-bbr-dar', 'retired-override');
+   'datafordeler-bbr-dar', 'retired-override'),
+  ('82000000-0000-0000-0000-000000000015', '82000000-0000-0000-0000-000000000001', 'udgaaet-kilde', 'Kilde',
+   'Kildevej 2', '9965', 'Testby', 56.200400, 10.200400, 200, 'active', 'Kilde', 'published', 'active', '965',
+   'datafordeler-bbr-dar', 'retired-source-pair');
 
 -- Make the test rows public whatever the publication triggers did, then let
 -- BBR drop them.
@@ -163,7 +166,79 @@ select ok(
   'a removed registration corrected below 40 places is not in the proxy list'
 );
 
--- 6. The helper is private.
+-- 6. An exclusion that only names the canonical source pair hides it.
+select is(
+  (select count(*)::integer from app_v2.resolve_retired_shelter_v1(
+    (select slug from retired_fixture where id = '82000000-0000-0000-0000-000000000015'))),
+  1,
+  'a removed registration is found before the source pair exclusion'
+);
+
+insert into app_v2.shelter_exclusions (canonical_source_name, canonical_source_reference, source, reason)
+values ('datafordeler-bbr-dar', 'retired-source-pair', 'manual', 'Ejeren har bedt om at få adressen fjernet');
+
+select ok(
+  (select shelter_id is null and address_line1 is null
+   from app_v2.shelter_exclusions where canonical_source_reference = 'retired-source-pair'),
+  'the source pair exclusion names neither an id nor an address'
+);
+select is(
+  (select count(*)::integer from app_v2.resolve_retired_shelter_v1(
+    (select slug from retired_fixture where id = '82000000-0000-0000-0000-000000000015'))),
+  0,
+  'a removed registration excluded by source pair is not found'
+);
+select ok(
+  not exists (
+    select 1 from app_v2.retired_shelter_path_hashes_v1()
+    where path_hash = (select slug_hash from retired_fixture where id = '82000000-0000-0000-0000-000000000015')
+  ),
+  'a removed registration excluded by source pair is not in the proxy list'
+);
+
+-- 7. The page and the proxy call these as the anonymous role: exclusions
+--    still hide registrations there, and the rest stay visible.
+grant select on retired_fixture to anon;
+set local role anon;
+
+select is(
+  (select count(*)::integer from app_v2.resolve_retired_shelter_v1(
+    (select slug from retired_fixture where id = '82000000-0000-0000-0000-000000000014'))),
+  1,
+  'anonymous clients find a removed registration without an exclusion'
+);
+select is(
+  (select count(*)::integer from app_v2.resolve_retired_shelter_v1(
+    (select slug from retired_fixture where id = '82000000-0000-0000-0000-000000000012'))),
+  0,
+  'anonymous clients do not find a registration excluded by address'
+);
+select is(
+  (select count(*)::integer from app_v2.resolve_retired_shelter_v1(
+    (select slug from retired_fixture where id = '82000000-0000-0000-0000-000000000015'))),
+  0,
+  'anonymous clients do not find a registration excluded by source pair'
+);
+select ok(
+  exists (
+    select 1 from app_v2.retired_shelter_path_hashes_v1()
+    where path_hash = (select slug_hash from retired_fixture where id = '82000000-0000-0000-0000-000000000014')
+  ),
+  'the anonymous proxy list holds a removed registration without an exclusion'
+);
+select ok(
+  not exists (
+    select 1 from app_v2.retired_shelter_path_hashes_v1()
+    where path_hash in (
+      select slug_hash from retired_fixture
+      where id in ('82000000-0000-0000-0000-000000000012', '82000000-0000-0000-0000-000000000015')
+    )
+  ),
+  'the anonymous proxy list leaves out excluded registrations'
+);
+reset role;
+
+-- 8. The helper is private.
 select ok(
   not has_function_privilege('anon', 'app_v2.is_shelter_excluded_v1(uuid)', 'EXECUTE')
   and not has_function_privilege('authenticated', 'app_v2.is_shelter_excluded_v1(uuid)', 'EXECUTE'),
