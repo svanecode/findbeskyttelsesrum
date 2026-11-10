@@ -59,4 +59,4 @@ Define which active `app_v2` fields belong to the importer, manual operations, o
 The importer must not write `app_v2.shelter_overrides`. Active overrides can correct non-location values such as capacity. Address, postcode, and city are stripped from active overrides by a database trigger until a DAWA-validated flow can also update coordinates and municipality in the same confirmed operation.
 
 ## Current Live App
-These ownership rules describe the `app_v2` target model. The live app still uses its current data layer until a later cutover phase.
+The live app already reads `app_v2`, so these ownership rules apply to the data it shows today.

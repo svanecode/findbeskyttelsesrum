@@ -23,7 +23,7 @@ Den konkrete Python-opsætning og lokale kommandoer findes i [importerens README
 
 - [`qa/emergency-copy-standard.md`](qa/emergency-copy-standard.md) er standarden for offentlig tekst og forbehold.
 - [`qa/emergency-utility-checklist.md`](qa/emergency-utility-checklist.md) er den genbrugelige QA-tjekliste.
-- [`qa/emergency-utility-review.md`](qa/emergency-utility-review.md) og [`qa/emergency-hardening-release-summary.md`](qa/emergency-hardening-release-summary.md) dokumenterer den seneste samlede gennemgang.
+- [`qa/2026-11-10-full-review.md`](qa/2026-11-10-full-review.md) er den seneste samlede gennemgang. [`qa/emergency-utility-review.md`](qa/emergency-utility-review.md) og [`qa/emergency-hardening-release-summary.md`](qa/emergency-hardening-release-summary.md) er ældre gennemgange, der står som historik.
 - [`qa/free-observability.md`](qa/free-observability.md) beskriver gratis produktionskontrol, privatlivsvenlige målinger og de accepterede databaseadvarsler.
 - [`operations/external-monitoring.md`](operations/external-monitoring.md) beskriver den gratis, uafhængige dead-man monitor.
 - [`operations/external-dependencies.md`](operations/external-dependencies.md) er registret over eksterne tjenester, fallback og kendte lukkedatoer.

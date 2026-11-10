@@ -84,7 +84,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 | `npm run test:release` | Kører den samlede lokale releasekontrol. |
 | `npm run monitor:production` | Kontrollerer den live brugerrejse og dataalder. |
 
-Pull requests skal bestå lint, typekontrol, kode- og databaseinvarianter, produktionsbuild og hele browserhistorien i Chromium, Firefox og WebKit. De samme kontroller gentages ved push til `main`.
+Pull requests skal bestå lint, typekontrol, kode- og databaseinvarianter, produktionsbuild og hele browserhistorien i Chromium, Firefox og WebKit. De samme kontroller gentages ved push til `main`. Kvalitetsjobbet kører også `npm audit --omit=dev --audit-level=high` og fejler ved kendte sårbarheder med høj eller kritisk alvorlighed i produktionsafhængigheder.
 
 Parity- og sanitykontroller kræver de relevante Supabase-nøgler og fejler, hvis konfigurationen mangler. De bruger samme publishable-key-konfiguration som appen; den ældre `NEXT_PUBLIC_SUPABASE_ANON_KEY` understøttes fortsat. `test:release` kræver også `SUPABASE_SECRET_KEY` til de private paritylæsninger. Nøglen skal kun findes lokalt eller i betroede driftsjob, aldrig i pull request-job.
 

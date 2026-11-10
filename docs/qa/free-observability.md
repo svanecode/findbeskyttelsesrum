@@ -9,6 +9,7 @@ No paid analytics, map or error-tracking product is required.
 replay, all database integrity tests, a production build and the complete Playwright browser story on every pull request.
 The browser gate covers desktop Chromium, Firefox and WebKit plus mobile Chromium and iPhone-sized WebKit, and it
 repeats on pushes to `main`.
+The same workflow runs `npm audit --omit=dev --audit-level=high`, which fails on known high or critical vulnerabilities in production dependencies.
 The local HTTP test build disables only CSP's HTTPS-upgrade directives; ordinary production builds retain them.
 
 The release job deliberately receives no `SUPABASE_SECRET_KEY`. It reads the public Supabase URL and publishable key
@@ -83,3 +84,5 @@ Password leak protection is not part of the public flow because public users do 
 in through GitHub plus MFA. Performance notices for unused new indexes must be reviewed after representative production
 traffic; they are not evidence that an index is currently safe to delete. The two unindexed legacy `public.sheltersv2`
 foreign keys are outside the active `app_v2` application and importer boundary.
+
+**Open owner decision, not accepted:** "Leaked password protection disabled" (Supabase Auth). The owner must either enable it or record it here as accepted. Until then it stays open.
