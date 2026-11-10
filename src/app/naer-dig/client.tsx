@@ -97,8 +97,8 @@ async function fetchNearbyFromTilesForPage(lat: number, lng: number) {
     limit: nearbyResultLimit,
     radiusMeters: nearbyRadiusKm * 1000,
     fetch: (path) => fetch(path),
-    // Offline there is no server search to fall back on, so a list from the saved tiles is better than none.
-    allowIncomplete: typeof navigator !== 'undefined' && navigator.onLine === false,
+    // An incomplete list is only shown when the server search cannot answer (see loadData).
+    allowIncomplete: true,
   })
   return result ? { shelters: adaptAppV2Grouped(result.groups), savedAt: result.savedAt, incomplete: result.incomplete } : null
 }
@@ -227,8 +227,24 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
         setIsRetryingBusy(false)
         setSavedDataNotice(null)
         setIsWidened(false)
-        const tileData = await fetchNearbyFromTilesForPage(lat, lng).catch(() => null)
-        let shelterData = tileData?.shelters ?? await fetchWithOneBusyRetry()
+        const tileResult = await fetchNearbyFromTilesForPage(lat, lng).catch(() => null)
+        // Tiles that cannot guarantee a complete list give way to the server
+        // search. Only when that fails too (no net, or a connection that is
+        // dead although the browser reports it as online) is the incomplete
+        // list from the tiles shown, with a notice.
+        let tileData = tileResult && !tileResult.incomplete ? tileResult : null
+        let shelterData: NearbyResultShelter[]
+        if (tileData) {
+          shelterData = tileData.shelters
+        } else {
+          try {
+            shelterData = await fetchWithOneBusyRetry()
+          } catch (error) {
+            if (!tileResult || tileResult.shelters.length === 0) throw error
+            tileData = tileResult
+            shelterData = tileResult.shelters
+          }
+        }
         let widened = false
         if (shelterData.length === 0) {
           const wider = await fetchWithOneBusyRetry(widenedRadiusKm)
@@ -243,7 +259,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
           // The browser's own short HTTP cache can answer offline too, so being
           // offline always earns the notice, with a date when the worker knows it.
           const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
-          setSavedDataNotice(tileData && (tileData.savedAt || isOffline) ? { savedAt: tileData.savedAt, incomplete: tileData.incomplete } : null)
+          setSavedDataNotice(tileData && (tileData.savedAt || isOffline || tileData.incomplete) ? { savedAt: tileData.savedAt, incomplete: tileData.incomplete } : null)
           trackProductMetric(
             shelterData.length > 0 ? 'nearby_results_loaded' : 'nearby_no_results',
             performance.now() - startedAt,
