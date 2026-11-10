@@ -9,6 +9,7 @@
  */
 
 import { readConsent } from "@/lib/consent";
+import { nearbyTileUrls } from "@/lib/nearby/tiles";
 
 export type SavedOfflineSearch = {
   label: string;
@@ -127,17 +128,20 @@ function askWorkerToSave(worker: ServiceWorker, urls: string[]) {
 export async function saveOfflineCopy(options: { extraUrls?: string[]; search?: SavedOfflineSearch } = {}) {
   if (!isOfflineCopySupported()) throw new Error("Offline copies are not supported in this browser");
   const worker = await activeWorker();
+  const previous = readOfflineCopy();
+  const search = options.search ?? previous?.search;
+  // The worker drops everything a save did not ask for. A save without tiles
+  // of its own (the front page) keeps the tiles of the search the record keeps.
+  const extraUrls = options.extraUrls ?? (search ? nearbyTileUrls(search.latitude, search.longitude) : []);
   const urls = Array.from(new Set([
     ...offlinePages,
     window.location.pathname,
     ...loadedStaticAssets(),
-    ...(options.extraUrls ?? []),
+    ...extraUrls,
   ]));
   const result = await askWorkerToSave(worker, urls);
   if (result.saved === 0) throw new Error("Nothing could be saved for offline use");
 
-  const previous = readOfflineCopy();
-  const search = options.search ?? previous?.search;
   const record: OfflineCopyRecord = {
     version: 1,
     savedAt: new Date().toISOString(),
@@ -195,11 +199,11 @@ function forgetLegacyOfflineConsent() {
   }
 }
 
-/** "2. okt. kl. 11.44": when the copy was saved, short enough for one line. */
+/** "2. okt. 2026 kl. 11.44": when the copy was saved, short enough for one line. */
 export function formatOfflineSavedAt(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  const day = new Intl.DateTimeFormat("da-DK", { day: "numeric", month: "short" }).format(date);
+  const day = new Intl.DateTimeFormat("da-DK", { day: "numeric", month: "short", year: "numeric" }).format(date);
   const time = new Intl.DateTimeFormat("da-DK", { hour: "2-digit", minute: "2-digit" }).format(date);
   return `${day} kl. ${time}`;
 }

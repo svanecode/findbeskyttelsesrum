@@ -8,8 +8,9 @@ import { useOfflineCopy } from "@/lib/use-offline-copy";
 /**
  * Keeps the offline worker (public/offline-sw.js) in step with the visitor's
  * own choice to save an offline copy. With a saved copy, the worker is
- * registered once the page is idle, so it keeps the copy fresh on later
- * visits. Without one, any earlier worker and its caches are removed. The
+ * registered once the page is idle, so it keeps serving the saved pages and
+ * tiles; only the copy's own "Opdatér" refreshes them, while browsing
+ * refreshes just the size-capped ordinary caches. Without one, any earlier worker and its caches are removed. The
  * statistics consent plays no part.
  */
 export default function OfflineSupport() {

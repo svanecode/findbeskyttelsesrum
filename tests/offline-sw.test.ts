@@ -102,11 +102,18 @@ const page = (body: string) => new Response(body, { status: 200, headers: { "Con
 
 test("online navigations come from the network and are saved with a timestamp", async () => {
   const worker = await loadWorker(async () => page("fresh"));
-  const response = await worker.dispatch("https://findbeskyttelsesrum.dk/naer-dig?x=1", { mode: "navigate" });
+  const response = await worker.dispatch("https://findbeskyttelsesrum.dk/naer-dig", { mode: "navigate" });
   assert.equal(await response?.text(), "fresh");
   assert.equal(response?.headers.get("X-Offline-Cached-At"), null, "live responses are not marked as saved");
   const saved = worker.stores.get("offline-v1-pages")?.get("/naer-dig");
   assert.ok(saved?.headers.get("X-Offline-Cached-At"));
+});
+
+test("navigations with a query string are left to the browser and never stored under the bare path", async () => {
+  const worker = await loadWorker(async () => page("filtered"));
+  const response = await worker.dispatch("https://findbeskyttelsesrum.dk/kommune/aarhus?q=privat", { mode: "navigate" });
+  assert.equal(response, null);
+  assert.equal(worker.stores.get("offline-v1-pages")?.has("/kommune/aarhus") ?? false, false);
 });
 
 test("offline navigations and tiles fall back to the saved copy", async () => {

@@ -81,6 +81,9 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/admin") || url.pathname.startsWith("/auth")) return;
 
   if (request.mode === "navigate") {
+    // Pages are stored per path, so a filtered page (?q=...) must not be stored
+    // as the bare path, nor its search text kept on the device.
+    if (url.search) return;
     event.respondWith(networkFirst(request, pageCache, pageKey(url)));
     return;
   }
@@ -187,7 +190,7 @@ function keyId(key) {
   return url.pathname + url.search;
 }
 
-/** Navigations are cached per path without query or hash. */
+/** Navigations without a query string are cached per path. */
 function pageKey(url) {
   return url.pathname;
 }

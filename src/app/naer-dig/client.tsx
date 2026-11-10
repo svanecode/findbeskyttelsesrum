@@ -12,7 +12,7 @@ import { ui } from '@/components/ui-classes'
 import { buildLeafletPopupHtml } from '@/lib/leaflet/popup-html'
 import { adaptAppV2Grouped, type NearbyResultShelter } from '@/lib/nearby/app-v2-adapter'
 import { fetchNearbyFromTiles } from '@/lib/nearby/fetch-nearby-from-tiles'
-import { surroundingTileKeys } from '@/lib/nearby/tiles'
+import { nearbyTileUrls } from '@/lib/nearby/tiles'
 import { trackProductMetric } from '@/lib/analytics/product-metrics'
 import { scrollBehavior } from '@/lib/ui/reduced-motion'
 import { getReadableGroupPrimaryPath, getReadableShelterPathFromStable } from '@/lib/shelter-public-url'
@@ -97,14 +97,16 @@ async function fetchNearbyFromTilesForPage(lat: number, lng: number) {
     limit: nearbyResultLimit,
     radiusMeters: nearbyRadiusKm * 1000,
     fetch: (path) => fetch(path),
+    // Offline there is no server search to fall back on, so a list from the saved tiles is better than none.
+    allowIncomplete: typeof navigator !== 'undefined' && navigator.onLine === false,
   })
-  return result ? { shelters: adaptAppV2Grouped(result.groups), savedAt: result.savedAt } : null
+  return result ? { shelters: adaptAppV2Grouped(result.groups), savedAt: result.savedAt, incomplete: result.incomplete } : null
 }
 
 function formatSavedAt(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return null
-  return new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(date)
+  return new Intl.DateTimeFormat('da-DK', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date)
 }
 
 async function fetchAppV2GroupedShelters(lat: number, lng: number, radiusKm?: number): Promise<NearbyResultShelter[]> {
@@ -144,7 +146,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isRetryingBusy, setIsRetryingBusy] = useState(false)
   // Set when results were built while offline or from the worker's saved tiles.
-  const [savedDataNotice, setSavedDataNotice] = useState<{ savedAt: string | null } | null>(null)
+  const [savedDataNotice, setSavedDataNotice] = useState<{ savedAt: string | null; incomplete: boolean } | null>(null)
   const [isWidened, setIsWidened] = useState(false)
   const [srMapSelection, setSrMapSelection] = useState('')
   const shelterRefs = useRef<Record<string, HTMLElement | null>>({})
@@ -160,7 +162,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
   const srMapSelectionClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const offlineTileUrls = useMemo(
-    () => surroundingTileKeys(lat, lng).map((key) => `/api/app-v2/nearby/tiles/${key}`),
+    () => nearbyTileUrls(lat, lng),
     [lat, lng],
   )
 
@@ -241,7 +243,7 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
           // The browser's own short HTTP cache can answer offline too, so being
           // offline always earns the notice, with a date when the worker knows it.
           const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
-          setSavedDataNotice(tileData && (tileData.savedAt || isOffline) ? { savedAt: tileData.savedAt } : null)
+          setSavedDataNotice(tileData && (tileData.savedAt || isOffline) ? { savedAt: tileData.savedAt, incomplete: tileData.incomplete } : null)
           trackProductMetric(
             shelterData.length > 0 ? 'nearby_results_loaded' : 'nearby_no_results',
             performance.now() - startedAt,
@@ -431,6 +433,11 @@ export default function ShelterMapClient({ lat, lng, originLabel }: Props) {
                   Netværket svarer ikke, så resultaterne bygger på data gemt på din enhed
                   {savedDataNotice.savedAt && formatSavedAt(savedDataNotice.savedAt) ? ` ${formatSavedAt(savedDataNotice.savedAt)}` : ''}. De kan være forældede.
                 </p>
+                {savedDataNotice.incomplete ? (
+                  <p className="mt-1">
+                    Listen bygger kun på de gemte data og kan være ufuldstændig. Der kan være BBR-registreringer tættere på, som ikke er gemt på din enhed.
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
