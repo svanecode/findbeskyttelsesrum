@@ -46,10 +46,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: datafordeler-app-v2-main-import
-  cancel-in-progress: false
-
 jobs:
   quality:
     name: Kontrollér importerkoden
@@ -85,6 +81,12 @@ jobs:
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    # Only the import job is serialised. At workflow level the group would be
+    # shared by schedule, PR and push runs, and a pending scheduled import
+    # could be replaced by a later run that never reaches this job.
+    concurrency:
+      group: datafordeler-app-v2-main-import
+      cancel-in-progress: false
     permissions:
       contents: read
     defaults:

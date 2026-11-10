@@ -5,20 +5,25 @@ on:
   push:
     branches:
       - main
+  schedule:
+    # Weekly, so a quiet repository still notices a new advisory.
+    - cron: "23 5 * * 1"
   workflow_dispatch:
 
 concurrency:
-  group: application-quality-${{ github.ref }}
+  group: application-quality-${{ github.event_name == 'schedule' && 'schedule' || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  code-quality:
-    name: Kode, typer og sikkerhedsregler
+  # Its own job that nothing needs: a new advisory or a registry outage must
+  # not turn every pull request red, but it must still be noticed.
+  dependency-audit:
+    name: Sårbarheder i produktionsafhængigheder
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Hent kode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,6 +40,50 @@ jobs:
       - name: Kontrollér kendte sårbarheder i produktionsafhængigheder
         run: npm audit --omit=dev --audit-level=high
 
+  audit-alert:
+    name: Driftsalarm for sårbarheder
+    if: always() && github.event_name == 'schedule'
+    needs: dependency-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OWNER: ${{ github.repository_owner }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Hent kode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Opret eller opdatér driftsalarm
+        if: contains(fromJSON('["failure","cancelled"]'), needs.dependency-audit.result)
+        run: |
+          bash scripts/monitor/raise-alert.sh dependency-audit-alert "Sårbarhedskontrollen kræver opmærksomhed" \
+            "Den ugentlige kontrol af produktionsafhængigheder (npm audit) fejlede. Se kørslen for advisory eller registry-fejl."
+      - name: Luk driftsalarm efter succes
+        if: needs.dependency-audit.result == 'success'
+        run: bash scripts/monitor/close-alert.sh dependency-audit-alert "Den næste ugentlige sårbarhedskontrol gik igennem."
+
+  code-quality:
+    name: Kode, typer og sikkerhedsregler
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Hent kode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Brug Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Installér låste afhængigheder
+        run: npm ci
+
       - name: Kør obligatoriske pull request-kontroller
         run: |
           npm run lint
@@ -43,6 +92,7 @@ jobs:
 
   database-quality:
     name: Frisk database og integritetsregler
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -68,6 +118,7 @@ jobs:
 
   release-story:
     name: Byg og gennemfør browserhistorien
+    if: github.event_name != 'schedule'
     needs:
       - code-quality
       - database-quality
