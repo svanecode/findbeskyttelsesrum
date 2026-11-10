@@ -1,6 +1,7 @@
 import { createAppV2PublicClient } from "@/lib/app-v2-public";
 import { normalizePublicApplicationLabel } from "@/lib/public-labels";
 import { getAppV2PublicCountryShelterMarkersInBounds } from "./country-map";
+import { readPerRevision } from "./public-data-cache";
 import type { AppV2CountryShelterMarkerBounds } from "./country-map";
 import { getBoolean, getInteger, getNullableString, getNumber, getString, isRecord, parseJsonArray } from "./shared";
 import type { AppV2ImportState, AppV2MunicipalitySummary, AppV2NearbyEligibilityMode } from "./shared";
@@ -468,4 +469,14 @@ export async function getAppV2PublicNearbyTile(bounds: AppV2CountryShelterMarker
   }
 
   return { markers, labels };
+}
+
+/**
+ * One nearby tile from the same revision cache the tile route fills ("nearby-tile"
+ * under the tile key), so reading it for a detail page costs the database
+ * nothing once any visitor or page has loaded the tile for this data revision.
+ * Call it at the top level, never inside another cached read.
+ */
+export function getCachedAppV2PublicNearbyTile(tile: string, bounds: AppV2CountryShelterMarkerBounds) {
+  return readPerRevision("nearby-tile", tile, () => getAppV2PublicNearbyTile(bounds));
 }

@@ -159,3 +159,33 @@ Egress på Supabase efter #69, om UptimeRobot er sat op, om en gendannelse er af
 2. Stadig åben fra 1. november: kør én gendannelse på en branch-database.
 3. Ny: slå beskyttelse mod lækkede adgangskoder til i Supabase Auth, eller skriv den ind blandt de accepterede advarsler.
 4. Ny: tjek egress i Supabase-dashboardet for november.
+
+## Opfølgning (2026-11-10)
+
+Gennemført samme dag på branchen `claude/zen-galileo-hg9u3m`, én commit pr. område. Efter rettelserne: `npm run lint` og `npm run typecheck` rene, `npm test` 242/242, importerens `pytest` 49 bestået, `npm audit --omit=dev` uden fund. Playwright er ikke kørt. Nye migrationer: `20261110120000` til `20261110120300`. **De er ikke kørt i produktionen endnu.** Appen virker uden dem, men får først gevinsten på postnummeropslag, M4 og M5, når de er kørt.
+
+| Fund | Status |
+| --- | --- |
+| H1 "Opdatér" på forsiden sletter fliserne | Rettet: en gemning uden egne fliser tager fliserne fra den gemte søgning med (`src/lib/offline-copy.ts`). Ny test `tests/offline-copy-save.test.ts`, som fejler uden rettelsen. Ikke afprøvet i en browser. |
+| M1 Offentlige læsninger scanner hele tabellen | Rettet i to dele. "Andre registreringer" rangeres nu i hukommelsen fra registreringens egen flise og de otte omkring, læst gennem samme cache pr. dataversion som fliseruten. Databasen læses dermed én gang pr. flise og version, ikke én gang pr. detaljeside. Fliserne har samme registreringer som det gamle kald (`country_marker_public_v2` er `shelter_public_v2` med koordinater), og den største flise fylder 215 KB mod datacachens grænse på 2 MB. Postnummeropslag går gennem den nye `public_shelters_in_postcode_v1` med et delindeks på `shelters.postal_code` (migration `20261110120000`), med fald tilbage til viewet, indtil migrationen er kørt. Efterprøvet mod produktionen uden at ændre noget: samme 558 rækker som viewet for ti postnumre, og planen henter kandidaterne via primærnøglen. Aliasfejlen tager nu `error.message` med. Viewet selv er ikke omskrevet. |
+| M2 Støj fra produktionsalarmen | Rettet: GPS-udfald rapporteres ikke længere som tekniske fejl, og rapporter, hvis stak kun består af browserudvidelser, afvises uanset type. Grænsen på 25 er uændret. |
+| M3 Dependabot sidder fast | Rettet i konfigurationen: testværktøjer, produktion og udvikling har hver sin gruppe. Årsagen til Firefox-nedbruddet i #83 er ikke undersøgt. **Ejer:** luk #83, så Dependabot åbner nye PR'er efter de nye grupper, og flet #78 og #79. |
+| M4 Levende registrering kan svare 410 | Rettet i migration `20261110120100`: begge funktioner udelader stier, der i dag er en offentlig registrerings læsbare sti. pgTAP-tilfælde tilføjet. |
+| M5 Udelukket adresses koordinat som postnummerposition | Rettet i migration `20261110120200`: et postnummer med position fra registreringer, som mister dem, får position og kilde nulstillet, så DAR udfylder det igen. Opdateringen kører stadig kun efter import, ikke efter en moderering. |
+| M6 Udelukkelser når ikke alle kopier | Delvist rettet: 410-siden caches i 300 sekunder uden SWR (30 sekunder ved fejlet opslag), og versionslåste fliser i højst en time. Gemte offline-fliser opdateres stadig kun, når brugeren trykker "Opdatér". |
+| M7 Offline i tyndt dækkede områder | Rettet: uden net vises listen fra de gemte fliser med en notits om, at den kan være ufuldstændig. Er der slet ingen registreringer i de gemte fliser, vises stadig "ingen gemte data". |
+| M8 Mellemrum efter tilbage-navigation | Rettet. Ingen enhedstest, fordi `AddressSearch.tsx` ikke har et DOM-testmiljø. |
+| M9 Alarmer, der kan udeblive | Rettet: produktionsalarmen ligger i et eget job med `always()`, importens `concurrency` gælder kun importjobbet, og `npm audit` kører i et eget job samt ugentligt med egen alarm (`dependency-audit-alert`). Kan kun bekræftes af rigtige GitHub-kørsler. |
+
+Lave fund rettet: navigationer med query gemmes ikke af service workeren, en sen GPS-position overskriver ikke en nyere søgning, gemt-datoen viser årstal, "Viser gemte data" forsvinder efter en vellykket opdatering, de afledte trin kører også efter `--finalize-latest` (uden DAR-opslaget), `refresh_shelter_path_aliases_v1` tager publiceringslåsen (migration `20261110120300`), en manglende ejer-RPC kaster en fejl, påmindelser tælles kun fra `github-actions[bot]` og sendes efter 20 timer, `gh label create` har `--repo`, kommentaren om genaktivering beskriver den faktiske hyppighed, `dotenv` og typerne ligger i devDependencies, `@eslint/eslintrc` og `sharp` er fjernet fra `package.json` (`sharp` følger stadig med `next`), og `npm audit fix` er kørt (8 moderate fund tilbage, kun i udviklingsværktøjer). Dokumentationen er rettet på alle punkter under "Dokumentation, der ikke passer".
+
+Lave fund ladt være: versionsskift af service workeren, de afledte trin efter en gendannelse, postnumrenes 30-dages genopslag, akkumulerede kommunekoder, 60 sekunders grænsen for alle service role-kald, `maxDuration` for gendannelsen (hører til i `src/app/admin/drift/page.tsx`), de gamle tabeller i `public` og dækningshullerne i test af overvågningsscripts.
+
+**Ejeropgaver:**
+
+1. Kør migrationerne `20261110120000` til `20261110120300` i produktionen, og tjek bagefter med `explain analyze select * from app_v2.public_shelters_in_postcode_v1('8210')`, at postnummerindekset bruges. De nye pgTAP-tilfælde er kun kørt mod en lokal Postgres 16 med en erstatning for pgTAP, ikke med `supabase test db` på 17. CI kører den rigtige test.
+2. Luk Dependabot-PR #83, og flet #78 og #79.
+3. Bekræft, at UptimeRobot kontrollerer `/api/health` (åben fra 1. november).
+4. Kør én gendannelse på en branch-database (åben fra 1. november).
+5. Slå beskyttelse mod lækkede adgangskoder til i Supabase Auth, eller notér den som accepteret.
+6. Tjek egress i Supabase-dashboardet for november.

@@ -2,8 +2,8 @@ import { createAppV2PublicClient } from "@/lib/app-v2-public";
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 import { SupabaseConfigurationError } from "@/lib/supabase/env";
 import { isMissingPublicRpcError } from "@/lib/supabase/public-rpc-errors";
-import { pickRelatedFromNearby, type RelatedShelterRow } from "@/lib/nearby/related";
-import { readAllPages } from "@/lib/supabase/read-all-pages";
+import { rankRelatedFromTileMarkers, relatedTilesAround, type RelatedShelterRow } from "@/lib/nearby/related";
+import { postgrestMaxRows, readAllPages } from "@/lib/supabase/read-all-pages";
 import { cache } from "react";
 import {
   getCanonicalShelterSlugs,
@@ -16,6 +16,7 @@ import {
   readableSlugShortId,
 } from "@/lib/shelter-public-url";
 import { getAppV2MunicipalitySummaries } from "./municipalities";
+import { getCachedAppV2PublicNearbyTile } from "./nearby";
 import { parsePlainPathOwnerRows } from "./plain-path-owner-rows";
 import { cachedPerRevision } from "./public-data-cache";
 import { normalizeMunicipality, normalizePublicShelter, normalizeShelter, sitemapShelterPageSize } from "./shared";
@@ -177,7 +178,7 @@ const resolvePublicShelterSlugAlias = cachedPerRevision("shelter-slug-alias", as
       // Without the public RPC and the private table nothing can be resolved.
       // Throw rather than return null, so "no alias" is not cached for a day.
       if (privateAliasError) {
-        throw new Error(`Could not resolve public app_v2 shelter alias "${slug}".`);
+        throw new Error(`Could not resolve public app_v2 shelter alias "${slug}": ${privateAliasError.message}`);
       }
       canonicalSlug = privateAliasData
         ? getStableShelterSlug((privateAliasData as ShelterSlugAliasRow).shelter_id)
@@ -189,7 +190,7 @@ const resolvePublicShelterSlugAlias = cachedPerRevision("shelter-slug-alias", as
       throw error;
     }
   } else {
-    throw new Error(`Could not resolve public app_v2 shelter alias "${slug}".`);
+    throw new Error(`Could not resolve public app_v2 shelter alias "${slug}": ${publicAliasError.message}`);
   }
 
   return canonicalSlug;
@@ -231,39 +232,18 @@ function normalizeRelatedShelter(row: RelatedShelterRow): AppV2RelatedShelter {
 /** Related registrations are looked for within this distance of the registration. */
 const relatedRadiusMeters = 20_000;
 
-/**
- * Other registrations near this one, closest first (5 October review, point 5).
- * With coordinates, get_nearby_shelters_public_v2 ranks them by distance in
- * the database, without the nearby page's eligibility rules, so every public
- * registration counts. Without coordinates, or with none within 20 km, the
- * old order (same postcode, then the municipality) is used.
- */
-export const getAppV2PublicRelatedShelters = cachedPerRevision("related-shelters", async function getAppV2PublicRelatedShelters(input: {
+type RelatedFallbackInput = {
   shelterId: string;
   municipalityId: string;
   postalCode: string;
-  latitude?: number | null;
-  longitude?: number | null;
-  limit?: number;
-}): Promise<AppV2RelatedShelter[]> {
-  const limit = Math.min(Math.max(input.limit ?? 3, 1), 6);
+  limit: number;
+};
+
+/** Same postcode first, then the rest of the municipality. Read once per registration and data revision. */
+const readRelatedByPostcodeAndMunicipality = cachedPerRevision("related-shelters", async function readRelatedByPostcodeAndMunicipality(input: RelatedFallbackInput): Promise<AppV2RelatedShelter[]> {
+  const { limit } = input;
   const pub = createAppV2PublicClient();
   const select = "id, slug, address_line1, postal_code, city, capacity";
-
-  if (typeof input.latitude === "number" && typeof input.longitude === "number") {
-    // One more than needed: the registration itself is usually the nearest.
-    const { data, error } = await pub.rpc("get_nearby_shelters_public_v2", {
-      p_lat: input.latitude,
-      p_lng: input.longitude,
-      p_radius_meters: relatedRadiusMeters,
-      p_limit: limit + 1,
-      p_candidate_limit: limit + 1,
-    });
-    if (error) throw new Error("Could not load related public app_v2 shelter registrations.");
-    const payload = Array.isArray(data) ? (data[0] as { results?: unknown } | undefined) : undefined;
-    const nearest = pickRelatedFromNearby(payload?.results, input.shelterId, limit);
-    if (nearest.length > 0) return nearest.map(normalizeRelatedShelter);
-  }
 
   const [samePostalResult, municipalityResult] = await Promise.all([
     pub
@@ -297,6 +277,61 @@ export const getAppV2PublicRelatedShelters = cachedPerRevision("related-shelters
   return Array.from(related.values(), normalizeRelatedShelter);
 });
 
+/**
+ * Other registrations near this one, closest first (5 October review, point 5).
+ *
+ * With coordinates they are ranked here, in memory, from the registrations of
+ * the registration's own nearby tile and the eight around it. Those tiles are
+ * read through the revision cache the tile route fills, so the database is read
+ * once per tile and data revision, not once per detail page: the earlier
+ * get_nearby_shelters_public_v2 call per page was ~10,000 calls and ~21
+ * statement timeouts a day (review of 10 November 2026, M1). The tiles hold the
+ * same public registrations as that function (country_marker_public_v2 is
+ * shelter_public_v2 with coordinates), so every public registration counts,
+ * without the nearby page's eligibility rules.
+ *
+ * Without coordinates, or with none within 20 km, the old order (same
+ * postcode, then the municipality) is used.
+ *
+ * Not itself wrapped in cachedPerRevision: Next.js skips the data cache for a
+ * cached read nested inside another, so the tile reads must be top level.
+ */
+export async function getAppV2PublicRelatedShelters(input: {
+  shelterId: string;
+  /** The registration's stable slug, which the tiles identify registrations by. */
+  slug: string;
+  municipalityId: string;
+  postalCode: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  limit?: number;
+}): Promise<AppV2RelatedShelter[]> {
+  const limit = Math.min(Math.max(input.limit ?? 3, 1), 6);
+
+  if (typeof input.latitude === "number" && typeof input.longitude === "number") {
+    const origin = { latitude: input.latitude, longitude: input.longitude };
+    const tiles = await Promise.all(
+      relatedTilesAround(origin.latitude, origin.longitude)
+        .map((tile) => getCachedAppV2PublicNearbyTile(tile.key, tile.bounds)),
+    );
+    const nearest = rankRelatedFromTileMarkers(
+      tiles.flatMap((tile) => tile.markers),
+      origin,
+      input.slug,
+      limit,
+      relatedRadiusMeters,
+    );
+    if (nearest.length > 0) return nearest.map(normalizeRelatedShelter);
+  }
+
+  return readRelatedByPostcodeAndMunicipality({
+    shelterId: input.shelterId,
+    municipalityId: input.municipalityId,
+    postalCode: input.postalCode,
+    limit,
+  });
+}
+
 type ReadableShelterRow = {
   id: string;
   slug: string;
@@ -308,8 +343,7 @@ type ReadableShelterRow = {
 
 /**
  * Ids of the registrations that own the plain readable path of their address,
- * from the database. Empty before the migration that adds it is applied, which
- * leaves the places-based rule in force.
+ * from the database. Throws when the function is missing or fails.
  */
 async function readPlainPathOwnerIds(postalCode: string | null) {
   const pub = createAppV2PublicClient();
@@ -320,7 +354,8 @@ async function readPlainPathOwnerIds(postalCode: string | null) {
       .rpc("public_plain_path_owner_ids_v1", { p_postal_code: postalCode })
       .range(from, from + pageSize - 1);
     if (error) {
-      if (isMissingPublicRpcError(error)) return new Set<string>();
+      // The migration is in production, so a missing function is an outage, not "no owners".
+      // Throwing keeps the answer out of the data cache, where it would last a revision.
       throw new Error(`Could not read owners of plain readable paths: ${error.message}`);
     }
     const rows = Array.isArray(data) ? data : [];
@@ -340,10 +375,34 @@ export async function getPlainPathOwnerIdsInPostcodes(postalCodes: string[]) {
   return new Set(lists.flat());
 }
 
+/**
+ * The public registrations in a postcode through public_shelters_in_postcode_v1,
+ * which finds them by the base table's postcode index. Null while that function
+ * does not exist yet (the app can be deployed before its migration), so the
+ * caller uses the view instead.
+ */
+async function readPublicRegistrationsInPostcodeRpc(postalCode: string): Promise<ReadableShelterRow[] | null> {
+  const pub = createAppV2PublicClient();
+  const rows: ReadableShelterRow[] = [];
+  for (let from = 0; ; from += postgrestMaxRows) {
+    const { data, error } = await pub
+      .rpc("public_shelters_in_postcode_v1", { p_postal_code: postalCode })
+      .range(from, from + postgrestMaxRows - 1);
+    if (error) {
+      if (isMissingPublicRpcError(error)) return null;
+      throw new Error(`Could not load public app_v2 shelters in ${postalCode}: ${error.message}`);
+    }
+    const batch = (Array.isArray(data) ? data : []) as ReadableShelterRow[];
+    rows.push(...batch);
+    if (batch.length < postgrestMaxRows) return rows;
+  }
+}
+
 const getPublicRegistrationsInPostcode = cachedPerRevision("registrations-in-postcode", async function getPublicRegistrationsInPostcode(postalCode: string) {
   const pub = createAppV2PublicClient();
   // The largest postcode has under 200 today; pages keep it right past 1000.
-  const rows = await readAllPages<ReadableShelterRow>(
+  const rows = (await readPublicRegistrationsInPostcodeRpc(postalCode)) ?? await readAllPages<ReadableShelterRow>(
+    // Before the migration: the view filters on coalesce(override, base), so this scans every shelter.
     (from, to) => pub
       .from("shelter_public_v2")
       .select("id, slug, address_line1, postal_code, city, capacity")
