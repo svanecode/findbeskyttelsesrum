@@ -162,7 +162,7 @@ Egress på Supabase efter #69, om UptimeRobot er sat op, om en gendannelse er af
 
 ## Opfølgning (2026-11-10)
 
-Gennemført samme dag på branchen `claude/zen-galileo-hg9u3m`, én commit pr. område. Efter rettelserne: `npm run lint` og `npm run typecheck` rene, `npm test` 242/242, importerens `pytest` 49 bestået, `npm audit --omit=dev` uden fund. Playwright er ikke kørt. Nye migrationer: `20261110120000` til `20261110120300`. **De er ikke kørt i produktionen endnu.** Appen virker uden dem, men får først gevinsten på postnummeropslag, M4 og M5, når de er kørt.
+Gennemført samme dag på branchen `claude/zen-galileo-hg9u3m`, én commit pr. område. Efter rettelserne: `npm run lint` og `npm run typecheck` rene, `npm test` 242/242, importerens `pytest` 49 bestået, `npm audit --omit=dev` uden fund. Playwright er ikke kørt. Nye migrationer: `20261110120000` til `20261110120300`. De blev kørt i produktionen 10. november kl. 23 UTC, efter at CI var grøn (se ejeropgave 1).
 
 | Fund | Status |
 | --- | --- |
@@ -183,7 +183,7 @@ Lave fund ladt være: versionsskift af service workeren, de afledte trin efter e
 
 **Ejeropgaver:**
 
-1. Kør migrationerne `20261110120000` til `20261110120300` i produktionen, og tjek bagefter med `explain analyze select * from app_v2.public_shelters_in_postcode_v1('8210')`, at postnummerindekset bruges. De nye pgTAP-tilfælde er kun kørt mod en lokal Postgres 16 med en erstatning for pgTAP, ikke med `supabase test db` på 17. CI kører den rigtige test.
+1. Udført 10. november 2026: migrationerne `20261110120000` til `20261110120300` er kørt i produktionen, efter at CI (også pgTAP på Postgres 17 og browsertestene) var grøn, og står i migrationsloggen med repoets versionsnumre (69 = 69). Efter kørslen: 10 090 offentlige registreringer og 10 090 åbne aliaser, 9 473 ejere af rene stier, 410-listen uændret på 105 stier, 1 089 postnumre med position, alt som før. `public_shelters_in_postcode_v1('8210')` giver de samme 45 rækker som viewet på 10,8 ms mod 46 ms før. Én pris: `retired_shelter_path_hashes_v1` tager nu ca. 560 ms mod 140 ms, fordi den læser de læsbare stier én gang. Appen henter listen højst hvert 10. minut pr. serverinstans og beholder den forrige ved fejl, men første opslag på en kold instans har kun 800 ms (`src/lib/retired-shelter-paths.ts`), så det er værd at holde øje med.
 2. Luk Dependabot-PR #83, og flet #78 og #79.
 3. Bekræft, at UptimeRobot kontrollerer `/api/health` (åben fra 1. november).
 4. Kør én gendannelse på en branch-database (åben fra 1. november).
