@@ -34,7 +34,7 @@
     "@supabase/ssr": "0.12.4",
     "@supabase/supabase-js": "2.112.3",
     "@vercel/analytics": "^1.5.0",
-    "@vercel/speed-insights": "^1.2.0",
+    "@vercel/speed-insights": "^2.1.0",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "next": "^16.4.2",
