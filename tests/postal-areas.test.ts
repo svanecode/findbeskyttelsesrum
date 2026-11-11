@@ -84,7 +84,7 @@ test("a failing production check reaches a person, not only an open issue", asyn
   assert.match(workflow, /raise-alert\.sh production-alert/);
   assert.match(script, /--assignee "\$OWNER"/);
   assert.match(script, /Påmindelse til @\$OWNER/);
-  assert.match(script, /> 86400/);
+  assert.match(script, /> 72000/);
 });
 
 test("a query string is rejected without a database read, so it cannot bypass the CDN", async () => {

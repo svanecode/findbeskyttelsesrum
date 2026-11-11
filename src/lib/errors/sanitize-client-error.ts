@@ -74,6 +74,20 @@ function sanitizeStack(value: unknown) {
   return truncate(lines.join("\n"), maximumStackLength);
 }
 
+const stackUrlPattern = /\b[a-z][a-z0-9+.-]*:\/\/[^\s)"'<>]+/gi;
+const extensionUrlPattern = /^(?:chrome|moz|safari-web|safari)-extension:\/\//i;
+
+/**
+ * True when every URL in the stack comes from a browser-extension scheme, so
+ * no frame belongs to the site. A stack with no URLs, or with at least one
+ * other URL (the site's own bundles), is not extension noise.
+ */
+function stackIsOnlyBrowserExtensionFrames(stack: unknown) {
+  if (typeof stack !== "string") return false;
+  const urls = stack.match(stackUrlPattern);
+  return urls !== null && urls.every((url) => extensionUrlPattern.test(url));
+}
+
 /**
  * Browser noise that says nothing about the site's own code. In production
  * (Vercel logs, 1 Nov 2026) about four in five reports were window errors
@@ -82,8 +96,9 @@ function sanitizeStack(value: unknown) {
  * "undefined"). Errors from the site's own bundles always carry an
  * http(s) filename, so they are still reported and counted.
  */
-function isForeignBrowserNoise(message: string, context: unknown) {
+function isForeignBrowserNoise(message: string, context: unknown, stack?: unknown) {
   if (message === "Script error." || message === "Script error") return true;
+  if (stackIsOnlyBrowserExtensionFrames(stack)) return true;
   if (!context || typeof context !== "object" || Array.isArray(context)) return false;
 
   const { type, filename } = context as Record<string, unknown>;
@@ -110,7 +125,7 @@ export function parseAndSanitizeClientErrorReport(
   if (keys.some((key) => !allowedReportKeys.has(key))) return null;
   if (typeof raw.message !== "string" || raw.message.trim() === "") return null;
 
-  if (isForeignBrowserNoise(raw.message.trim(), raw.context)) return null;
+  if (isForeignBrowserNoise(raw.message.trim(), raw.context, raw.stack)) return null;
 
   const timestamp = validTimestamp(raw.timestamp, now);
   if (!timestamp) return null;

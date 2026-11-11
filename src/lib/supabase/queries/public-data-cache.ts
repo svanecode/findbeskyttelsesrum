@@ -63,7 +63,19 @@ export function createRevisionCache({ cache, readRevisionKey, enabled }: Revisio
     return cache(read, ["app-v2-public", name, revision, key], { revalidate: entrySeconds })();
   }
 
-  return { cachedPerRevision, readForRevision };
+  /**
+   * Like readForRevision, for callers that have not read the revision
+   * themselves: the revision key is the one cachedPerRevision uses (re-read
+   * at most once an hour). Entries are shared with readForRevision under the
+   * same name and key, so a route that fills them for visitors also serves
+   * the pages. Call it at the top level, never inside a wrapped read.
+   */
+  async function readPerRevision<Result>(name: string, key: string, read: () => Promise<Result>) {
+    if (!enabled()) return read();
+    return readForRevision(name, await readRevisionKey(), key, read);
+  }
+
+  return { cachedPerRevision, readForRevision, readPerRevision };
 }
 
 const getCachedRevisionKey = unstable_cache(
@@ -78,7 +90,7 @@ function hasNextDataCache() {
   return Boolean(process.env.NEXT_RUNTIME);
 }
 
-export const { cachedPerRevision, readForRevision } = createRevisionCache({
+export const { cachedPerRevision, readForRevision, readPerRevision } = createRevisionCache({
   cache: unstable_cache,
   readRevisionKey: getCachedRevisionKey,
   enabled: hasNextDataCache,

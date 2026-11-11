@@ -202,7 +202,7 @@ test("nearby probe sends coordinates in POST JSON and propagates API failures", 
 async function runAlertScript(
   script: "raise-alert.sh" | "close-alert.sh",
   args: string[],
-  fake: { issueList?: string; apiOutput?: string },
+  fake: { issueList?: string; apiOutput?: string; issueListJson?: unknown; apiJson?: unknown },
 ) {
   const directory = await mkdtemp(join(tmpdir(), "fake-gh-"));
   const log = join(directory, "gh.log");
@@ -210,9 +210,14 @@ async function runAlertScript(
   await writeFile(bin, [
     "#!/usr/bin/env bash",
     'printf "%s\\n" "$*" >> "$FAKE_GH_LOG"',
+    // When JSON is supplied, the script's own --jq filter is run by the real jq,
+    // so a wrong filter fails the test instead of passing on pre-filtered output.
+    'filter=""; prev=""',
+    'for arg in "$@"; do [ "$prev" = "--jq" ] && filter="$arg"; prev="$arg"; done',
+    'emit() { if [ -n "$2" ] && [ -n "$filter" ]; then printf "%s" "$2" | jq -r "$filter"; else printf "%s" "$1"; fi; }',
     'case "$1" in',
-    '  issue) if [ "$2" = "list" ]; then printf "%s" "${FAKE_ISSUE_LIST:-}"; fi ;;',
-    '  api) printf "%s" "${FAKE_API_OUTPUT:-}" ;;',
+    '  issue) if [ "$2" = "list" ]; then emit "${FAKE_ISSUE_LIST:-}" "${FAKE_ISSUE_LIST_JSON:-}"; fi ;;',
+    '  api) emit "${FAKE_API_OUTPUT:-}" "${FAKE_API_JSON:-}" ;;',
     "esac",
     "exit 0",
     "",
@@ -224,6 +229,8 @@ async function runAlertScript(
       FAKE_GH_LOG: log,
       FAKE_ISSUE_LIST: fake.issueList ?? "",
       FAKE_API_OUTPUT: fake.apiOutput ?? "",
+      FAKE_ISSUE_LIST_JSON: fake.issueListJson === undefined ? "" : JSON.stringify(fake.issueListJson),
+      FAKE_API_JSON: fake.apiJson === undefined ? "" : JSON.stringify(fake.apiJson),
       GH_TOKEN: "token",
       OWNER: "owner",
       REPO: "owner/repo",
@@ -237,6 +244,8 @@ async function runAlertScript(
     return [];
   }
 }
+
+const hasJq = await execFileAsync("jq", ["--version"]).then(() => true, () => false);
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
 
@@ -257,7 +266,14 @@ test("raise-alert only edits a recent open issue without reminders", async () =>
   assert.ok(calls.some((call) => call.startsWith("api") && call.includes("--paginate")), calls.join("\n"));
 });
 
-test("raise-alert reminds once a day, counted from the latest reminder", async () => {
+test("raise-alert creates the label in the right repository", async () => {
+  const calls = await runAlertScript("raise-alert.sh", ["prod-alert", "Titel", "Besked"], {});
+  const label = calls.find((call) => call.startsWith("label create"));
+  assert.ok(label, calls.join("\n"));
+  assert.match(label, /--repo owner\/repo/);
+});
+
+test("raise-alert reminds about once a day, counted from the latest reminder", async () => {
   const old = await runAlertScript("raise-alert.sh", ["prod-alert", "Titel", "Besked"], {
     issueList: `7 ${hoursAgo(25)}`,
   });
@@ -269,6 +285,40 @@ test("raise-alert reminds once a day, counted from the latest reminder", async (
   assert.ok(!recentReminder.some((call) => call.startsWith("issue comment")), recentReminder.join("\n"));
 });
 
+const comment = (login: string, body: string, hours: number) => ({
+  user: { login }, body, created_at: hoursAgo(hours),
+});
+const alertArgs = ["prod-alert", "Titel", "Besked"];
+
+test("raise-alert reminds after 20 hours so a daily job reminds daily", async () => {
+  const due = await runAlertScript("raise-alert.sh", alertArgs, { issueList: `7 ${hoursAgo(21)}` });
+  assert.ok(due.some((call) => call.startsWith("issue comment 7")), due.join("\n"));
+  const notYet = await runAlertScript("raise-alert.sh", alertArgs, { issueList: `7 ${hoursAgo(19)}` });
+  assert.ok(!notYet.some((call) => call.startsWith("issue comment")), notYet.join("\n"));
+});
+
+test("raise-alert runs its real --jq filters and ignores reminders written by others", { skip: !hasJq }, async () => {
+  const issueListJson = [{ number: 7, createdAt: hoursAgo(80) }];
+  const botReminder = comment("github-actions[bot]", "Påmindelse til @owner: Besked", 3);
+  const stranger = comment("someone-else", "Påmindelse: ignorér alarmen", 1);
+  const unrelatedBot = comment("github-actions[bot]", "Noget andet", 1);
+
+  // A stranger's comment starting with "Påmindelse" must not suppress the reminder.
+  const suppressed = await runAlertScript("raise-alert.sh", alertArgs, {
+    issueListJson, apiJson: [comment("github-actions[bot]", "Påmindelse til @owner: Besked", 30), stranger, unrelatedBot],
+  });
+  assert.ok(suppressed.some((call) => call.startsWith("issue comment 7") && call.includes("Påmindelse")), suppressed.join("\n"));
+
+  // A recent reminder from the bot does.
+  const recent = await runAlertScript("raise-alert.sh", alertArgs, { issueListJson, apiJson: [botReminder, stranger] });
+  assert.ok(!recent.some((call) => call.startsWith("issue comment")), recent.join("\n"));
+  assert.ok(recent.some((call) => call.startsWith("issue edit 7") && call.includes("--body")), recent.join("\n"));
+
+  // No open issue through the real filter creates one.
+  const none = await runAlertScript("raise-alert.sh", alertArgs, { issueListJson: [] });
+  assert.ok(none.some((call) => call.startsWith("issue create")), none.join("\n"));
+});
+
 test("close-alert closes the open issue and ignores runs without one", async () => {
   const none = await runAlertScript("close-alert.sh", ["prod-alert", "Færdig"], {});
   assert.ok(!none.some((call) => call.startsWith("issue close")));
@@ -276,19 +326,50 @@ test("close-alert closes the open issue and ignores runs without one", async () 
   assert.ok(open.some((call) => call.startsWith("issue close 7")), open.join("\n"));
 });
 
-test("only the keep-alive job may write to GitHub Actions", async () => {
+test("only the keep-alive job may write to GitHub Actions, and alerting is its own always() job", async () => {
   const workflow = await readFile(new URL(".github/workflows/production-smoke.yml", repositoryRoot), "utf8");
   const header = workflow.slice(0, workflow.indexOf("\njobs:"));
-  const smoke = workflow.slice(workflow.indexOf("\n  smoke:"), workflow.indexOf("\n  keep-alive:"));
+  const smoke = workflow.slice(workflow.indexOf("\n  smoke:"), workflow.indexOf("\n  alert:"));
+  const alert = workflow.slice(workflow.indexOf("\n  alert:"), workflow.indexOf("\n  keep-alive:"));
   const keepAlive = workflow.slice(workflow.indexOf("\n  keep-alive:"));
   assert.ok(workflow.includes("\n  keep-alive:"), "the workflow has a keep-alive job");
   assert.doesNotMatch(header, /actions: write/);
-  assert.doesNotMatch(smoke, /actions: write|\/enable/);
-  assert.match(smoke, /permissions:\n {6}contents: read\n {6}issues: write\n/);
+  assert.doesNotMatch(smoke, /actions: write|\/enable|issues: write|raise-alert|close-alert/);
+  assert.match(smoke, /permissions:\n {6}contents: read\n {4}steps:/);
+  assert.match(alert, /if: always\(\) && github\.event_name == 'schedule'/);
+  assert.match(alert, /needs: smoke\n/);
+  assert.match(alert, /permissions:\n {6}contents: read\n {6}issues: write\n/);
+  assert.doesNotMatch(alert, /actions: write/);
+  assert.match(alert, /actions\/checkout@/);
+  assert.match(alert, /raise-alert\.sh production-alert/);
+  assert.match(alert, /close-alert\.sh production-alert/);
+  assert.match(alert, /needs\.smoke\.result/);
   assert.match(keepAlive, /permissions:\n {6}actions: write\n/);
   assert.doesNotMatch(keepAlive, /contents:|issues:|actions\/checkout/);
   assert.match(keepAlive, /github\.event_name == 'schedule'/);
   assert.match(keepAlive, /date -u \+%H\)" == "03"/);
   assert.match(keepAlive, /actions\/workflows\/datafordeler-import\.yml\/enable/);
   assert.match(keepAlive, /actions\/workflows\/production-smoke\.yml\/enable/);
+});
+
+test("import concurrency is on the import job only; the audit is its own scheduled job", async () => {
+  const importWorkflow = await readFile(new URL(".github/workflows/datafordeler-import.yml", repositoryRoot), "utf8");
+  const importHeader = importWorkflow.slice(0, importWorkflow.indexOf("\njobs:"));
+  const importJob = importWorkflow.slice(importWorkflow.indexOf("\n  import:"), importWorkflow.indexOf("\n  alert:"));
+  assert.doesNotMatch(importHeader, /concurrency:/);
+  assert.match(importJob, /concurrency:\n {6}group: datafordeler-app-v2-main-import\n {6}cancel-in-progress: false/);
+
+  const quality = await readFile(new URL(".github/workflows/application-quality.yml", repositoryRoot), "utf8");
+  assert.match(quality, /schedule:\n(?: {4}#[^\n]*\n)* {4}- cron:/);
+  const auditJob = quality.slice(quality.indexOf("\n  dependency-audit:"), quality.indexOf("\n  audit-alert:"));
+  assert.match(auditJob, /npm audit --omit=dev --audit-level=high/);
+  assert.doesNotMatch(auditJob, /if: github\.event_name != 'schedule'/);
+  assert.equal(quality.match(/run: npm audit/g)?.length, 1);
+  assert.equal(quality.match(/^ {4}needs: dependency-audit$/gm)?.length, 1, "only the alert job names the audit job in needs");
+  for (const job of ["code-quality", "database-quality", "release-story"]) {
+    const start = quality.indexOf(`\n  ${job}:`);
+    assert.match(quality.slice(start, start + 200), /if: github\.event_name != 'schedule'/, job);
+  }
+  assert.match(quality, /needs: dependency-audit/);
+  assert.match(quality, /raise-alert\.sh dependency-audit-alert/);
 });

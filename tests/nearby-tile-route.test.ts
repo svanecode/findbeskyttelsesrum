@@ -69,11 +69,11 @@ test("tile keys outside the grid are rejected", async () => {
   assert.equal(response.status, 400);
 });
 
-test("a tile pinned to the current revision is served with a long CDN lifetime", async () => {
+test("a tile pinned to the current revision is kept by the CDN for an hour at most", async () => {
   const route = await loadRoute(["publication-b:2", "publication-b:2"]);
   const response = await get(route, "https://findbeskyttelsesrum.dk/api/app-v2/nearby/tiles/222_31/2", "222_31", ["2"]);
   assert.equal(response.status, 200);
-  assert.match(response.headers.get("Cache-Control") ?? "", /s-maxage=86400/);
+  assert.match(response.headers.get("Cache-Control") ?? "", /s-maxage=3600(?!\d)/);
   assert.equal((await response.json()).revision, "publication-b:2");
 });
 

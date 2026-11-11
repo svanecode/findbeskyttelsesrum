@@ -44,6 +44,31 @@ def _write_summary(path: str | None, payload: dict[str, object]) -> None:
     Path(path).write_text(output + "\n", encoding="utf-8")
 
 
+def _refresh_derived_after_recovery(store: AppV2Store) -> dict[str, str]:
+    """Rebuild the path history and the postcode positions after a recovery.
+
+    The normal import does this after publishing; a recovery publishes too, so
+    the derived data must follow it. Neither step may fail a published
+    recovery. The DAR postcode lookup needs Datafordeler credentials, which a
+    recovery does not have, so it is left to the next import.
+    """
+    logger = logging.getLogger("shelter_importer")
+    derived: dict[str, str] = {}
+    try:
+        logger.info("Readable path history refreshed: %s", store.refresh_shelter_path_aliases())
+        derived["path_aliases"] = "ok"
+    except Exception as exc:
+        derived["path_aliases"] = "failed"
+        logger.warning("Readable path history was not refreshed: %s", safe_error_summary(str(exc)))
+    try:
+        store.refresh_postal_areas_from_registrations()
+        derived["postal_areas"] = "ok"
+    except Exception as exc:
+        derived["postal_areas"] = "failed"
+        logger.warning("Postcodes were not refreshed: %s", safe_error_summary(str(exc)))
+    return derived
+
+
 def _interrupt_on_sigterm(signum: int, frame: FrameType | None) -> None:
     """Treat SIGTERM like Ctrl-C so the run is marked failed, not left running."""
     del signum, frame
@@ -82,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
                 "status": "succeeded",
                 "publication_status": "published",
                 "recovery_status": "published",
+                "derived": _refresh_derived_after_recovery(store),
             }
             output = json.dumps(payload, indent=2, ensure_ascii=False)
             print(output)

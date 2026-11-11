@@ -75,3 +75,37 @@ test("matching revisions are ranked without a refresh", async () => {
   assert.equal(result?.savedAt, null);
   assert.deepEqual(result?.groups, rankNearbyGroupsFromTiles(tiles, origin, options));
 });
+
+test("a successful refresh no longer reports the replaced saved tiles as the data date", async () => {
+  const tiles = savedTiles();
+  const fetchImpl = async (input: string) => {
+    const match = /\/tiles\/([^/]+)(?:\/(\d+))?$/.exec(input)!;
+    const tile = tiles.find((candidate) => candidate.tile === match[1])!;
+    const headers = new Headers({ "Content-Type": "application/json" });
+    // Only the plain URLs come from the saved copy; the revision-pinned refresh is live.
+    if (!match[2] && tile.tile !== keys[4]) headers.set("X-Offline-Cached-At", "2026-10-01T08:00:00.000Z");
+    return new Response(JSON.stringify({ ...tile, revision: match[2] ? "p:8" : tile.revision }), { status: 200, headers });
+  };
+
+  const result = await fetchNearbyFromTiles(origin.latitude, origin.longitude, { ...options, fetch: fetchImpl });
+
+  assert.notEqual(result, null);
+  assert.equal(result!.savedAt, null, "fresh data must not be labelled as saved data");
+});
+
+test("tiles that cannot guarantee completeness are returned as incomplete only when allowed", async () => {
+  const wide = { limit: 10, radiusMeters: 50_000 };
+  const { fetchImpl } = offlineFetch(savedTiles().map((tile) => ({ ...tile, revision: "p:7" })), () => "2026-10-01T08:00:00.000Z");
+
+  assert.equal(await fetchNearbyFromTiles(origin.latitude, origin.longitude, { ...wide, fetch: fetchImpl }), null);
+  const result = await fetchNearbyFromTiles(origin.latitude, origin.longitude, { ...wide, fetch: fetchImpl, allowIncomplete: true });
+  assert.notEqual(result, null);
+  assert.equal(result!.incomplete, true);
+  assert.ok(result!.groups.length > 0);
+});
+
+test("a guaranteed result is not marked incomplete", async () => {
+  const { fetchImpl } = offlineFetch(savedTiles().map((tile) => ({ ...tile, revision: "p:7" })), () => null);
+  const result = await fetchNearbyFromTiles(origin.latitude, origin.longitude, { ...options, fetch: fetchImpl, allowIncomplete: true });
+  assert.equal(result!.incomplete, false);
+});

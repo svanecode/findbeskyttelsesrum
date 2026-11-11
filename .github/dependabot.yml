@@ -7,7 +7,23 @@ updates:
       day: monday
     open-pull-requests-limit: 5
     groups:
-      minor-and-patch:
+      # Groups are matched in order and a package joins the first one it
+      # matches, so test tooling must come first: a flaky Playwright or axe
+      # release then only blocks its own PR, not a `next` patch.
+      test-tooling:
+        patterns:
+          - "@playwright/test"
+          - "@axe-core/playwright"
+        update-types:
+          - minor
+          - patch
+      production-minor-and-patch:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      development-minor-and-patch:
+        dependency-type: development
         update-types:
           - minor
           - patch

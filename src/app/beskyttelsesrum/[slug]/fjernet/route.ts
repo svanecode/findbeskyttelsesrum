@@ -48,7 +48,13 @@ export async function GET(request: Request, context: Context) {
     status: 410,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400",
+      // Short and without stale-while-revalidate: an address the owner has had
+      // excluded, or a path that is live again, must not be served from the CDN
+      // for hours. A failed lookup is kept for even less, so one database error
+      // is not repeated for everyone.
+      "Cache-Control": lookupFailed
+        ? "public, max-age=0, s-maxage=30"
+        : "public, max-age=0, s-maxage=300",
       "X-Robots-Tag": "noindex",
     },
   });

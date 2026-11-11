@@ -13,9 +13,12 @@ export const runtime = "nodejs";
 // moderation and imports reach every visitor within minutes.
 const sharedCacheControl = "public, max-age=60, s-maxage=300, stale-while-revalidate=60";
 // /tiles/<tile>/<revision> is only answered while that revision is current, so
-// its content never changes and the CDN can keep it. Clients use it to refresh
-// the tiles that are still cached from before a publication.
-const pinnedCacheControl = "public, max-age=3600, s-maxage=86400";
+// its content does not change, but a moderation change bumps the revision and
+// the CDN would keep serving the old URL's copy, so it is kept for one hour at
+// most (it was a day). Clients use it to refresh the tiles that are still cached
+// from before a publication. The database cost is the same: the rows are read
+// once per revision (readForRevision); only the route runs again each hour.
+const pinnedCacheControl = "public, max-age=3600, s-maxage=3600";
 
 function noStore(body: Record<string, unknown>, status: number) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });

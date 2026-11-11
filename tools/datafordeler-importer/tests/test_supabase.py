@@ -318,3 +318,17 @@ def test_resume_prefers_persisted_source_snapshot_to_parent_creation_time() -> N
     result = store_with_session(session).latest_failed_run()
     assert result is not None and result["snapshot_at"] == "2026-09-05T10:00:00Z"
     assert len(session.calls) == 2
+
+
+def test_complete_postcodes_need_a_position_so_a_cleared_one_is_looked_up_again() -> None:
+    # refresh_postal_areas_from_registrations_v1 clears latitude, longitude and
+    # position_source of a postcode that lost its registrations. The importer
+    # must then count it as incomplete and ask DAR for it again.
+    session = QueueSession([Response(200, [{"postnr": "8000"}, {"postnr": "8210"}])])
+
+    codes = store_with_session(session).complete_postal_codes()
+
+    assert codes == {"8000", "8210"}
+    params = session.calls[0]["params"]
+    assert params["latitude"] == "not.is.null"
+    assert params["municipality_codes"] == "neq.{}"

@@ -21,7 +21,6 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      issues: write
     steps:
       - name: Hent kode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -48,27 +47,40 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: node scripts/monitor/product-metrics-health.mjs
 
+  # Its own job, not a step of `smoke`: a step condition of `failure()` is not
+  # true when the smoke job hits `timeout-minutes` or is cancelled, so a slow
+  # site could stay silent. `always()` plus the job result covers both.
+  alert:
+    name: Driftsalarm
+    if: always() && github.event_name == 'schedule'
+    needs: smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OWNER: ${{ github.repository_owner }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Hent kode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Opret gratis driftsalarm ved fejl
-        if: failure() && github.event_name == 'schedule'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: bash scripts/monitor/raise-alert.sh production-alert "Produktionskontrollen kræver opmærksomhed" "Den automatiske kontrol af website, data eller anonyme driftstal fejlede."
-
+        if: contains(fromJSON('["failure","cancelled"]'), needs.smoke.result)
+        run: bash scripts/monitor/raise-alert.sh production-alert "Produktionskontrollen kræver opmærksomhed" "Den automatiske kontrol af website, data eller anonyme driftstal fejlede eller nåede ikke at blive færdig."
       - name: Luk driftsalarm efter næste succes
-        if: success() && github.event_name == 'schedule'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        if: needs.smoke.result == 'success'
         run: bash scripts/monitor/close-alert.sh production-alert "Den næste produktionskontrol bestod."
 
   # GitHub disables scheduled workflows in a public repository after 60 days
-  # without repository activity. Calling the "enable" API once a day resets
-  # that inactivity limit for both scheduled workflows. Its own job, so only
-  # this one call can write to GitHub Actions.
+  # without repository activity. Calling the "enable" API resets that
+  # inactivity limit for both scheduled workflows. The call is made only when a
+  # scheduled run happens to start in the 03 UTC hour; GitHub delays and skips
+  # scheduled runs, so this is roughly weekly, not daily. That is enough for a
+  # 60-day limit, but is best effort. Its own job, so only this one call can
+  # write to GitHub Actions.
   keep-alive:
     name: Hold planlagte workflows aktive
     if: github.event_name == 'schedule'

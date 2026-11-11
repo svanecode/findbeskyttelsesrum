@@ -105,6 +105,11 @@ export function surroundingTileKeys(latitude: number, longitude: number) {
   return keys;
 }
 
+/** The tile URLs of the 3x3 block around a position, as the offline copy saves them. */
+export function nearbyTileUrls(latitude: number, longitude: number) {
+  return surroundingTileKeys(latitude, longitude).map((key) => `/api/app-v2/nearby/tiles/${key}`);
+}
+
 /**
  * Distance in metres from the position to the nearest edge of its 3x3 tile
  * block: every registration outside the block is at least this far away.
@@ -159,6 +164,28 @@ export function rankNearbyGroupsFromTiles(
   origin: { latitude: number; longitude: number },
   options: { limit: number; radiusMeters: number },
 ): RankedNearbyGroup[] | null {
+  const ranked = rankTiles(tiles, origin, options);
+  return ranked.complete ? ranked.groups : null;
+}
+
+/**
+ * The same ranking, but also returns what the loaded tiles give when
+ * completeness cannot be guaranteed (`complete: false`): the nearest
+ * registrations among the tiles, possibly missing nearer ones outside them.
+ */
+export function rankNearbyGroupsFromTilesAllowingGaps(
+  tiles: NearbyTilePayload[],
+  origin: { latitude: number; longitude: number },
+  options: { limit: number; radiusMeters: number },
+): { groups: RankedNearbyGroup[]; complete: boolean } {
+  return rankTiles(tiles, origin, options);
+}
+
+function rankTiles(
+  tiles: NearbyTilePayload[],
+  origin: { latitude: number; longitude: number },
+  options: { limit: number; radiusMeters: number },
+): { groups: RankedNearbyGroup[]; complete: boolean } {
   const labels = new Map<string, string>();
   const seen = new Set<string>();
   const rows: RankableRow[] = [];
@@ -197,9 +224,9 @@ export function rankNearbyGroupsFromTiles(
   const limitReachedInsideBlock = ranked.length === options.limit
     && lastGroup !== undefined
     && lastGroup.representative.distanceMeters <= coverage - groupCompletenessMarginMeters;
-  if (!searchIsWithinBlock && !limitReachedInsideBlock) return null;
+  const complete = searchIsWithinBlock || limitReachedInsideBlock;
 
-  return ranked.map(({ groupKey, members, representative }) => {
+  const rankedGroups = ranked.map(({ groupKey, members, representative }) => {
     const applicationCodeLabels = Array.from(new Set(
       members
         .map((row) => (row.applicationCode ? labels.get(row.applicationCode) ?? null : null))
@@ -226,6 +253,7 @@ export function rankNearbyGroupsFromTiles(
       shelterSlugs: members.map((row) => row.slug),
     };
   });
+  return { groups: rankedGroups, complete };
 }
 
 /**

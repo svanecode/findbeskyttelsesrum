@@ -103,3 +103,57 @@ test("window errors without a script URL from the site are filtered as browser n
     context: { component: "useErrorHandler" },
   }, now));
 });
+
+test("reports whose stack only has browser-extension frames are filtered, whatever the type", () => {
+  const base = { url: "https://findbeskyttelsesrum.dk/", timestamp: new Date(now).toISOString() };
+  const message = "Cannot read properties of undefined (reading 'M_ID')";
+
+  assert.equal(parseAndSanitizeClientErrorReport({
+    ...base,
+    message,
+    stack: [
+      "TypeError: Cannot read properties of undefined (reading 'M_ID')",
+      "    at e (chrome-extension://abcdefghijklmnopabcdefghijklmnop/executors/200.js:1:2345)",
+      "    at chrome-extension://abcdefghijklmnopabcdefghijklmnop/executors/200.js:1:6789",
+    ].join("\n"),
+    context: { type: "unhandledrejection" },
+  }, now), null);
+
+  for (const scheme of ["moz-extension", "safari-web-extension", "safari-extension"]) {
+    assert.equal(parseAndSanitizeClientErrorReport({
+      ...base,
+      message,
+      stack: `TypeError: x\n    at f (${scheme}://0000-1111/content.js:3:4)`,
+    }, now), null, scheme);
+  }
+
+  // Firefox/Safari style frames (function@url)
+  assert.equal(parseAndSanitizeClientErrorReport({
+    ...base,
+    message,
+    stack: "f@moz-extension://0000-1111/content.js:3:4\ng@moz-extension://0000-1111/content.js:5:6",
+    context: { type: "window-error", filename: "https://findbeskyttelsesrum.dk/_next/app.js" },
+  }, now), null);
+});
+
+test("a stack with at least one frame from the site itself is still reported", () => {
+  const base = { url: "https://findbeskyttelsesrum.dk/", timestamp: new Date(now).toISOString() };
+
+  assert.ok(parseAndSanitizeClientErrorReport({
+    ...base,
+    message: "Cannot read properties of undefined",
+    stack: [
+      "TypeError: Cannot read properties of undefined",
+      "    at e (chrome-extension://abcdefghijklmnopabcdefghijklmnop/executors/200.js:1:2345)",
+      "    at t (https://findbeskyttelsesrum.dk/_next/static/chunks/app.js:1:99)",
+    ].join("\n"),
+    context: { type: "unhandledrejection" },
+  }, now));
+  assert.ok(parseAndSanitizeClientErrorReport({
+    ...base,
+    message: "Boom",
+    stack: "Error: Boom\n    at <anonymous>",
+    context: { type: "unhandledrejection" },
+  }, now));
+  assert.ok(parseAndSanitizeClientErrorReport({ ...base, message: "Boom" }, now));
+});

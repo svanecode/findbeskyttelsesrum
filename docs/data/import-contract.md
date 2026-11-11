@@ -34,3 +34,5 @@ Each `ShelterRecord` must contain:
 ## Run result
 
 The secret-free JSON summary includes run status, publication status, publication ID, BBR fetched and eligible counts, DAR linked and missing counts, mapping failures, warnings, mapping ratio, quality-gate result, rejection reasons, and quality metrics. Credentials, authorization headers, and query strings are redacted from failures.
+
+The `derived` object holds the status (`ok` or `failed`) of each step that runs after publication, under `path_aliases` and `postal_areas`. It stays empty when nothing was published. A failed derived step does not fail the import.

@@ -197,6 +197,7 @@ export default async function ShelterDetailPage({ params }: Props) {
   const directionsHref = hasCoords ? getGoogleMapsDirectionsHref(shelter) : null;
   const relatedShelters = await getAppV2PublicRelatedShelters({
     shelterId: shelter.id,
+    slug: shelter.slug,
     municipalityId: shelter.municipality.id,
     postalCode: shelter.postalCode,
     latitude: shelter.latitude,

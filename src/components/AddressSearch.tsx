@@ -115,10 +115,17 @@ export default function AddressSearch() {
   const resolveControllerRef = useRef<AbortController | null>(null)
   const resolvePromiseRef = useRef<Promise<SelectedAddress | null> | null>(null)
   const submittingRef = useRef(false)
+  // Bumped by every new search action; a GPS fix that arrives after that is stale.
+  const locationAttemptRef = useRef(0)
   const fieldMessageId = useId()
   const hasQuery = query.trim().length > 0
   const offlineCopy = useOfflineCopy()
   const savedSearch = offlineCopy && offlineCopy !== 'pending' ? offlineCopy.search ?? null : null
+
+  const cancelLocationAttempt = useCallback(() => {
+    locationAttemptRef.current += 1
+    setGpsLoading(false)
+  }, [])
 
   const navigateToNearby = useCallback(
     (search: SelectedAddress, successMetric: ProductMetricEventName) => {
@@ -181,6 +188,7 @@ export default function AddressSearch() {
    */
   const selectSuggestion = useCallback(
     async (suggestion: AddressSuggestion) => {
+      cancelLocationAttempt()
       setIsOpen(false)
       setActiveIndex(null)
       setFieldMessage(null)
@@ -207,7 +215,7 @@ export default function AddressSearch() {
       setQuery(suggestion.kind === 'area' ? suggestion.label : resolved.label)
       navigateToNearby(resolved, 'address_selected')
     },
-    [navigateToNearby, resolveSuggestion],
+    [cancelLocationAttempt, navigateToNearby, resolveSuggestion],
   )
 
   const showNoResults = useCallback(async (searched: string) => {
@@ -225,6 +233,7 @@ export default function AddressSearch() {
    */
   const runSearch = useCallback(async () => {
     if (submittingRef.current) return
+    cancelLocationAttempt()
     const trimmed = query.trim()
     setSearchError(null)
 
@@ -302,7 +311,7 @@ export default function AddressSearch() {
     } finally {
       submittingRef.current = false
     }
-  }, [handleError, navigateToNearby, query, resolveSuggestion, resolvingLabel, selectedAddress, showNoResults, suggestions, suggestionsQuery])
+  }, [cancelLocationAttempt, handleError, navigateToNearby, query, resolveSuggestion, resolvingLabel, selectedAddress, showNoResults, suggestions, suggestionsQuery])
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
@@ -312,31 +321,32 @@ export default function AddressSearch() {
   const handleLocationClick = async () => {
     trackProductMetric('geolocation_requested')
     if (!navigator.geolocation) {
+      // Browser and device outcomes are counted below, not reported as client errors.
       setGpsError('Denne browser understøtter ikke placering. Søg efter en adresse i stedet.')
       trackProductMetric('geolocation_error')
-      handleError(new Error('Geolocation not supported'), 'Geolocation API not available')
       return
     }
 
+    const attempt = ++locationAttemptRef.current
     setGpsError(null)
     setSearchError(null)
     setGpsLoading(true)
     try {
       const position = await getCurrentPosition()
+      if (attempt !== locationAttemptRef.current) return
       navigateToNearby({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         label: 'Din placering',
       }, 'geolocation_succeeded')
     } catch (error) {
+      if (attempt !== locationAttemptRef.current) return
       setGpsError(getGeolocationErrorMessage(error))
-      const errorCode = getGeolocationErrorCode(error)
-      trackProductMetric(errorCode === 1 ? 'geolocation_denied' : 'geolocation_error')
-      if (errorCode !== 1) {
-        handleError(error instanceof Error ? error : new Error('Failed to get location'), 'Geolocation failed')
-      }
+      // Denied, timed out or unavailable: counted as a metric only. They are
+      // outcomes of the visitor's device, not errors in the site.
+      trackProductMetric(getGeolocationErrorCode(error) === 1 ? 'geolocation_denied' : 'geolocation_error')
     } finally {
-      setGpsLoading(false)
+      if (attempt === locationAttemptRef.current) setGpsLoading(false)
     }
   }
 
@@ -393,8 +403,9 @@ export default function AddressSearch() {
     const timeoutId = window.setTimeout(() => {
       const previous = loadNearbySearchContext()
       if (!previous?.label || previous.label === 'Din placering' || inputRef.current?.value) return
+      // suggestionsQuery stays empty: no suggestions are loaded for this text, so a
+      // trailing space (selectedAddress is reset) must search instead of reusing an empty list.
       setQuery(previous.label)
-      setSuggestionsQuery(previous.label)
       setSelectedAddress({ label: previous.label, latitude: previous.latitude, longitude: previous.longitude })
     }, 0)
     return () => window.clearTimeout(timeoutId)
@@ -527,6 +538,7 @@ export default function AddressSearch() {
                 value={query}
                 onChange={(event) => {
                   const nextQuery = event.target.value
+                  cancelLocationAttempt()
                   setQuery(nextQuery)
                   resolveControllerRef.current?.abort()
                   resolvePromiseRef.current = null
