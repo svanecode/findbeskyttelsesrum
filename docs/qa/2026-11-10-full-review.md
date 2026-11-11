@@ -184,8 +184,8 @@ Lave fund ladt være: versionsskift af service workeren, de afledte trin efter e
 **Ejeropgaver:**
 
 1. Udført 10. november 2026: migrationerne `20261110120000` til `20261110120300` er kørt i produktionen, efter at CI (også pgTAP på Postgres 17 og browsertestene) var grøn, og står i migrationsloggen med repoets versionsnumre (69 = 69). Efter kørslen: 10 090 offentlige registreringer og 10 090 åbne aliaser, 9 473 ejere af rene stier, 410-listen uændret på 105 stier, 1 089 postnumre med position, alt som før. `public_shelters_in_postcode_v1('8210')` giver de samme 45 rækker som viewet på 10,8 ms mod 46 ms før. Én pris: `retired_shelter_path_hashes_v1` tager nu ca. 560 ms mod 140 ms, fordi den læser de læsbare stier én gang. Appen henter listen højst hvert 10. minut pr. serverinstans og beholder den forrige ved fejl, men første opslag på en kold instans har kun 800 ms (`src/lib/retired-shelter-paths.ts`), så det er værd at holde øje med.
-2. Luk Dependabot-PR #83, og flet #78 og #79.
-3. Bekræft, at UptimeRobot kontrollerer `/api/health` (åben fra 1. november).
-4. Kør én gendannelse på en branch-database (åben fra 1. november).
-5. Slå beskyttelse mod lækkede adgangskoder til i Supabase Auth, eller notér den som accepteret.
-6. Tjek egress i Supabase-dashboardet for november.
+2. Udført 11. november 2026: #84 er flettet og deployet (`be0ad09`). Dependabot lukkede selv #83 efter de nye grupper, og #78 (actions) og #79 (importer) er flettet efter grøn CI. De nye grupper virker: Playwright ligger alene i #85, som er rød med samme Firefox-nedbrud og ikke længere blokerer andet. Én følgefejl er rettet: grænsen på 5 åbne PR'er var brugt af #85 og de fire udskudte major-PR'er, så produktionsgruppen kunne ikke åbne. Grænsen er nu 10.
+3. Stadig åben: bekræft, at UptimeRobot kontrollerer `/api/health`. Det kan kun ses i UptimeRobots eget dashboard.
+4. Kan ikke udføres på Free-planen: en gendannelse på en branch-database kræver Supabase-branching, som er en betalt funktion. pgTAP-testen `dataset_rollback.sql` kører i CI på en frisk Postgres 17, men den måler ikke tiden på et fuldt datasæt. Den risiko står åben, til projektet enten får en betalt plan eller en gendannelse bliver nødvendig.
+5. Afklaret 11. november 2026: beskyttelse mod lækkede adgangskoder findes kun på Pro-planen og opefter, så den kan ikke slås til. Den er noteret som accepteret i `docs/qa/free-observability.md`, fordi alle admin-sider kræver MFA.
+6. Stadig åben: tjek egress i Supabase-dashboardet for november. Tallet kan ikke læses fra repoet eller databasen.

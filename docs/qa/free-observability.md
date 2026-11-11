@@ -85,4 +85,4 @@ in through GitHub plus MFA. Performance notices for unused new indexes must be r
 traffic; they are not evidence that an index is currently safe to delete. The two unindexed legacy `public.sheltersv2`
 foreign keys are outside the active `app_v2` application and importer boundary.
 
-**Open owner decision, not accepted:** "Leaked password protection disabled" (Supabase Auth). The owner must either enable it or record it here as accepted. Until then it stays open.
+**Accepted while the project is on the Free plan (2026-11-11):** "Leaked password protection disabled" (Supabase Auth). Supabase offers the check against HaveIBeenPwned on the Pro plan and above only, so it cannot be switched on here. The only accounts are the moderators, and every admin page and action requires MFA (aal2), so a leaked password alone does not give access. Switch it on if the project moves to a paid plan.

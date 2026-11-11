@@ -5,7 +5,10 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    # Room for the three grouped PRs next to the deferred majors. With a limit
+    # of 5, four open major PRs and the test-tooling PR used every slot, and the
+    # production group (where a `next` patch arrives) could not open.
+    open-pull-requests-limit: 10
     groups:
       # Groups are matched in order and a package joins the first one it
       # matches, so test tooling must come first: a flaky Playwright or axe
